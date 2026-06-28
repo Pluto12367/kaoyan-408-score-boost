@@ -1,0 +1,13 @@
+{
+  "name": "kaoyan-408-score-boost",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "start": "node server.js",
+    "verify:ui": "node scripts/verify-ui.mjs",
+    "check:local": "node --test && node scripts/verify-ui.mjs",
+    "predeploy": "node --test"
+  }
+}

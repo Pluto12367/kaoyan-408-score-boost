@@ -1,0 +1,42 @@
+# 计算机考研 408 提分系统
+
+面向计算机考研学生的 408 专业课提分 Web 原型。当前版本聚焦一条完整体验链路：智能诊断、学习计划、408 知识图谱、题库训练、错题本、提分报告、教研后台和管理看板。
+
+## 本地运行
+
+```bash
+npm start
+```
+
+打开 `http://localhost:4173`。
+
+## 验证
+
+```bash
+npm test
+npm run verify:ui
+npm run check:local
+```
+
+`verify:ui` 会调用本机 Chrome 生成桌面和移动端截图：
+
+- `assets/render-desktop.png`
+- `assets/render-mobile.png`
+
+## 部署
+
+当前项目是静态页面 + 原生 ES Modules，可直接部署根目录。
+
+- Build command: 留空或使用 `npm run predeploy` 作为发布前检查
+- 本地完整检查：`npm run check:local`
+- Output directory: `.`
+- Entry: `index.html`
+
+推荐先使用封闭测试链接，不开放搜索引擎收录。
+
+## 体验材料
+
+- 部署清单：`docs/deployment-checklist.md`
+- 学生体验任务：`docs/student-trial-guide.md`
+- 问卷模板：`docs/survey-template.md`
+- 隐私说明：`docs/privacy-notice.md`
