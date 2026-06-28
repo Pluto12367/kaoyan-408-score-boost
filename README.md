@@ -52,3 +52,8 @@ npm run check:local
 - 学生体验任务：`docs/student-trial-guide.md`
 - 问卷模板：`docs/survey-template.md`
 - 隐私说明：`docs/privacy-notice.md`
+
+## 封闭体验链接
+
+- 系统体验地址：`https://pluto12367.github.io/kaoyan-408-score-boost/`
+- 反馈问卷地址：`https://wj.qq.com/s2/27160624/40fe/`
