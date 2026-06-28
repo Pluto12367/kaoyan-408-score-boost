@@ -1,0 +1,208 @@
+:root {
+  color: #172033;
+  background: #f6f7fb;
+  font-family: Inter, "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: #111827;
+  color: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+  padding: 28px 22px;
+}
+
+.sidebar h1 {
+  font-size: 24px;
+  line-height: 1.25;
+  margin: 8px 0 0;
+}
+
+.sidebar nav {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebar a {
+  align-items: center;
+  border-radius: 6px;
+  color: #cbd5e1;
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  text-decoration: none;
+}
+
+.sidebar a.active,
+.sidebar a:hover {
+  background: #263244;
+  color: #ffffff;
+}
+
+.workspace {
+  display: grid;
+  gap: 20px;
+  padding: 28px;
+}
+
+.topbar,
+.panel,
+.metric {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.topbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 20px 22px;
+}
+
+.topbar h2,
+.panel h3 {
+  margin: 6px 0 0;
+}
+
+.topbar button {
+  background: #2563eb;
+  color: #ffffff;
+  padding: 10px 16px;
+}
+
+.eyebrow {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.metrics-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metric {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.metric span,
+.muted,
+.task-row p,
+.weak-list span {
+  color: #64748b;
+}
+
+.metric strong {
+  font-size: 28px;
+}
+
+.metric p,
+.task-row p {
+  margin: 0;
+}
+
+.panel {
+  padding: 20px;
+}
+
+.panel-heading,
+.task-row {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-heading span,
+.task-row span {
+  color: #475569;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.task-list,
+.weak-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.task-row {
+  border-top: 1px solid #eef2f7;
+  padding-top: 12px;
+}
+
+.two-column {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+}
+
+.options {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.options button {
+  background: #eef2ff;
+  color: #1e3a8a;
+  padding: 12px;
+  text-align: left;
+}
+
+.weak-list div {
+  display: grid;
+  gap: 4px;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+  }
+
+  .metrics-grid,
+  .two-column {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .panel-heading,
+  .task-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

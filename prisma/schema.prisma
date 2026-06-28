@@ -1,0 +1,144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  STUDENT
+  TEACHER
+  ADMIN
+}
+
+enum Subject {
+  DATA_STRUCTURE
+  COMPUTER_ORGANIZATION
+  OPERATING_SYSTEM
+  COMPUTER_NETWORK
+}
+
+enum Difficulty {
+  BASIC
+  MEDIUM
+  HARD
+}
+
+enum QuestionType {
+  SINGLE_CHOICE
+  COMPREHENSIVE
+  JUDGEMENT
+}
+
+model User {
+  id             String           @id @default(cuid())
+  name           String
+  role           UserRole
+  targetSchool   String?
+  targetScore    Int?
+  currentScore   Int?
+  dailyHours     Float?
+  remainingDays  Int?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  practiceRecords PracticeRecord[]
+  studyPlans      StudyPlan[]
+}
+
+model KnowledgePoint {
+  id            String                   @id
+  subject       Subject
+  chapter       String
+  title         String
+  importance    Int
+  frequency     Int
+  prerequisites String[]
+  questions     QuestionKnowledgePoint[]
+  records       PracticeRecord[]
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+}
+
+model Question {
+  id               String                   @id @default(cuid())
+  stem             String
+  options          String[]
+  answer           String
+  analysis         String
+  difficulty       Difficulty
+  type             QuestionType
+  source           String
+  year             Int?
+  expectedTimeSec  Int                      @default(100)
+  knowledgePoints  QuestionKnowledgePoint[]
+  records          PracticeRecord[]
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+}
+
+model QuestionKnowledgePoint {
+  questionId       String
+  knowledgePointId String
+  question         Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgePoint   KnowledgePoint @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+
+  @@id([questionId, knowledgePointId])
+}
+
+model PracticeRecord {
+  id               String         @id @default(cuid())
+  userId           String
+  questionId       String
+  knowledgePointId String
+  selectedAnswer   String?
+  correct          Boolean
+  timeSpentSec     Int
+  expectedTimeSec  Int
+  mistakeReason    String?
+  submittedAt      DateTime       @default(now())
+  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question         Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgePoint   KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+
+  @@index([userId, submittedAt])
+  @@index([knowledgePointId, correct])
+}
+
+model StudyPlan {
+  id            String      @id @default(cuid())
+  userId        String
+  phase         String
+  targetScore   Int
+  remainingDays Int
+  dailyHours    Float
+  checkpoint    String
+  status        String      @default("ACTIVE")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks         StudyTask[]
+}
+
+model StudyTask {
+  id               String    @id @default(cuid())
+  planId           String
+  knowledgePointId String
+  title            String
+  mode             String
+  minutes          Int
+  questionCount    Int
+  completed        Boolean   @default(false)
+  plan             StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+}
+
+model AiTutorLog {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String?
+  prompt     String
+  response   String
+  reviewed   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
