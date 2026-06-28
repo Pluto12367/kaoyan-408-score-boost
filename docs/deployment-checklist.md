@@ -26,7 +26,7 @@
 4. 将 Source 设置为 `GitHub Actions`。
 5. 打开 `Actions` 页面，查看 `Deploy GitHub Pages` 是否运行成功。
 6. 发布成功后访问 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
-7. 如果页面正常，将该链接填入 `docs/invitation-message.md`。
+7. 如果页面正常，将该链接填入 `docs/invitation-message.md`。当前体验地址为 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
 
 ### Netlify
 

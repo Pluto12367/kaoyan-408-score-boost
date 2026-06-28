@@ -42,6 +42,10 @@ npm run check:local
 
 `https://pluto12367.github.io/kaoyan-408-score-boost/`
 
+当前体验地址：
+
+`https://pluto12367.github.io/kaoyan-408-score-boost/`
+
 ## 体验材料
 
 - 部署清单：`docs/deployment-checklist.md`
