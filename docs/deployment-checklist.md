@@ -18,6 +18,16 @@
 
 ## 推荐部署方式
 
+### GitHub Pages
+
+1. 确认代码已推送到 GitHub 的 `codex/deployment-ready` 分支。
+2. 打开 GitHub 仓库页面。
+3. 进入 `Settings` → `Pages`。
+4. 将 Source 设置为 `GitHub Actions`。
+5. 打开 `Actions` 页面，查看 `Deploy GitHub Pages` 是否运行成功。
+6. 发布成功后访问 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
+7. 如果页面正常，将该链接填入 `docs/invitation-message.md`。
+
 ### Netlify
 
 1. 将项目推送到 GitHub。

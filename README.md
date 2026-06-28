@@ -34,6 +34,14 @@ npm run check:local
 
 推荐先使用封闭测试链接，不开放搜索引擎收录。
 
+### GitHub Pages
+
+仓库包含 `.github/workflows/deploy-pages.yml`。推送 `codex/deployment-ready` 分支后，GitHub Actions 会先运行 `npm run predeploy`，通过后发布静态站点。
+
+首次使用时，在 GitHub 仓库页面进入 `Settings` → `Pages`，将 Source 设置为 `GitHub Actions`。发布完成后，页面地址通常是：
+
+`https://pluto12367.github.io/kaoyan-408-score-boost/`
+
 ## 体验材料
 
 - 部署清单：`docs/deployment-checklist.md`
