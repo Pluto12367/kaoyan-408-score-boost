@@ -30,6 +30,19 @@ button {
   font: inherit;
 }
 
+input,
+select,
+textarea {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+}
+
 #app {
   min-height: 100vh;
   display: grid;
@@ -292,7 +305,8 @@ button {
 }
 
 .filters button.selected,
-.primary-action {
+.primary-action,
+.option-grid button.selected {
   background: var(--accent);
   border-color: var(--accent);
   color: #ffffff;
@@ -305,6 +319,9 @@ button {
 .point-node {
   display: grid;
   gap: 5px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
 }
 
 .point-node.weak {
@@ -344,6 +361,23 @@ button {
   color: var(--muted);
   font-size: 13px;
   min-width: 0;
+}
+
+.option-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.option-grid button {
+  min-height: 38px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: #344054;
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
 }
 
 .wrong-row,
@@ -406,6 +440,75 @@ th {
   background: #fbfdff;
 }
 
+.form-grid,
+.teacher-form {
+  display: grid;
+  gap: 12px;
+}
+
+.form-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.teacher-form {
+  margin-bottom: 18px;
+}
+
+.form-grid label,
+.stacked-label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.full,
+.wide {
+  grid-column: 1 / -1;
+}
+
+.helper-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.ai-reply {
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 210px;
+  margin: 12px 0 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fbfdff;
+  color: #24364b;
+  font-family: inherit;
+  line-height: 1.7;
+}
+
+.toggle-list {
+  display: grid;
+  gap: 10px;
+}
+
+.toggle-row {
+  min-height: 48px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fbfdff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.toggle-row input {
+  width: 20px;
+  min-height: 20px;
+}
+
 .toast {
   position: fixed;
   right: 24px;
@@ -459,5 +562,10 @@ th {
 
   .answer-row span {
     grid-column: 1 / -1;
+  }
+
+  .form-grid,
+  .option-grid {
+    grid-template-columns: 1fr;
   }
 }

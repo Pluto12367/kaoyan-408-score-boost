@@ -30,6 +30,87 @@ export function classifyMistake({ correct, selectedAnswer, correctAnswer, timeSp
   return '知识点混淆';
 }
 
+export function applyDiagnosticProfile({ targetScore, currentScore, remainingDays, dailyHours, weakestSubject }) {
+  const stage = currentScore < 70 ? '基础' : remainingDays <= 45 ? '冲刺' : '强化';
+  const diagnosis = stage === '基础'
+    ? `当前分数基础偏弱，建议先补高频基础考点，优先处理${weakestSubject}。`
+    : stage === '冲刺'
+      ? `距离考试较近，建议以真题、错题和限时训练为主，压缩${weakestSubject}失分。`
+      : `已经具备一定基础，建议围绕${weakestSubject}做专题突破和错题回炉。`;
+
+  return {
+    targetScore: Number(targetScore),
+    currentScore: Number(currentScore),
+    remainingDays: Number(remainingDays),
+    dailyHours: Number(dailyHours),
+    weakestSubject,
+    stage,
+    diagnosis,
+  };
+}
+
+export function createPracticeRecord({ userId, question, selectedAnswer, timeSpentSec, submittedAt }) {
+  const correct = selectedAnswer === question.answer;
+  const expectedTimeSec = question.expectedTimeSec ?? 100;
+  const mistakeReason = classifyMistake({
+    correct,
+    selectedAnswer,
+    correctAnswer: question.answer,
+    timeSpentSec,
+    expectedTimeSec,
+  });
+
+  return {
+    id: `r-${Date.now()}-${question.id}`,
+    userId,
+    questionId: question.id,
+    knowledgePointId: question.knowledgePointIds[0],
+    selectedAnswer,
+    correct,
+    timeSpentSec,
+    expectedTimeSec,
+    mistakeReason,
+    submittedAt: submittedAt ?? new Date().toISOString().slice(0, 10),
+  };
+}
+
+export function createTeacherQuestion(input) {
+  const question = requireQuestionKnowledgePoint({
+    id: `q-${String((input.existingCount ?? 0) + 1).padStart(3, '0')}`,
+    stem: input.stem.trim(),
+    options: input.options.map((option) => option.trim()).filter(Boolean),
+    answer: input.answer,
+    analysis: input.analysis.trim(),
+    knowledgePointIds: input.knowledgePointIds,
+    difficulty: input.difficulty,
+    type: input.type,
+    source: input.source,
+    year: Number(input.year),
+    expectedTimeSec: input.expectedTimeSec ?? 100,
+  });
+
+  if (question.options.length < 2) {
+    throw new Error('选择题至少需要两个选项');
+  }
+
+  return question;
+}
+
+export function generateTutorReply({ question, knowledgePoints, selectedAnswer }) {
+  const point = knowledgePoints.find((item) => item.id === question.knowledgePointIds[0]);
+  const answerLine = selectedAnswer
+    ? `你选择的是 ${selectedAnswer}，正确答案是 ${question.answer}。`
+    : `正确答案是 ${question.answer}。`;
+
+  return [
+    `这道题对应考点是「${point?.title ?? '408 高频考点'}」。`,
+    answerLine,
+    `解析：${question.analysis}`,
+    `复习建议：先复述${point?.chapter ?? '本章'}的核心定义，再做 3 道相似题确认是否真正掌握。`,
+    '相似题：建议继续练习同章节的真题改编题，并记录错因。',
+  ].join('\n');
+}
+
 export function buildStudyPlan({ targetScore, remainingDays, dailyHours, stage, knowledgePoints, records }) {
   const report = computeWeaknessReport({ knowledgePoints, records, targetScore });
   const phase = PHASES[stage] ?? (remainingDays <= 45 ? '真题冲刺' : '专题突破');
@@ -83,9 +164,9 @@ export function computeWeaknessReport({ knowledgePoints, records, targetScore })
     const point = pointMap.get(knowledgePointId);
     const wrongItems = items.filter((item) => !item.correct);
     const slowItems = items.filter((item) => item.timeSpentSec > item.expectedTimeSec * 1.45);
-    const accuracy = items.length ? wrongItems.length / items.length : 1;
+    const wrongRate = items.length ? wrongItems.length / items.length : 1;
     const reason = topReason(wrongItems.map((item) => item.mistakeReason).filter(Boolean));
-    const weaknessScore = accuracy * 100 + (point?.importance ?? 3) * 8 + (point?.frequency ?? 3) * 6;
+    const weaknessScore = wrongRate * 100 + (point?.importance ?? 3) * 8 + (point?.frequency ?? 3) * 6;
 
     return {
       knowledgePointId,

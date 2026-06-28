@@ -1,9 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  applyDiagnosticProfile,
   buildStudyPlan,
   classifyMistake,
   computeWeaknessReport,
+  createPracticeRecord,
+  createTeacherQuestion,
+  generateTutorReply,
   recommendPracticeSet,
   requireQuestionKnowledgePoint,
 } from '../src/appLogic.js';
@@ -74,4 +78,78 @@ test('requireQuestionKnowledgePoint rejects questions without knowledge binding'
     () => requireQuestionKnowledgePoint({ stem: 'Cache 命中率计算', knowledgePointIds: [] }),
     /至少绑定一个知识点/,
   );
+});
+
+test('applyDiagnosticProfile converts student input into a practical study stage', () => {
+  const profile = applyDiagnosticProfile({
+    targetScore: 120,
+    currentScore: 62,
+    remainingDays: 88,
+    dailyHours: 2.5,
+    weakestSubject: '操作系统',
+  });
+
+  assert.equal(profile.stage, '基础');
+  assert.equal(profile.targetScore, 120);
+  assert.equal(profile.remainingDays, 88);
+  assert.equal(profile.dailyHours, 2.5);
+  assert.equal(profile.weakestSubject, '操作系统');
+  assert.match(profile.diagnosis, /先补高频基础/);
+});
+
+test('createPracticeRecord stores answer result with mistake reason and traceable timestamps', () => {
+  const question = {
+    id: 'q-100',
+    answer: 'B',
+    knowledgePointIds: ['os-sync'],
+    expectedTimeSec: 100,
+  };
+
+  const record = createPracticeRecord({
+    userId: 'u-001',
+    question,
+    selectedAnswer: 'A',
+    timeSpentSec: 155,
+    submittedAt: '2026-06-28',
+  });
+
+  assert.equal(record.correct, false);
+  assert.equal(record.mistakeReason, '概念不清');
+  assert.equal(record.knowledgePointId, 'os-sync');
+  assert.equal(record.submittedAt, '2026-06-28');
+});
+
+test('generateTutorReply explains the question and recommends next actions', () => {
+  const reply = generateTutorReply({
+    question: {
+      stem: '直接映射 Cache 中，主存块号 29 应映射到 Cache 的哪一行？',
+      analysis: '直接映射行号等于主存块号对 Cache 行数取模。',
+      answer: 'B',
+      knowledgePointIds: ['co-cache'],
+    },
+    knowledgePoints,
+    selectedAnswer: 'A',
+  });
+
+  assert.match(reply, /Cache映射与替换/);
+  assert.match(reply, /正确答案是 B/);
+  assert.match(reply, /相似题/);
+});
+
+test('createTeacherQuestion adds a valid question with generated id', () => {
+  const question = createTeacherQuestion({
+    stem: '页面置换算法中，LRU 的核心依据是什么？',
+    options: ['未来访问', '最近最久未使用', '随机替换', '先进先出'],
+    answer: 'B',
+    analysis: 'LRU 根据最近最久未使用原则选择淘汰页。',
+    knowledgePointIds: ['os-sync'],
+    difficulty: '中',
+    type: '选择题',
+    source: '教研新增',
+    year: 2026,
+    existingCount: 4,
+  });
+
+  assert.equal(question.id, 'q-005');
+  assert.equal(question.knowledgePointIds[0], 'os-sync');
 });

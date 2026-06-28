@@ -1,10 +1,15 @@
-import { classifyMistake } from './appLogic.js';
-import { createDashboardState } from './appData.js';
+import {
+  applyDiagnosticProfile,
+  createPracticeRecord,
+  createTeacherQuestion,
+  generateTutorReply,
+} from './appLogic.js';
+import { createDashboardState, refreshDerivedState } from './appData.js';
 
 const state = createDashboardState();
 let activeRole = 'student';
 let activeSubject = '全部';
-let answeredQuestionIds = new Set();
+let selectedAnswers = {};
 
 const roleLabels = {
   student: '学生工作台',
@@ -85,28 +90,36 @@ function studentView() {
 
   return `
     <section class="metrics">
-      ${metric('剩余天数', state.student.remainingDays, '按强化阶段推进')}
+      ${metric('剩余天数', state.student.remainingDays, '按阶段动态调整')}
       ${metric('每日学习', `${state.student.dailyHours}h`, '计划自动拆分任务')}
       ${metric('预计提分', `${state.report.estimatedGain}分`, '基于错因与正确率')}
       ${metric('完成率', `${state.report.completionRate}%`, '练习记录可追溯')}
     </section>
 
     <section class="grid two-col">
-      <article class="panel study-plan">
-        <div class="section-title">${icons.plan}<div><p>学习计划</p><h2>${state.plan.phase}</h2></div></div>
-        <div class="task-list">
-          ${state.plan.dailyTasks.map(taskCard).join('')}
-        </div>
+      <article class="panel">
+        <div class="section-title">${icons.dashboard}<div><p>入学诊断</p><h2>填写真实状态生成计划</h2></div></div>
+        ${diagnosticForm()}
       </article>
+      <article class="panel">
+        <div class="section-title">${icons.plan}<div><p>学习计划</p><h2>${state.plan.phase}</h2></div></div>
+        <div class="task-list">${state.plan.dailyTasks.map(taskCard).join('')}</div>
+      </article>
+    </section>
 
+    <section class="grid two-col">
       <article class="panel">
         <div class="section-title">${icons.graph}<div><p>408知识图谱</p><h2>按科目定位薄弱链路</h2></div></div>
         <div class="filters">
           ${['全部', ...state.subjects].map((subject) => `<button class="${activeSubject === subject ? 'selected' : ''}" data-subject="${subject}">${subject}</button>`).join('')}
         </div>
-        <div class="knowledge-map">
-          ${filteredPoints.map(pointNode).join('')}
-        </div>
+        <div class="knowledge-map">${filteredPoints.map(pointNode).join('')}</div>
+      </article>
+      <article class="panel report-panel">
+        <div class="section-title">${icons.report}<div><p>提分报告</p><h2>薄弱点与速度风险</h2></div></div>
+        <p class="report-summary">${state.report.summary}</p>
+        ${state.report.weakPoints.map(weakPoint).join('')}
+        ${state.report.speedRisks.map(speedRisk).join('')}
       </article>
     </section>
 
@@ -115,19 +128,46 @@ function studentView() {
         <div class="section-title">${icons.question}<div><p>题库训练</p><h2>${state.recommendation.title}</h2></div></div>
         ${state.questions.map(questionCard).join('')}
       </article>
-
       <article class="panel">
         <div class="section-title">${icons.report}<div><p>错题本</p><h2>自动归因复盘</h2></div></div>
         ${wrongBook()}
       </article>
-
-      <article class="panel report-panel">
-        <div class="section-title">${icons.report}<div><p>提分报告</p><h2>薄弱点与速度风险</h2></div></div>
-        <p class="report-summary">${state.report.summary}</p>
-        ${state.report.weakPoints.map(weakPoint).join('')}
-        ${state.report.speedRisks.map(speedRisk).join('')}
+      <article class="panel">
+        <div class="section-title">${icons.question}<div><p>AI答疑</p><h2>基于题目解析生成建议</h2></div></div>
+        ${aiTutor()}
       </article>
     </section>
+  `;
+}
+
+function diagnosticForm() {
+  return `
+    <form class="form-grid" data-diagnostic-form>
+      <label>目标分数<input name="targetScore" type="number" min="1" max="150" value="${state.student.targetScore}"></label>
+      <label>当前估分<input name="currentScore" type="number" min="0" max="150" value="${state.student.currentScore}"></label>
+      <label>剩余天数<input name="remainingDays" type="number" min="1" max="365" value="${state.student.remainingDays}"></label>
+      <label>每日学习小时<input name="dailyHours" type="number" min="0.5" max="12" step="0.5" value="${state.student.dailyHours}"></label>
+      <label class="full">最薄弱科目
+        <select name="weakestSubject">
+          ${state.subjects.map((subject) => `<option ${state.student.weakestSubject === subject ? 'selected' : ''}>${subject}</option>`).join('')}
+        </select>
+      </label>
+      <button class="primary-action full" type="submit">重新生成诊断与计划</button>
+      ${state.diagnosticNote ? `<p class="helper-text full">${state.diagnosticNote}</p>` : ''}
+    </form>
+  `;
+}
+
+function aiTutor() {
+  const selectedQuestion = state.questions.find((question) => question.id === state.selectedQuestionId) ?? state.questions[0];
+  return `
+    <label class="stacked-label">选择题目
+      <select data-ai-question>
+        ${state.questions.map((question) => `<option value="${question.id}" ${selectedQuestion.id === question.id ? 'selected' : ''}>${question.stem.slice(0, 24)}...</option>`).join('')}
+      </select>
+    </label>
+    <button class="primary-action wide" data-ai-generate>生成答疑建议</button>
+    <pre class="ai-reply">${state.aiReply || '选择一道题后点击生成，系统会给出考点、答案、解析和相似题建议。'}</pre>
   `;
 }
 
@@ -136,15 +176,8 @@ function teacherView() {
     <section class="grid two-col">
       <article class="panel">
         <div class="section-title">${icons.question}<div><p>题库管理</p><h2>题目入库与知识点绑定</h2></div></div>
-        <table>
-          <thead><tr><th>题目</th><th>知识点</th><th>难度</th><th>来源</th></tr></thead>
-          <tbody>
-            ${state.questions.map((question) => {
-              const point = state.knowledgePoints.find((item) => item.id === question.knowledgePointIds[0]);
-              return `<tr><td>${question.stem}</td><td>${point.title}</td><td>${question.difficulty}</td><td>${question.source}</td></tr>`;
-            }).join('')}
-          </tbody>
-        </table>
+        ${teacherQuestionForm()}
+        ${questionTable()}
       </article>
       <article class="panel">
         <div class="section-title">${icons.graph}<div><p>学情分析</p><h2>班级薄弱章节</h2></div></div>
@@ -152,10 +185,39 @@ function teacherView() {
         <div class="paper-box">
           <strong>试卷管理建议</strong>
           <span>${state.recommendation.focus}</span>
-          <button class="primary-action">生成阶段测验</button>
+          <button class="primary-action" data-generate-paper>生成阶段测验</button>
+          ${state.generatedPaper ? `<small>${state.generatedPaper}</small>` : ''}
         </div>
       </article>
     </section>
+  `;
+}
+
+function teacherQuestionForm() {
+  return `
+    <form class="teacher-form" data-question-form>
+      <input name="stem" placeholder="输入新增题干，例如：LRU 页面置换依据是什么？" required>
+      <input name="options" placeholder="选项用 / 分隔，例如：未来访问/最近最久未使用/随机替换/先进先出" required>
+      <select name="knowledgePointId">${state.knowledgePoints.map((point) => `<option value="${point.id}">${point.subject} - ${point.title}</option>`).join('')}</select>
+      <select name="answer"><option>A</option><option>B</option><option>C</option><option>D</option></select>
+      <select name="difficulty"><option>易</option><option selected>中</option><option>难</option></select>
+      <input name="analysis" placeholder="解析" required>
+      <button class="primary-action" type="submit">新增题目</button>
+    </form>
+  `;
+}
+
+function questionTable() {
+  return `
+    <table>
+      <thead><tr><th>题目</th><th>知识点</th><th>难度</th><th>来源</th></tr></thead>
+      <tbody>
+        ${state.questions.map((question) => {
+          const point = state.knowledgePoints.find((item) => item.id === question.knowledgePointIds[0]);
+          return `<tr><td>${question.stem}</td><td>${point.title}</td><td>${question.difficulty}</td><td>${question.source}</td></tr>`;
+        }).join('')}
+      </tbody>
+    </table>
   `;
 }
 
@@ -163,8 +225,8 @@ function adminView() {
   return `
     <section class="metrics">
       ${metric('活跃用户', 1286, '近7日增长 12%')}
-      ${metric('练习提交', 36840, '全部可追溯')}
-      ${metric('内容待审', 23, '解析与AI答疑')}
+      ${metric('练习提交', state.practiceRecords.length, '全部可追溯')}
+      ${metric('内容待审', state.config.aiReviewRequired ? 23 : 0, '解析与AI答疑')}
       ${metric('平均学习', '92min', '单日人均')}
     </section>
     <section class="grid two-col">
@@ -174,14 +236,23 @@ function adminView() {
       </article>
       <article class="panel">
         <div class="section-title">${icons.report}<div><p>系统配置</p><h2>408运营参数</h2></div></div>
-        <div class="config-grid">
-          ${state.subjects.map((subject) => `<span>${subject}</span>`).join('')}
-          <span>难度：易 / 中 / 难</span>
-          <span>推荐：规则 + 统计</span>
-          <span>AI：辅助答疑审核</span>
+        <div class="toggle-list">
+          ${configToggle('dailyReminder', '每日任务提醒')}
+          ${configToggle('wrongQuestionReminder', '错题重做提醒')}
+          ${configToggle('weeklyReport', '每周提分报告')}
+          ${configToggle('aiReviewRequired', 'AI答疑内容审核')}
         </div>
       </article>
     </section>
+  `;
+}
+
+function configToggle(key, label) {
+  return `
+    <label class="toggle-row">
+      <span>${label}</span>
+      <input type="checkbox" data-config="${key}" ${state.config[key] ? 'checked' : ''}>
+    </label>
   `;
 }
 
@@ -203,24 +274,31 @@ function pointNode(point) {
   const weak = state.report.weakPoints.some((item) => item.knowledgePointId === point.id);
   const speed = state.report.speedRisks.some((item) => item.knowledgePointId === point.id);
   return `
-    <div class="point-node ${weak ? 'weak' : ''} ${speed ? 'speed' : ''}">
+    <button class="point-node ${weak ? 'weak' : ''} ${speed ? 'speed' : ''}" data-subject="${point.subject}">
       <span>${point.subject}</span>
       <strong>${point.title}</strong>
       <small>${point.chapter} · 考频 ${point.frequency}/5</small>
-    </div>
+    </button>
   `;
 }
 
 function questionCard(question) {
-  const answered = answeredQuestionIds.has(question.id);
+  const selected = selectedAnswers[question.id];
+  const latestRecord = [...state.practiceRecords].reverse().find((record) => record.questionId === question.id);
   return `
-    <div class="question-card ${answered ? 'answered' : ''}">
+    <div class="question-card ${latestRecord ? 'answered' : ''}">
       <strong>${question.stem}</strong>
       <small>${question.type} · ${question.difficulty} · ${question.year}</small>
+      <div class="option-grid">
+        ${question.options.map((option, index) => {
+          const letter = String.fromCharCode(65 + index);
+          return `<button class="${selected === letter ? 'selected' : ''}" data-select-answer="${question.id}" data-option="${letter}">${letter}. ${option}</button>`;
+        }).join('')}
+      </div>
       <div class="answer-row">
-        <button data-answer="${question.id}" data-correct="true">答对</button>
-        <button data-answer="${question.id}" data-correct="false">答错</button>
-        <span>${answered ? '已记录到练习轨迹' : question.analysis}</span>
+        <button class="primary-action" data-submit-answer="${question.id}">提交作答</button>
+        <button data-ai-from-question="${question.id}">问AI解析</button>
+        <span>${latestRecord ? `${latestRecord.correct ? '答对' : '答错'} · ${latestRecord.mistakeReason ?? '已掌握'} · ${question.analysis}` : '请选择选项后提交，系统会更新错题本和提分报告。'}</span>
       </div>
     </div>
   `;
@@ -228,7 +306,9 @@ function questionCard(question) {
 
 function wrongBook() {
   const wrongRecords = state.practiceRecords.filter((record) => !record.correct);
-  return wrongRecords.map((record) => {
+  if (wrongRecords.length === 0) return '<p class="helper-text">暂无错题，继续保持。</p>';
+
+  return wrongRecords.slice(-6).reverse().map((record) => {
     const question = state.questions.find((item) => item.id === record.questionId);
     const point = state.knowledgePoints.find((item) => item.id === record.knowledgePointId);
     return `
@@ -246,7 +326,7 @@ function weakPoint(point) {
     <div class="insight-row">
       <strong>${point.chapter}</strong>
       <span>${point.title}</span>
-      <small>${point.topReason} · ${point.suggestion}</small>
+      <small>${point.topReason ?? '复盘不足'} · ${point.suggestion}</small>
     </div>
   `;
 }
@@ -276,21 +356,107 @@ function bindEvents() {
     });
   });
 
-  document.querySelectorAll('[data-answer]').forEach((button) => {
+  document.querySelector('[data-diagnostic-form]')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const profile = applyDiagnosticProfile(Object.fromEntries(form.entries()));
+    Object.assign(state.student, profile);
+    state.diagnosticNote = profile.diagnosis;
+    refreshDerivedState(state);
+    toast('已根据诊断重新生成学习计划');
+    render();
+  });
+
+  document.querySelectorAll('[data-select-answer]').forEach((button) => {
     button.addEventListener('click', () => {
-      const question = state.questions.find((item) => item.id === button.dataset.answer);
-      const correct = button.dataset.correct === 'true';
-      answeredQuestionIds.add(question.id);
-      const mistakeReason = classifyMistake({
-        correct,
-        selectedAnswer: correct ? question.answer : 'A',
-        correctAnswer: question.answer,
-        timeSpentSec: correct ? 95 : 170,
-        expectedTimeSec: 100,
-      });
-      toast(correct ? '本题已计入掌握度' : `已加入错题本：${mistakeReason}`);
+      selectedAnswers[button.dataset.selectAnswer] = button.dataset.option;
       render();
     });
+  });
+
+  document.querySelectorAll('[data-submit-answer]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const question = state.questions.find((item) => item.id === button.dataset.submitAnswer);
+      const selectedAnswer = selectedAnswers[question.id];
+      if (!selectedAnswer) {
+        toast('请先选择一个选项');
+        return;
+      }
+      const record = createPracticeRecord({
+        userId: state.student.id,
+        question,
+        selectedAnswer,
+        timeSpentSec: selectedAnswer === question.answer ? 85 : 165,
+      });
+      state.practiceRecords.push(record);
+      refreshDerivedState(state);
+      toast(record.correct ? '答对，掌握度已更新' : `答错，已加入错题本：${record.mistakeReason}`);
+      render();
+    });
+  });
+
+  document.querySelectorAll('[data-ai-from-question]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.selectedQuestionId = button.dataset.aiFromQuestion;
+      activeRole = 'student';
+      generateAiReply();
+      render();
+    });
+  });
+
+  document.querySelector('[data-ai-question]')?.addEventListener('change', (event) => {
+    state.selectedQuestionId = event.target.value;
+    state.aiReply = '';
+    render();
+  });
+
+  document.querySelector('[data-ai-generate]')?.addEventListener('click', () => {
+    generateAiReply();
+    render();
+  });
+
+  document.querySelector('[data-question-form]')?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const question = createTeacherQuestion({
+      stem: form.get('stem'),
+      options: form.get('options').split('/'),
+      answer: form.get('answer'),
+      analysis: form.get('analysis'),
+      knowledgePointIds: [form.get('knowledgePointId')],
+      difficulty: form.get('difficulty'),
+      type: '选择题',
+      source: '教研新增',
+      year: 2026,
+      existingCount: state.questions.length,
+    });
+    state.questions.push(question);
+    toast('题目已新增，学生端题库会同步出现');
+    render();
+  });
+
+  document.querySelector('[data-generate-paper]')?.addEventListener('click', () => {
+    const titles = state.report.weakPoints.slice(0, 3).map((point) => point.title).join('、');
+    state.generatedPaper = `已生成 20 题阶段测验，覆盖：${titles || '408 高频考点'}。`;
+    toast('阶段测验已生成');
+    render();
+  });
+
+  document.querySelectorAll('[data-config]').forEach((input) => {
+    input.addEventListener('change', () => {
+      state.config[input.dataset.config] = input.checked;
+      toast('系统配置已更新');
+      render();
+    });
+  });
+}
+
+function generateAiReply() {
+  const question = state.questions.find((item) => item.id === state.selectedQuestionId);
+  state.aiReply = generateTutorReply({
+    question,
+    knowledgePoints: state.knowledgePoints,
+    selectedAnswer: selectedAnswers[question.id],
   });
 }
 

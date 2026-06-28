@@ -9,9 +9,11 @@ export const users = [
     role: 'student',
     targetSchool: '北京邮电大学',
     targetScore: 115,
+    currentScore: 72,
     dailyHours: 3.5,
     stage: '强化',
     remainingDays: 96,
+    weakestSubject: '计算机组成原理',
   },
   {
     id: 't-001',
@@ -58,6 +60,7 @@ export const questions = [
     type: '选择题',
     source: '真题改编',
     year: 2022,
+    expectedTimeSec: 90,
   },
   {
     id: 'q-002',
@@ -70,6 +73,7 @@ export const questions = [
     type: '选择题',
     source: '章节题',
     year: 2024,
+    expectedTimeSec: 100,
   },
   {
     id: 'q-003',
@@ -82,6 +86,7 @@ export const questions = [
     type: '选择题',
     source: '高频题',
     year: 2023,
+    expectedTimeSec: 100,
   },
   {
     id: 'q-004',
@@ -94,6 +99,20 @@ export const questions = [
     type: '选择题',
     source: '真题改编',
     year: 2021,
+    expectedTimeSec: 100,
+  },
+  {
+    id: 'q-005',
+    stem: '采用 LRU 页面置换算法时，应优先淘汰哪类页面？',
+    options: ['未来最长时间不用', '最近最久未使用', '最早进入内存', '访问次数最少'],
+    answer: 'B',
+    analysis: 'LRU 根据最近最久未使用原则选择淘汰页。',
+    knowledgePointIds: ['os-memory'],
+    difficulty: '中',
+    type: '选择题',
+    source: '章节题',
+    year: 2025,
+    expectedTimeSec: 100,
   },
 ];
 
@@ -108,31 +127,43 @@ export const practiceRecords = [
 ];
 
 export function createDashboardState() {
-  const student = users[0];
-  const report = computeWeaknessReport({
-    knowledgePoints,
-    records: practiceRecords,
-    targetScore: student.targetScore,
-  });
-  const plan = buildStudyPlan({
-    targetScore: student.targetScore,
-    remainingDays: student.remainingDays,
-    dailyHours: student.dailyHours,
-    stage: student.stage,
-    knowledgePoints,
-    records: practiceRecords,
-  });
-  const recommendation = recommendPracticeSet({ stage: '冲刺', report });
-
-  return {
+  const student = { ...users[0] };
+  const state = {
     student,
-    users,
-    subjects,
-    knowledgePoints,
-    questions,
-    practiceRecords,
-    report,
-    plan,
-    recommendation,
+    users: users.map((user) => ({ ...user })),
+    subjects: [...subjects],
+    knowledgePoints: knowledgePoints.map((point) => ({ ...point })),
+    questions: questions.map((question) => ({ ...question, options: [...question.options] })),
+    practiceRecords: practiceRecords.map((record) => ({ ...record })),
+    selectedQuestionId: 'q-002',
+    aiReply: '',
+    diagnosticNote: '',
+    generatedPaper: null,
+    config: {
+      dailyReminder: true,
+      wrongQuestionReminder: true,
+      weeklyReport: true,
+      aiReviewRequired: true,
+    },
   };
+
+  return refreshDerivedState(state);
+}
+
+export function refreshDerivedState(state) {
+  state.report = computeWeaknessReport({
+    knowledgePoints: state.knowledgePoints,
+    records: state.practiceRecords,
+    targetScore: state.student.targetScore,
+  });
+  state.plan = buildStudyPlan({
+    targetScore: state.student.targetScore,
+    remainingDays: state.student.remainingDays,
+    dailyHours: state.student.dailyHours,
+    stage: state.student.stage,
+    knowledgePoints: state.knowledgePoints,
+    records: state.practiceRecords,
+  });
+  state.recommendation = recommendPracticeSet({ stage: '冲刺', report: state.report });
+  return state;
 }
