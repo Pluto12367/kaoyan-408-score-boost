@@ -127,7 +127,7 @@ export function computeWeaknessReport(input: {
 
     return {
       knowledgePointId,
-      subject: point?.subject ?? '未分类',
+      subject: point?.subject ?? ('未分类' as const),
       chapter: point?.chapter ?? '未分类',
       title: point?.title ?? knowledgePointId,
       attempts: items.length,
