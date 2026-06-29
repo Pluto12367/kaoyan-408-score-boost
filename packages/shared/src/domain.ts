@@ -69,6 +69,7 @@ export interface DailyTask {
   minutes: number;
   questionCount: number;
   mode: string;
+  completed?: boolean;
 }
 
 export interface StudyPlan {
@@ -78,6 +79,9 @@ export interface StudyPlan {
   dailyHours: number;
   dailyTasks: DailyTask[];
   checkpoint: string;
+  completedTaskCount?: number;
+  totalTaskCount?: number;
+  completionRate?: number;
 }
 
 export interface WeakPoint {

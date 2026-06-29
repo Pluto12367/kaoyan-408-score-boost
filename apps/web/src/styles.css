@@ -189,6 +189,38 @@ button {
   padding-top: 12px;
 }
 
+.task-row.completed strong {
+  color: #166534;
+}
+
+.task-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.task-actions button {
+  background: #eef2ff;
+  color: #1e3a8a;
+  padding: 8px 12px;
+  white-space: nowrap;
+}
+
+.task-actions button:disabled {
+  background: #dcfce7;
+  color: #166534;
+  cursor: default;
+}
+
+.task-status {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #334155;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+}
+
 .two-column {
   display: grid;
   gap: 20px;
@@ -290,6 +322,11 @@ button {
   }
 
   .topbar-actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .task-actions {
     align-items: flex-start;
     flex-direction: column;
   }

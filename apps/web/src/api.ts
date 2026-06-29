@@ -112,3 +112,25 @@ export async function submitPracticeAnswer(input: {
     mistakeReason: string | null;
   }>;
 }
+
+export async function completeStudyTask(input: {
+  userId: string;
+  taskId: string;
+}) {
+  const response = await fetch(`${API_BASE_URL}/study-tasks/${input.taskId}/complete`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ userId: input.userId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Study task completion failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    completed: boolean;
+  }>;
+}

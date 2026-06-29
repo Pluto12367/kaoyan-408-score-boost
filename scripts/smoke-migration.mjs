@@ -21,6 +21,16 @@ async function main() {
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
+  const firstTaskId = overview.plan.dailyTasks[0].id;
+  const completedTask = await postJson(`${apiUrl}/study-tasks/${firstTaskId}/complete`, {
+    userId: 'u-001',
+  });
+  assert(completedTask.completed === true, 'completed task endpoint should mark the task as completed');
+  const overviewAfterTask = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => {
+    const task = data.plan?.dailyTasks?.find((item) => item.id === firstTaskId);
+    return task?.completed === true && data.plan?.completedTaskCount === 1;
+  });
+  assert(overviewAfterTask.plan.completionRate > 0, 'study plan should expose today completion rate');
 
   const previousRecordCount = overview.practiceRecords.length;
   const submitted = await postJson(`${apiUrl}/practice-records`, {
@@ -71,6 +81,7 @@ async function main() {
     weakPoint: updatedOverview.report.weakPoints[0].title,
     practiceRecords: updatedOverview.practiceRecords.length,
     wrongQuestionsAfterRedo: resolvedWrongQuestions.length,
+    completedTasks: overviewAfterTask.plan.completedTaskCount,
     processIds: {
       api: api.pid,
       web: web.pid,

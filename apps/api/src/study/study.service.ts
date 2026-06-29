@@ -67,6 +67,8 @@ export class StudyService {
     { id: 'r-003', userId: 'u-001', questionId: 'q-002', knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: null, submittedAt: '2026-06-24' },
   ];
 
+  private readonly completedTaskIdsByUser = new Map<string, Set<string>>();
+
   listKnowledgePoints() {
     return this.knowledgePoints;
   }
@@ -158,8 +160,25 @@ export class StudyService {
     return record;
   }
 
+  completeStudyTask(taskId: string, userId = this.student.id) {
+    const plan = this.generatePlan();
+    const task = plan.dailyTasks.find((item) => item.id === taskId);
+    if (!task) {
+      throw new BadRequestException(`Study task ${taskId} was not found`);
+    }
+
+    const completed = this.completedTaskIdsByUser.get(userId) ?? new Set<string>();
+    completed.add(taskId);
+    this.completedTaskIdsByUser.set(userId, completed);
+
+    return {
+      ...task,
+      completed: true,
+    };
+  }
+
   generatePlan() {
-    return buildStudyPlan({
+    const plan = buildStudyPlan({
       targetScore: this.student.targetScore ?? 115,
       remainingDays: this.student.remainingDays ?? 96,
       dailyHours: this.student.dailyHours ?? 3.5,
@@ -167,5 +186,19 @@ export class StudyService {
       knowledgePoints: this.knowledgePoints,
       records: this.records,
     });
+    const completedIds = this.completedTaskIdsByUser.get(this.student.id) ?? new Set<string>();
+    const dailyTasks = plan.dailyTasks.map((task) => ({
+      ...task,
+      completed: completedIds.has(task.id),
+    }));
+    const completedTaskCount = dailyTasks.filter((task) => task.completed).length;
+
+    return {
+      ...plan,
+      dailyTasks,
+      completedTaskCount,
+      totalTaskCount: dailyTasks.length,
+      completionRate: dailyTasks.length ? Math.round((completedTaskCount / dailyTasks.length) * 100) : 0,
+    };
   }
 }

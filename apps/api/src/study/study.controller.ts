@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 
@@ -29,6 +29,11 @@ export class StudyController {
   @Post('practice-records')
   createPracticeRecord(@Body() input: CreatePracticeRecordDto) {
     return this.studyService.createPracticeRecord(input);
+  }
+
+  @Post('study-tasks/:taskId/complete')
+  completeStudyTask(@Param('taskId') taskId: string, @Body('userId') userId?: string) {
+    return this.studyService.completeStudyTask(taskId, userId);
   }
 
   @Post('diagnostics/plan')

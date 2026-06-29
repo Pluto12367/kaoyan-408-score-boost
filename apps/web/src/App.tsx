@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Activity, BookOpenCheck, Brain, ClipboardList, Target } from 'lucide-react';
-import { createMockOverview, fetchDashboardOverview, submitPracticeAnswer, type DashboardOverview } from './api';
+import { completeStudyTask, createMockOverview, fetchDashboardOverview, submitPracticeAnswer, type DashboardOverview } from './api';
 
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
+  const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -58,6 +59,24 @@ export function App() {
     }
   }
 
+  async function handleCompleteTask(taskId: string) {
+    setTaskStatus('正在记录任务完成状态...');
+
+    try {
+      await completeStudyTask({
+        userId: student.id,
+        taskId,
+      });
+      const nextOverview = await fetchDashboardOverview();
+      setOverview(nextOverview);
+      setApiState('connected');
+      setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
+    } catch {
+      setTaskStatus('任务完成状态记录失败，请稍后重试。');
+      setApiState('mock');
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -101,16 +120,22 @@ export function App() {
               <p className="eyebrow">{plan.phase}</p>
               <h3>今日推荐任务</h3>
             </div>
-            <span>{assessmentStatus}</span>
+            <span>{plan.completedTaskCount ?? 0}/{plan.totalTaskCount ?? plan.dailyTasks.length} 已完成 · {plan.completionRate ?? 0}%</span>
           </div>
+          <p className="task-status">{taskStatus} {assessmentStatus}</p>
           <div className="task-list">
             {plan.dailyTasks.map((task) => (
-              <article key={task.id} className="task-row">
+              <article key={task.id} className={`task-row ${task.completed ? 'completed' : ''}`}>
                 <div>
                   <strong>{task.title}</strong>
                   <p>{task.subject} / {task.chapter} / {task.mode}</p>
                 </div>
-                <span>{task.minutes} 分钟 · {task.questionCount} 题</span>
+                <div className="task-actions">
+                  <span>{task.minutes} 分钟 · {task.questionCount} 题</span>
+                  <button type="button" disabled={task.completed} onClick={() => handleCompleteTask(task.id)}>
+                    {task.completed ? '已完成' : '完成'}
+                  </button>
+                </div>
               </article>
             ))}
           </div>
