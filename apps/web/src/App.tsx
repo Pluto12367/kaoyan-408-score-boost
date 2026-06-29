@@ -1,23 +1,35 @@
+import { useEffect, useState } from 'react';
 import { Activity, BookOpenCheck, Brain, ClipboardList, Target } from 'lucide-react';
-import { buildStudyPlan, computeWeaknessReport } from '@kaoyan408/shared';
-import { knowledgePoints, practiceRecords, questions, student } from './mockData';
-
-const report = computeWeaknessReport({
-  knowledgePoints,
-  records: practiceRecords,
-  targetScore: student.targetScore ?? 110,
-});
-
-const plan = buildStudyPlan({
-  targetScore: student.targetScore ?? 110,
-  remainingDays: student.remainingDays ?? 90,
-  dailyHours: student.dailyHours ?? 3,
-  stage: student.stage ?? '强化',
-  knowledgePoints,
-  records: practiceRecords,
-});
+import { createMockOverview, fetchDashboardOverview, type DashboardOverview } from './api';
 
 export function App() {
+  const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
+  const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
+  const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
+
+  useEffect(() => {
+    let active = true;
+
+    fetchDashboardOverview()
+      .then((data) => {
+        if (!active) return;
+        setOverview(data);
+        setApiState('connected');
+      })
+      .catch(() => {
+        if (!active) return;
+        setOverview(createMockOverview());
+        setApiState('mock');
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const { student, questions, report, plan } = overview;
+  const currentQuestion = questions[0];
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -40,7 +52,12 @@ export function App() {
             <p className="eyebrow">学生端迁移版</p>
             <h2>{student.name}，当前处于{student.stage}阶段</h2>
           </div>
-          <button type="button">生成阶段测评</button>
+          <div className="topbar-actions">
+            <span className={`api-pill ${apiState}`}>
+              {apiState === 'connected' ? 'API 已连接' : apiState === 'mock' ? 'Mock 数据' : '连接 API'}
+            </span>
+            <button type="button" onClick={() => setAssessmentStatus('阶段测评已生成，建议优先完成 Cache 映射与替换专项。')}>生成阶段测评</button>
+          </div>
         </header>
 
         <section id="dashboard" className="metrics-grid">
@@ -56,7 +73,7 @@ export function App() {
               <p className="eyebrow">{plan.phase}</p>
               <h3>今日推荐任务</h3>
             </div>
-            <span>{plan.checkpoint}</span>
+            <span>{assessmentStatus}</span>
           </div>
           <div className="task-list">
             {plan.dailyTasks.map((task) => (
@@ -74,9 +91,9 @@ export function App() {
         <section className="two-column">
           <article id="question" className="panel">
             <p className="eyebrow">题库训练</p>
-            <h3>{questions[0].stem}</h3>
+            <h3>{currentQuestion.stem}</h3>
             <div className="options">
-              {questions[0].options.map((option, index) => (
+              {currentQuestion.options.map((option, index) => (
                 <button key={option} type="button">
                   {String.fromCharCode(65 + index)}. {option}
                 </button>

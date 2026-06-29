@@ -93,6 +93,34 @@ button {
   padding: 10px 16px;
 }
 
+.topbar-actions {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.api-pill {
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 7px 10px;
+}
+
+.api-pill.connected {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.api-pill.connecting {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.api-pill.mock {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .eyebrow {
   color: #64748b;
   font-size: 12px;
@@ -202,6 +230,11 @@ button {
   .topbar,
   .panel-heading,
   .task-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .topbar-actions {
     align-items: flex-start;
     flex-direction: column;
   }

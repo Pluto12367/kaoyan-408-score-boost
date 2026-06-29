@@ -16,6 +16,11 @@ export class StudyController {
     return this.studyService.getOverviewReport();
   }
 
+  @Get('dashboard/overview')
+  getDashboardOverview() {
+    return this.studyService.getDashboardOverview();
+  }
+
   @Post('practice-records')
   createPracticeRecord(@Body() input: CreatePracticeRecordDto) {
     return this.studyService.createPracticeRecord(input);
