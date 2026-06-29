@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Activity, BookOpenCheck, Brain, ClipboardList, Target } from 'lucide-react';
-import { completeStudyTask, createMockOverview, fetchDashboardOverview, submitPracticeAnswer, type DashboardOverview } from './api';
+import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Target } from 'lucide-react';
+import {
+  completeStudyTask,
+  createMockOverview,
+  fetchDashboardOverview,
+  fetchStageAssessment,
+  submitPracticeAnswer,
+  submitStageAssessment,
+  type DashboardOverview,
+  type StageAssessmentResult,
+} from './api';
 
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
@@ -9,6 +18,7 @@ export function App() {
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
   const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
+  const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -30,7 +40,7 @@ export function App() {
     };
   }, []);
 
-  const { student, questions, report, plan, wrongQuestions, learningCalendar } = overview;
+  const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const currentQuestion = questions[0];
 
   async function handleSubmitAnswer(selectedAnswer: string) {
@@ -77,6 +87,48 @@ export function App() {
     }
   }
 
+  async function handleGenerateAssessment() {
+    setAssessmentStatus('正在生成阶段测评...');
+
+    try {
+      const assessment = await fetchStageAssessment(student.id);
+      setOverview((current) => ({
+        ...current,
+        stageAssessment: assessment,
+      }));
+      setStageResult(null);
+      setApiState('connected');
+      setAssessmentStatus(`已生成 ${assessment.questions.length} 题阶段测评，预计 ${assessment.estimatedMinutes} 分钟。`);
+      document.getElementById('assessment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch {
+      setAssessmentStatus('阶段测评生成失败，当前显示本地演示数据。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleSubmitAssessment() {
+    setAssessmentStatus('正在提交阶段测评...');
+
+    try {
+      const result = await submitStageAssessment({
+        userId: student.id,
+        answers: stageAssessment.questions.map((question, index) => ({
+          questionId: question.id,
+          selectedAnswer: index === 0 ? question.answer : 'A',
+          timeSpentSec: question.expectedTimeSec + 20,
+        })),
+      });
+      const nextOverview = await fetchDashboardOverview();
+      setOverview(nextOverview);
+      setStageResult(result);
+      setApiState('connected');
+      setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
+    } catch {
+      setAssessmentStatus('阶段测评提交失败，请稍后重试。');
+      setApiState('mock');
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -103,7 +155,7 @@ export function App() {
             <span className={`api-pill ${apiState}`}>
               {apiState === 'connected' ? 'API 已连接' : apiState === 'mock' ? 'Mock 数据' : '连接 API'}
             </span>
-            <button type="button" onClick={() => setAssessmentStatus('阶段测评已生成，建议优先完成 Cache 映射与替换专项。')}>生成阶段测评</button>
+            <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
           </div>
         </header>
 
@@ -130,6 +182,51 @@ export function App() {
               </div>
             ))}
           </div>
+        </section>
+
+        <section id="assessment" className="panel assessment-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">阶段测评</p>
+              <h3>{stageAssessment.title}</h3>
+            </div>
+            <span>{stageAssessment.questions.length} 题 · 预计 {stageAssessment.estimatedMinutes} 分钟</span>
+          </div>
+          <p className="task-status">{assessmentStatus}</p>
+          <div className="assessment-grid">
+            <article>
+              <strong>聚焦知识点</strong>
+              <div className="tag-list">
+                {stageAssessment.focusKnowledgePoints.map((point) => (
+                  <span key={point.id}>{point.title}</span>
+                ))}
+              </div>
+            </article>
+            <article>
+              <strong>测评说明</strong>
+              <p>{stageAssessment.description}</p>
+            </article>
+            <article>
+              <strong>提交后产出</strong>
+              <p>系统会同步练习记录、错题本和薄弱点报告，并给出下一步复习建议。</p>
+            </article>
+          </div>
+          <div className="assessment-actions">
+            <button type="button" onClick={handleSubmitAssessment}>
+              <ClipboardCheck size={18} /> 提交演示测评
+            </button>
+          </div>
+          {stageResult ? (
+            <div className="assessment-result">
+              <strong>本次得分 {stageResult.score} / 100</strong>
+              <p>答对 {stageResult.correctCount}/{stageResult.totalQuestions} 题，复盘项 {stageResult.reviewItems.length} 个。</p>
+              <ul>
+                {stageResult.nextActions.map((action) => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </section>
 
         <section id="plan" className="panel">

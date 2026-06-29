@@ -90,6 +90,7 @@ export class StudyService {
       practiceRecords: this.records,
       wrongQuestions: this.listWrongQuestions(this.student.id),
       learningCalendar: this.getLearningCalendar(this.student.id),
+      stageAssessment: this.getStageAssessment(this.student.id),
       report: this.getOverviewReport(),
       plan: this.generatePlan(),
     };
@@ -210,6 +211,88 @@ export class StudyService {
       days,
       today: days[days.length - 1],
       streakDays,
+    };
+  }
+
+  getStageAssessment(userId = this.student.id) {
+    const report = this.getOverviewReport();
+    const focusKnowledgePointIds = new Set(
+      (report.weakPoints.length ? report.weakPoints : report.speedRisks)
+        .map((point) => point.knowledgePointId),
+    );
+    const focusQuestions = this.questions.filter((question) =>
+      question.knowledgePointIds.some((id) => focusKnowledgePointIds.has(id)),
+    );
+    const fallbackQuestions = this.questions.filter((question) => !focusQuestions.includes(question));
+    const selectedQuestions = [...focusQuestions, ...fallbackQuestions].slice(0, Math.min(6, this.questions.length));
+    const focusKnowledgePoints = [...new Set(selectedQuestions.flatMap((question) => question.knowledgePointIds))]
+      .map((id) => this.knowledgePoints.find((point) => point.id === id))
+      .filter(Boolean);
+
+    return {
+      id: `stage-${todayKey()}`,
+      title: `${this.student.stage ?? '强化'}阶段测评`,
+      userId,
+      description: '根据当前薄弱点生成的小测，用于判断本阶段是否需要继续专项突破。',
+      estimatedMinutes: Math.max(10, Math.round(selectedQuestions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
+      focusKnowledgePoints,
+      questions: selectedQuestions,
+    };
+  }
+
+  submitStageAssessment(input: {
+    userId?: string;
+    answers?: Array<{
+      questionId: string;
+      selectedAnswer: string;
+      timeSpentSec: number;
+    }>;
+  }) {
+    const userId = input.userId ?? this.student.id;
+    const answers = input.answers ?? [];
+    if (answers.length === 0) {
+      throw new BadRequestException('Stage assessment answers are required');
+    }
+
+    const records = answers.map((answer) => this.createPracticeRecord({
+      userId,
+      questionId: answer.questionId,
+      knowledgePointId: '',
+      selectedAnswer: answer.selectedAnswer,
+      timeSpentSec: answer.timeSpentSec,
+    }));
+    const correctCount = records.filter((record) => record.correct).length;
+    const score = Math.round((correctCount / records.length) * 100);
+    const reviewItems = records
+      .filter((record) => !record.correct || record.mistakeReason !== null)
+      .map((record) => {
+        const question = this.questions.find((item) => item.id === record.questionId);
+        const point = this.knowledgePoints.find((item) => item.id === record.knowledgePointId);
+        return {
+          questionId: record.questionId,
+          stem: question?.stem ?? record.questionId,
+          selectedAnswer: record.selectedAnswer,
+          correctAnswer: question?.answer,
+          knowledgePointId: record.knowledgePointId,
+          knowledgePointTitle: point?.title ?? record.knowledgePointId,
+          mistakeReason: record.mistakeReason,
+          analysis: question?.analysis,
+        };
+      });
+    const weakPointTitles = [...new Set(reviewItems.map((item) => item.knowledgePointTitle))].slice(0, 3);
+
+    return {
+      id: `stage-result-${Date.now()}`,
+      userId,
+      submittedAt: new Date().toISOString(),
+      totalQuestions: records.length,
+      correctCount,
+      score,
+      reviewItems,
+      nextActions: [
+        score >= 80 ? '进入真题限时训练，保持每 2-3 天一次阶段复测。' : '先复盘本次错题，再补 1 组同知识点专项练习。',
+        weakPointTitles.length ? `优先复习：${weakPointTitles.join('、')}` : '本次正确率较好，建议增加限时速度训练。',
+      ],
     };
   }
 

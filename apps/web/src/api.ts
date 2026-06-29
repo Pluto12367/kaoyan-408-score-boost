@@ -18,6 +18,7 @@ export interface DashboardOverview {
   practiceRecords: PracticeRecord[];
   wrongQuestions: WrongQuestion[];
   learningCalendar: LearningCalendar;
+  stageAssessment: StageAssessment;
   report: WeaknessReport;
   plan: StudyPlan;
 }
@@ -33,6 +34,36 @@ export interface LearningCalendarDay {
   completedTaskCount: number;
   practiceCount: number;
   isActive: boolean;
+}
+
+export interface StageAssessment {
+  id: string;
+  title: string;
+  userId: string;
+  description: string;
+  estimatedMinutes: number;
+  focusKnowledgePoints: KnowledgePoint[];
+  questions: Question[];
+}
+
+export interface StageAssessmentResult {
+  id: string;
+  userId: string;
+  submittedAt: string;
+  totalQuestions: number;
+  correctCount: number;
+  score: number;
+  reviewItems: Array<{
+    questionId: string;
+    stem: string;
+    selectedAnswer?: string;
+    correctAnswer?: string;
+    knowledgePointId: string;
+    knowledgePointTitle: string;
+    mistakeReason: string | null;
+    analysis?: string;
+  }>;
+  nextActions: string[];
 }
 
 export interface WrongQuestion {
@@ -88,8 +119,21 @@ export function createMockOverview(): DashboardOverview {
       },
     ],
     learningCalendar: createMockLearningCalendar(),
+    stageAssessment: createMockStageAssessment(),
     report,
     plan,
+  };
+}
+
+function createMockStageAssessment(): StageAssessment {
+  return {
+    id: `stage-${new Date().toISOString().slice(0, 10)}`,
+    title: '强化阶段测评',
+    userId: student.id,
+    description: '根据当前薄弱点生成的小测，用于判断本阶段是否需要继续专项突破。',
+    estimatedMinutes: 12,
+    focusKnowledgePoints: knowledgePoints.slice(0, 2),
+    questions: questions.slice(0, 2),
   };
 }
 
@@ -170,4 +214,36 @@ export async function completeStudyTask(input: {
     id: string;
     completed: boolean;
   }>;
+}
+
+export async function fetchStageAssessment(userId: string): Promise<StageAssessment> {
+  const response = await fetch(`${API_BASE_URL}/assessments/stage?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Stage assessment request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<StageAssessment>;
+}
+
+export async function submitStageAssessment(input: {
+  userId: string;
+  answers: Array<{
+    questionId: string;
+    selectedAnswer: string;
+    timeSpentSec: number;
+  }>;
+}): Promise<StageAssessmentResult> {
+  const response = await fetch(`${API_BASE_URL}/assessments/stage/submit`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Stage assessment submission failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<StageAssessmentResult>;
 }

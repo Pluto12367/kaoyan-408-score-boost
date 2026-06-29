@@ -31,6 +31,23 @@ export class StudyController {
     return this.studyService.getLearningCalendar(userId);
   }
 
+  @Get('assessments/stage')
+  getStageAssessment(@Query('userId') userId?: string) {
+    return this.studyService.getStageAssessment(userId);
+  }
+
+  @Post('assessments/stage/submit')
+  submitStageAssessment(@Body() input: {
+    userId?: string;
+    answers?: Array<{
+      questionId: string;
+      selectedAnswer: string;
+      timeSpentSec: number;
+    }>;
+  }) {
+    return this.studyService.submitStageAssessment(input);
+  }
+
   @Post('practice-records')
   createPracticeRecord(@Body() input: CreatePracticeRecordDto) {
     return this.studyService.createPracticeRecord(input);

@@ -51,6 +51,21 @@ async function main() {
   assert(calendar.today.completedTaskCount >= 1, 'learning calendar should include completed task count for today');
   assert(calendar.today.practiceCount >= 1, 'learning calendar should include practice count for today');
   assert(calendar.streakDays >= 1, 'learning calendar should include active streak days');
+  const stageAssessment = await waitForJson(`${apiUrl}/assessments/stage?userId=u-001`, (data) => data.questions?.length >= 2);
+  assert(stageAssessment.focusKnowledgePoints.length > 0, 'stage assessment should include focused weak knowledge points');
+  assert(stageAssessment.estimatedMinutes > 0, 'stage assessment should include estimated minutes');
+  const stageResult = await postJson(`${apiUrl}/assessments/stage/submit`, {
+    userId: 'u-001',
+    answers: stageAssessment.questions.map((question, index) => ({
+      questionId: question.id,
+      selectedAnswer: index === 0 ? (question.answer === 'A' ? 'B' : 'A') : question.answer,
+      timeSpentSec: question.expectedTimeSec + 20,
+    })),
+  });
+  assert(stageResult.totalQuestions === stageAssessment.questions.length, 'stage result should score all assessment questions');
+  assert(stageResult.score >= 0 && stageResult.score <= 100, 'stage result should expose a percentage score');
+  assert(stageResult.reviewItems.length > 0, 'stage result should include review items');
+  assert(stageResult.nextActions.length > 0, 'stage result should include next actions');
   const wrongQuestions = await waitForJson(`${apiUrl}/wrong-questions?userId=u-001`, (data) => Array.isArray(data) && data.length > 0);
   const cacheWrongQuestion = wrongQuestions.find((item) => item.questionId === 'q-001');
   assert(cacheWrongQuestion, 'wrong question book should include the submitted wrong question');
@@ -88,6 +103,7 @@ async function main() {
     wrongQuestionsAfterRedo: resolvedWrongQuestions.length,
     completedTasks: overviewAfterTask.plan.completedTaskCount,
     streakDays: calendar.streakDays,
+    stageAssessmentScore: stageResult.score,
     processIds: {
       api: api.pid,
       web: web.pid,
