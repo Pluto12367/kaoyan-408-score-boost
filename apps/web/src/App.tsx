@@ -3,12 +3,15 @@ import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Target }
 import {
   completeStudyTask,
   createTeacherQuestion,
+  createMockAdminMetrics,
   createMockOverview,
+  fetchAdminMetrics,
   fetchDashboardOverview,
   fetchStageAssessment,
   requestTutorReply,
   submitPracticeAnswer,
   submitStageAssessment,
+  type AdminMetrics,
   type DashboardOverview,
   type StageAssessmentResult,
   type TutorReply,
@@ -16,6 +19,7 @@ import {
 
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
+  const [adminMetrics, setAdminMetrics] = useState<AdminMetrics>(() => createMockAdminMetrics());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
@@ -29,15 +33,17 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    fetchDashboardOverview()
-      .then((data) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics()])
+      .then(([data, metrics]) => {
         if (!active) return;
         setOverview(data);
+        setAdminMetrics(metrics);
         setApiState('connected');
       })
       .catch(() => {
         if (!active) return;
         setOverview(createMockOverview());
+        setAdminMetrics(createMockAdminMetrics());
         setApiState('mock');
       });
 
@@ -61,7 +67,9 @@ export function App() {
         timeSpentSec: 135,
       });
       const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
       setApiState('connected');
       if (record.correct && redoQuestionId === currentQuestion.id) {
         setRedoQuestionId(null);
@@ -84,7 +92,9 @@ export function App() {
         taskId,
       });
       const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
       setApiState('connected');
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
     } catch {
@@ -125,7 +135,9 @@ export function App() {
         })),
       });
       const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
       setStageResult(result);
       setApiState('connected');
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
@@ -172,7 +184,9 @@ export function App() {
         expectedTimeSec: 90,
       });
       const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
       setApiState('connected');
       setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
     } catch {
@@ -193,6 +207,7 @@ export function App() {
           <a href="#plan"><ClipboardList size={18} /> 今日计划</a>
           <a href="#question"><BookOpenCheck size={18} /> 题库训练</a>
           <a href="#report"><Target size={18} /> 提分报告</a>
+          <a href="#admin"><Activity size={18} /> 数据看板</a>
           <a href="#ai"><Brain size={18} /> AI 答疑</a>
         </nav>
       </aside>
@@ -216,6 +231,45 @@ export function App() {
           <Metric title="正确率" value={`${report.accuracyRate}%`} caption="近 20 次练习统计" />
           <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
           <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
+        </section>
+
+        <section id="admin" className="panel admin-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">管理端数据看板</p>
+              <h3>试用期核心运营指标</h3>
+            </div>
+            <span>更新于 {new Date(adminMetrics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div className="admin-grid">
+            <article>
+              <strong>{adminMetrics.activeStudentCount}</strong>
+              <span>活跃学生</span>
+            </article>
+            <article>
+              <strong>{adminMetrics.questionCount}</strong>
+              <span>题库题目</span>
+            </article>
+            <article>
+              <strong>{adminMetrics.practiceRecordCount}</strong>
+              <span>练习记录</span>
+            </article>
+            <article>
+              <strong>{adminMetrics.accuracyRate}%</strong>
+              <span>整体正确率</span>
+            </article>
+            <article>
+              <strong>{adminMetrics.pendingWrongQuestionCount}</strong>
+              <span>待复盘错题</span>
+            </article>
+            <article>
+              <strong>{adminMetrics.todayPracticeCount}</strong>
+              <span>今日练习</span>
+            </article>
+          </div>
+          <p className="task-status">
+            当前最弱考点：{adminMetrics.topWeakPoint ?? '暂无'} · 平均耗时 {adminMetrics.averagePracticeTimeSec} 秒 · 留存学习日 {adminMetrics.retentionDays} 天
+          </p>
         </section>
 
         <section className="panel">

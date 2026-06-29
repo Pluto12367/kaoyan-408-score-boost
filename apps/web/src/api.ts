@@ -23,6 +23,24 @@ export interface DashboardOverview {
   plan: StudyPlan;
 }
 
+export interface AdminMetrics {
+  source: 'memory-api' | 'postgres-ready-api';
+  activeStudentCount: number;
+  questionCount: number;
+  knowledgePointCount: number;
+  practiceRecordCount: number;
+  todayPracticeCount: number;
+  todayCompletedTaskCount: number;
+  completedTaskCount: number;
+  accuracyRate: number;
+  weakPointCount: number;
+  pendingWrongQuestionCount: number;
+  averagePracticeTimeSec: number;
+  retentionDays: number;
+  topWeakPoint: string | null;
+  generatedAt: string;
+}
+
 export interface LearningCalendar {
   days: LearningCalendarDay[];
   today: LearningCalendarDay;
@@ -157,6 +175,26 @@ export function createMockOverview(): DashboardOverview {
   };
 }
 
+export function createMockAdminMetrics(): AdminMetrics {
+  return {
+    source: 'memory-api',
+    activeStudentCount: 1,
+    questionCount: questions.length,
+    knowledgePointCount: knowledgePoints.length,
+    practiceRecordCount: practiceRecords.length,
+    todayPracticeCount: 1,
+    todayCompletedTaskCount: 1,
+    completedTaskCount: 1,
+    accuracyRate: 66.7,
+    weakPointCount: 1,
+    pendingWrongQuestionCount: 1,
+    averagePracticeTimeSec: 140,
+    retentionDays: 3,
+    topWeakPoint: 'Cache 映射与替换',
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 function createMockStageAssessment(): StageAssessment {
   return {
     id: `stage-${new Date().toISOString().slice(0, 10)}`,
@@ -198,6 +236,15 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   }
 
   return response.json() as Promise<DashboardOverview>;
+}
+
+export async function fetchAdminMetrics(): Promise<AdminMetrics> {
+  const response = await fetch(`${API_BASE_URL}/admin/metrics`);
+  if (!response.ok) {
+    throw new Error(`Admin metrics request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<AdminMetrics>;
 }
 
 export async function submitPracticeAnswer(input: {

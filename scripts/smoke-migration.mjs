@@ -108,6 +108,13 @@ async function main() {
   assert(tutorReply.explanationSteps.length >= 2, 'AI tutor reply should break explanation into steps');
   assert(tutorReply.similarQuestions.length > 0, 'AI tutor reply should recommend similar questions');
   assert(tutorReply.nextActions.length > 0, 'AI tutor reply should include next actions');
+  const adminMetrics = await waitForJson(`${apiUrl}/admin/metrics`, (data) => data.questionCount >= overviewAfterTeacherQuestion.questions.length);
+  assert(adminMetrics.activeStudentCount >= 1, 'admin metrics should include active student count');
+  assert(adminMetrics.practiceRecordCount >= updatedOverview.practiceRecords.length, 'admin metrics should include practice record count');
+  assert(adminMetrics.accuracyRate >= 0 && adminMetrics.accuracyRate <= 100, 'admin metrics should expose accuracy rate');
+  assert(adminMetrics.todayPracticeCount >= 1, 'admin metrics should include today practice count');
+  assert(adminMetrics.weakPointCount >= 1, 'admin metrics should include weak point count');
+  assert(adminMetrics.pendingWrongQuestionCount >= 1, 'admin metrics should include pending wrong question count');
   const wrongQuestions = await waitForJson(`${apiUrl}/wrong-questions?userId=u-001`, (data) => Array.isArray(data) && data.length > 0);
   const cacheWrongQuestion = wrongQuestions.find((item) => item.questionId === 'q-001');
   assert(cacheWrongQuestion, 'wrong question book should include the submitted wrong question');
@@ -148,6 +155,7 @@ async function main() {
     stageAssessmentScore: stageResult.score,
     tutorReply: tutorReply.knowledgePointTitle,
     teacherQuestion: createdTeacherQuestion.id,
+    adminAccuracyRate: adminMetrics.accuracyRate,
     processIds: {
       api: api.pid,
       web: web.pid,

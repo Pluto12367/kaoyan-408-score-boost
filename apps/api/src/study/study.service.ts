@@ -74,6 +74,34 @@ export class StudyService {
     };
   }
 
+  getAdminMetrics() {
+    const report = this.getOverviewReport();
+    const calendar = this.getLearningCalendar(this.student.id);
+    const wrongQuestions = this.listWrongQuestions(this.student.id);
+    const completedTaskCount = this.generatePlan().completedTaskCount ?? 0;
+    const activeDates = new Set(this.records.map((record) => record.submittedAt.slice(0, 10)));
+
+    return {
+      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      activeStudentCount: 1,
+      questionCount: this.questions.length,
+      knowledgePointCount: this.knowledgePoints.length,
+      practiceRecordCount: this.records.length,
+      todayPracticeCount: calendar.today.practiceCount,
+      todayCompletedTaskCount: calendar.today.completedTaskCount,
+      completedTaskCount,
+      accuracyRate: report.accuracyRate,
+      weakPointCount: report.weakPoints.length,
+      pendingWrongQuestionCount: wrongQuestions.length,
+      averagePracticeTimeSec: this.records.length
+        ? Math.round(this.records.reduce((sum, record) => sum + record.timeSpentSec, 0) / this.records.length)
+        : 0,
+      retentionDays: activeDates.size,
+      topWeakPoint: report.weakPoints[0]?.title ?? null,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   listWrongQuestions(userId = this.student.id) {
     const grouped = new Map<string, PracticeRecord[]>();
     for (const record of this.records.filter((item) => item.userId === userId)) {

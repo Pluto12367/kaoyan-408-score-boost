@@ -158,6 +158,33 @@ button {
   margin: 0;
 }
 
+.admin-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.admin-grid article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+  min-height: 88px;
+  padding: 14px;
+}
+
+.admin-grid strong {
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.admin-grid span {
+  color: #64748b;
+  font-size: 13px;
+}
+
 .panel {
   padding: 20px;
 }
@@ -502,6 +529,7 @@ button {
   .metrics-grid,
   .two-column,
   .calendar-strip,
+  .admin-grid,
   .assessment-grid,
   .tutor-result,
   .teacher-grid {

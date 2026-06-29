@@ -21,6 +21,11 @@ export class StudyController {
     return this.studyService.getDashboardOverview();
   }
 
+  @Get('admin/metrics')
+  getAdminMetrics() {
+    return this.studyService.getAdminMetrics();
+  }
+
   @Get('wrong-questions')
   listWrongQuestions(@Query('userId') userId?: string) {
     return this.studyService.listWrongQuestions(userId);
