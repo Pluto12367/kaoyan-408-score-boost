@@ -46,6 +46,11 @@ async function main() {
   assert(submitted.mistakeReason === '概念不清', 'practice submission should be attributed by the API');
   const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length === previousRecordCount + 1);
   assert(updatedOverview.report.weakPoints[0].knowledgePointId === 'co-cache', 'updated report should reflect the submitted weak point');
+  const calendar = await waitForJson(`${apiUrl}/learning-calendar?userId=u-001`, (data) => data.today?.isActive === true);
+  assert(calendar.days.length === 7, 'learning calendar should return a 7-day window');
+  assert(calendar.today.completedTaskCount >= 1, 'learning calendar should include completed task count for today');
+  assert(calendar.today.practiceCount >= 1, 'learning calendar should include practice count for today');
+  assert(calendar.streakDays >= 1, 'learning calendar should include active streak days');
   const wrongQuestions = await waitForJson(`${apiUrl}/wrong-questions?userId=u-001`, (data) => Array.isArray(data) && data.length > 0);
   const cacheWrongQuestion = wrongQuestions.find((item) => item.questionId === 'q-001');
   assert(cacheWrongQuestion, 'wrong question book should include the submitted wrong question');
@@ -82,6 +87,7 @@ async function main() {
     practiceRecords: updatedOverview.practiceRecords.length,
     wrongQuestionsAfterRedo: resolvedWrongQuestions.length,
     completedTasks: overviewAfterTask.plan.completedTaskCount,
+    streakDays: calendar.streakDays,
     processIds: {
       api: api.pid,
       web: web.pid,

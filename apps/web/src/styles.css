@@ -189,6 +189,50 @@ button {
   padding-top: 12px;
 }
 
+.calendar-strip {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.calendar-day {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  min-height: 72px;
+  padding: 10px;
+}
+
+.calendar-day strong {
+  color: #475569;
+  font-size: 13px;
+}
+
+.calendar-day span {
+  align-items: center;
+  background: #e2e8f0;
+  border-radius: 999px;
+  color: #334155;
+  display: inline-flex;
+  font-weight: 700;
+  height: 26px;
+  justify-content: center;
+  width: 26px;
+}
+
+.calendar-day.active {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
+.calendar-day.active span {
+  background: #16a34a;
+  color: #ffffff;
+}
+
 .task-row.completed strong {
   color: #166534;
 }
@@ -309,7 +353,8 @@ button {
   }
 
   .metrics-grid,
-  .two-column {
+  .two-column,
+  .calendar-strip {
     grid-template-columns: 1fr;
   }
 

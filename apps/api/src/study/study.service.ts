@@ -67,7 +67,7 @@ export class StudyService {
     { id: 'r-003', userId: 'u-001', questionId: 'q-002', knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: null, submittedAt: '2026-06-24' },
   ];
 
-  private readonly completedTaskIdsByUser = new Map<string, Set<string>>();
+  private readonly completedTaskDatesByUser = new Map<string, Map<string, string>>();
 
   listKnowledgePoints() {
     return this.knowledgePoints;
@@ -89,6 +89,7 @@ export class StudyService {
       questions: this.questions,
       practiceRecords: this.records,
       wrongQuestions: this.listWrongQuestions(this.student.id),
+      learningCalendar: this.getLearningCalendar(this.student.id),
       report: this.getOverviewReport(),
       plan: this.generatePlan(),
     };
@@ -167,13 +168,48 @@ export class StudyService {
       throw new BadRequestException(`Study task ${taskId} was not found`);
     }
 
-    const completed = this.completedTaskIdsByUser.get(userId) ?? new Set<string>();
-    completed.add(taskId);
-    this.completedTaskIdsByUser.set(userId, completed);
+    const completed = this.completedTaskDatesByUser.get(userId) ?? new Map<string, string>();
+    completed.set(taskId, todayKey());
+    this.completedTaskDatesByUser.set(userId, completed);
 
     return {
       ...task,
       completed: true,
+    };
+  }
+
+  getLearningCalendar(userId = this.student.id) {
+    const dates = lastNDates(7);
+    const completedTaskDates = this.completedTaskDatesByUser.get(userId) ?? new Map<string, string>();
+    const completedTaskCounts = countByDate([...completedTaskDates.values()]);
+    const practiceCounts = countByDate(
+      this.records
+        .filter((record) => record.userId === userId)
+        .map((record) => record.submittedAt),
+    );
+
+    const days = dates.map((date) => {
+      const completedTaskCount = completedTaskCounts.get(date) ?? 0;
+      const practiceCount = practiceCounts.get(date) ?? 0;
+
+      return {
+        date,
+        completedTaskCount,
+        practiceCount,
+        isActive: completedTaskCount + practiceCount > 0,
+      };
+    });
+
+    let streakDays = 0;
+    for (const day of [...days].reverse()) {
+      if (!day.isActive) break;
+      streakDays += 1;
+    }
+
+    return {
+      days,
+      today: days[days.length - 1],
+      streakDays,
     };
   }
 
@@ -186,7 +222,10 @@ export class StudyService {
       knowledgePoints: this.knowledgePoints,
       records: this.records,
     });
-    const completedIds = this.completedTaskIdsByUser.get(this.student.id) ?? new Set<string>();
+    const completedTaskDates = this.completedTaskDatesByUser.get(this.student.id) ?? new Map<string, string>();
+    const completedIds = new Set([...completedTaskDates.entries()]
+      .filter(([, date]) => date === todayKey())
+      .map(([taskId]) => taskId));
     const dailyTasks = plan.dailyTasks.map((task) => ({
       ...task,
       completed: completedIds.has(task.id),
@@ -201,4 +240,26 @@ export class StudyService {
       completionRate: dailyTasks.length ? Math.round((completedTaskCount / dailyTasks.length) * 100) : 0,
     };
   }
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function lastNDates(count: number) {
+  const today = new Date(`${todayKey()}T00:00:00.000Z`);
+
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(today);
+    date.setUTCDate(today.getUTCDate() - (count - index - 1));
+    return date.toISOString().slice(0, 10);
+  });
+}
+
+function countByDate(dates: string[]) {
+  return dates.reduce((acc, date) => {
+    const key = date.slice(0, 10);
+    acc.set(key, (acc.get(key) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
 }

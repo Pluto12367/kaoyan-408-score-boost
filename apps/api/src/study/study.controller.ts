@@ -26,6 +26,11 @@ export class StudyController {
     return this.studyService.listWrongQuestions(userId);
   }
 
+  @Get('learning-calendar')
+  getLearningCalendar(@Query('userId') userId?: string) {
+    return this.studyService.getLearningCalendar(userId);
+  }
+
   @Post('practice-records')
   createPracticeRecord(@Body() input: CreatePracticeRecordDto) {
     return this.studyService.createPracticeRecord(input);

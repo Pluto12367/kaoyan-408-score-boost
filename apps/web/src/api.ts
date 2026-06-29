@@ -17,8 +17,22 @@ export interface DashboardOverview {
   questions: Question[];
   practiceRecords: PracticeRecord[];
   wrongQuestions: WrongQuestion[];
+  learningCalendar: LearningCalendar;
   report: WeaknessReport;
   plan: StudyPlan;
+}
+
+export interface LearningCalendar {
+  days: LearningCalendarDay[];
+  today: LearningCalendarDay;
+  streakDays: number;
+}
+
+export interface LearningCalendarDay {
+  date: string;
+  completedTaskCount: number;
+  practiceCount: number;
+  isActive: boolean;
 }
 
 export interface WrongQuestion {
@@ -73,8 +87,31 @@ export function createMockOverview(): DashboardOverview {
         latestSubmittedAt: '2026-06-22',
       },
     ],
+    learningCalendar: createMockLearningCalendar(),
     report,
     plan,
+  };
+}
+
+function createMockLearningCalendar(): LearningCalendar {
+  const today = new Date().toISOString().slice(0, 10);
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(`${today}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() - (6 - index));
+    const key = date.toISOString().slice(0, 10);
+
+    return {
+      date: key,
+      completedTaskCount: index === 6 ? 1 : 0,
+      practiceCount: index >= 4 ? 1 : 0,
+      isActive: index >= 4,
+    };
+  });
+
+  return {
+    days,
+    today: days[days.length - 1],
+    streakDays: 3,
   };
 }
 

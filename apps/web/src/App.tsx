@@ -30,7 +30,7 @@ export function App() {
     };
   }, []);
 
-  const { student, questions, report, plan, wrongQuestions } = overview;
+  const { student, questions, report, plan, wrongQuestions, learningCalendar } = overview;
   const currentQuestion = questions[0];
 
   async function handleSubmitAnswer(selectedAnswer: string) {
@@ -112,6 +112,24 @@ export function App() {
           <Metric title="正确率" value={`${report.accuracyRate}%`} caption="近 20 次练习统计" />
           <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
           <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
+        </section>
+
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">学习日历</p>
+              <h3>连续学习 {learningCalendar.streakDays} 天</h3>
+            </div>
+            <span>今日 {learningCalendar.today.completedTaskCount} 项任务 · {learningCalendar.today.practiceCount} 次练习</span>
+          </div>
+          <div className="calendar-strip">
+            {learningCalendar.days.map((day) => (
+              <div key={day.date} className={`calendar-day ${day.isActive ? 'active' : ''}`}>
+                <strong>{day.date.slice(5)}</strong>
+                <span>{day.completedTaskCount + day.practiceCount}</span>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section id="plan" className="panel">
