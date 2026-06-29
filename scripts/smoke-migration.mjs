@@ -66,6 +66,18 @@ async function main() {
   assert(stageResult.score >= 0 && stageResult.score <= 100, 'stage result should expose a percentage score');
   assert(stageResult.reviewItems.length > 0, 'stage result should include review items');
   assert(stageResult.nextActions.length > 0, 'stage result should include next actions');
+  const tutorReply = await postJson(`${apiUrl}/ai/tutor-reply`, {
+    userId: 'u-001',
+    questionId: 'q-001',
+    selectedAnswer: 'A',
+    prompt: '为什么这题不是选 A？',
+  });
+  assert(tutorReply.questionId === 'q-001', 'AI tutor reply should be tied to the requested question');
+  assert(tutorReply.knowledgePointTitle, 'AI tutor reply should include the knowledge point title');
+  assert(tutorReply.answerCheck.includes('B'), 'AI tutor reply should include the correct answer');
+  assert(tutorReply.explanationSteps.length >= 2, 'AI tutor reply should break explanation into steps');
+  assert(tutorReply.similarQuestions.length > 0, 'AI tutor reply should recommend similar questions');
+  assert(tutorReply.nextActions.length > 0, 'AI tutor reply should include next actions');
   const wrongQuestions = await waitForJson(`${apiUrl}/wrong-questions?userId=u-001`, (data) => Array.isArray(data) && data.length > 0);
   const cacheWrongQuestion = wrongQuestions.find((item) => item.questionId === 'q-001');
   assert(cacheWrongQuestion, 'wrong question book should include the submitted wrong question');
@@ -104,6 +116,7 @@ async function main() {
     completedTasks: overviewAfterTask.plan.completedTaskCount,
     streakDays: calendar.streakDays,
     stageAssessmentScore: stageResult.score,
+    tutorReply: tutorReply.knowledgePointTitle,
     processIds: {
       api: api.pid,
       web: web.pid,

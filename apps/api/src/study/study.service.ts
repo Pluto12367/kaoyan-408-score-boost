@@ -296,6 +296,68 @@ export class StudyService {
     };
   }
 
+  createTutorReply(input: {
+    userId?: string;
+    questionId: string;
+    selectedAnswer?: string;
+    prompt?: string;
+  }) {
+    const question = this.questions.find((item) => item.id === input.questionId);
+    if (!question) {
+      throw new BadRequestException(`Question ${input.questionId} was not found`);
+    }
+
+    const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
+    const selectedAnswer = input.selectedAnswer?.trim().toUpperCase();
+    const isCorrect = selectedAnswer ? selectedAnswer === question.answer : null;
+    const similarQuestions = this.questions
+      .filter((item) => item.id !== question.id)
+      .filter((item) => item.knowledgePointIds.some((id) => question.knowledgePointIds.includes(id)))
+      .slice(0, 3);
+    const fallbackSimilarQuestions = this.questions
+      .filter((item) => item.id !== question.id && !similarQuestions.includes(item))
+      .filter((item) => item.knowledgePointIds.some((id) => {
+        const point = this.knowledgePoints.find((candidate) => candidate.id === id);
+        return point?.subject === knowledgePoint?.subject;
+      }))
+      .slice(0, Math.max(0, 3 - similarQuestions.length));
+    const broadSimilarQuestions = this.questions
+      .filter((item) => item.id !== question.id && !similarQuestions.includes(item) && !fallbackSimilarQuestions.includes(item))
+      .slice(0, Math.max(0, 3 - similarQuestions.length - fallbackSimilarQuestions.length));
+    const explanationSteps = [
+      `先定位考点：${knowledgePoint?.subject ?? '408'} / ${knowledgePoint?.chapter ?? '高频章节'} / ${knowledgePoint?.title ?? question.knowledgePointIds[0] ?? '核心考点'}。`,
+      `再看标准解析：${question.analysis}`,
+      selectedAnswer
+        ? `你选择了 ${selectedAnswer}，标准答案是 ${question.answer}，${isCorrect ? '说明方向正确，接下来要压缩解题时间。' : '建议回到题干条件，重新对照公式或定义。'}`
+        : `本题标准答案是 ${question.answer}，建议先独立复盘一遍再看解析。`,
+    ];
+
+    return {
+      id: `tutor-${Date.now()}`,
+      userId: input.userId ?? this.student.id,
+      questionId: question.id,
+      prompt: input.prompt,
+      knowledgePointId: knowledgePoint?.id ?? question.knowledgePointIds[0],
+      knowledgePointTitle: knowledgePoint?.title ?? question.knowledgePointIds[0] ?? '408 高频考点',
+      answerCheck: selectedAnswer
+        ? `你选择 ${selectedAnswer}，正确答案是 ${question.answer}，${isCorrect ? '本题作答正确。' : '本题需要重点复盘。'}`
+        : `正确答案是 ${question.answer}。`,
+      explanationSteps,
+      similarQuestions: [...similarQuestions, ...fallbackSimilarQuestions, ...broadSimilarQuestions].map((item) => ({
+        id: item.id,
+        stem: item.stem,
+        difficulty: item.difficulty,
+        source: item.source,
+      })),
+      nextActions: [
+        `复述 ${knowledgePoint?.title ?? '该考点'} 的核心规则，并写出本题用到的判断依据。`,
+        '完成 2-3 道同考点相似题，重点记录错因而不是只看答案。',
+        '如果仍然出错，把题干条件逐句标注，检查是否遗漏限制条件。',
+      ],
+      source: 'standard-analysis-assisted',
+    };
+  }
+
   generatePlan() {
     const plan = buildStudyPlan({
       targetScore: this.student.targetScore ?? 115,

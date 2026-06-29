@@ -5,10 +5,12 @@ import {
   createMockOverview,
   fetchDashboardOverview,
   fetchStageAssessment,
+  requestTutorReply,
   submitPracticeAnswer,
   submitStageAssessment,
   type DashboardOverview,
   type StageAssessmentResult,
+  type TutorReply,
 } from './api';
 
 export function App() {
@@ -19,6 +21,8 @@ export function App() {
   const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
+  const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
+  const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
 
   useEffect(() => {
     let active = true;
@@ -125,6 +129,26 @@ export function App() {
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
     } catch {
       setAssessmentStatus('阶段测评提交失败，请稍后重试。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleAskTutor() {
+    setTutorStatus('AI 助教正在整理解析...');
+
+    try {
+      const reply = await requestTutorReply({
+        userId: student.id,
+        questionId: currentQuestion.id,
+        selectedAnswer: 'A',
+        prompt: '请解释这道题的考点和易错点。',
+      });
+      setTutorReply(reply);
+      setApiState('connected');
+      setTutorStatus(`已生成 ${reply.knowledgePointTitle} 的答疑解析。`);
+      document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch {
+      setTutorStatus('AI 答疑暂时不可用，请先查看标准解析。');
       setApiState('mock');
     }
   }
@@ -284,6 +308,51 @@ export function App() {
               ))}
             </div>
           </article>
+        </section>
+
+        <section id="ai" className="panel tutor-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">AI 答疑</p>
+              <h3>基于标准解析的助教讲解</h3>
+            </div>
+            <button type="button" className="secondary-action" onClick={handleAskTutor}>
+              <Brain size={18} /> 讲解当前题
+            </button>
+          </div>
+          <p className="task-status">{tutorStatus}</p>
+          {tutorReply ? (
+            <div className="tutor-result">
+              <article>
+                <strong>{tutorReply.knowledgePointTitle}</strong>
+                <p>{tutorReply.answerCheck}</p>
+              </article>
+              <article>
+                <strong>思路拆解</strong>
+                <ol>
+                  {tutorReply.explanationSteps.map((step) => (
+                    <li key={step}>{step}</li>
+                  ))}
+                </ol>
+              </article>
+              <article>
+                <strong>相似题推荐</strong>
+                <div className="similar-list">
+                  {tutorReply.similarQuestions.map((question) => (
+                    <span key={question.id}>{question.source} · {question.difficulty} · {question.stem}</span>
+                  ))}
+                </div>
+              </article>
+              <article>
+                <strong>下一步</strong>
+                <ul>
+                  {tutorReply.nextActions.map((action) => (
+                    <li key={action}>{action}</li>
+                  ))}
+                </ul>
+              </article>
+            </div>
+          ) : null}
         </section>
 
         <section className="panel">

@@ -48,6 +48,16 @@ export class StudyController {
     return this.studyService.submitStageAssessment(input);
   }
 
+  @Post('ai/tutor-reply')
+  createTutorReply(@Body() input: {
+    userId?: string;
+    questionId: string;
+    selectedAnswer?: string;
+    prompt?: string;
+  }) {
+    return this.studyService.createTutorReply(input);
+  }
+
   @Post('practice-records')
   createPracticeRecord(@Body() input: CreatePracticeRecordDto) {
     return this.studyService.createPracticeRecord(input);

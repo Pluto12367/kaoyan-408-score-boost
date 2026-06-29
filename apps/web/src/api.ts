@@ -66,6 +66,25 @@ export interface StageAssessmentResult {
   nextActions: string[];
 }
 
+export interface TutorReply {
+  id: string;
+  userId: string;
+  questionId: string;
+  prompt?: string;
+  knowledgePointId: string;
+  knowledgePointTitle: string;
+  answerCheck: string;
+  explanationSteps: string[];
+  similarQuestions: Array<{
+    id: string;
+    stem: string;
+    difficulty: string;
+    source: string;
+  }>;
+  nextActions: string[];
+  source: string;
+}
+
 export interface WrongQuestion {
   questionId: string;
   stem: string;
@@ -246,4 +265,25 @@ export async function submitStageAssessment(input: {
   }
 
   return response.json() as Promise<StageAssessmentResult>;
+}
+
+export async function requestTutorReply(input: {
+  userId: string;
+  questionId: string;
+  selectedAnswer?: string;
+  prompt?: string;
+}): Promise<TutorReply> {
+  const response = await fetch(`${API_BASE_URL}/ai/tutor-reply`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI tutor reply request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<TutorReply>;
 }
