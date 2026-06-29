@@ -85,6 +85,19 @@ export interface TutorReply {
   source: string;
 }
 
+export interface CreateTeacherQuestionInput {
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  knowledgePointIds: string[];
+  difficulty: string;
+  type: string;
+  source: string;
+  year?: number;
+  expectedTimeSec?: number;
+}
+
 export interface WrongQuestion {
   questionId: string;
   stem: string;
@@ -286,4 +299,20 @@ export async function requestTutorReply(input: {
   }
 
   return response.json() as Promise<TutorReply>;
+}
+
+export async function createTeacherQuestion(input: CreateTeacherQuestionInput): Promise<Question> {
+  const response = await fetch(`${API_BASE_URL}/questions`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Teacher question creation failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<Question>;
 }

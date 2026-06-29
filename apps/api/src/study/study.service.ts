@@ -9,9 +9,12 @@ import {
   type UserProfile,
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
+import { QuestionsService } from '../questions/questions.service';
 
 @Injectable()
 export class StudyService {
+  constructor(private readonly questionsService: QuestionsService) {}
+
   private readonly student: UserProfile = {
     id: 'u-001',
     name: '林同学',
@@ -32,34 +35,9 @@ export class StudyService {
     { id: 'net-tcp', subject: '计算机网络', chapter: '传输层', title: 'TCP 可靠传输', importance: 4, frequency: 5, prerequisites: ['滑动窗口'] },
   ];
 
-  private readonly questions: Question[] = [
-    {
-      id: 'q-001',
-      stem: '直接映射 Cache 中，主存块号 29 应映射到 Cache 的哪一行？',
-      options: ['1', '3', '5', '7'],
-      answer: 'B',
-      analysis: '直接映射行号等于主存块号对 Cache 行数取模。',
-      knowledgePointIds: ['co-cache'],
-      difficulty: '中等',
-      type: '选择题',
-      source: '章节题',
-      year: 2024,
-      expectedTimeSec: 100,
-    },
-    {
-      id: 'q-002',
-      stem: 'TCP 拥塞避免阶段拥塞窗口的增长规律是？',
-      options: ['指数增长', '线性增长', '保持不变', '立即减半'],
-      answer: 'B',
-      analysis: '拥塞避免阶段通常按加性增大，表现为近似线性增长。',
-      knowledgePointIds: ['net-tcp'],
-      difficulty: '中等',
-      type: '选择题',
-      source: '真题改编',
-      year: 2021,
-      expectedTimeSec: 100,
-    },
-  ];
+  private get questions(): Question[] {
+    return this.questionsService.listQuestions();
+  }
 
   private readonly records: PracticeRecord[] = [
     { id: 'r-001', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: '概念不清', submittedAt: '2026-06-21' },

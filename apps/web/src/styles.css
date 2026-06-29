@@ -359,6 +359,31 @@ button {
   padding: 10px;
 }
 
+.teacher-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.teacher-grid article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.teacher-grid strong {
+  color: #0f172a;
+}
+
+.teacher-grid span {
+  color: #64748b;
+  font-size: 14px;
+}
+
 .task-actions {
   align-items: center;
   display: flex;
@@ -478,7 +503,8 @@ button {
   .two-column,
   .calendar-strip,
   .assessment-grid,
-  .tutor-result {
+  .tutor-result,
+  .teacher-grid {
     grid-template-columns: 1fr;
   }
 

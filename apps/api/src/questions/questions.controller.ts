@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 
@@ -7,8 +7,12 @@ export class QuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
 
   @Get()
-  listQuestions() {
-    return this.questionsService.listQuestions();
+  listQuestions(@Query('knowledgePointId') knowledgePointId?: string, @Query('subject') subject?: string, @Query('chapter') chapter?: string) {
+    return this.questionsService.listQuestions({
+      knowledgePointId,
+      subject,
+      chapter,
+    });
   }
 
   @Post()

@@ -21,6 +21,36 @@ async function main() {
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
+  const createdTeacherQuestion = await postJson(`${apiUrl}/questions`, {
+    stem: 'Cache 命中率提高后，平均访存时间通常会如何变化？',
+    options: ['增大', '不变', '减小', '无法判断'],
+    answer: 'C',
+    analysis: '命中率提高后，访问更多落在高速 Cache 中，平均访存时间通常减小。',
+    knowledgePointIds: ['co-cache'],
+    difficulty: overview.questions[0].difficulty,
+    type: overview.questions[0].type,
+    source: '教师新增',
+    year: 2026,
+    expectedTimeSec: 90,
+  });
+  assert(createdTeacherQuestion.knowledgePointIds.includes('co-cache'), 'teacher question should keep knowledge point binding');
+  const filteredQuestions = await waitForJson(`${apiUrl}/questions?knowledgePointId=co-cache`, (data) =>
+    Array.isArray(data) && data.some((question) => question.id === createdTeacherQuestion.id),
+  );
+  assert(filteredQuestions.every((question) => question.knowledgePointIds.includes('co-cache')), 'question search should filter by knowledge point');
+  const overviewAfterTeacherQuestion = await waitForJson(`${apiUrl}/dashboard/overview`, (data) =>
+    data.questions?.some((question) => question.id === createdTeacherQuestion.id),
+  );
+  assert(overviewAfterTeacherQuestion.questions.some((question) => question.id === createdTeacherQuestion.id), 'student dashboard should include teacher-created questions');
+  const teacherQuestionPractice = await postJson(`${apiUrl}/practice-records`, {
+    userId: 'u-001',
+    questionId: createdTeacherQuestion.id,
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'A',
+    timeSpentSec: 120,
+    expectedTimeSec: 90,
+  });
+  assert(teacherQuestionPractice.questionId === createdTeacherQuestion.id, 'student practice should accept teacher-created questions');
   const firstTaskId = overview.plan.dailyTasks[0].id;
   const completedTask = await postJson(`${apiUrl}/study-tasks/${firstTaskId}/complete`, {
     userId: 'u-001',
@@ -32,7 +62,7 @@ async function main() {
   });
   assert(overviewAfterTask.plan.completionRate > 0, 'study plan should expose today completion rate');
 
-  const previousRecordCount = overview.practiceRecords.length;
+  const previousRecordCount = overview.practiceRecords.length + 1;
   const submitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',
@@ -117,6 +147,7 @@ async function main() {
     streakDays: calendar.streakDays,
     stageAssessmentScore: stageResult.score,
     tutorReply: tutorReply.knowledgePointTitle,
+    teacherQuestion: createdTeacherQuestion.id,
     processIds: {
       api: api.pid,
       web: web.pid,

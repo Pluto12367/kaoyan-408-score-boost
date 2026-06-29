@@ -4,7 +4,14 @@ import { CreateQuestionDto } from './dto/create-question.dto';
 
 @Injectable()
 export class QuestionsService {
-  private readonly questions: Question[] = [
+  private readonly knowledgePointIndex = new Map([
+    ['ds-tree', { subject: '数据结构', chapter: '树与二叉树' }],
+    ['co-cache', { subject: '计算机组成原理', chapter: '存储系统' }],
+    ['os-sync', { subject: '操作系统', chapter: '进程管理' }],
+    ['net-tcp', { subject: '计算机网络', chapter: '传输层' }],
+  ]);
+
+  private static readonly questions: Question[] = [
     {
       id: 'q-001',
       stem: '直接映射 Cache 中，主存块号 29 应映射到 Cache 的哪一行？',
@@ -18,10 +25,47 @@ export class QuestionsService {
       year: 2024,
       expectedTimeSec: 100,
     },
+    {
+      id: 'q-002',
+      stem: 'TCP 拥塞避免阶段拥塞窗口的增长规律是？',
+      options: ['指数增长', '线性增长', '保持不变', '立即减半'],
+      answer: 'B',
+      analysis: '拥塞避免阶段通常按加性增大，表现为近似线性增长。',
+      knowledgePointIds: ['net-tcp'],
+      difficulty: '中等',
+      type: '选择题',
+      source: '真题改编',
+      year: 2021,
+      expectedTimeSec: 100,
+    },
   ];
 
-  listQuestions() {
-    return this.questions;
+  listQuestions(filters: {
+    knowledgePointId?: string;
+    subject?: string;
+    chapter?: string;
+  } = {}) {
+    return this.questions.filter((question) => {
+      if (filters.knowledgePointId && !question.knowledgePointIds.includes(filters.knowledgePointId)) {
+        return false;
+      }
+
+      if (filters.subject || filters.chapter) {
+        const pointMeta = question.knowledgePointIds
+          .map((id) => this.knowledgePointIndex.get(id))
+          .filter(Boolean);
+
+        if (filters.subject && !pointMeta.some((point) => point?.subject === filters.subject)) {
+          return false;
+        }
+
+        if (filters.chapter && !pointMeta.some((point) => point?.chapter === filters.chapter)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
   }
 
   createQuestion(input: CreateQuestionDto) {
@@ -41,5 +85,9 @@ export class QuestionsService {
 
     this.questions.push(question);
     return question;
+  }
+
+  private get questions() {
+    return QuestionsService.questions;
   }
 }

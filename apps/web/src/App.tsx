@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Target } from 'lucide-react';
 import {
   completeStudyTask,
+  createTeacherQuestion,
   createMockOverview,
   fetchDashboardOverview,
   fetchStageAssessment,
@@ -23,6 +24,7 @@ export function App() {
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
+  const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
 
   useEffect(() => {
     let active = true;
@@ -149,6 +151,32 @@ export function App() {
       document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
       setTutorStatus('AI 答疑暂时不可用，请先查看标准解析。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleCreateTeacherQuestion() {
+    setTeacherStatus('正在新增题目...');
+
+    try {
+      const created = await createTeacherQuestion({
+        stem: 'Cache 命中率提高后，平均访存时间通常会如何变化？',
+        options: ['增大', '不变', '减小', '无法判断'],
+        answer: 'C',
+        analysis: '命中率提高后，访问更多落在高速 Cache 中，平均访存时间通常减小。',
+        knowledgePointIds: ['co-cache'],
+        difficulty: currentQuestion.difficulty,
+        type: currentQuestion.type,
+        source: '教师新增',
+        year: 2026,
+        expectedTimeSec: 90,
+      });
+      const nextOverview = await fetchDashboardOverview();
+      setOverview(nextOverview);
+      setApiState('connected');
+      setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
+    } catch {
+      setTeacherStatus('题目录入失败，请检查题干、选项、答案和知识点绑定。');
       setApiState('mock');
     }
   }
@@ -353,6 +381,33 @@ export function App() {
               </article>
             </div>
           ) : null}
+        </section>
+
+        <section className="panel teacher-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">教师题库管理</p>
+              <h3>新增题目后同步到学生训练</h3>
+            </div>
+            <button type="button" className="secondary-action" onClick={handleCreateTeacherQuestion}>
+              <ClipboardList size={18} /> 新增演示题
+            </button>
+          </div>
+          <p className="task-status">{teacherStatus}</p>
+          <div className="teacher-grid">
+            <article>
+              <strong>{questions.length} 题</strong>
+              <span>当前学生端可见题目</span>
+            </article>
+            <article>
+              <strong>知识点绑定</strong>
+              <span>新增题目必须至少绑定一个 408 考点。</span>
+            </article>
+            <article>
+              <strong>内容审核</strong>
+              <span>AI 只辅助讲解，不替代教师录入的标准答案和解析。</span>
+            </article>
+          </div>
         </section>
 
         <section className="panel">
