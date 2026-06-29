@@ -7,6 +7,7 @@ export function App() {
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
+  const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -45,7 +46,12 @@ export function App() {
       const nextOverview = await fetchDashboardOverview();
       setOverview(nextOverview);
       setApiState('connected');
-      setPracticeStatus(record.correct ? '回答正确，已记录本次练习。' : `回答错误，错因：${record.mistakeReason ?? '待复盘'}。`);
+      if (record.correct && redoQuestionId === currentQuestion.id) {
+        setRedoQuestionId(null);
+        setPracticeStatus('回答正确，已从错题本移除。');
+      } else {
+        setPracticeStatus(record.correct ? '回答正确，已记录本次练习。' : `回答错误，错因：${record.mistakeReason ?? '待复盘'}。`);
+      }
     } catch {
       setPracticeStatus('提交失败，当前显示本地演示数据。');
       setApiState('mock');
@@ -121,6 +127,7 @@ export function App() {
                 </button>
               ))}
             </div>
+            {redoQuestionId === currentQuestion.id ? <p className="redo-badge">错题重做模式</p> : null}
             <p className="practice-status">{practiceStatus}</p>
             <p className="muted">答案解析会由标准解析优先提供，AI 只负责补充讲解和相似题推荐。</p>
           </article>
@@ -155,7 +162,16 @@ export function App() {
                   <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}</p>
                   <span>{item.stem}</span>
                 </div>
-                <button type="button">重做</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRedoQuestionId(item.questionId);
+                    setPracticeStatus(`正在重做：${item.knowledgePointTitle}。请选择答案。`);
+                    document.getElementById('question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }}
+                >
+                  重做
+                </button>
               </article>
             ))}
           </div>

@@ -42,6 +42,16 @@ async function main() {
   assert(cacheWrongQuestion.knowledgePointId === 'co-cache', 'wrong question should include its knowledge point');
   assert(cacheWrongQuestion.wrongCount >= 1, 'wrong question should track wrong attempt count');
   assert(cacheWrongQuestion.latestMistakeReason, 'wrong question should expose latest mistake reason');
+  const redoSubmitted = await postJson(`${apiUrl}/practice-records`, {
+    userId: 'u-001',
+    questionId: 'q-001',
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'B',
+    timeSpentSec: 80,
+  });
+  assert(redoSubmitted.correct === true, 'redo submission should be graded as correct by the API');
+  const resolvedWrongQuestions = await waitForJson(`${apiUrl}/wrong-questions?userId=u-001`, (data) => Array.isArray(data));
+  assert(!resolvedWrongQuestions.some((item) => item.questionId === 'q-001'), 'correct redo should remove the question from the wrong question book');
 
   const web = start('web', process.execPath, ['../../node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5174', '--strictPort'], {
     cwd: `${root}/apps/web`,
@@ -60,7 +70,7 @@ async function main() {
     web: webUrl,
     weakPoint: updatedOverview.report.weakPoints[0].title,
     practiceRecords: updatedOverview.practiceRecords.length,
-    wrongQuestions: wrongQuestions.length,
+    wrongQuestionsAfterRedo: resolvedWrongQuestions.length,
     processIds: {
       api: api.pid,
       web: web.pid,

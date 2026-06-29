@@ -46,12 +46,25 @@ export class StudyService {
       year: 2024,
       expectedTimeSec: 100,
     },
+    {
+      id: 'q-002',
+      stem: 'TCP 拥塞避免阶段拥塞窗口的增长规律是？',
+      options: ['指数增长', '线性增长', '保持不变', '立即减半'],
+      answer: 'B',
+      analysis: '拥塞避免阶段通常按加性增大，表现为近似线性增长。',
+      knowledgePointIds: ['net-tcp'],
+      difficulty: '中等',
+      type: '选择题',
+      source: '真题改编',
+      year: 2021,
+      expectedTimeSec: 100,
+    },
   ];
 
   private readonly records: PracticeRecord[] = [
     { id: 'r-001', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: '概念不清', submittedAt: '2026-06-21' },
     { id: 'r-002', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 120, expectedTimeSec: 100, mistakeReason: '概念不清', submittedAt: '2026-06-22' },
-    { id: 'r-003', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: null, submittedAt: '2026-06-24' },
+    { id: 'r-003', userId: 'u-001', questionId: 'q-002', knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: null, submittedAt: '2026-06-24' },
   ];
 
   listKnowledgePoints() {
@@ -80,23 +93,24 @@ export class StudyService {
   }
 
   listWrongQuestions(userId = this.student.id) {
-    const wrongRecords = this.records
-      .filter((record) => record.userId === userId && !record.correct)
-      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
-
     const grouped = new Map<string, PracticeRecord[]>();
-    for (const record of wrongRecords) {
+    for (const record of this.records.filter((item) => item.userId === userId)) {
       const bucket = grouped.get(record.questionId) ?? [];
       bucket.push(record);
       grouped.set(record.questionId, bucket);
     }
 
-    return [...grouped.entries()].map(([questionId, records]) => {
-      const question = this.questions.find((item) => item.id === questionId);
-      const latestRecord = records[0];
-      const knowledgePoint = this.knowledgePoints.find((item) => item.id === latestRecord.knowledgePointId);
+    return [...grouped.entries()].flatMap(([questionId, records]) => {
+      const latestRecord = records[records.length - 1];
+      if (latestRecord.correct) {
+        return [];
+      }
 
-      return {
+      const question = this.questions.find((item) => item.id === questionId);
+      const knowledgePoint = this.knowledgePoints.find((item) => item.id === latestRecord.knowledgePointId);
+      const wrongCount = records.filter((record) => !record.correct).length;
+
+      return [{
         questionId,
         stem: question?.stem ?? questionId,
         answer: question?.answer,
@@ -105,10 +119,10 @@ export class StudyService {
         knowledgePointTitle: knowledgePoint?.title ?? latestRecord.knowledgePointId,
         subject: knowledgePoint?.subject ?? '未分类',
         chapter: knowledgePoint?.chapter ?? '未分类',
-        wrongCount: records.length,
+        wrongCount,
         latestMistakeReason: latestRecord.mistakeReason,
         latestSubmittedAt: latestRecord.submittedAt,
-      };
+      }];
     });
   }
 
