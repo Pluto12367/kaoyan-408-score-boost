@@ -14,14 +14,16 @@ export class CreatePracticeRecordDto {
   @IsString()
   selectedAnswer?: string;
 
+  @IsOptional()
   @IsBoolean()
-  correct!: boolean;
+  correct?: boolean;
 
   @IsInt()
   @Min(1)
   timeSpentSec!: number;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
-  expectedTimeSec!: number;
+  expectedTimeSec?: number;
 }

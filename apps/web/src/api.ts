@@ -56,3 +56,29 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
 
   return response.json() as Promise<DashboardOverview>;
 }
+
+export async function submitPracticeAnswer(input: {
+  userId: string;
+  questionId: string;
+  knowledgePointId: string;
+  selectedAnswer: string;
+  timeSpentSec: number;
+}) {
+  const response = await fetch(`${API_BASE_URL}/practice-records`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Practice submission failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<{
+    id: string;
+    correct: boolean;
+    mistakeReason: string | null;
+  }>;
+}

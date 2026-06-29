@@ -213,6 +213,15 @@ button {
   gap: 4px;
 }
 
+.practice-status {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  color: #334155;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+}
+
 @media (max-width: 900px) {
   .app-shell {
     grid-template-columns: 1fr;

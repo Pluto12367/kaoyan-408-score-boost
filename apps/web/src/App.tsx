@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Activity, BookOpenCheck, Brain, ClipboardList, Target } from 'lucide-react';
-import { createMockOverview, fetchDashboardOverview, type DashboardOverview } from './api';
+import { createMockOverview, fetchDashboardOverview, submitPracticeAnswer, type DashboardOverview } from './api';
 
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
+  const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
 
   useEffect(() => {
     let active = true;
@@ -29,6 +30,27 @@ export function App() {
 
   const { student, questions, report, plan } = overview;
   const currentQuestion = questions[0];
+
+  async function handleSubmitAnswer(selectedAnswer: string) {
+    setPracticeStatus('正在提交答案...');
+
+    try {
+      const record = await submitPracticeAnswer({
+        userId: student.id,
+        questionId: currentQuestion.id,
+        knowledgePointId: currentQuestion.knowledgePointIds[0],
+        selectedAnswer,
+        timeSpentSec: 135,
+      });
+      const nextOverview = await fetchDashboardOverview();
+      setOverview(nextOverview);
+      setApiState('connected');
+      setPracticeStatus(record.correct ? '回答正确，已记录本次练习。' : `回答错误，错因：${record.mistakeReason ?? '待复盘'}。`);
+    } catch {
+      setPracticeStatus('提交失败，当前显示本地演示数据。');
+      setApiState('mock');
+    }
+  }
 
   return (
     <main className="app-shell">
@@ -94,11 +116,12 @@ export function App() {
             <h3>{currentQuestion.stem}</h3>
             <div className="options">
               {currentQuestion.options.map((option, index) => (
-                <button key={option} type="button">
+                <button key={option} type="button" onClick={() => handleSubmitAnswer(String.fromCharCode(65 + index))}>
                   {String.fromCharCode(65 + index)}. {option}
                 </button>
               ))}
             </div>
+            <p className="practice-status">{practiceStatus}</p>
             <p className="muted">答案解析会由标准解析优先提供，AI 只负责补充讲解和相似题推荐。</p>
           </article>
 

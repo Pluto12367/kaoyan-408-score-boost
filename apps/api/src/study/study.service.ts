@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   buildStudyPlan,
   classifyMistake,
@@ -79,23 +79,30 @@ export class StudyService {
   }
 
   createPracticeRecord(input: CreatePracticeRecordDto) {
+    const question = this.questions.find((item) => item.id === input.questionId);
+    if (!question) {
+      throw new BadRequestException(`Question ${input.questionId} was not found`);
+    }
+
+    const expectedTimeSec = input.expectedTimeSec ?? question.expectedTimeSec;
+    const correct = input.selectedAnswer === question.answer;
     const mistakeReason = classifyMistake({
-      correct: input.correct,
+      correct,
       selectedAnswer: input.selectedAnswer,
-      correctAnswer: input.selectedAnswer ?? '',
+      correctAnswer: question.answer,
       timeSpentSec: input.timeSpentSec,
-      expectedTimeSec: input.expectedTimeSec,
+      expectedTimeSec,
     });
 
     const record: PracticeRecord = {
       id: `r-${Date.now()}`,
       userId: input.userId,
       questionId: input.questionId,
-      knowledgePointId: input.knowledgePointId,
+      knowledgePointId: question.knowledgePointIds[0] ?? input.knowledgePointId,
       selectedAnswer: input.selectedAnswer,
-      correct: input.correct,
+      correct,
       timeSpentSec: input.timeSpentSec,
-      expectedTimeSec: input.expectedTimeSec,
+      expectedTimeSec,
       mistakeReason,
       submittedAt: new Date().toISOString().slice(0, 10),
     };

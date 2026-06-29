@@ -22,6 +22,21 @@ async function main() {
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
 
+  const previousRecordCount = overview.practiceRecords.length;
+  const submitted = await postJson(`${apiUrl}/practice-records`, {
+    userId: 'u-001',
+    questionId: 'q-001',
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'A',
+    timeSpentSec: 210,
+    expectedTimeSec: 100,
+  });
+  assert(submitted.questionId === 'q-001', 'practice submission should return the created record');
+  assert(submitted.correct === false, 'practice submission should be graded by the API');
+  assert(submitted.mistakeReason === '概念不清', 'practice submission should be attributed by the API');
+  const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length === previousRecordCount + 1);
+  assert(updatedOverview.report.weakPoints[0].knowledgePointId === 'co-cache', 'updated report should reflect the submitted weak point');
+
   const web = start('web', process.execPath, ['../../node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5174', '--strictPort'], {
     cwd: `${root}/apps/web`,
     env: {
@@ -37,12 +52,29 @@ async function main() {
     ok: true,
     api: `${apiUrl}/dashboard/overview`,
     web: webUrl,
-    weakPoint: overview.report.weakPoints[0].title,
+    weakPoint: updatedOverview.report.weakPoints[0].title,
+    practiceRecords: updatedOverview.practiceRecords.length,
     processIds: {
       api: api.pid,
       web: web.pid,
     },
   }, null, 2));
+}
+
+async function postJson(url, body) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`POST ${url} failed with ${response.status}: ${await response.text()}`);
+  }
+
+  return response.json();
 }
 
 function start(name, command, args, options) {
