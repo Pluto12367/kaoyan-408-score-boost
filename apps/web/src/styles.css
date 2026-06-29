@@ -213,6 +213,39 @@ button {
   gap: 4px;
 }
 
+.wrong-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.wrong-row {
+  align-items: center;
+  border-top: 1px solid #eef2f7;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding-top: 14px;
+}
+
+.wrong-row div {
+  display: grid;
+  gap: 5px;
+}
+
+.wrong-row p,
+.wrong-row span {
+  color: #64748b;
+  margin: 0;
+}
+
+.wrong-row button {
+  background: #f1f5f9;
+  color: #0f172a;
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+
 .practice-status {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -238,7 +271,8 @@ button {
 
   .topbar,
   .panel-heading,
-  .task-row {
+  .task-row,
+  .wrong-row {
     align-items: flex-start;
     flex-direction: column;
   }

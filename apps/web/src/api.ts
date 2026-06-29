@@ -16,8 +16,23 @@ export interface DashboardOverview {
   knowledgePoints: KnowledgePoint[];
   questions: Question[];
   practiceRecords: PracticeRecord[];
+  wrongQuestions: WrongQuestion[];
   report: WeaknessReport;
   plan: StudyPlan;
+}
+
+export interface WrongQuestion {
+  questionId: string;
+  stem: string;
+  answer?: string;
+  analysis?: string;
+  knowledgePointId: string;
+  knowledgePointTitle: string;
+  subject: string;
+  chapter: string;
+  wrongCount: number;
+  latestMistakeReason: string | null;
+  latestSubmittedAt: string;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000';
@@ -43,6 +58,21 @@ export function createMockOverview(): DashboardOverview {
     knowledgePoints,
     questions,
     practiceRecords,
+    wrongQuestions: [
+      {
+        questionId: questions[0].id,
+        stem: questions[0].stem,
+        answer: questions[0].answer,
+        analysis: questions[0].analysis,
+        knowledgePointId: 'co-cache',
+        knowledgePointTitle: 'Cache 映射与替换',
+        subject: '计算机组成原理',
+        chapter: '存储系统',
+        wrongCount: 2,
+        latestMistakeReason: '概念不清',
+        latestSubmittedAt: '2026-06-22',
+      },
+    ],
     report,
     plan,
   };

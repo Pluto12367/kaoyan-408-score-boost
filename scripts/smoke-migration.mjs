@@ -36,6 +36,12 @@ async function main() {
   assert(submitted.mistakeReason === '概念不清', 'practice submission should be attributed by the API');
   const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length === previousRecordCount + 1);
   assert(updatedOverview.report.weakPoints[0].knowledgePointId === 'co-cache', 'updated report should reflect the submitted weak point');
+  const wrongQuestions = await waitForJson(`${apiUrl}/wrong-questions?userId=u-001`, (data) => Array.isArray(data) && data.length > 0);
+  const cacheWrongQuestion = wrongQuestions.find((item) => item.questionId === 'q-001');
+  assert(cacheWrongQuestion, 'wrong question book should include the submitted wrong question');
+  assert(cacheWrongQuestion.knowledgePointId === 'co-cache', 'wrong question should include its knowledge point');
+  assert(cacheWrongQuestion.wrongCount >= 1, 'wrong question should track wrong attempt count');
+  assert(cacheWrongQuestion.latestMistakeReason, 'wrong question should expose latest mistake reason');
 
   const web = start('web', process.execPath, ['../../node_modules/vite/bin/vite.js', '--host', '127.0.0.1', '--port', '5174', '--strictPort'], {
     cwd: `${root}/apps/web`,
@@ -54,6 +60,7 @@ async function main() {
     web: webUrl,
     weakPoint: updatedOverview.report.weakPoints[0].title,
     practiceRecords: updatedOverview.practiceRecords.length,
+    wrongQuestions: wrongQuestions.length,
     processIds: {
       api: api.pid,
       web: web.pid,

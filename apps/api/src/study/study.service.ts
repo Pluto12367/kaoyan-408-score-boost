@@ -73,9 +73,43 @@ export class StudyService {
       knowledgePoints: this.knowledgePoints,
       questions: this.questions,
       practiceRecords: this.records,
+      wrongQuestions: this.listWrongQuestions(this.student.id),
       report: this.getOverviewReport(),
       plan: this.generatePlan(),
     };
+  }
+
+  listWrongQuestions(userId = this.student.id) {
+    const wrongRecords = this.records
+      .filter((record) => record.userId === userId && !record.correct)
+      .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt));
+
+    const grouped = new Map<string, PracticeRecord[]>();
+    for (const record of wrongRecords) {
+      const bucket = grouped.get(record.questionId) ?? [];
+      bucket.push(record);
+      grouped.set(record.questionId, bucket);
+    }
+
+    return [...grouped.entries()].map(([questionId, records]) => {
+      const question = this.questions.find((item) => item.id === questionId);
+      const latestRecord = records[0];
+      const knowledgePoint = this.knowledgePoints.find((item) => item.id === latestRecord.knowledgePointId);
+
+      return {
+        questionId,
+        stem: question?.stem ?? questionId,
+        answer: question?.answer,
+        analysis: question?.analysis,
+        knowledgePointId: latestRecord.knowledgePointId,
+        knowledgePointTitle: knowledgePoint?.title ?? latestRecord.knowledgePointId,
+        subject: knowledgePoint?.subject ?? '未分类',
+        chapter: knowledgePoint?.chapter ?? '未分类',
+        wrongCount: records.length,
+        latestMistakeReason: latestRecord.mistakeReason,
+        latestSubmittedAt: latestRecord.submittedAt,
+      };
+    });
   }
 
   createPracticeRecord(input: CreatePracticeRecordDto) {

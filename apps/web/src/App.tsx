@@ -28,7 +28,7 @@ export function App() {
     };
   }, []);
 
-  const { student, questions, report, plan } = overview;
+  const { student, questions, report, plan, wrongQuestions } = overview;
   const currentQuestion = questions[0];
 
   async function handleSubmitAnswer(selectedAnswer: string) {
@@ -137,6 +137,28 @@ export function App() {
               ))}
             </div>
           </article>
+        </section>
+
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">错题本</p>
+              <h3>自动收集需要回炉的题目</h3>
+            </div>
+            <span>{wrongQuestions.length} 道待复盘</span>
+          </div>
+          <div className="wrong-list">
+            {wrongQuestions.map((item) => (
+              <article key={item.questionId} className="wrong-row">
+                <div>
+                  <strong>{item.knowledgePointTitle}</strong>
+                  <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}</p>
+                  <span>{item.stem}</span>
+                </div>
+                <button type="button">重做</button>
+              </article>
+            ))}
+          </div>
         </section>
       </section>
     </main>
