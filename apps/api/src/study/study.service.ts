@@ -50,6 +50,8 @@ export class StudyService {
 
   private readonly aiReviewItems: ReviewItem[] = [];
 
+  private readonly papers: GeneratedPaper[] = [];
+
   private systemConfig = {
     source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
     recommendation: {
@@ -161,6 +163,46 @@ export class StudyService {
 
   getSystemConfig() {
     return this.systemConfig;
+  }
+
+  listPapers() {
+    return this.papers;
+  }
+
+  generatePaper(input: {
+    title?: string;
+    paperType?: PaperType;
+    knowledgePointIds?: string[];
+    questionCount?: number;
+    createdBy?: string;
+  }) {
+    const questionCount = clampNumber(input.questionCount ?? 6, 1, 50);
+    const requestedPointIds = new Set(input.knowledgePointIds ?? []);
+    const selectedQuestions = this.questions
+      .filter((question) => {
+        if (requestedPointIds.size === 0) return true;
+        return question.knowledgePointIds.some((id) => requestedPointIds.has(id));
+      })
+      .slice(0, questionCount);
+
+    if (selectedQuestions.length === 0) {
+      throw new BadRequestException('No questions matched the paper generation criteria');
+    }
+
+    const paper: GeneratedPaper = {
+      id: `paper-${Date.now()}`,
+      title: input.title?.trim() || `${input.paperType ?? '阶段卷'}-${todayKey()}`,
+      paperType: input.paperType ?? '阶段卷',
+      questionCount: selectedQuestions.length,
+      knowledgePointIds: [...new Set(selectedQuestions.flatMap((question) => question.knowledgePointIds))],
+      questions: selectedQuestions,
+      estimatedMinutes: Math.max(10, Math.round(selectedQuestions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
+      createdBy: input.createdBy ?? 'teacher-001',
+      createdAt: new Date().toISOString(),
+    };
+
+    this.papers.push(paper);
+    return paper;
   }
 
   updateSystemConfig(input: {
@@ -549,4 +591,18 @@ function parseSubject(value: string | undefined): Subject | null {
   }
 
   return null;
+}
+
+export type PaperType = '模拟卷' | '阶段卷' | '专项卷';
+
+export interface GeneratedPaper {
+  id: string;
+  title: string;
+  paperType: PaperType;
+  questionCount: number;
+  knowledgePointIds: string[];
+  questions: Question[];
+  estimatedMinutes: number;
+  createdBy: string;
+  createdAt: string;
 }

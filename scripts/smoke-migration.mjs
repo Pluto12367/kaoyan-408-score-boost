@@ -85,6 +85,21 @@ async function main() {
     expectedTimeSec: 90,
   });
   assert(teacherQuestionPractice.questionId === createdTeacherQuestion.id, 'student practice should accept teacher-created questions');
+  const generatedPaper = await postJson(`${apiUrl}/papers/generate`, {
+    title: '存储系统专项卷',
+    paperType: '专项卷',
+    knowledgePointIds: ['co-cache'],
+    questionCount: 2,
+    createdBy: 'teacher-001',
+  });
+  assert(generatedPaper.title === '存储系统专项卷', 'paper generation should return the requested title');
+  assert(generatedPaper.questions.length > 0 && generatedPaper.questions.length <= 2, 'paper generation should select bounded questions');
+  assert(generatedPaper.questions.every((question) => question.knowledgePointIds.includes('co-cache')), 'special paper should only include requested knowledge points');
+  assert(generatedPaper.estimatedMinutes > 0, 'paper generation should include estimated minutes');
+  const papers = await waitForJson(`${apiUrl}/papers`, (data) =>
+    Array.isArray(data) && data.some((paper) => paper.id === generatedPaper.id),
+  );
+  assert(papers.some((paper) => paper.paperType === '专项卷'), 'paper list should include generated special paper');
   const firstTaskId = overview.plan.dailyTasks[0].id;
   const completedTask = await postJson(`${apiUrl}/study-tasks/${firstTaskId}/complete`, {
     userId: 'u-001',
@@ -216,6 +231,7 @@ async function main() {
     tutorReply: tutorReply.knowledgePointTitle,
     teacherQuestion: createdTeacherQuestion.id,
     knowledgePoint: createdKnowledgePoint.id,
+    paper: generatedPaper.id,
     adminAccuracyRate: adminMetrics.accuracyRate,
     reviewPendingCount: reviewQueueAfterApproval.pendingCount,
     stageAssessmentQuestionLimit: updatedSystemConfig.recommendation.stageAssessmentQuestionLimit,

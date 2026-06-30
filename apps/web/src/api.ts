@@ -159,6 +159,26 @@ export interface CreateKnowledgePointInput {
   prerequisites: string[];
 }
 
+export interface GeneratedPaper {
+  id: string;
+  title: string;
+  paperType: '模拟卷' | '阶段卷' | '专项卷';
+  questionCount: number;
+  knowledgePointIds: string[];
+  questions: Question[];
+  estimatedMinutes: number;
+  createdBy: string;
+  createdAt: string;
+}
+
+export interface GeneratePaperInput {
+  title: string;
+  paperType: GeneratedPaper['paperType'];
+  knowledgePointIds: string[];
+  questionCount: number;
+  createdBy: string;
+}
+
 export interface WrongQuestion {
   questionId: string;
   stem: string;
@@ -498,4 +518,20 @@ export async function createKnowledgePoint(input: CreateKnowledgePointInput): Pr
   }
 
   return response.json() as Promise<KnowledgePoint>;
+}
+
+export async function generatePaper(input: GeneratePaperInput): Promise<GeneratedPaper> {
+  const response = await fetch(`${API_BASE_URL}/papers/generate`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Paper generation failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<GeneratedPaper>;
 }

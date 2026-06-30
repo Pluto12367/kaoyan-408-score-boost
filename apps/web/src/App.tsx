@@ -14,12 +14,14 @@ import {
   fetchReviewQueue,
   fetchStageAssessment,
   fetchSystemConfig,
+  generatePaper,
   requestTutorReply,
   submitPracticeAnswer,
   submitStageAssessment,
   updateSystemConfig,
   type AdminMetrics,
   type DashboardOverview,
+  type GeneratedPaper,
   type ReviewQueue,
   type StageAssessmentResult,
   type SystemConfig,
@@ -43,6 +45,8 @@ export function App() {
   const [reviewStatus, setReviewStatus] = useState('教师题目和 AI 生成内容会进入审核队列。');
   const [configStatus, setConfigStatus] = useState('推荐策略参数会影响阶段测评和每日训练建议。');
   const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
+  const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
+  const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -240,6 +244,26 @@ export function App() {
       setKnowledgeStatus(`已新增 ${point.title}，当前知识点共 ${nextOverview.knowledgePoints.length} 个。`);
     } catch {
       setKnowledgeStatus('知识点新增失败，请检查 ID、科目、章节和标题。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleGeneratePaper() {
+    setPaperStatus('正在生成专项卷...');
+
+    try {
+      const paper = await generatePaper({
+        title: '存储系统专项卷',
+        paperType: '专项卷',
+        knowledgePointIds: ['co-cache'],
+        questionCount: 2,
+        createdBy: 'teacher-001',
+      });
+      setLatestPaper(paper);
+      setApiState('connected');
+      setPaperStatus(`已生成 ${paper.title}，共 ${paper.questionCount} 题，预计 ${paper.estimatedMinutes} 分钟。`);
+    } catch {
+      setPaperStatus('试卷生成失败，请确认题库中有匹配知识点的题目。');
       setApiState('mock');
     }
   }
@@ -608,9 +632,12 @@ export function App() {
               <button type="button" className="secondary-action" onClick={handleCreateTeacherQuestion}>
                 <ClipboardList size={18} /> 新增演示题
               </button>
+              <button type="button" className="secondary-action" onClick={handleGeneratePaper}>
+                <ClipboardCheck size={18} /> 生成专项卷
+              </button>
             </div>
           </div>
-          <p className="task-status">{knowledgeStatus} {teacherStatus}</p>
+          <p className="task-status">{knowledgeStatus} {teacherStatus} {paperStatus}</p>
           <div className="teacher-grid">
             <article>
               <strong>{questions.length} 题</strong>
@@ -621,8 +648,8 @@ export function App() {
               <span>当前维护的 408 知识点</span>
             </article>
             <article>
-              <strong>内容审核</strong>
-              <span>AI 只辅助讲解，不替代教师录入的标准答案和解析。</span>
+              <strong>{latestPaper ? `${latestPaper.questionCount} 题` : '试卷管理'}</strong>
+              <span>{latestPaper ? `${latestPaper.title} · ${latestPaper.estimatedMinutes} 分钟` : '可按知识点生成专项卷。'}</span>
             </article>
           </div>
         </section>

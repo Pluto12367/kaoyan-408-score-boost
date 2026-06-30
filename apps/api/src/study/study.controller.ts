@@ -59,6 +59,22 @@ export class StudyController {
     return this.studyService.updateSystemConfig(input);
   }
 
+  @Get('papers')
+  listPapers() {
+    return this.studyService.listPapers();
+  }
+
+  @Post('papers/generate')
+  generatePaper(@Body() input: {
+    title?: string;
+    paperType?: '模拟卷' | '阶段卷' | '专项卷';
+    knowledgePointIds?: string[];
+    questionCount?: number;
+    createdBy?: string;
+  }) {
+    return this.studyService.generatePaper(input);
+  }
+
   @Get('wrong-questions')
   listWrongQuestions(@Query('userId') userId?: string) {
     return this.studyService.listWrongQuestions(userId);
