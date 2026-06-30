@@ -371,6 +371,56 @@ export class StudyService {
     };
   }
 
+  submitPracticeSet(practiceSetId: string, input: {
+    userId?: string;
+    answers?: Array<{
+      questionId: string;
+      selectedAnswer: string;
+      timeSpentSec: number;
+    }>;
+  }) {
+    const userId = input.userId ?? this.student.id;
+    const answers = input.answers ?? [];
+    if (answers.length === 0) {
+      throw new BadRequestException('Practice set answers are required');
+    }
+
+    const records = answers.map((answer) => this.createPracticeRecord({
+      userId,
+      questionId: answer.questionId,
+      knowledgePointId: '',
+      selectedAnswer: answer.selectedAnswer,
+      timeSpentSec: answer.timeSpentSec,
+    }));
+    const correctCount = records.filter((record) => record.correct).length;
+    const accuracyRate = Math.round((correctCount / records.length) * 100);
+
+    return {
+      id: `practice-set-result-${Date.now()}`,
+      practiceSetId,
+      userId,
+      submittedAt: new Date().toISOString(),
+      totalQuestions: records.length,
+      correctCount,
+      accuracyRate,
+      results: records.map((record) => {
+        const question = this.questions.find((item) => item.id === record.questionId);
+        return {
+          questionId: record.questionId,
+          stem: question?.stem ?? record.questionId,
+          selectedAnswer: record.selectedAnswer,
+          correctAnswer: question?.answer,
+          correct: record.correct,
+          mistakeReason: record.mistakeReason,
+        };
+      }),
+      nextActions: [
+        accuracyRate >= 80 ? '本组正确率较高，建议进入限时训练或真题套卷。' : '本组仍有失分，建议先复盘错题再重做同知识点题。',
+        `已同步 ${records.length} 条练习记录，提分报告和错题本会自动更新。`,
+      ],
+    };
+  }
+
   createPracticeRecord(input: CreatePracticeRecordDto) {
     const question = this.questions.find((item) => item.id === input.questionId);
     if (!question) {

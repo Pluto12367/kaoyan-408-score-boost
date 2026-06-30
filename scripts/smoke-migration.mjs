@@ -161,6 +161,17 @@ async function main() {
   assert(practiceSet.title && practiceSet.focus, 'recommended practice set should include title and focus');
   assert(practiceSet.knowledgePointIds.includes('co-cache'), 'recommended practice set should focus on the current weak point');
   assert(practiceSet.questions.every((question) => question.knowledgePointIds.some((id) => practiceSet.knowledgePointIds.includes(id))), 'recommended practice set should return matching questions');
+  const practiceSetResult = await postJson(`${apiUrl}/practice-sets/${practiceSet.id}/submit`, {
+    userId: 'u-001',
+    answers: practiceSet.questions.slice(0, 2).map((question, index) => ({
+      questionId: question.id,
+      selectedAnswer: index === 0 ? question.answer : 'A',
+      timeSpentSec: question.expectedTimeSec + 10,
+    })),
+  });
+  assert(practiceSetResult.totalQuestions === Math.min(2, practiceSet.questions.length), 'practice set submission should score submitted answers');
+  assert(practiceSetResult.results.length === practiceSetResult.totalQuestions, 'practice set submission should include per-question results');
+  assert(practiceSetResult.accuracyRate >= 0 && practiceSetResult.accuracyRate <= 100, 'practice set submission should expose accuracy rate');
   const calendar = await waitForJson(`${apiUrl}/learning-calendar?userId=u-001`, (data) => data.today?.isActive === true);
   assert(calendar.days.length === 7, 'learning calendar should return a 7-day window');
   assert(calendar.today.completedTaskCount >= 1, 'learning calendar should include completed task count for today');

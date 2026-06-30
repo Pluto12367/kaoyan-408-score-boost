@@ -85,6 +85,18 @@ export class StudyController {
     return this.studyService.getRecommendedPracticeSet(userId);
   }
 
+  @Post('practice-sets/:practiceSetId/submit')
+  submitPracticeSet(@Param('practiceSetId') practiceSetId: string, @Body() input: {
+    userId?: string;
+    answers?: Array<{
+      questionId: string;
+      selectedAnswer: string;
+      timeSpentSec: number;
+    }>;
+  }) {
+    return this.studyService.submitPracticeSet(practiceSetId, input);
+  }
+
   @Post('wrong-questions/:questionId/review')
   reviewWrongQuestion(@Param('questionId') questionId: string, @Body('userId') userId?: string) {
     return this.studyService.reviewWrongQuestion(questionId, userId);

@@ -695,6 +695,10 @@ button {
   padding-left: 18px;
 }
 
+.practice-set button {
+  justify-self: start;
+}
+
 .redo-badge {
   background: #ecfdf5;
   border: 1px solid #bbf7d0;

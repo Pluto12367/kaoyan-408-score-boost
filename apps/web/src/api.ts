@@ -140,6 +140,25 @@ export interface PracticeSet {
   questions: Question[];
 }
 
+export interface PracticeSetResult {
+  id: string;
+  practiceSetId: string;
+  userId: string;
+  submittedAt: string;
+  totalQuestions: number;
+  correctCount: number;
+  accuracyRate: number;
+  results: Array<{
+    questionId: string;
+    stem: string;
+    selectedAnswer?: string;
+    correctAnswer?: string;
+    correct: boolean;
+    mistakeReason: string | null;
+  }>;
+  nextActions: string[];
+}
+
 export interface TutorReply {
   id: string;
   userId: string;
@@ -394,6 +413,33 @@ export async function fetchRecommendedPracticeSet(userId: string): Promise<Pract
   }
 
   return response.json() as Promise<PracticeSet>;
+}
+
+export async function submitPracticeSet(input: {
+  userId: string;
+  practiceSetId: string;
+  answers: Array<{
+    questionId: string;
+    selectedAnswer: string;
+    timeSpentSec: number;
+  }>;
+}): Promise<PracticeSetResult> {
+  const response = await fetch(`${API_BASE_URL}/practice-sets/${input.practiceSetId}/submit`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      userId: input.userId,
+      answers: input.answers,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Practice set submission failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<PracticeSetResult>;
 }
 
 export async function fetchAdminMetrics(): Promise<AdminMetrics> {

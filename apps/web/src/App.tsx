@@ -22,12 +22,14 @@ import {
   reviewWrongQuestion,
   submitDiagnosticProfile,
   submitPracticeAnswer,
+  submitPracticeSet,
   submitStageAssessment,
   updateSystemConfig,
   type AdminMetrics,
   type DashboardOverview,
   type GeneratedPaper,
   type PracticeSet,
+  type PracticeSetResult,
   type ReviewQueue,
   type StageAssessmentResult,
   type SystemConfig,
@@ -59,6 +61,7 @@ export function App() {
   const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
+  const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -152,6 +155,34 @@ export function App() {
       }
     } catch {
       setPracticeStatus('提交失败，当前显示本地演示数据。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleSubmitPracticeSet() {
+    setPracticeStatus('正在提交推荐题组...');
+
+    try {
+      const result = await submitPracticeSet({
+        userId: student.id,
+        practiceSetId: practiceSet.id,
+        answers: practiceSet.questions.slice(0, 3).map((question, index) => ({
+          questionId: question.id,
+          selectedAnswer: index === 0 ? question.answer : 'A',
+          timeSpentSec: question.expectedTimeSec + 10,
+        })),
+      });
+      const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
+      const nextPracticeSet = await fetchRecommendedPracticeSet(student.id);
+      setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
+      setPracticeSet(nextPracticeSet);
+      setPracticeSetResult(result);
+      setApiState('connected');
+      setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
+    } catch {
+      setPracticeStatus('推荐题组提交失败，请稍后重试。');
       setApiState('mock');
     }
   }
@@ -693,6 +724,12 @@ export function App() {
                   <li key={question.id}>{question.stem}</li>
                 ))}
               </ol>
+              <button type="button" className="secondary-action" onClick={handleSubmitPracticeSet}>
+                提交演示题组
+              </button>
+              {practiceSetResult ? (
+                <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p>
+              ) : null}
             </div>
             <p className="muted">答案解析会由标准解析优先提供，AI 只负责补充讲解和相似题推荐。</p>
           </article>
