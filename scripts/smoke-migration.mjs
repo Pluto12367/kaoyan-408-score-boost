@@ -157,6 +157,10 @@ async function main() {
   assert(submitted.mistakeReason === '概念不清', 'practice submission should be attributed by the API');
   const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length === previousRecordCount + 1);
   assert(updatedOverview.report.weakPoints[0].knowledgePointId === 'co-cache', 'updated report should reflect the submitted weak point');
+  const practiceSet = await waitForJson(`${apiUrl}/practice-sets/recommended?userId=u-001`, (data) => data.questions?.length > 0);
+  assert(practiceSet.title && practiceSet.focus, 'recommended practice set should include title and focus');
+  assert(practiceSet.knowledgePointIds.includes('co-cache'), 'recommended practice set should focus on the current weak point');
+  assert(practiceSet.questions.every((question) => question.knowledgePointIds.some((id) => practiceSet.knowledgePointIds.includes(id))), 'recommended practice set should return matching questions');
   const calendar = await waitForJson(`${apiUrl}/learning-calendar?userId=u-001`, (data) => data.today?.isActive === true);
   assert(calendar.days.length === 7, 'learning calendar should return a 7-day window');
   assert(calendar.today.completedTaskCount >= 1, 'learning calendar should include completed task count for today');

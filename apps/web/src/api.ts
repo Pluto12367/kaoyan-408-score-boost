@@ -127,6 +127,19 @@ export interface StageAssessmentResult {
   nextActions: string[];
 }
 
+export interface PracticeSet {
+  id: string;
+  userId: string;
+  title: string;
+  stage: string;
+  focus: string;
+  reason: string;
+  knowledgePointIds: string[];
+  questionCount: number;
+  estimatedMinutes: number;
+  questions: Question[];
+}
+
 export interface TutorReply {
   id: string;
   userId: string;
@@ -350,6 +363,21 @@ function createMockLearningCalendar(): LearningCalendar {
   };
 }
 
+export function createMockPracticeSet(): PracticeSet {
+  return {
+    id: 'practice-set-mock',
+    userId: student.id,
+    title: '薄弱专题突破',
+    stage: student.stage ?? '强化',
+    focus: '相似考点辨析、变式题组、错因复盘',
+    reason: '根据当前错题和薄弱知识点生成演示题组。',
+    knowledgePointIds: ['co-cache'],
+    questionCount: Math.min(questions.length, 4),
+    estimatedMinutes: 10,
+    questions: questions.slice(0, 4),
+  };
+}
+
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   const response = await fetch(`${API_BASE_URL}/dashboard/overview`);
   if (!response.ok) {
@@ -357,6 +385,15 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   }
 
   return response.json() as Promise<DashboardOverview>;
+}
+
+export async function fetchRecommendedPracticeSet(userId: string): Promise<PracticeSet> {
+  const response = await fetch(`${API_BASE_URL}/practice-sets/recommended?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Recommended practice set request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<PracticeSet>;
 }
 
 export async function fetchAdminMetrics(): Promise<AdminMetrics> {

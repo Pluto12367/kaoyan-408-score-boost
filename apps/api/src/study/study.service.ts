@@ -329,6 +329,48 @@ export class StudyService {
     };
   }
 
+  getRecommendedPracticeSet(userId = this.student.id) {
+    const report = this.getOverviewReport();
+    const stage = this.student.stage ?? '强化';
+    const weakPointIds = report.weakPoints.map((point) => point.knowledgePointId);
+    const fallbackPointIds = this.generatePlan().dailyTasks.map((task) => task.knowledgePointId);
+    const knowledgePointIds = [...new Set([...(weakPointIds.length ? weakPointIds : fallbackPointIds)])].slice(0, 4);
+    let matchingQuestions = this.questions.filter((question) =>
+      question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
+    );
+    if (matchingQuestions.length === 0) {
+      knowledgePointIds.push(...this.questions.flatMap((question) => question.knowledgePointIds).slice(0, 2));
+      matchingQuestions = this.questions.filter((question) =>
+        question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
+      );
+    }
+    const questionCount = stage === '冲刺' ? 20 : report.accuracyRate < 55 ? 16 : 12;
+    const questions = matchingQuestions.slice(0, Math.min(questionCount, matchingQuestions.length));
+
+    return {
+      id: `practice-set-${todayKey()}`,
+      userId,
+      title: stage === '冲刺'
+        ? '真题错题回炉训练'
+        : report.accuracyRate < 55
+          ? '高频基础考点补强'
+          : '薄弱专题突破',
+      stage,
+      focus: stage === '冲刺'
+        ? '近年真题、错题重做、限时复盘'
+        : report.accuracyRate < 55
+          ? '例题理解、概念复述、基础题组'
+          : '相似考点辨析、变式题组、错因复盘',
+      reason: report.weakPoints[0]
+        ? `优先覆盖 ${report.weakPoints[0].title}，当前正确率 ${report.weakPoints[0].accuracyRate}%。`
+        : '当前薄弱点较少，按今日计划和高频考点生成练习题组。',
+      knowledgePointIds,
+      questionCount: questions.length,
+      estimatedMinutes: Math.max(10, Math.round(questions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
+      questions,
+    };
+  }
+
   createPracticeRecord(input: CreatePracticeRecordDto) {
     const question = this.questions.find((item) => item.id === input.questionId);
     if (!question) {

@@ -671,6 +671,30 @@ button {
   padding: 10px 12px;
 }
 
+.practice-set {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 12px;
+}
+
+.practice-set p,
+.practice-set span,
+.practice-set li {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.practice-set ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
 .redo-badge {
   background: #ecfdf5;
   border: 1px solid #bbf7d0;

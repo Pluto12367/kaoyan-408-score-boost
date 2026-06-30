@@ -7,10 +7,12 @@ import {
   createTeacherQuestion,
   createMockAdminMetrics,
   createMockOverview,
+  createMockPracticeSet,
   createMockReviewQueue,
   createMockSystemConfig,
   fetchAdminMetrics,
   fetchDashboardOverview,
+  fetchRecommendedPracticeSet,
   fetchReviewQueue,
   fetchStageAssessment,
   fetchSystemConfig,
@@ -25,6 +27,7 @@ import {
   type AdminMetrics,
   type DashboardOverview,
   type GeneratedPaper,
+  type PracticeSet,
   type ReviewQueue,
   type StageAssessmentResult,
   type SystemConfig,
@@ -55,17 +58,19 @@ export function App() {
   const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
   const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
+  const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig()])
-      .then(([data, metrics, queue, config]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
         setReviewQueue(queue);
         setSystemConfig(config);
+        setPracticeSet(recommendedSet);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -75,6 +80,7 @@ export function App() {
         setAdminMetrics(createMockAdminMetrics());
         setReviewQueue(createMockReviewQueue());
         setSystemConfig(createMockSystemConfig());
+        setPracticeSet(createMockPracticeSet());
         setApiState('mock');
       });
 
@@ -678,6 +684,16 @@ export function App() {
             </div>
             {redoQuestionId === currentQuestion.id ? <p className="redo-badge">错题重做模式</p> : null}
             <p className="practice-status">{practiceStatus}</p>
+            <div className="practice-set">
+              <strong>{practiceSet.title}</strong>
+              <p>{practiceSet.focus} · 预计 {practiceSet.estimatedMinutes} 分钟</p>
+              <span>{practiceSet.reason}</span>
+              <ol>
+                {practiceSet.questions.slice(0, 3).map((question) => (
+                  <li key={question.id}>{question.stem}</li>
+                ))}
+              </ol>
+            </div>
             <p className="muted">答案解析会由标准解析优先提供，AI 只负责补充讲解和相似题推荐。</p>
           </article>
 

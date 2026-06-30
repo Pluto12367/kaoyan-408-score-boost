@@ -80,6 +80,11 @@ export class StudyController {
     return this.studyService.listWrongQuestions(userId);
   }
 
+  @Get('practice-sets/recommended')
+  getRecommendedPracticeSet(@Query('userId') userId?: string) {
+    return this.studyService.getRecommendedPracticeSet(userId);
+  }
+
   @Post('wrong-questions/:questionId/review')
   reviewWrongQuestion(@Param('questionId') questionId: string, @Body('userId') userId?: string) {
     return this.studyService.reviewWrongQuestion(questionId, userId);
