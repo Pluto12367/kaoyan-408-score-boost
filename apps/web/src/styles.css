@@ -484,7 +484,24 @@ button {
   margin-top: 16px;
 }
 
+.diagnostic-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
 .config-grid article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+  min-height: 88px;
+  padding: 14px;
+}
+
+.diagnostic-grid article {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
@@ -499,7 +516,17 @@ button {
   font-size: 24px;
 }
 
+.diagnostic-grid strong {
+  color: #0f172a;
+  font-size: 24px;
+}
+
 .config-grid span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.diagnostic-grid span {
   color: #64748b;
   font-size: 13px;
 }
@@ -626,7 +653,8 @@ button {
   .assessment-grid,
   .tutor-result,
   .teacher-grid,
-  .config-grid {
+  .config-grid,
+  .diagnostic-grid {
     grid-template-columns: 1fr;
   }
 

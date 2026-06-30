@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import type { KnowledgePoint } from '@kaoyan408/shared';
+import type { KnowledgePoint, Subject } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 
@@ -125,5 +125,16 @@ export class StudyController {
   @Post('diagnostics/plan')
   generatePlan() {
     return this.studyService.generatePlan();
+  }
+
+  @Post('diagnostics/profile')
+  applyDiagnosticProfile(@Body() input: {
+    targetScore: number;
+    currentScore: number;
+    remainingDays: number;
+    dailyHours: number;
+    weakestSubject: Subject;
+  }) {
+    return this.studyService.applyDiagnosticProfile(input);
   }
 }

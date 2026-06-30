@@ -37,6 +37,20 @@ async function main() {
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
+  const diagnosticProfile = await postJson(`${apiUrl}/diagnostics/profile`, {
+    targetScore: 118,
+    currentScore: 58,
+    remainingDays: 120,
+    dailyHours: 2.5,
+    weakestSubject: '操作系统',
+  });
+  assert(diagnosticProfile.stage === '基础', 'diagnostic profile should classify low score students into foundation stage');
+  assert(diagnosticProfile.diagnosis.includes('操作系统'), 'diagnostic profile should mention weakest subject');
+  const overviewAfterDiagnostic = await waitForJson(`${apiUrl}/dashboard/overview`, (data) =>
+    data.student?.stage === '基础' && data.plan?.phase === '基础补强',
+  );
+  assert(overviewAfterDiagnostic.student.targetScore === 118, 'dashboard should reflect diagnostic target score');
+  assert(overviewAfterDiagnostic.student.remainingDays === 120, 'dashboard should reflect diagnostic remaining days');
   const createdKnowledgePoint = await postJson(`${apiUrl}/knowledge-points`, {
     id: 'os-memory',
     subject: '操作系统',

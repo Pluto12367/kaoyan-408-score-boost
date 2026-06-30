@@ -8,6 +8,8 @@ import {
   type UserProfile,
   type UserRole,
   type WeaknessReport,
+  type DiagnosticProfile,
+  type Subject,
 } from '@kaoyan408/shared';
 import { knowledgePoints, practiceRecords, questions, student } from './mockData';
 
@@ -183,6 +185,14 @@ export interface GeneratePaperInput {
 export interface AuthSession {
   token: string;
   user: UserProfile;
+}
+
+export interface DiagnosticInput {
+  targetScore: number;
+  currentScore: number;
+  remainingDays: number;
+  dailyHours: number;
+  weakestSubject: Subject;
 }
 
 export interface WrongQuestion {
@@ -556,4 +566,20 @@ export async function loginAsRole(role: UserRole): Promise<AuthSession> {
   }
 
   return response.json() as Promise<AuthSession>;
+}
+
+export async function submitDiagnosticProfile(input: DiagnosticInput): Promise<DiagnosticProfile> {
+  const response = await fetch(`${API_BASE_URL}/diagnostics/profile`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Diagnostic profile submission failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<DiagnosticProfile>;
 }

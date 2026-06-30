@@ -1,8 +1,10 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import {
+  applyDiagnosticProfile as buildDiagnosticProfile,
   buildStudyPlan,
   classifyMistake,
   computeWeaknessReport,
+  type DiagnosticProfile,
   type KnowledgePoint,
   type PracticeRecord,
   type Question,
@@ -28,6 +30,8 @@ export class StudyService {
     remainingDays: 96,
     weakestSubject: '计算机组成原理',
   };
+
+  private diagnosticProfile: DiagnosticProfile | null = null;
 
   private readonly knowledgePoints: KnowledgePoint[] = [
     { id: 'ds-tree', subject: '数据结构', chapter: '树与二叉树', title: '树的遍历应用', importance: 5, frequency: 5, prerequisites: ['线性表'] },
@@ -117,6 +121,24 @@ export class StudyService {
       report: this.getOverviewReport(),
       plan: this.generatePlan(),
     };
+  }
+
+  applyDiagnosticProfile(input: {
+    targetScore: number;
+    currentScore: number;
+    remainingDays: number;
+    dailyHours: number;
+    weakestSubject: Subject;
+  }) {
+    const profile = buildDiagnosticProfile(input);
+    this.student.targetScore = profile.targetScore;
+    this.student.currentScore = profile.currentScore;
+    this.student.remainingDays = profile.remainingDays;
+    this.student.dailyHours = profile.dailyHours;
+    this.student.weakestSubject = profile.weakestSubject;
+    this.student.stage = profile.stage;
+    this.diagnosticProfile = profile;
+    return profile;
   }
 
   getAdminMetrics() {

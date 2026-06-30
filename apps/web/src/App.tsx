@@ -17,6 +17,7 @@ import {
   generatePaper,
   loginAsRole,
   requestTutorReply,
+  submitDiagnosticProfile,
   submitPracticeAnswer,
   submitStageAssessment,
   updateSystemConfig,
@@ -38,6 +39,7 @@ export function App() {
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
   const [sessionUser, setSessionUser] = useState<UserProfile | null>(null);
   const [authStatus, setAuthStatus] = useState('当前使用学生演示身份。');
+  const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
   const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
@@ -92,6 +94,28 @@ export function App() {
       setAuthStatus(`已切换为${roleLabel[session.user.role]}：${session.user.name}。`);
     } catch {
       setAuthStatus('身份切换失败，当前仍使用本地演示身份。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleSubmitDiagnostic() {
+    setDiagnosticStatus('正在生成入学诊断...');
+
+    try {
+      const profile = await submitDiagnosticProfile({
+        targetScore: 118,
+        currentScore: 58,
+        remainingDays: 120,
+        dailyHours: 2.5,
+        weakestSubject: '操作系统',
+      });
+      const nextOverview = await fetchDashboardOverview();
+      setOverview(nextOverview);
+      setSessionUser(nextOverview.student);
+      setApiState('connected');
+      setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
+    } catch {
+      setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
       setApiState('mock');
     }
   }
@@ -387,6 +411,37 @@ export function App() {
           <Metric title="正确率" value={`${report.accuracyRate}%`} caption="近 20 次练习统计" />
           <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
           <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
+        </section>
+
+        <section className="panel diagnostic-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">入学诊断</p>
+              <h3>根据目标和基础生成阶段计划</h3>
+            </div>
+            <button type="button" className="secondary-action" onClick={handleSubmitDiagnostic}>
+              <Target size={18} /> 提交演示诊断
+            </button>
+          </div>
+          <p className="task-status">{diagnosticStatus}</p>
+          <div className="diagnostic-grid">
+            <article>
+              <strong>{student.currentScore ?? 0}</strong>
+              <span>当前估分</span>
+            </article>
+            <article>
+              <strong>{student.targetScore ?? 0}</strong>
+              <span>目标分</span>
+            </article>
+            <article>
+              <strong>{student.weakestSubject ?? '待诊断'}</strong>
+              <span>最弱科目</span>
+            </article>
+            <article>
+              <strong>{plan.phase}</strong>
+              <span>当前计划阶段</span>
+            </article>
+          </div>
         </section>
 
         <section id="admin" className="panel admin-panel">
