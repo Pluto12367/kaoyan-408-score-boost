@@ -285,6 +285,9 @@ async function main() {
   assert(sprintPlan.scoreGap > 0, 'sprint plan should expose the score gap to target');
   assert(sprintPlan.days.every((day) => day.focus && day.questionTarget > 0 && day.reviewTarget >= 0 && day.reason), 'sprint plan days should include focus, question target, review target and reason');
   assert(sprintPlan.risks.length > 0, 'sprint plan should include at least one risk signal');
+  const masteryMap = await waitForJson(`${apiUrl}/mastery-map?userId=u-001`, (data) => data.subjects?.length === 4);
+  assert(masteryMap.subjects.every((subject) => subject.points?.every((point) => Number.isFinite(point.masteryRate) && point.status && point.nextAction)), 'mastery map should expose point mastery, status and next action');
+  assert(masteryMap.subjects.some((subject) => subject.points.some((point) => point.status === 'weak')), 'mastery map should identify at least one weak point');
   const redoSubmitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',

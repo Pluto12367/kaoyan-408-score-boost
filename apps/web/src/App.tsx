@@ -7,6 +7,7 @@ import {
   createTeacherQuestion,
   createMockAdminMetrics,
   createMockFeedbackList,
+  createMockMasteryMap,
   createMockOverview,
   createMockLearningProfile,
   createMockPracticeSet,
@@ -19,6 +20,7 @@ import {
   fetchDashboardOverview,
   fetchFeedbackList,
   fetchLearningProfile,
+  fetchMasteryMap,
   fetchRecommendedPracticeSet,
   fetchReviewQueue,
   fetchStageAssessment,
@@ -41,6 +43,7 @@ import {
   type GeneratedPaper,
   type FeedbackList,
   type LearningProfile,
+  type MasteryMap,
   type PracticeSet,
   type PracticeSetResult,
   type ReviewQueue,
@@ -84,12 +87,13 @@ export function App() {
   const [trialProgress, setTrialProgress] = useState<TrialProgress>(() => createMockTrialProgress());
   const [studyReminders, setStudyReminders] = useState<StudyReminders>(() => createMockStudyReminders());
   const [sprintPlan, setSprintPlan] = useState<SprintPlan>(() => createMockSprintPlan());
+  const [masteryMap, setMasteryMap] = useState<MasteryMap>(() => createMockMasteryMap());
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -101,6 +105,7 @@ export function App() {
         setTrialProgress(trial);
         setStudyReminders(reminders);
         setSprintPlan(sprint);
+        setMasteryMap(mastery);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -116,6 +121,7 @@ export function App() {
         setTrialProgress(createMockTrialProgress());
         setStudyReminders(createMockStudyReminders());
         setSprintPlan(createMockSprintPlan());
+        setMasteryMap(createMockMasteryMap());
         setApiState('mock');
       });
 
@@ -140,6 +146,11 @@ export function App() {
   async function refreshSprintPlan(userId = student.id) {
     const nextSprintPlan = await fetchSprintPlan(userId);
     setSprintPlan(nextSprintPlan);
+  }
+
+  async function refreshMasteryMap(userId = student.id) {
+    const nextMasteryMap = await fetchMasteryMap(userId);
+    setMasteryMap(nextMasteryMap);
   }
 
   async function handleRoleSwitch(role: UserRole) {
@@ -174,6 +185,7 @@ export function App() {
       await refreshTrialProgress(nextOverview.student.id);
       await refreshStudyReminders(nextOverview.student.id);
       await refreshSprintPlan(nextOverview.student.id);
+      await refreshMasteryMap(nextOverview.student.id);
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
@@ -199,6 +211,7 @@ export function App() {
       setApiState('connected');
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
+      await refreshMasteryMap(student.id);
       if (record.correct && redoQuestionId === currentQuestion.id) {
         setRedoQuestionId(null);
         setPracticeStatus('回答正确，已从错题本移除。');
@@ -237,6 +250,7 @@ export function App() {
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
+      await refreshMasteryMap(student.id);
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
     } catch {
       setPracticeStatus('推荐题组提交失败，请稍后重试。');
@@ -262,6 +276,7 @@ export function App() {
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
+      await refreshMasteryMap(student.id);
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
@@ -285,6 +300,7 @@ export function App() {
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
+      await refreshMasteryMap(student.id);
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -334,6 +350,7 @@ export function App() {
       setApiState('connected');
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
+      await refreshMasteryMap(student.id);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，计划已调整为${result.adjustment.planPhase}。`);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
     } catch {
@@ -643,6 +660,46 @@ export function App() {
                   <span>{day.questionTarget} 题</span>
                   <span>{day.reviewTarget} 道复盘</span>
                 </footer>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel mastery-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">408 掌握度地图</p>
+              <h3>{masteryMap.title}</h3>
+            </div>
+            <span>薄弱点 {masteryMap.weakestPoints.length} 个</span>
+          </div>
+          <div className="mastery-subjects">
+            {masteryMap.subjects.map((subject) => (
+              <article key={subject.subject} className="mastery-subject">
+                <header>
+                  <div>
+                    <strong>{subject.subject}</strong>
+                    <span>平均掌握度 {subject.averageMastery}%</span>
+                  </div>
+                  <small>{subject.weakCount} 薄弱 · {subject.reviewCount} 巩固 · {subject.masteredCount} 掌握</small>
+                </header>
+                <div className="mastery-points">
+                  {subject.points.length ? subject.points.map((point) => (
+                    <div key={point.knowledgePointId} className={`mastery-point status-${point.status}`}>
+                      <div>
+                        <strong>{point.title}</strong>
+                        <span>{point.chapter} · 掌握 {point.masteryRate}% · 正确率 {point.accuracyRate}%</span>
+                      </div>
+                      <p>{point.practiceCount} 次练习 · {point.wrongCount} 次错误 · {point.nextAction}</p>
+                      <a href={point.actionAnchor}>{masteryStatusLabel[point.status]}</a>
+                    </div>
+                  )) : (
+                    <div className="mastery-empty">
+                      <strong>暂无知识点数据</strong>
+                      <span>后续补充题库和知识树后会自动进入掌握度统计。</span>
+                    </div>
+                  )}
+                </div>
               </article>
             ))}
           </div>
@@ -1145,6 +1202,12 @@ const priorityLabel = {
   high: '高优先级',
   medium: '中优先级',
   low: '低优先级',
+};
+
+const masteryStatusLabel = {
+  weak: '去补弱',
+  review: '去巩固',
+  mastered: '限时训练',
 };
 
 const roleLabel = {

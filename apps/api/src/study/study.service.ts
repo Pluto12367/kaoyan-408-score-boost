@@ -345,6 +345,78 @@ export class StudyService {
     };
   }
 
+  getMasteryMap(userId = this.student.id) {
+    const subjects: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
+    const wrongQuestions = this.listWrongQuestions(userId);
+    const wrongByPoint = new Map<string, number>();
+    for (const item of wrongQuestions) {
+      wrongByPoint.set(item.knowledgePointId, (wrongByPoint.get(item.knowledgePointId) ?? 0) + item.wrongCount);
+    }
+
+    const subjectMaps = subjects.map((subject) => {
+      const points = this.knowledgePoints
+        .filter((point) => point.subject === subject)
+        .map((point) => {
+          const records = this.records.filter((record) => record.userId === userId && record.knowledgePointId === point.id);
+          const correctCount = records.filter((record) => record.correct).length;
+          const practiceCount = records.length;
+          const wrongCount = records.filter((record) => !record.correct).length + (wrongByPoint.get(point.id) ?? 0);
+          const accuracyRate = practiceCount ? Math.round((correctCount / practiceCount) * 100) : 0;
+          const practiceCoverage = Math.min(100, practiceCount * 25);
+          const masteryRate = practiceCount
+            ? Math.round((accuracyRate * 0.7) + (practiceCoverage * 0.3))
+            : Math.max(10, Math.round((point.frequency + point.importance) * 6));
+          const status: MasteryStatus = masteryRate < 60 || wrongCount >= 2
+            ? 'weak'
+            : masteryRate < 80 || practiceCount < 3
+              ? 'review'
+              : 'mastered';
+
+          return {
+            knowledgePointId: point.id,
+            title: point.title,
+            chapter: point.chapter,
+            importance: point.importance,
+            frequency: point.frequency,
+            masteryRate,
+            accuracyRate,
+            practiceCount,
+            wrongCount,
+            status,
+            nextAction: status === 'weak'
+              ? '先复盘错题，再做 5 道同考点基础题。'
+              : status === 'review'
+                ? '补 3 道变式题，并记录易混点。'
+                : '进入限时训练，保持速度和稳定性。',
+            actionAnchor: status === 'weak' ? '#wrong-book' : '#question',
+          };
+        });
+      const averageMastery = points.length
+        ? Math.round(points.reduce((sum, point) => sum + point.masteryRate, 0) / points.length)
+        : 0;
+
+      return {
+        subject,
+        averageMastery,
+        weakCount: points.filter((point) => point.status === 'weak').length,
+        reviewCount: points.filter((point) => point.status === 'review').length,
+        masteredCount: points.filter((point) => point.status === 'mastered').length,
+        points,
+      };
+    });
+
+    return {
+      userId,
+      title: '408 掌握度地图',
+      generatedAt: new Date().toISOString(),
+      subjects: subjectMaps,
+      weakestPoints: subjectMaps
+        .flatMap((subject) => subject.points.map((point) => ({ ...point, subject: subject.subject })))
+        .sort((left, right) => left.masteryRate - right.masteryRate)
+        .slice(0, 3),
+    };
+  }
+
   getStudentLearningProfile(userId = this.student.id) {
     const report = this.getOverviewReport();
     const calendar = this.getLearningCalendar(userId);
@@ -1154,3 +1226,5 @@ export interface StudyReminder {
   actionText: string;
   actionAnchor: string;
 }
+
+type MasteryStatus = 'weak' | 'review' | 'mastered';

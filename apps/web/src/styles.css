@@ -838,6 +838,103 @@ button {
   padding: 4px 8px;
 }
 
+.mastery-subjects {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.mastery-subject {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.mastery-subject header {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.mastery-subject header div {
+  display: grid;
+  gap: 4px;
+}
+
+.mastery-subject header strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.mastery-subject header span,
+.mastery-subject header small {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.mastery-points {
+  display: grid;
+  gap: 10px;
+}
+
+.mastery-point,
+.mastery-empty {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #64748b;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+}
+
+.mastery-point.status-weak {
+  border-left-color: #dc2626;
+}
+
+.mastery-point.status-review {
+  border-left-color: #d97706;
+}
+
+.mastery-point.status-mastered {
+  border-left-color: #16a34a;
+}
+
+.mastery-point div,
+.mastery-empty {
+  display: grid;
+  gap: 4px;
+}
+
+.mastery-point strong,
+.mastery-empty strong {
+  color: #0f172a;
+}
+
+.mastery-point span,
+.mastery-point p,
+.mastery-empty span {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.mastery-point a {
+  background: #eef2ff;
+  border-radius: 6px;
+  color: #1e3a8a;
+  font-weight: 700;
+  justify-self: start;
+  padding: 8px 10px;
+  text-decoration: none;
+}
+
 .secondary-link {
   align-items: center;
   background: #eef2ff;
@@ -1019,7 +1116,8 @@ button {
   .profile-grid,
   .feedback-grid,
   .sprint-summary,
-  .sprint-days {
+  .sprint-days,
+  .mastery-subjects {
     grid-template-columns: 1fr;
   }
 

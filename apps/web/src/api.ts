@@ -125,6 +125,36 @@ export interface SprintPlan {
   }>;
 }
 
+export interface MasteryMap {
+  userId: string;
+  title: string;
+  generatedAt: string;
+  subjects: Array<{
+    subject: string;
+    averageMastery: number;
+    weakCount: number;
+    reviewCount: number;
+    masteredCount: number;
+    points: MasteryPoint[];
+  }>;
+  weakestPoints: Array<MasteryPoint & { subject: string }>;
+}
+
+export interface MasteryPoint {
+  knowledgePointId: string;
+  title: string;
+  chapter: string;
+  importance: number;
+  frequency: number;
+  masteryRate: number;
+  accuracyRate: number;
+  practiceCount: number;
+  wrongCount: number;
+  status: 'weak' | 'review' | 'mastered';
+  nextAction: string;
+  actionAnchor: string;
+}
+
 export interface ReviewItem {
   id: string;
   contentType: 'question' | 'ai_reply';
@@ -579,6 +609,43 @@ export function createMockSprintPlan(): SprintPlan {
   };
 }
 
+export function createMockMasteryMap(): MasteryMap {
+  const points: MasteryPoint[] = knowledgePoints.map((point, index) => ({
+    knowledgePointId: point.id,
+    title: point.title,
+    chapter: point.chapter,
+    importance: point.importance,
+    frequency: point.frequency,
+    masteryRate: index === 1 ? 38 : 72,
+    accuracyRate: index === 1 ? 0 : 75,
+    practiceCount: index === 1 ? 2 : 1,
+    wrongCount: index === 1 ? 2 : 0,
+    status: index === 1 ? 'weak' : 'review',
+    nextAction: index === 1 ? '先复盘错题，再做 5 道同考点基础题。' : '补 3 道变式题，并记录易混点。',
+    actionAnchor: index === 1 ? '#wrong-book' : '#question',
+  }));
+  const subjects = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'].map((subject) => {
+    const subjectPoints = points.filter((point) => knowledgePoints.find((item) => item.id === point.knowledgePointId)?.subject === subject);
+
+    return {
+      subject,
+      averageMastery: subjectPoints.length ? Math.round(subjectPoints.reduce((sum, point) => sum + point.masteryRate, 0) / subjectPoints.length) : 0,
+      weakCount: subjectPoints.filter((point) => point.status === 'weak').length,
+      reviewCount: subjectPoints.filter((point) => point.status === 'review').length,
+      masteredCount: subjectPoints.filter((point) => point.status === 'mastered').length,
+      points: subjectPoints,
+    };
+  });
+
+  return {
+    userId: student.id,
+    title: '408 掌握度地图',
+    generatedAt: new Date().toISOString(),
+    subjects,
+    weakestPoints: points.filter((point) => point.status === 'weak').map((point) => ({ ...point, subject: '计算机组成原理' })),
+  };
+}
+
 export function createMockPracticeSet(): PracticeSet {
   return {
     id: 'practice-set-mock',
@@ -656,6 +723,15 @@ export async function fetchSprintPlan(userId: string): Promise<SprintPlan> {
   }
 
   return response.json() as Promise<SprintPlan>;
+}
+
+export async function fetchMasteryMap(userId: string): Promise<MasteryMap> {
+  const response = await fetch(`${API_BASE_URL}/mastery-map?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Mastery map request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<MasteryMap>;
 }
 
 export async function fetchLearningProfile(userId: string): Promise<LearningProfile> {

@@ -42,6 +42,11 @@ export class StudyController {
     return this.studyService.getSprintPlan(userId);
   }
 
+  @Get('mastery-map')
+  getMasteryMap(@Query('userId') userId?: string) {
+    return this.studyService.getMasteryMap(userId);
+  }
+
   @Get('students/:userId/profile')
   getStudentLearningProfile(@Param('userId') userId: string) {
     return this.studyService.getStudentLearningProfile(userId);
