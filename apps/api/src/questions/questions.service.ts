@@ -42,6 +42,13 @@ export class QuestionsService {
 
   private static readonly reviewItems: ReviewItem[] = [];
 
+  registerKnowledgePoint(point: { id: string; subject: string; chapter: string }) {
+    this.knowledgePointIndex.set(point.id, {
+      subject: point.subject,
+      chapter: point.chapter,
+    });
+  }
+
   listQuestions(filters: {
     knowledgePointId?: string;
     subject?: string;

@@ -21,6 +21,40 @@ async function main() {
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
+  const createdKnowledgePoint = await postJson(`${apiUrl}/knowledge-points`, {
+    id: 'os-memory',
+    subject: '操作系统',
+    chapter: '内存管理',
+    title: '分页与地址转换',
+    importance: 5,
+    frequency: 4,
+    prerequisites: ['进程地址空间'],
+  });
+  assert(createdKnowledgePoint.id === 'os-memory', 'knowledge point creation should return the created point');
+  const knowledgePointsAfterCreate = await waitForJson(`${apiUrl}/knowledge-points`, (data) =>
+    Array.isArray(data) && data.some((point) => point.id === createdKnowledgePoint.id),
+  );
+  assert(knowledgePointsAfterCreate.some((point) => point.title === '分页与地址转换'), 'knowledge point list should include teacher-created point');
+  const knowledgePointQuestion = await postJson(`${apiUrl}/questions`, {
+    stem: '分页存储管理中，页号和页内偏移通常由什么共同确定？',
+    options: ['逻辑地址', '物理地址', '页表长度', '外存块号'],
+    answer: 'A',
+    analysis: '逻辑地址按页面大小拆分后得到页号和页内偏移。',
+    knowledgePointIds: [createdKnowledgePoint.id],
+    difficulty: '中等',
+    type: '选择题',
+    source: '教研新增',
+    year: 2026,
+    expectedTimeSec: 95,
+  });
+  const osMemoryQuery = new URLSearchParams({
+    subject: createdKnowledgePoint.subject,
+    chapter: createdKnowledgePoint.chapter,
+  });
+  const osMemoryQuestions = await waitForJson(`${apiUrl}/questions?${osMemoryQuery}`, (data) =>
+    Array.isArray(data) && data.some((question) => question.id === knowledgePointQuestion.id),
+  );
+  assert(osMemoryQuestions.every((question) => question.knowledgePointIds.includes(createdKnowledgePoint.id)), 'question search should use teacher-created knowledge point metadata');
   const createdTeacherQuestion = await postJson(`${apiUrl}/questions`, {
     stem: 'Cache 命中率提高后，平均访存时间通常会如何变化？',
     options: ['增大', '不变', '减小', '无法判断'],
@@ -181,6 +215,7 @@ async function main() {
     stageAssessmentScore: stageResult.score,
     tutorReply: tutorReply.knowledgePointTitle,
     teacherQuestion: createdTeacherQuestion.id,
+    knowledgePoint: createdKnowledgePoint.id,
     adminAccuracyRate: adminMetrics.accuracyRate,
     reviewPendingCount: reviewQueueAfterApproval.pendingCount,
     stageAssessmentQuestionLimit: updatedSystemConfig.recommendation.stageAssessmentQuestionLimit,

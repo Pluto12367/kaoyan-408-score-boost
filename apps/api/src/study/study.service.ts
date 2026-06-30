@@ -6,6 +6,7 @@ import {
   type KnowledgePoint,
   type PracticeRecord,
   type Question,
+  type Subject,
   type UserProfile,
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
@@ -62,6 +63,35 @@ export class StudyService {
 
   listKnowledgePoints() {
     return this.knowledgePoints;
+  }
+
+  createKnowledgePoint(input: Partial<KnowledgePoint>) {
+    const id = input.id?.trim();
+    const subject = parseSubject(input.subject);
+    const chapter = input.chapter?.trim();
+    const title = input.title?.trim();
+
+    if (!id || !subject || !chapter || !title) {
+      throw new BadRequestException('Knowledge point id, subject, chapter and title are required');
+    }
+
+    if (this.knowledgePoints.some((point) => point.id === id)) {
+      throw new BadRequestException(`Knowledge point ${id} already exists`);
+    }
+
+    const point: KnowledgePoint = {
+      id,
+      subject,
+      chapter,
+      title,
+      importance: clampNumber(input.importance ?? 3, 1, 5),
+      frequency: clampNumber(input.frequency ?? 3, 1, 5),
+      prerequisites: input.prerequisites ?? [],
+    };
+
+    this.knowledgePoints.push(point);
+    this.questionsService.registerKnowledgePoint(point);
+    return point;
   }
 
   getOverviewReport() {
@@ -505,4 +535,18 @@ function countByDate(dates: string[]) {
 function clampNumber(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, value));
+}
+
+function parseSubject(value: string | undefined): Subject | null {
+  const subject = value?.trim();
+  if (
+    subject === '数据结构'
+    || subject === '计算机组成原理'
+    || subject === '操作系统'
+    || subject === '计算机网络'
+  ) {
+    return subject;
+  }
+
+  return null;
 }

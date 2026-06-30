@@ -149,6 +149,16 @@ export interface CreateTeacherQuestionInput {
   expectedTimeSec?: number;
 }
 
+export interface CreateKnowledgePointInput {
+  id: string;
+  subject: KnowledgePoint['subject'];
+  chapter: string;
+  title: string;
+  importance: number;
+  frequency: number;
+  prerequisites: string[];
+}
+
 export interface WrongQuestion {
   questionId: string;
   stem: string;
@@ -472,4 +482,20 @@ export async function createTeacherQuestion(input: CreateTeacherQuestionInput): 
   }
 
   return response.json() as Promise<Question>;
+}
+
+export async function createKnowledgePoint(input: CreateKnowledgePointInput): Promise<KnowledgePoint> {
+  const response = await fetch(`${API_BASE_URL}/knowledge-points`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Knowledge point creation failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<KnowledgePoint>;
 }

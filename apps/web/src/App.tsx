@@ -3,6 +3,7 @@ import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCh
 import {
   approveReviewItem,
   completeStudyTask,
+  createKnowledgePoint,
   createTeacherQuestion,
   createMockAdminMetrics,
   createMockOverview,
@@ -41,6 +42,7 @@ export function App() {
   const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
   const [reviewStatus, setReviewStatus] = useState('教师题目和 AI 生成内容会进入审核队列。');
   const [configStatus, setConfigStatus] = useState('推荐策略参数会影响阶段测评和每日训练建议。');
+  const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
 
   useEffect(() => {
     let active = true;
@@ -213,6 +215,31 @@ export function App() {
       setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
     } catch {
       setTeacherStatus('题目录入失败，请检查题干、选项、答案和知识点绑定。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleCreateKnowledgePoint() {
+    setKnowledgeStatus('正在新增知识点...');
+
+    try {
+      const point = await createKnowledgePoint({
+        id: `os-memory-${Date.now()}`,
+        subject: '操作系统',
+        chapter: '内存管理',
+        title: '分页与地址转换',
+        importance: 5,
+        frequency: 4,
+        prerequisites: ['进程地址空间'],
+      });
+      const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
+      setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
+      setApiState('connected');
+      setKnowledgeStatus(`已新增 ${point.title}，当前知识点共 ${nextOverview.knowledgePoints.length} 个。`);
+    } catch {
+      setKnowledgeStatus('知识点新增失败，请检查 ID、科目、章节和标题。');
       setApiState('mock');
     }
   }
@@ -574,19 +601,24 @@ export function App() {
               <p className="eyebrow">教师题库管理</p>
               <h3>新增题目后同步到学生训练</h3>
             </div>
-            <button type="button" className="secondary-action" onClick={handleCreateTeacherQuestion}>
-              <ClipboardList size={18} /> 新增演示题
-            </button>
+            <div className="panel-actions">
+              <button type="button" className="secondary-action" onClick={handleCreateKnowledgePoint}>
+                <Target size={18} /> 新增演示考点
+              </button>
+              <button type="button" className="secondary-action" onClick={handleCreateTeacherQuestion}>
+                <ClipboardList size={18} /> 新增演示题
+              </button>
+            </div>
           </div>
-          <p className="task-status">{teacherStatus}</p>
+          <p className="task-status">{knowledgeStatus} {teacherStatus}</p>
           <div className="teacher-grid">
             <article>
               <strong>{questions.length} 题</strong>
               <span>当前学生端可见题目</span>
             </article>
             <article>
-              <strong>知识点绑定</strong>
-              <span>新增题目必须至少绑定一个 408 考点。</span>
+              <strong>{overview.knowledgePoints.length} 个</strong>
+              <span>当前维护的 408 知识点</span>
             </article>
             <article>
               <strong>内容审核</strong>

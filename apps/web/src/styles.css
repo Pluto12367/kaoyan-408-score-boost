@@ -204,6 +204,13 @@ button {
   white-space: nowrap;
 }
 
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .task-list,
 .weak-list {
   display: grid;
@@ -632,5 +639,9 @@ button {
   .task-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .panel-actions {
+    justify-content: flex-start;
   }
 }

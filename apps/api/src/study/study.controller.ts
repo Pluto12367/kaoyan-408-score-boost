@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import type { KnowledgePoint } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 
@@ -9,6 +10,11 @@ export class StudyController {
   @Get('knowledge-points')
   listKnowledgePoints() {
     return this.studyService.listKnowledgePoints();
+  }
+
+  @Post('knowledge-points')
+  createKnowledgePoint(@Body() input: Partial<KnowledgePoint>) {
+    return this.studyService.createKnowledgePoint(input);
   }
 
   @Get('reports/overview')
