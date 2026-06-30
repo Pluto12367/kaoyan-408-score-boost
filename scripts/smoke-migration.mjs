@@ -256,6 +256,12 @@ async function main() {
   assert(reviewedWrongQuestion.reviewStatus === 'reviewed', 'wrong question review should mark the item as reviewed');
   assert(reviewedWrongQuestion.nextAction, 'wrong question review should include a next action');
   assert(reviewedWrongQuestion.similarQuestions.length > 0, 'wrong question review should recommend similar questions');
+  const learningProfile = await waitForJson(`${apiUrl}/students/u-001/profile`, (data) => data.timeline?.length >= 4);
+  assert(learningProfile.summary.currentStage === '基础', 'learning profile should include the adjusted current stage');
+  assert(learningProfile.loopStats.practiceSetCount >= 1, 'learning profile should count submitted practice sets');
+  assert(learningProfile.loopStats.reviewedWrongQuestionCount >= 1, 'learning profile should count reviewed wrong questions');
+  assert(learningProfile.timeline.some((item) => item.type === 'diagnostic'), 'learning profile should include diagnostic timeline event');
+  assert(learningProfile.timeline.some((item) => item.type === 'stage_assessment'), 'learning profile should include stage assessment timeline event');
   const redoSubmitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',

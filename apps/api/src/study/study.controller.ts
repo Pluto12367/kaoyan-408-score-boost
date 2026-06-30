@@ -27,6 +27,11 @@ export class StudyController {
     return this.studyService.getDashboardOverview();
   }
 
+  @Get('students/:userId/profile')
+  getStudentLearningProfile(@Param('userId') userId: string) {
+    return this.studyService.getStudentLearningProfile(userId);
+  }
+
   @Get('admin/metrics')
   getAdminMetrics() {
     return this.studyService.getAdminMetrics();

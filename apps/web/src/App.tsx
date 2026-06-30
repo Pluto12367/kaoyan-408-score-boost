@@ -7,11 +7,13 @@ import {
   createTeacherQuestion,
   createMockAdminMetrics,
   createMockOverview,
+  createMockLearningProfile,
   createMockPracticeSet,
   createMockReviewQueue,
   createMockSystemConfig,
   fetchAdminMetrics,
   fetchDashboardOverview,
+  fetchLearningProfile,
   fetchRecommendedPracticeSet,
   fetchReviewQueue,
   fetchStageAssessment,
@@ -28,6 +30,7 @@ import {
   type AdminMetrics,
   type DashboardOverview,
   type GeneratedPaper,
+  type LearningProfile,
   type PracticeSet,
   type PracticeSetResult,
   type ReviewQueue,
@@ -62,18 +65,20 @@ export function App() {
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
+  const [learningProfile, setLearningProfile] = useState<LearningProfile>(() => createMockLearningProfile());
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet, profile]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
         setReviewQueue(queue);
         setSystemConfig(config);
         setPracticeSet(recommendedSet);
+        setLearningProfile(profile);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -84,6 +89,7 @@ export function App() {
         setReviewQueue(createMockReviewQueue());
         setSystemConfig(createMockSystemConfig());
         setPracticeSet(createMockPracticeSet());
+        setLearningProfile(createMockLearningProfile());
         setApiState('mock');
       });
 
@@ -175,9 +181,11 @@ export function App() {
       const nextOverview = await fetchDashboardOverview();
       const nextMetrics = await fetchAdminMetrics();
       const nextPracticeSet = await fetchRecommendedPracticeSet(student.id);
+      const nextProfile = await fetchLearningProfile(student.id);
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
       setPracticeSet(nextPracticeSet);
+      setLearningProfile(nextProfile);
       setPracticeSetResult(result);
       setApiState('connected');
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
@@ -197,8 +205,10 @@ export function App() {
       });
       const nextOverview = await fetchDashboardOverview();
       const nextMetrics = await fetchAdminMetrics();
+      const nextProfile = await fetchLearningProfile(student.id);
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
+      setLearningProfile(nextProfile);
       setApiState('connected');
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
@@ -261,9 +271,11 @@ export function App() {
       });
       const nextOverview = await fetchDashboardOverview();
       const nextMetrics = await fetchAdminMetrics();
+      const nextProfile = await fetchLearningProfile(student.id);
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
       setStageResult(result);
+      setLearningProfile(nextProfile);
       setApiState('connected');
       setAssessmentStatus(`阶段测评完成：${result.score} 分，计划已调整为${result.adjustment.planPhase}。`);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
@@ -472,6 +484,46 @@ export function App() {
           <Metric title="正确率" value={`${report.accuracyRate}%`} caption="近 20 次练习统计" />
           <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
           <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
+        </section>
+
+        <section className="panel profile-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">学习档案</p>
+              <h3>{learningProfile.summary.name} 的提分闭环轨迹</h3>
+            </div>
+            <span>{learningProfile.summary.currentStage} · 连续 {learningProfile.summary.streakDays} 天</span>
+          </div>
+          <div className="profile-grid">
+            <article>
+              <strong>{learningProfile.loopStats.practiceSetCount}</strong>
+              <span>题组练习</span>
+            </article>
+            <article>
+              <strong>{learningProfile.loopStats.stageAssessmentCount}</strong>
+              <span>阶段测评</span>
+            </article>
+            <article>
+              <strong>{learningProfile.loopStats.reviewedWrongQuestionCount}</strong>
+              <span>错题复盘</span>
+            </article>
+            <article>
+              <strong>{learningProfile.summary.accuracyRate}%</strong>
+              <span>综合正确率</span>
+            </article>
+          </div>
+          <p className="task-status">{learningProfile.nextMilestone}</p>
+          <div className="timeline-list">
+            {learningProfile.timeline.slice(0, 5).map((item) => (
+              <article key={item.id}>
+                <time>{item.date}</time>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{item.summary}</span>
+                </div>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="panel diagnostic-panel">

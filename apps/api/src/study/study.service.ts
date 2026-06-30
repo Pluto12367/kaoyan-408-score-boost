@@ -59,6 +59,10 @@ export class StudyService {
 
   private readonly papers: GeneratedPaper[] = [];
 
+  private readonly stageAssessmentResults: Array<Record<string, unknown>> = [];
+
+  private readonly practiceSetResults: Array<Record<string, unknown>> = [];
+
   private systemConfig = {
     source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
     recommendation: {
@@ -123,6 +127,68 @@ export class StudyService {
       stageAssessment: this.getStageAssessment(this.student.id),
       report: this.getOverviewReport(),
       plan: this.generatePlan(),
+    };
+  }
+
+  getStudentLearningProfile(userId = this.student.id) {
+    const report = this.getOverviewReport();
+    const calendar = this.getLearningCalendar(userId);
+    const reviewedWrongQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
+    const userPracticeSetResults = this.practiceSetResults.filter((item) => item.userId === userId);
+    const userStageResults = this.stageAssessmentResults.filter((item) => item.userId === userId);
+    const timeline = [
+      ...(this.diagnosticProfile ? [{
+        id: 'timeline-diagnostic',
+        type: 'diagnostic',
+        title: '入学诊断完成',
+        date: todayKey(),
+        summary: this.diagnosticProfile.diagnosis,
+      }] : []),
+      ...userPracticeSetResults.map((item) => ({
+        id: `timeline-${item.id}`,
+        type: 'practice_set',
+        title: '推荐题组练习',
+        date: String(item.submittedAt).slice(0, 10),
+        summary: `完成 ${item.totalQuestions} 题，正确率 ${item.accuracyRate}%。`,
+      })),
+      ...userStageResults.map((item) => ({
+        id: `timeline-${item.id}`,
+        type: 'stage_assessment',
+        title: '阶段测评',
+        date: String(item.submittedAt).slice(0, 10),
+        summary: `得分 ${item.score}，计划调整为 ${(item.adjustment as { planPhase?: string })?.planPhase ?? this.generatePlan().phase}。`,
+      })),
+      ...[...reviewedWrongQuestions.entries()].map(([questionId, reviewedAt]) => ({
+        id: `timeline-review-${questionId}`,
+        type: 'wrong_review',
+        title: '错题复盘',
+        date: reviewedAt.slice(0, 10),
+        summary: `已复盘错题 ${questionId}，并获得同考点练习建议。`,
+      })),
+    ].sort((left, right) => right.date.localeCompare(left.date));
+
+    return {
+      userId,
+      summary: {
+        name: this.student.name,
+        currentStage: this.student.stage,
+        targetScore: this.student.targetScore,
+        currentScore: this.student.currentScore,
+        weakestSubject: this.student.weakestSubject,
+        accuracyRate: report.accuracyRate,
+        streakDays: calendar.streakDays,
+      },
+      loopStats: {
+        diagnosticCompleted: Boolean(this.diagnosticProfile),
+        practiceSetCount: userPracticeSetResults.length,
+        stageAssessmentCount: userStageResults.length,
+        reviewedWrongQuestionCount: reviewedWrongQuestions.size,
+        wrongQuestionCount: this.listWrongQuestions(userId).length,
+      },
+      timeline,
+      nextMilestone: report.weakPoints[0]
+        ? `继续处理 ${report.weakPoints[0].title}，完成一组推荐题并复盘错因。`
+        : '保持当前节奏，进入限时真题训练。',
     };
   }
 
@@ -395,7 +461,7 @@ export class StudyService {
     const correctCount = records.filter((record) => record.correct).length;
     const accuracyRate = Math.round((correctCount / records.length) * 100);
 
-    return {
+    const result = {
       id: `practice-set-result-${Date.now()}`,
       practiceSetId,
       userId,
@@ -419,6 +485,9 @@ export class StudyService {
         `已同步 ${records.length} 条练习记录，提分报告和错题本会自动更新。`,
       ],
     };
+
+    this.practiceSetResults.push(result);
+    return result;
   }
 
   createPracticeRecord(input: CreatePracticeRecordDto) {
@@ -578,7 +647,7 @@ export class StudyService {
     const weakPointTitles = [...new Set(reviewItems.map((item) => item.knowledgePointTitle))].slice(0, 3);
     const adjustment = this.applyStageAssessmentAdjustment(score, weakPointTitles);
 
-    return {
+    const result = {
       id: `stage-result-${Date.now()}`,
       userId,
       submittedAt: new Date().toISOString(),
@@ -593,6 +662,9 @@ export class StudyService {
         weakPointTitles.length ? `优先复习：${weakPointTitles.join('、')}` : '本次正确率较好，建议增加限时速度训练。',
       ],
     };
+
+    this.stageAssessmentResults.push(result);
+    return result;
   }
 
   private applyStageAssessmentAdjustment(score: number, weakPointTitles: string[]) {

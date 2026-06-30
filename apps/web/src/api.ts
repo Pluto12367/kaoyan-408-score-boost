@@ -159,6 +159,34 @@ export interface PracticeSetResult {
   nextActions: string[];
 }
 
+export interface LearningProfile {
+  userId: string;
+  summary: {
+    name: string;
+    currentStage?: string;
+    targetScore?: number;
+    currentScore?: number;
+    weakestSubject?: string;
+    accuracyRate: number;
+    streakDays: number;
+  };
+  loopStats: {
+    diagnosticCompleted: boolean;
+    practiceSetCount: number;
+    stageAssessmentCount: number;
+    reviewedWrongQuestionCount: number;
+    wrongQuestionCount: number;
+  };
+  timeline: Array<{
+    id: string;
+    type: string;
+    title: string;
+    date: string;
+    summary: string;
+  }>;
+  nextMilestone: string;
+}
+
 export interface TutorReply {
   id: string;
   userId: string;
@@ -397,6 +425,34 @@ export function createMockPracticeSet(): PracticeSet {
   };
 }
 
+export function createMockLearningProfile(): LearningProfile {
+  return {
+    userId: student.id,
+    summary: {
+      name: student.name,
+      currentStage: student.stage,
+      targetScore: student.targetScore,
+      currentScore: student.currentScore,
+      weakestSubject: student.weakestSubject,
+      accuracyRate: 42.9,
+      streakDays: 1,
+    },
+    loopStats: {
+      diagnosticCompleted: true,
+      practiceSetCount: 1,
+      stageAssessmentCount: 1,
+      reviewedWrongQuestionCount: 1,
+      wrongQuestionCount: 1,
+    },
+    timeline: [
+      { id: 'mock-profile-1', type: 'diagnostic', title: '入学诊断完成', date: '2026-06-30', summary: '系统已生成阶段计划。' },
+      { id: 'mock-profile-2', type: 'practice_set', title: '推荐题组练习', date: '2026-06-30', summary: '完成推荐题组并同步练习记录。' },
+      { id: 'mock-profile-3', type: 'wrong_review', title: '错题复盘', date: '2026-06-30', summary: '已复盘错题并获得相似题建议。' },
+    ],
+    nextMilestone: '继续完成推荐题组，并复盘本组错因。',
+  };
+}
+
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   const response = await fetch(`${API_BASE_URL}/dashboard/overview`);
   if (!response.ok) {
@@ -404,6 +460,15 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   }
 
   return response.json() as Promise<DashboardOverview>;
+}
+
+export async function fetchLearningProfile(userId: string): Promise<LearningProfile> {
+  const response = await fetch(`${API_BASE_URL}/students/${encodeURIComponent(userId)}/profile`);
+  if (!response.ok) {
+    throw new Error(`Learning profile request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<LearningProfile>;
 }
 
 export async function fetchRecommendedPracticeSet(userId: string): Promise<PracticeSet> {
