@@ -9,7 +9,7 @@ import {
   type UserProfile,
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
-import { QuestionsService } from '../questions/questions.service';
+import { QuestionsService, type ReviewItem } from '../questions/questions.service';
 
 @Injectable()
 export class StudyService {
@@ -46,6 +46,8 @@ export class StudyService {
   ];
 
   private readonly completedTaskDatesByUser = new Map<string, Map<string, string>>();
+
+  private readonly aiReviewItems: ReviewItem[] = [];
 
   listKnowledgePoints() {
     return this.knowledgePoints;
@@ -93,6 +95,7 @@ export class StudyService {
       accuracyRate: report.accuracyRate,
       weakPointCount: report.weakPoints.length,
       pendingWrongQuestionCount: wrongQuestions.length,
+      pendingReviewCount: this.getReviewQueue().pendingCount,
       averagePracticeTimeSec: this.records.length
         ? Math.round(this.records.reduce((sum, record) => sum + record.timeSpentSec, 0) / this.records.length)
         : 0,
@@ -100,6 +103,34 @@ export class StudyService {
       topWeakPoint: report.weakPoints[0]?.title ?? null,
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  getReviewQueue() {
+    const items = [...this.questionsService.listReviewItems(), ...this.aiReviewItems]
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
+    return {
+      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      pendingCount: items.filter((item) => item.status === 'pending').length,
+      approvedCount: items.filter((item) => item.status === 'approved').length,
+      items,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  approveReviewItem(reviewItemId: string, reviewerId = 'admin-001') {
+    const questionReviewItem = this.questionsService.approveReviewItem(reviewItemId, reviewerId);
+    if (questionReviewItem) return questionReviewItem;
+
+    const aiReviewItem = this.aiReviewItems.find((item) => item.id === reviewItemId);
+    if (!aiReviewItem) {
+      throw new BadRequestException(`Review item ${reviewItemId} was not found`);
+    }
+
+    aiReviewItem.status = 'approved';
+    aiReviewItem.reviewerId = reviewerId;
+    aiReviewItem.reviewedAt = new Date().toISOString();
+    return aiReviewItem;
   }
 
   listWrongQuestions(userId = this.student.id) {
@@ -338,7 +369,7 @@ export class StudyService {
         : `本题标准答案是 ${question.answer}，建议先独立复盘一遍再看解析。`,
     ];
 
-    return {
+    const reply = {
       id: `tutor-${Date.now()}`,
       userId: input.userId ?? this.student.id,
       questionId: question.id,
@@ -362,6 +393,19 @@ export class StudyService {
       ],
       source: 'standard-analysis-assisted',
     };
+
+    this.aiReviewItems.push({
+      id: `review-ai-${reply.id}`,
+      contentType: 'ai_reply',
+      relatedId: reply.id,
+      title: `${reply.knowledgePointTitle} 答疑解析`,
+      summary: `AI 生成内容需审核：${reply.answerCheck}`,
+      status: 'pending',
+      riskLevel: 'low',
+      createdAt: new Date().toISOString(),
+    });
+
+    return reply;
   }
 
   generatePlan() {

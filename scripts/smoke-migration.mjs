@@ -108,6 +108,20 @@ async function main() {
   assert(tutorReply.explanationSteps.length >= 2, 'AI tutor reply should break explanation into steps');
   assert(tutorReply.similarQuestions.length > 0, 'AI tutor reply should recommend similar questions');
   assert(tutorReply.nextActions.length > 0, 'AI tutor reply should include next actions');
+  const reviewQueue = await waitForJson(`${apiUrl}/admin/review-queue`, (data) =>
+    Array.isArray(data?.items) && data.items.length >= 2,
+  );
+  assert(reviewQueue.pendingCount >= 2, 'review queue should include pending content');
+  assert(reviewQueue.items.some((item) => item.contentType === 'question' && item.relatedId === createdTeacherQuestion.id), 'review queue should include teacher-created question');
+  assert(reviewQueue.items.some((item) => item.contentType === 'ai_reply' && item.relatedId === tutorReply.id), 'review queue should include AI tutor reply');
+  const approvedReviewItem = await postJson(`${apiUrl}/admin/review-queue/${reviewQueue.items[0].id}/approve`, {
+    reviewerId: 'admin-001',
+  });
+  assert(approvedReviewItem.status === 'approved', 'review approval should mark the item as approved');
+  const reviewQueueAfterApproval = await waitForJson(`${apiUrl}/admin/review-queue`, (data) =>
+    Array.isArray(data?.items) && data.items.some((item) => item.id === approvedReviewItem.id && item.status === 'approved'),
+  );
+  assert(reviewQueueAfterApproval.pendingCount === reviewQueue.pendingCount - 1, 'review queue pending count should decrease after approval');
   const adminMetrics = await waitForJson(`${apiUrl}/admin/metrics`, (data) => data.questionCount >= overviewAfterTeacherQuestion.questions.length);
   assert(adminMetrics.activeStudentCount >= 1, 'admin metrics should include active student count');
   assert(adminMetrics.practiceRecordCount >= updatedOverview.practiceRecords.length, 'admin metrics should include practice record count');
@@ -156,6 +170,7 @@ async function main() {
     tutorReply: tutorReply.knowledgePointTitle,
     teacherQuestion: createdTeacherQuestion.id,
     adminAccuracyRate: adminMetrics.accuracyRate,
+    reviewPendingCount: reviewQueueAfterApproval.pendingCount,
     processIds: {
       api: api.pid,
       web: web.pid,

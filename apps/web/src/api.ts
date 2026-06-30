@@ -35,10 +35,32 @@ export interface AdminMetrics {
   accuracyRate: number;
   weakPointCount: number;
   pendingWrongQuestionCount: number;
+  pendingReviewCount: number;
   averagePracticeTimeSec: number;
   retentionDays: number;
   topWeakPoint: string | null;
   generatedAt: string;
+}
+
+export interface ReviewQueue {
+  source: 'memory-api' | 'postgres-ready-api';
+  pendingCount: number;
+  approvedCount: number;
+  items: ReviewItem[];
+  generatedAt: string;
+}
+
+export interface ReviewItem {
+  id: string;
+  contentType: 'question' | 'ai_reply';
+  relatedId: string;
+  title: string;
+  summary: string;
+  status: 'pending' | 'approved';
+  riskLevel: 'low' | 'medium' | 'high';
+  createdAt: string;
+  reviewerId?: string;
+  reviewedAt?: string;
 }
 
 export interface LearningCalendar {
@@ -188,10 +210,21 @@ export function createMockAdminMetrics(): AdminMetrics {
     accuracyRate: 66.7,
     weakPointCount: 1,
     pendingWrongQuestionCount: 1,
+    pendingReviewCount: 0,
     averagePracticeTimeSec: 140,
     retentionDays: 3,
     topWeakPoint: 'Cache 映射与替换',
     generatedAt: new Date().toISOString(),
+  };
+}
+
+export function createMockReviewQueue(): ReviewQueue {
+  return {
+    source: 'memory-api',
+    pendingCount: 0,
+    approvedCount: 0,
+    generatedAt: new Date().toISOString(),
+    items: [],
   };
 }
 
@@ -245,6 +278,34 @@ export async function fetchAdminMetrics(): Promise<AdminMetrics> {
   }
 
   return response.json() as Promise<AdminMetrics>;
+}
+
+export async function fetchReviewQueue(): Promise<ReviewQueue> {
+  const response = await fetch(`${API_BASE_URL}/admin/review-queue`);
+  if (!response.ok) {
+    throw new Error(`Review queue request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ReviewQueue>;
+}
+
+export async function approveReviewItem(input: {
+  reviewItemId: string;
+  reviewerId: string;
+}): Promise<ReviewItem> {
+  const response = await fetch(`${API_BASE_URL}/admin/review-queue/${input.reviewItemId}/approve`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ reviewerId: input.reviewerId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Review approval failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ReviewItem>;
 }
 
 export async function submitPracticeAnswer(input: {

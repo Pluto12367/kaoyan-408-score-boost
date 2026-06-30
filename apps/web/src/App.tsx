@@ -1,18 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Target } from 'lucide-react';
+import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target } from 'lucide-react';
 import {
+  approveReviewItem,
   completeStudyTask,
   createTeacherQuestion,
   createMockAdminMetrics,
   createMockOverview,
+  createMockReviewQueue,
   fetchAdminMetrics,
   fetchDashboardOverview,
+  fetchReviewQueue,
   fetchStageAssessment,
   requestTutorReply,
   submitPracticeAnswer,
   submitStageAssessment,
   type AdminMetrics,
   type DashboardOverview,
+  type ReviewQueue,
   type StageAssessmentResult,
   type TutorReply,
 } from './api';
@@ -20,6 +24,7 @@ import {
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics>(() => createMockAdminMetrics());
+  const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
@@ -29,21 +34,24 @@ export function App() {
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
   const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
+  const [reviewStatus, setReviewStatus] = useState('教师题目和 AI 生成内容会进入审核队列。');
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics()])
-      .then(([data, metrics]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue()])
+      .then(([data, metrics, queue]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
+        setReviewQueue(queue);
         setApiState('connected');
       })
       .catch(() => {
         if (!active) return;
         setOverview(createMockOverview());
         setAdminMetrics(createMockAdminMetrics());
+        setReviewQueue(createMockReviewQueue());
         setApiState('mock');
       });
 
@@ -158,6 +166,10 @@ export function App() {
         prompt: '请解释这道题的考点和易错点。',
       });
       setTutorReply(reply);
+      const nextQueue = await fetchReviewQueue();
+      const nextMetrics = await fetchAdminMetrics();
+      setReviewQueue(nextQueue);
+      setAdminMetrics(nextMetrics);
       setApiState('connected');
       setTutorStatus(`已生成 ${reply.knowledgePointTitle} 的答疑解析。`);
       document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -185,12 +197,34 @@ export function App() {
       });
       const nextOverview = await fetchDashboardOverview();
       const nextMetrics = await fetchAdminMetrics();
+      const nextQueue = await fetchReviewQueue();
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
+      setReviewQueue(nextQueue);
       setApiState('connected');
       setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
     } catch {
       setTeacherStatus('题目录入失败，请检查题干、选项、答案和知识点绑定。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleApproveReviewItem(reviewItemId: string) {
+    setReviewStatus('正在提交审核结果...');
+
+    try {
+      await approveReviewItem({
+        reviewItemId,
+        reviewerId: 'admin-001',
+      });
+      const nextQueue = await fetchReviewQueue();
+      const nextMetrics = await fetchAdminMetrics();
+      setReviewQueue(nextQueue);
+      setAdminMetrics(nextMetrics);
+      setApiState('connected');
+      setReviewStatus(`审核已通过，当前仍有 ${nextQueue.pendingCount} 项待处理。`);
+    } catch {
+      setReviewStatus('审核提交失败，请稍后重试。');
       setApiState('mock');
     }
   }
@@ -208,6 +242,7 @@ export function App() {
           <a href="#question"><BookOpenCheck size={18} /> 题库训练</a>
           <a href="#report"><Target size={18} /> 提分报告</a>
           <a href="#admin"><Activity size={18} /> 数据看板</a>
+          <a href="#review"><ShieldCheck size={18} /> 内容审核</a>
           <a href="#ai"><Brain size={18} /> AI 答疑</a>
         </nav>
       </aside>
@@ -259,8 +294,8 @@ export function App() {
               <span>整体正确率</span>
             </article>
             <article>
-              <strong>{adminMetrics.pendingWrongQuestionCount}</strong>
-              <span>待复盘错题</span>
+              <strong>{adminMetrics.pendingReviewCount}</strong>
+              <span>待审核内容</span>
             </article>
             <article>
               <strong>{adminMetrics.todayPracticeCount}</strong>
@@ -270,6 +305,36 @@ export function App() {
           <p className="task-status">
             当前最弱考点：{adminMetrics.topWeakPoint ?? '暂无'} · 平均耗时 {adminMetrics.averagePracticeTimeSec} 秒 · 留存学习日 {adminMetrics.retentionDays} 天
           </p>
+        </section>
+
+        <section id="review" className="panel review-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">管理端内容审核</p>
+              <h3>待审核 {reviewQueue.pendingCount} 项 · 已通过 {reviewQueue.approvedCount} 项</h3>
+            </div>
+            <span>更新于 {new Date(reviewQueue.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <p className="task-status">{reviewStatus}</p>
+          <div className="review-list">
+            {reviewQueue.items.length ? reviewQueue.items.map((item) => (
+              <article key={item.id} className={`review-row ${item.status}`}>
+                <div>
+                  <strong>{item.contentType === 'question' ? '题目审核' : 'AI 答疑审核'} · {item.title}</strong>
+                  <p>{item.summary}</p>
+                  <span>风险：{riskLabel[item.riskLevel]} · 状态：{item.status === 'approved' ? '已通过' : '待审核'}</span>
+                </div>
+                <button type="button" disabled={item.status === 'approved'} onClick={() => handleApproveReviewItem(item.id)}>
+                  {item.status === 'approved' ? '已通过' : '通过'}
+                </button>
+              </article>
+            )) : (
+              <article className="review-empty">
+                <strong>暂无待审核内容</strong>
+                <span>新增教师题目或生成 AI 答疑后会自动进入这里。</span>
+              </article>
+            )}
+          </div>
         </section>
 
         <section className="panel">
@@ -508,3 +573,9 @@ function Metric({ title, value, caption }: { title: string; value: string; capti
     </article>
   );
 }
+
+const riskLabel = {
+  low: '低',
+  medium: '中',
+  high: '高',
+};

@@ -40,6 +40,8 @@ export class QuestionsService {
     },
   ];
 
+  private static readonly reviewItems: ReviewItem[] = [];
+
   listQuestions(filters: {
     knowledgePointId?: string;
     subject?: string;
@@ -84,10 +86,51 @@ export class QuestionsService {
     });
 
     this.questions.push(question);
+    this.reviewItems.push({
+      id: `review-question-${question.id}`,
+      contentType: 'question',
+      relatedId: question.id,
+      title: question.stem,
+      summary: `教师新增题目，绑定 ${question.knowledgePointIds.length} 个知识点，来源：${question.source}`,
+      status: 'pending',
+      riskLevel: 'medium',
+      createdAt: new Date().toISOString(),
+    });
     return question;
+  }
+
+  listReviewItems() {
+    return QuestionsService.reviewItems;
+  }
+
+  approveReviewItem(reviewItemId: string, reviewerId: string) {
+    const item = this.reviewItems.find((candidate) => candidate.id === reviewItemId);
+    if (!item) return null;
+
+    item.status = 'approved';
+    item.reviewerId = reviewerId;
+    item.reviewedAt = new Date().toISOString();
+    return item;
   }
 
   private get questions() {
     return QuestionsService.questions;
   }
+
+  private get reviewItems() {
+    return QuestionsService.reviewItems;
+  }
+}
+
+export interface ReviewItem {
+  id: string;
+  contentType: 'question' | 'ai_reply';
+  relatedId: string;
+  title: string;
+  summary: string;
+  status: 'pending' | 'approved';
+  riskLevel: 'low' | 'medium' | 'high';
+  createdAt: string;
+  reviewerId?: string;
+  reviewedAt?: string;
 }
