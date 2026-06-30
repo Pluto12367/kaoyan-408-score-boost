@@ -207,6 +207,15 @@ export interface WrongQuestion {
   wrongCount: number;
   latestMistakeReason: string | null;
   latestSubmittedAt: string;
+  reviewStatus: 'pending' | 'reviewed';
+  reviewedAt?: string | null;
+  nextAction?: string;
+  similarQuestions?: Array<{
+    id: string;
+    stem: string;
+    difficulty: string;
+    source: string;
+  }>;
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000';
@@ -245,6 +254,8 @@ export function createMockOverview(): DashboardOverview {
         wrongCount: 2,
         latestMistakeReason: '概念不清',
         latestSubmittedAt: '2026-06-22',
+        reviewStatus: 'pending',
+        reviewedAt: null,
       },
     ],
     learningCalendar: createMockLearningCalendar(),
@@ -453,6 +464,25 @@ export async function completeStudyTask(input: {
       nextAction: string;
     };
   }>;
+}
+
+export async function reviewWrongQuestion(input: {
+  userId: string;
+  questionId: string;
+}): Promise<WrongQuestion> {
+  const response = await fetch(`${API_BASE_URL}/wrong-questions/${input.questionId}/review`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ userId: input.userId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Wrong question review failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<WrongQuestion>;
 }
 
 export async function fetchStageAssessment(userId: string): Promise<StageAssessment> {

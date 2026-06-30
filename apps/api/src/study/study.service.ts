@@ -52,6 +52,8 @@ export class StudyService {
 
   private readonly completedTaskDatesByUser = new Map<string, Map<string, string>>();
 
+  private readonly wrongQuestionReviewDatesByUser = new Map<string, Map<string, string>>();
+
   private readonly aiReviewItems: ReviewItem[] = [];
 
   private readonly papers: GeneratedPaper[] = [];
@@ -271,6 +273,7 @@ export class StudyService {
 
   listWrongQuestions(userId = this.student.id) {
     const grouped = new Map<string, PracticeRecord[]>();
+    const reviewedQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
     for (const record of this.records.filter((item) => item.userId === userId)) {
       const bucket = grouped.get(record.questionId) ?? [];
       bucket.push(record);
@@ -299,8 +302,30 @@ export class StudyService {
         wrongCount,
         latestMistakeReason: latestRecord.mistakeReason,
         latestSubmittedAt: latestRecord.submittedAt,
+        reviewStatus: reviewedQuestions.has(questionId) ? 'reviewed' : 'pending',
+        reviewedAt: reviewedQuestions.get(questionId) ?? null,
       }];
     });
+  }
+
+  reviewWrongQuestion(questionId: string, userId = this.student.id) {
+    const wrongQuestion = this.listWrongQuestions(userId).find((item) => item.questionId === questionId);
+    if (!wrongQuestion) {
+      throw new BadRequestException(`Wrong question ${questionId} was not found`);
+    }
+
+    const reviewed = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
+    const reviewedAt = new Date().toISOString();
+    reviewed.set(questionId, reviewedAt);
+    this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
+
+    return {
+      ...wrongQuestion,
+      reviewStatus: 'reviewed',
+      reviewedAt,
+      nextAction: `先复述 ${wrongQuestion.knowledgePointTitle} 的核心规则，再完成 2 道同考点题。`,
+      similarQuestions: this.findSimilarQuestions(questionId, wrongQuestion.knowledgePointId),
+    };
   }
 
   createPracticeRecord(input: CreatePracticeRecordDto) {
@@ -547,6 +572,22 @@ export class StudyService {
     });
 
     return reply;
+  }
+
+  private findSimilarQuestions(questionId: string, knowledgePointId: string) {
+    const samePointQuestions = this.questions
+      .filter((item) => item.id !== questionId)
+      .filter((item) => item.knowledgePointIds.includes(knowledgePointId));
+    const fallbackQuestions = this.questions
+      .filter((item) => item.id !== questionId && !samePointQuestions.includes(item))
+      .slice(0, Math.max(0, 3 - samePointQuestions.length));
+
+    return [...samePointQuestions, ...fallbackQuestions].slice(0, 3).map((item) => ({
+      id: item.id,
+      stem: item.stem,
+      difficulty: item.difficulty,
+      source: item.source,
+    }));
   }
 
   generatePlan() {

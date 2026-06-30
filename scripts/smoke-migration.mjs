@@ -228,6 +228,13 @@ async function main() {
   assert(cacheWrongQuestion.knowledgePointId === 'co-cache', 'wrong question should include its knowledge point');
   assert(cacheWrongQuestion.wrongCount >= 1, 'wrong question should track wrong attempt count');
   assert(cacheWrongQuestion.latestMistakeReason, 'wrong question should expose latest mistake reason');
+  assert(cacheWrongQuestion.reviewStatus === 'pending', 'wrong question should start as pending review');
+  const reviewedWrongQuestion = await postJson(`${apiUrl}/wrong-questions/${cacheWrongQuestion.questionId}/review`, {
+    userId: 'u-001',
+  });
+  assert(reviewedWrongQuestion.reviewStatus === 'reviewed', 'wrong question review should mark the item as reviewed');
+  assert(reviewedWrongQuestion.nextAction, 'wrong question review should include a next action');
+  assert(reviewedWrongQuestion.similarQuestions.length > 0, 'wrong question review should recommend similar questions');
   const redoSubmitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',

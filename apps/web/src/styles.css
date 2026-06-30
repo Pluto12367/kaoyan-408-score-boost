@@ -635,9 +635,14 @@ button {
 }
 
 .wrong-row p,
-.wrong-row span {
+.wrong-row span,
+.wrong-row small {
   color: #64748b;
   margin: 0;
+}
+
+.wrong-row small {
+  font-size: 13px;
 }
 
 .wrong-row button {
@@ -645,6 +650,16 @@ button {
   color: #0f172a;
   padding: 10px 14px;
   white-space: nowrap;
+}
+
+.wrong-row button + button {
+  margin-left: 8px;
+}
+
+.wrong-row button:disabled {
+  background: #dcfce7;
+  color: #166534;
+  cursor: default;
 }
 
 .practice-status {

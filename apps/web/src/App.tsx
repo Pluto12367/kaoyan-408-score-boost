@@ -17,6 +17,7 @@ import {
   generatePaper,
   loginAsRole,
   requestTutorReply,
+  reviewWrongQuestion,
   submitDiagnosticProfile,
   submitPracticeAnswer,
   submitStageAssessment,
@@ -44,6 +45,7 @@ export function App() {
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
   const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
+  const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
@@ -165,6 +167,26 @@ export function App() {
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
       setTaskStatus('任务完成状态记录失败，请稍后重试。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleReviewWrongQuestion(questionId: string) {
+    setWrongStatus('正在记录错题复盘...');
+
+    try {
+      const reviewed = await reviewWrongQuestion({
+        userId: student.id,
+        questionId,
+      });
+      const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
+      setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
+      setApiState('connected');
+      setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
+    } catch {
+      setWrongStatus('错题复盘记录失败，请稍后重试。');
       setApiState('mock');
     }
   }
@@ -758,14 +780,23 @@ export function App() {
             </div>
             <span>{wrongQuestions.length} 道待复盘</span>
           </div>
+          <p className="task-status">{wrongStatus}</p>
           <div className="wrong-list">
             {wrongQuestions.map((item) => (
               <article key={item.questionId} className="wrong-row">
                 <div>
                   <strong>{item.knowledgePointTitle}</strong>
                   <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}</p>
+                  <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}</small>
                   <span>{item.stem}</span>
                 </div>
+                <button
+                  type="button"
+                  disabled={item.reviewStatus === 'reviewed'}
+                  onClick={() => handleReviewWrongQuestion(item.questionId)}
+                >
+                  {item.reviewStatus === 'reviewed' ? '已复盘' : '标记复盘'}
+                </button>
                 <button
                   type="button"
                   onClick={() => {
