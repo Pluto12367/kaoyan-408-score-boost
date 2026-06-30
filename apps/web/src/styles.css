@@ -688,6 +688,62 @@ button {
   text-decoration: none;
 }
 
+.reminder-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.reminder-row {
+  align-items: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #64748b;
+  border-radius: 6px;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 14px;
+}
+
+.reminder-row.priority-high {
+  border-left-color: #dc2626;
+}
+
+.reminder-row.priority-medium {
+  border-left-color: #d97706;
+}
+
+.reminder-row.priority-low {
+  border-left-color: #16a34a;
+}
+
+.reminder-row div {
+  display: grid;
+  gap: 5px;
+}
+
+.reminder-row span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reminder-row p {
+  color: #475569;
+  margin: 0;
+}
+
+.reminder-row a {
+  background: #eef2ff;
+  border-radius: 6px;
+  color: #1e3a8a;
+  flex: 0 0 auto;
+  font-weight: 700;
+  padding: 9px 12px;
+  text-decoration: none;
+}
+
 .secondary-link {
   align-items: center;
   background: #eef2ff;
@@ -880,6 +936,7 @@ button {
   .task-row,
   .wrong-row,
   .trial-list article,
+  .reminder-row,
   .review-row,
   .review-empty {
     align-items: flex-start;

@@ -278,6 +278,9 @@ async function main() {
   assert(trialProgress.completedCount === 5, 'trial progress should mark all guided trial tasks complete after smoke actions');
   assert(trialProgress.completionRate === 100, 'trial progress should expose full completion rate');
   assert(trialProgress.items.some((item) => item.id === 'feedback' && item.completed), 'trial progress should include feedback completion');
+  const studyReminders = await waitForJson(`${apiUrl}/study-reminders?userId=u-001`, (data) => data.items?.length >= 3);
+  assert(studyReminders.items.every((item) => item.priority && item.reason && item.actionAnchor), 'study reminders should include priority, reason and action anchor');
+  assert(studyReminders.items.some((item) => item.type === 'weakness' || item.type === 'wrong-question'), 'study reminders should include an actionable weak point or wrong question suggestion');
   const redoSubmitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',

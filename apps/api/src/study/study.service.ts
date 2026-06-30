@@ -187,6 +187,100 @@ export class StudyService {
     };
   }
 
+  getStudyReminders(userId = this.student.id) {
+    const report = this.getOverviewReport();
+    const plan = this.generatePlan();
+    const wrongQuestions = this.listWrongQuestions(userId);
+    const trialProgress = this.getTrialProgress(userId);
+    const calendar = this.getLearningCalendar(userId);
+    const reminders: StudyReminder[] = [];
+    const topWeakPoint = report.weakPoints[0];
+    const pendingWrongQuestion = wrongQuestions.find((item) => item.reviewStatus === 'pending') ?? wrongQuestions[0];
+    const nextTask = plan.dailyTasks.find((task) => !task.completed) ?? plan.dailyTasks[0];
+
+    if (topWeakPoint) {
+      reminders.push({
+        id: `weakness-${topWeakPoint.knowledgePointId}`,
+        type: 'weakness',
+        priority: 'high',
+        title: `优先补强 ${topWeakPoint.title}`,
+        reason: `当前正确率 ${topWeakPoint.accuracyRate}%，提分空间较大。`,
+        actionText: '去练推荐题组',
+        actionAnchor: '#question',
+      });
+    }
+
+    if (pendingWrongQuestion) {
+      reminders.push({
+        id: `wrong-${pendingWrongQuestion.questionId}`,
+        type: 'wrong-question',
+        priority: pendingWrongQuestion.reviewStatus === 'pending' ? 'high' : 'medium',
+        title: pendingWrongQuestion.reviewStatus === 'pending' ? '先复盘一道错题' : '重新检查已复盘错题',
+        reason: `${pendingWrongQuestion.knowledgePointTitle} 已累计 ${pendingWrongQuestion.wrongCount} 次错误记录。`,
+        actionText: pendingWrongQuestion.reviewStatus === 'pending' ? '去复盘' : '去错题本',
+        actionAnchor: '#wrong-book',
+      });
+    }
+
+    if (nextTask) {
+      reminders.push({
+        id: `task-${nextTask.id}`,
+        type: 'daily-task',
+        priority: nextTask.completed ? 'low' : 'medium',
+        title: nextTask.completed ? '今日任务已有进度' : `完成今日任务：${nextTask.title}`,
+        reason: nextTask.reason ?? '根据当前阶段和薄弱点推荐。',
+        actionText: '去看计划',
+        actionAnchor: '#plan',
+      });
+    }
+
+    if (calendar.streakDays === 0 || calendar.today.practiceCount === 0) {
+      reminders.push({
+        id: 'calendar-activity',
+        type: 'habit',
+        priority: 'medium',
+        title: '今天还需要一次有效练习',
+        reason: '学习日历会记录任务和练习，帮助你保持复习节奏。',
+        actionText: '去刷题',
+        actionAnchor: '#question',
+      });
+    }
+
+    if (trialProgress.completedCount < trialProgress.totalCount) {
+      reminders.push({
+        id: 'trial-progress',
+        type: 'trial',
+        priority: 'medium',
+        title: '完成剩余体验任务',
+        reason: `还有 ${trialProgress.totalCount - trialProgress.completedCount} 个核心流程待体验，便于后续填问卷。`,
+        actionText: '去体验',
+        actionAnchor: '#trial',
+      });
+    } else {
+      reminders.push({
+        id: 'feedback-followup',
+        type: 'feedback',
+        priority: 'low',
+        title: '试用完成后记得补充建议',
+        reason: '你已走完核心流程，可以将真实备考需求写入问卷。',
+        actionText: '去反馈',
+        actionAnchor: '#feedback',
+      });
+    }
+
+    const priorityOrder: Record<StudyReminder['priority'], number> = { high: 0, medium: 1, low: 2 };
+    const items = reminders
+      .sort((left, right) => priorityOrder[left.priority] - priorityOrder[right.priority])
+      .slice(0, 5);
+
+    return {
+      userId,
+      title: '今日提分提醒',
+      generatedAt: new Date().toISOString(),
+      items,
+    };
+  }
+
   getStudentLearningProfile(userId = this.student.id) {
     const report = this.getOverviewReport();
     const calendar = this.getLearningCalendar(userId);
@@ -975,4 +1069,14 @@ export interface FeedbackItem {
   surveyUrl: string;
   status: 'new' | 'reviewed';
   createdAt: string;
+}
+
+export interface StudyReminder {
+  id: string;
+  type: 'weakness' | 'wrong-question' | 'daily-task' | 'habit' | 'trial' | 'feedback';
+  priority: 'high' | 'medium' | 'low';
+  title: string;
+  reason: string;
+  actionText: string;
+  actionAnchor: string;
 }

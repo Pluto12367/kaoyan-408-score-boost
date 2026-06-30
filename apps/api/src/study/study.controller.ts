@@ -32,6 +32,11 @@ export class StudyController {
     return this.studyService.getTrialProgress(userId);
   }
 
+  @Get('study-reminders')
+  getStudyReminders(@Query('userId') userId?: string) {
+    return this.studyService.getStudyReminders(userId);
+  }
+
   @Get('students/:userId/profile')
   getStudentLearningProfile(@Param('userId') userId: string) {
     return this.studyService.getStudentLearningProfile(userId);

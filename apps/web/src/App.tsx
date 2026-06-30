@@ -10,6 +10,7 @@ import {
   createMockOverview,
   createMockLearningProfile,
   createMockPracticeSet,
+  createMockStudyReminders,
   createMockTrialProgress,
   createMockReviewQueue,
   createMockSystemConfig,
@@ -20,6 +21,7 @@ import {
   fetchRecommendedPracticeSet,
   fetchReviewQueue,
   fetchStageAssessment,
+  fetchStudyReminders,
   fetchSystemConfig,
   fetchTrialProgress,
   generatePaper,
@@ -41,6 +43,7 @@ import {
   type PracticeSetResult,
   type ReviewQueue,
   type StageAssessmentResult,
+  type StudyReminders,
   type SystemConfig,
   type TutorReply,
   type TrialProgress,
@@ -76,12 +79,13 @@ export function App() {
   const [feedbackList, setFeedbackList] = useState<FeedbackList>(() => createMockFeedbackList());
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
   const [trialProgress, setTrialProgress] = useState<TrialProgress>(() => createMockTrialProgress());
+  const [studyReminders, setStudyReminders] = useState<StudyReminders>(() => createMockStudyReminders());
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -91,6 +95,7 @@ export function App() {
         setLearningProfile(profile);
         setFeedbackList(feedback);
         setTrialProgress(trial);
+        setStudyReminders(reminders);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -104,6 +109,7 @@ export function App() {
         setLearningProfile(createMockLearningProfile());
         setFeedbackList(createMockFeedbackList());
         setTrialProgress(createMockTrialProgress());
+        setStudyReminders(createMockStudyReminders());
         setApiState('mock');
       });
 
@@ -118,6 +124,11 @@ export function App() {
   async function refreshTrialProgress(userId = student.id) {
     const nextTrialProgress = await fetchTrialProgress(userId);
     setTrialProgress(nextTrialProgress);
+  }
+
+  async function refreshStudyReminders(userId = student.id) {
+    const nextStudyReminders = await fetchStudyReminders(userId);
+    setStudyReminders(nextStudyReminders);
   }
 
   async function handleRoleSwitch(role: UserRole) {
@@ -150,6 +161,7 @@ export function App() {
       setSessionUser(nextOverview.student);
       setApiState('connected');
       await refreshTrialProgress(nextOverview.student.id);
+      await refreshStudyReminders(nextOverview.student.id);
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
@@ -173,6 +185,7 @@ export function App() {
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
       setApiState('connected');
+      await refreshStudyReminders(student.id);
       if (record.correct && redoQuestionId === currentQuestion.id) {
         setRedoQuestionId(null);
         setPracticeStatus('回答正确，已从错题本移除。');
@@ -209,6 +222,7 @@ export function App() {
       setPracticeSetResult(result);
       setApiState('connected');
       await refreshTrialProgress(student.id);
+      await refreshStudyReminders(student.id);
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
     } catch {
       setPracticeStatus('推荐题组提交失败，请稍后重试。');
@@ -232,6 +246,7 @@ export function App() {
       setLearningProfile(nextProfile);
       setApiState('connected');
       await refreshTrialProgress(student.id);
+      await refreshStudyReminders(student.id);
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
@@ -253,6 +268,7 @@ export function App() {
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
       await refreshTrialProgress(student.id);
+      await refreshStudyReminders(student.id);
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -300,6 +316,7 @@ export function App() {
       setStageResult(result);
       setLearningProfile(nextProfile);
       setApiState('connected');
+      await refreshStudyReminders(student.id);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，计划已调整为${result.adjustment.planPhase}。`);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
     } catch {
@@ -467,6 +484,7 @@ export function App() {
       const nextFeedbackList = await fetchFeedbackList();
       setFeedbackList(nextFeedbackList);
       await refreshTrialProgress(student.id);
+      await refreshStudyReminders(student.id);
       setApiState('connected');
       setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
     } catch {
@@ -541,6 +559,28 @@ export function App() {
                   <span>{item.description}</span>
                 </div>
                 <a href={item.actionAnchor}>{item.completed ? '已完成' : '去体验'}</a>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel reminder-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">今日提分提醒</p>
+              <h3>{studyReminders.title}</h3>
+            </div>
+            <span>更新于 {new Date(studyReminders.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+          <div className="reminder-list">
+            {studyReminders.items.map((item) => (
+              <article key={item.id} className={`reminder-row priority-${item.priority}`}>
+                <div>
+                  <span>{priorityLabel[item.priority]}</span>
+                  <strong>{item.title}</strong>
+                  <p>{item.reason}</p>
+                </div>
+                <a href={item.actionAnchor}>{item.actionText}</a>
               </article>
             ))}
           </div>
@@ -1037,6 +1077,12 @@ const riskLabel = {
   low: '低',
   medium: '中',
   high: '高',
+};
+
+const priorityLabel = {
+  high: '高优先级',
+  medium: '中优先级',
+  low: '低优先级',
 };
 
 const roleLabel = {

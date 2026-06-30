@@ -87,6 +87,21 @@ export interface TrialProgress {
   nextAction: string;
 }
 
+export interface StudyReminders {
+  userId: string;
+  title: string;
+  generatedAt: string;
+  items: Array<{
+    id: string;
+    type: 'weakness' | 'wrong-question' | 'daily-task' | 'habit' | 'trial' | 'feedback';
+    priority: 'high' | 'medium' | 'low';
+    title: string;
+    reason: string;
+    actionText: string;
+    actionAnchor: string;
+  }>;
+}
+
 export interface ReviewItem {
   id: string;
   contentType: 'question' | 'ai_reply';
@@ -471,6 +486,43 @@ export function createMockTrialProgress(): TrialProgress {
   };
 }
 
+export function createMockStudyReminders(): StudyReminders {
+  return {
+    userId: student.id,
+    title: '今日提分提醒',
+    generatedAt: new Date().toISOString(),
+    items: [
+      {
+        id: 'mock-weakness',
+        type: 'weakness',
+        priority: 'high',
+        title: '优先补强 Cache 映射与替换',
+        reason: '当前薄弱点集中在高频章节，建议先做一组推荐题。',
+        actionText: '去练推荐题组',
+        actionAnchor: '#question',
+      },
+      {
+        id: 'mock-task',
+        type: 'daily-task',
+        priority: 'medium',
+        title: '完成一个今日任务',
+        reason: '先完成计划中的小任务，能更快看到报告变化。',
+        actionText: '去看计划',
+        actionAnchor: '#plan',
+      },
+      {
+        id: 'mock-feedback',
+        type: 'feedback',
+        priority: 'low',
+        title: '体验后补充真实建议',
+        reason: '走完核心流程后填写问卷，有助于完善后续功能。',
+        actionText: '去反馈',
+        actionAnchor: '#feedback',
+      },
+    ],
+  };
+}
+
 export function createMockPracticeSet(): PracticeSet {
   return {
     id: 'practice-set-mock',
@@ -530,6 +582,15 @@ export async function fetchTrialProgress(userId: string): Promise<TrialProgress>
   }
 
   return response.json() as Promise<TrialProgress>;
+}
+
+export async function fetchStudyReminders(userId: string): Promise<StudyReminders> {
+  const response = await fetch(`${API_BASE_URL}/study-reminders?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Study reminders request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<StudyReminders>;
 }
 
 export async function fetchLearningProfile(userId: string): Promise<LearningProfile> {
