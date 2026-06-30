@@ -69,6 +69,9 @@ export interface DailyTask {
   minutes: number;
   questionCount: number;
   mode: string;
+  priority: '高' | '中' | '低';
+  reason: string;
+  nextAction: string;
   completed?: boolean;
 }
 

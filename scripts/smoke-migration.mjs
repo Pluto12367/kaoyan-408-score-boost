@@ -37,6 +37,7 @@ async function main() {
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
+  assert(overview.plan.dailyTasks.every((task) => task.priority && task.reason && task.nextAction), 'daily tasks should include priority, reason and next action');
   const diagnosticProfile = await postJson(`${apiUrl}/diagnostics/profile`, {
     targetScore: 118,
     currentScore: 58,
@@ -135,6 +136,7 @@ async function main() {
     userId: 'u-001',
   });
   assert(completedTask.completed === true, 'completed task endpoint should mark the task as completed');
+  assert(completedTask.feedback?.nextAction, 'completed task endpoint should return next action feedback');
   const overviewAfterTask = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => {
     const task = data.plan?.dailyTasks?.find((item) => item.id === firstTaskId);
     return task?.completed === true && data.plan?.completedTaskCount === 1;

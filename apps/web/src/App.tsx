@@ -152,7 +152,7 @@ export function App() {
     setTaskStatus('正在记录任务完成状态...');
 
     try {
-      await completeStudyTask({
+      const completedTask = await completeStudyTask({
         userId: student.id,
         taskId,
       });
@@ -162,6 +162,7 @@ export function App() {
       setAdminMetrics(nextMetrics);
       setApiState('connected');
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
+      setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
       setTaskStatus('任务完成状态记录失败，请稍后重试。');
       setApiState('mock');
@@ -622,6 +623,11 @@ export function App() {
                 <div>
                   <strong>{task.title}</strong>
                   <p>{task.subject} / {task.chapter} / {task.mode}</p>
+                  <div className="task-reason">
+                    <span className={`priority priority-${task.priority}`}>{task.priority}优先级</span>
+                    <span>{task.reason}</span>
+                  </div>
+                  <small>{task.nextAction}</small>
                 </div>
                 <div className="task-actions">
                   <span>{task.minutes} 分钟 · {task.questionCount} 题</span>

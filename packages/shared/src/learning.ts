@@ -1,5 +1,6 @@
 import type {
   DiagnosticProfile,
+  DailyTask,
   KnowledgePoint,
   MistakeReason,
   PracticeRecord,
@@ -188,7 +189,7 @@ export function buildStudyPlan(input: {
       return (originalOrder.get(a.id) ?? 0) - (originalOrder.get(b.id) ?? 0);
     })
     .slice(0, 4)
-    .map((point, index) => ({
+    .map((point, index) => enrichDailyTask({
       id: `task-${index + 1}`,
       knowledgePointId: point.id,
       subject: point.subject,
@@ -206,6 +207,22 @@ export function buildStudyPlan(input: {
     dailyHours: input.dailyHours,
     dailyTasks,
     checkpoint: input.remainingDays <= 45 ? '每 3 天完成一套真题回顾' : '每 7 天完成一次阶段测评',
+  };
+}
+
+function enrichDailyTask(task: Omit<DailyTask, 'priority' | 'reason' | 'nextAction'>): DailyTask {
+  const isFirstTask = task.id === 'task-1';
+  const priority: DailyTask['priority'] = isFirstTask ? '高' : task.questionCount >= 18 ? '中' : '低';
+
+  return {
+    ...task,
+    priority,
+    reason: isFirstTask
+      ? `${task.chapter} 是当前最需要优先处理的章节，先复盘再练题能更快减少失分。`
+      : `${task.title} 属于今日计划中的补强考点，适合用限时练习稳定得分。`,
+    nextAction: isFirstTask
+      ? `完成后复盘 ${task.title} 的错题原因，并补 1 组同考点题。`
+      : `完成后用 5 分钟整理 ${task.title} 的关键规则。`,
   };
 }
 

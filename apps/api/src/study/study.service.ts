@@ -349,6 +349,10 @@ export class StudyService {
     return {
       ...task,
       completed: true,
+      feedback: {
+        message: `已完成 ${task.title}，今日计划进度已更新。`,
+        nextAction: task.nextAction,
+      },
     };
   }
 

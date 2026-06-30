@@ -448,6 +448,10 @@ export async function completeStudyTask(input: {
   return response.json() as Promise<{
     id: string;
     completed: boolean;
+    feedback: {
+      message: string;
+      nextAction: string;
+    };
   }>;
 }
 
