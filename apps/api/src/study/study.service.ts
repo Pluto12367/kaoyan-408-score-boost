@@ -63,6 +63,8 @@ export class StudyService {
 
   private readonly practiceSetResults: Array<Record<string, unknown>> = [];
 
+  private readonly feedbackItems: FeedbackItem[] = [];
+
   private systemConfig = {
     source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
     recommendation: {
@@ -254,6 +256,47 @@ export class StudyService {
 
   getSystemConfig() {
     return this.systemConfig;
+  }
+
+  submitFeedback(input: {
+    userId?: string;
+    rating?: number;
+    scene?: string;
+    message?: string;
+    surveyUrl?: string;
+  }) {
+    const message = input.message?.trim();
+    if (!message) {
+      throw new BadRequestException('Feedback message is required');
+    }
+
+    const feedback: FeedbackItem = {
+      id: `feedback-${Date.now()}`,
+      userId: input.userId ?? this.student.id,
+      rating: clampNumber(input.rating ?? 5, 1, 5),
+      scene: input.scene?.trim() || '试用体验',
+      message,
+      surveyUrl: input.surveyUrl ?? 'https://wj.qq.com/s2/27160624/40fe/',
+      status: 'new',
+      createdAt: new Date().toISOString(),
+    };
+
+    this.feedbackItems.push(feedback);
+    return feedback;
+  }
+
+  getFeedbackList() {
+    const items = [...this.feedbackItems].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+    const averageRating = items.length
+      ? Math.round((items.reduce((sum, item) => sum + item.rating, 0) / items.length) * 10) / 10
+      : 0;
+
+    return {
+      totalCount: items.length,
+      averageRating,
+      surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
+      items,
+    };
   }
 
   listPapers() {
@@ -865,5 +908,16 @@ export interface GeneratedPaper {
   questions: Question[];
   estimatedMinutes: number;
   createdBy: string;
+  createdAt: string;
+}
+
+export interface FeedbackItem {
+  id: string;
+  userId: string;
+  rating: number;
+  scene: string;
+  message: string;
+  surveyUrl: string;
+  status: 'new' | 'reviewed';
   createdAt: string;
 }

@@ -236,6 +236,18 @@ async function main() {
     Array.isArray(data?.items) && data.items.some((item) => item.id === approvedReviewItem.id && item.status === 'approved'),
   );
   assert(reviewQueueAfterApproval.pendingCount === reviewQueue.pendingCount - 1, 'review queue pending count should decrease after approval');
+  const feedback = await postJson(`${apiUrl}/feedback`, {
+    userId: 'u-001',
+    rating: 4,
+    scene: '试用体验',
+    message: '希望推荐题组能更贴合冲刺阶段。',
+    surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
+  });
+  assert(feedback.id && feedback.status === 'new', 'feedback submission should return a new feedback item');
+  const feedbackList = await waitForJson(`${apiUrl}/admin/feedback`, (data) =>
+    data.totalCount >= 1 && data.items?.some((item) => item.id === feedback.id),
+  );
+  assert(feedbackList.averageRating >= 4, 'feedback admin list should expose average rating');
   const adminMetrics = await waitForJson(`${apiUrl}/admin/metrics`, (data) => data.questionCount >= overviewAfterTeacherQuestion.questions.length);
   assert(adminMetrics.activeStudentCount >= 1, 'admin metrics should include active student count');
   assert(adminMetrics.practiceRecordCount >= updatedOverview.practiceRecords.length, 'admin metrics should include practice record count');

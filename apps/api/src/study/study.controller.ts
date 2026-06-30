@@ -37,6 +37,11 @@ export class StudyController {
     return this.studyService.getAdminMetrics();
   }
 
+  @Get('admin/feedback')
+  getFeedbackList() {
+    return this.studyService.getFeedbackList();
+  }
+
   @Get('admin/review-queue')
   getReviewQueue() {
     return this.studyService.getReviewQueue();
@@ -62,6 +67,17 @@ export class StudyController {
     updatedBy?: string;
   }) {
     return this.studyService.updateSystemConfig(input);
+  }
+
+  @Post('feedback')
+  submitFeedback(@Body() input: {
+    userId?: string;
+    rating?: number;
+    scene?: string;
+    message?: string;
+    surveyUrl?: string;
+  }) {
+    return this.studyService.submitFeedback(input);
   }
 
   @Get('papers')

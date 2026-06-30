@@ -6,6 +6,7 @@ import {
   createKnowledgePoint,
   createTeacherQuestion,
   createMockAdminMetrics,
+  createMockFeedbackList,
   createMockOverview,
   createMockLearningProfile,
   createMockPracticeSet,
@@ -13,6 +14,7 @@ import {
   createMockSystemConfig,
   fetchAdminMetrics,
   fetchDashboardOverview,
+  fetchFeedbackList,
   fetchLearningProfile,
   fetchRecommendedPracticeSet,
   fetchReviewQueue,
@@ -23,6 +25,7 @@ import {
   requestTutorReply,
   reviewWrongQuestion,
   submitDiagnosticProfile,
+  submitFeedback,
   submitPracticeAnswer,
   submitPracticeSet,
   submitStageAssessment,
@@ -30,6 +33,7 @@ import {
   type AdminMetrics,
   type DashboardOverview,
   type GeneratedPaper,
+  type FeedbackList,
   type LearningProfile,
   type PracticeSet,
   type PracticeSetResult,
@@ -66,12 +70,14 @@ export function App() {
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [learningProfile, setLearningProfile] = useState<LearningProfile>(() => createMockLearningProfile());
+  const [feedbackList, setFeedbackList] = useState<FeedbackList>(() => createMockFeedbackList());
+  const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet, profile]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList()])
+      .then(([data, metrics, queue, config, recommendedSet, profile, feedback]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -79,6 +85,7 @@ export function App() {
         setSystemConfig(config);
         setPracticeSet(recommendedSet);
         setLearningProfile(profile);
+        setFeedbackList(feedback);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -90,6 +97,7 @@ export function App() {
         setSystemConfig(createMockSystemConfig());
         setPracticeSet(createMockPracticeSet());
         setLearningProfile(createMockLearningProfile());
+        setFeedbackList(createMockFeedbackList());
         setApiState('mock');
       });
 
@@ -430,6 +438,27 @@ export function App() {
     }
   }
 
+  async function handleSubmitFeedback() {
+    setFeedbackStatus('正在提交体验反馈...');
+
+    try {
+      const feedback = await submitFeedback({
+        userId: student.id,
+        rating: 4,
+        scene: '原型试用',
+        message: '推荐题组和学习档案对备考路径有帮助，希望继续完善移动端体验。',
+        surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
+      });
+      const nextFeedbackList = await fetchFeedbackList();
+      setFeedbackList(nextFeedbackList);
+      setApiState('connected');
+      setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
+    } catch {
+      setFeedbackStatus('反馈提交失败，请稍后重试或直接填写问卷。');
+      setApiState('mock');
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -526,6 +555,35 @@ export function App() {
           </div>
         </section>
 
+        <section className="panel feedback-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">体验反馈</p>
+              <h3>邀请备考同学试用后收集改进建议</h3>
+            </div>
+            <div className="panel-actions">
+              <button type="button" className="secondary-action" onClick={handleSubmitFeedback}>提交演示反馈</button>
+              <a className="secondary-link" href={feedbackList.surveyUrl} target="_blank" rel="noreferrer">打开问卷</a>
+            </div>
+          </div>
+          <p className="task-status">{feedbackStatus}</p>
+          <div className="feedback-grid">
+            <article>
+              <strong>{feedbackList.totalCount}</strong>
+              <span>反馈数量</span>
+            </article>
+            <article>
+              <strong>{feedbackList.averageRating}</strong>
+              <span>平均评分</span>
+            </article>
+            <article>
+              <strong>{feedbackList.items[0]?.scene ?? '待收集'}</strong>
+              <span>最近场景</span>
+            </article>
+          </div>
+          {feedbackList.items[0] ? <p className="feedback-note">{feedbackList.items[0].message}</p> : null}
+        </section>
+
         <section className="panel diagnostic-panel">
           <div className="panel-heading">
             <div>
@@ -593,6 +651,9 @@ export function App() {
           </div>
           <p className="task-status">
             当前最弱考点：{adminMetrics.topWeakPoint ?? '暂无'} · 平均耗时 {adminMetrics.averagePracticeTimeSec} 秒 · 留存学习日 {adminMetrics.retentionDays} 天
+          </p>
+          <p className="task-status">
+            试用反馈：{feedbackList.totalCount} 条 · 平均评分 {feedbackList.averageRating} · {feedbackList.items[0]?.message ?? '暂无反馈'}
           </p>
         </section>
 

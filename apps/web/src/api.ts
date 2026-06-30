@@ -53,6 +53,24 @@ export interface ReviewQueue {
   generatedAt: string;
 }
 
+export interface FeedbackItem {
+  id: string;
+  userId: string;
+  rating: number;
+  scene: string;
+  message: string;
+  surveyUrl: string;
+  status: 'new' | 'reviewed';
+  createdAt: string;
+}
+
+export interface FeedbackList {
+  totalCount: number;
+  averageRating: number;
+  surveyUrl: string;
+  items: FeedbackItem[];
+}
+
 export interface ReviewItem {
   id: string;
   contentType: 'question' | 'ai_reply';
@@ -410,6 +428,15 @@ function createMockLearningCalendar(): LearningCalendar {
   };
 }
 
+export function createMockFeedbackList(): FeedbackList {
+  return {
+    totalCount: 0,
+    averageRating: 0,
+    surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
+    items: [],
+  };
+}
+
 export function createMockPracticeSet(): PracticeSet {
   return {
     id: 'practice-set-mock',
@@ -523,6 +550,37 @@ export async function fetchReviewQueue(): Promise<ReviewQueue> {
   }
 
   return response.json() as Promise<ReviewQueue>;
+}
+
+export async function fetchFeedbackList(): Promise<FeedbackList> {
+  const response = await fetch(`${API_BASE_URL}/admin/feedback`);
+  if (!response.ok) {
+    throw new Error(`Feedback list request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<FeedbackList>;
+}
+
+export async function submitFeedback(input: {
+  userId: string;
+  rating: number;
+  scene: string;
+  message: string;
+  surveyUrl?: string;
+}): Promise<FeedbackItem> {
+  const response = await fetch(`${API_BASE_URL}/feedback`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Feedback submission failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<FeedbackItem>;
 }
 
 export async function approveReviewItem(input: {

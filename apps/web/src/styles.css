@@ -619,6 +619,44 @@ button {
   line-height: 1.5;
 }
 
+.feedback-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.feedback-grid article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.feedback-grid strong {
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.feedback-grid span,
+.feedback-note {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.secondary-link {
+  align-items: center;
+  background: #eef2ff;
+  border-radius: 6px;
+  color: #1e3a8a;
+  display: inline-flex;
+  font-weight: 700;
+  padding: 10px 14px;
+  text-decoration: none;
+}
+
 .task-actions {
   align-items: center;
   display: flex;
@@ -786,7 +824,8 @@ button {
   .teacher-grid,
   .config-grid,
   .diagnostic-grid,
-  .profile-grid {
+  .profile-grid,
+  .feedback-grid {
     grid-template-columns: 1fr;
   }
 
