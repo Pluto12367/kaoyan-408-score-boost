@@ -15,6 +15,7 @@ import {
   fetchStageAssessment,
   fetchSystemConfig,
   generatePaper,
+  loginAsRole,
   requestTutorReply,
   submitPracticeAnswer,
   submitStageAssessment,
@@ -27,6 +28,7 @@ import {
   type SystemConfig,
   type TutorReply,
 } from './api';
+import type { UserProfile, UserRole } from '@kaoyan408/shared';
 
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
@@ -34,6 +36,8 @@ export function App() {
   const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
+  const [sessionUser, setSessionUser] = useState<UserProfile | null>(null);
+  const [authStatus, setAuthStatus] = useState('当前使用学生演示身份。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
   const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
@@ -58,6 +62,7 @@ export function App() {
         setAdminMetrics(metrics);
         setReviewQueue(queue);
         setSystemConfig(config);
+        setSessionUser(data.student);
         setApiState('connected');
       })
       .catch(() => {
@@ -76,6 +81,20 @@ export function App() {
 
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const currentQuestion = questions[0];
+
+  async function handleRoleSwitch(role: UserRole) {
+    setAuthStatus('正在切换演示身份...');
+
+    try {
+      const session = await loginAsRole(role);
+      setSessionUser(session.user);
+      setApiState('connected');
+      setAuthStatus(`已切换为${roleLabel[session.user.role]}：${session.user.name}。`);
+    } catch {
+      setAuthStatus('身份切换失败，当前仍使用本地演示身份。');
+      setApiState('mock');
+    }
+  }
 
   async function handleSubmitAnswer(selectedAnswer: string) {
     setPracticeStatus('正在提交答案...');
@@ -340,12 +359,28 @@ export function App() {
             <h2>{student.name}，当前处于{student.stage}阶段</h2>
           </div>
           <div className="topbar-actions">
+            <span className="role-pill">{roleLabel[sessionUser?.role ?? 'student']}</span>
             <span className={`api-pill ${apiState}`}>
               {apiState === 'connected' ? 'API 已连接' : apiState === 'mock' ? 'Mock 数据' : '连接 API'}
             </span>
             <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
           </div>
         </header>
+
+        <section className="panel role-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">账号与角色权限</p>
+              <h3>{sessionUser?.name ?? student.name}</h3>
+            </div>
+            <div className="panel-actions">
+              <button type="button" className="secondary-action" onClick={() => handleRoleSwitch('student')}>学生</button>
+              <button type="button" className="secondary-action" onClick={() => handleRoleSwitch('teacher')}>教师</button>
+              <button type="button" className="secondary-action" onClick={() => handleRoleSwitch('admin')}>管理员</button>
+            </div>
+          </div>
+          <p className="task-status">{authStatus} {permissionHint[sessionUser?.role ?? 'student']}</p>
+        </section>
 
         <section id="dashboard" className="metrics-grid">
           <Metric title="目标分" value={`${student.targetScore ?? 0}`} caption={student.targetSchool ?? '目标院校未设置'} />
@@ -703,4 +738,16 @@ const riskLabel = {
   low: '低',
   medium: '中',
   high: '高',
+};
+
+const roleLabel = {
+  student: '学生',
+  teacher: '教师',
+  admin: '管理员',
+};
+
+const permissionHint = {
+  student: '学生可使用诊断、计划、练习、错题和 AI 答疑。',
+  teacher: '教师可维护题库、知识点并生成试卷。',
+  admin: '管理员可查看运营指标、审核内容并调整推荐策略。',
 };

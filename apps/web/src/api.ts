@@ -6,6 +6,7 @@ import {
   type Question,
   type StudyPlan,
   type UserProfile,
+  type UserRole,
   type WeaknessReport,
 } from '@kaoyan408/shared';
 import { knowledgePoints, practiceRecords, questions, student } from './mockData';
@@ -177,6 +178,11 @@ export interface GeneratePaperInput {
   knowledgePointIds: string[];
   questionCount: number;
   createdBy: string;
+}
+
+export interface AuthSession {
+  token: string;
+  user: UserProfile;
 }
 
 export interface WrongQuestion {
@@ -534,4 +540,20 @@ export async function generatePaper(input: GeneratePaperInput): Promise<Generate
   }
 
   return response.json() as Promise<GeneratedPaper>;
+}
+
+export async function loginAsRole(role: UserRole): Promise<AuthSession> {
+  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ role }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Login failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<AuthSession>;
 }

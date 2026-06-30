@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Controller('questions')
 export class QuestionsController {
@@ -18,5 +19,19 @@ export class QuestionsController {
   @Post()
   createQuestion(@Body() input: CreateQuestionDto) {
     return this.questionsService.createQuestion(input);
+  }
+}
+
+@Controller('teacher/questions')
+export class TeacherQuestionsController {
+  constructor(
+    private readonly questionsService: QuestionsService,
+    private readonly authService: AuthService,
+  ) {}
+
+  @Get()
+  listTeacherQuestions(@Headers('authorization') authorization?: string) {
+    this.authService.requireRole(authorization, ['teacher', 'admin']);
+    return this.questionsService.listQuestions();
   }
 }

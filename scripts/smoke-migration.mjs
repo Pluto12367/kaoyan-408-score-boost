@@ -18,6 +18,22 @@ async function main() {
   });
 
   await waitForJson(`${apiUrl}/health`, (data) => data.status === 'ok');
+  const studentSession = await postJson(`${apiUrl}/auth/login`, {
+    role: 'student',
+  });
+  assert(studentSession.token && studentSession.user.role === 'student', 'student login should return a student session');
+  const teacherSession = await postJson(`${apiUrl}/auth/login`, {
+    role: 'teacher',
+  });
+  assert(teacherSession.token && teacherSession.user.role === 'teacher', 'teacher login should return a teacher session');
+  const teacherOnlyQuestions = await waitForJson(`${apiUrl}/teacher/questions`, (data) =>
+    Array.isArray(data) && data.length > 0,
+    { Authorization: `Bearer ${teacherSession.token}` },
+  );
+  assert(teacherOnlyQuestions.every((question) => question.knowledgePointIds?.length > 0), 'teacher question management should return knowledge-bound questions');
+  await expectForbidden(`${apiUrl}/teacher/questions`, {
+    Authorization: `Bearer ${studentSession.token}`,
+  }, 'student session should not access teacher question management');
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
@@ -282,30 +298,35 @@ function start(name, command, args, options) {
   return child;
 }
 
-async function waitForJson(url, predicate) {
+async function expectForbidden(url, headers, message) {
+  const response = await fetch(url, { headers });
+  assert(response.status === 403, message);
+}
+
+async function waitForJson(url, predicate, headers = {}) {
   const response = await waitForResponse(url, async (res) => {
     if (!res.ok) return null;
     const data = await res.json();
     return predicate(data) ? data : null;
-  });
+  }, headers);
   return response;
 }
 
-async function waitForText(url, predicate) {
+async function waitForText(url, predicate, headers = {}) {
   return waitForResponse(url, async (res) => {
     if (!res.ok) return null;
     const text = await res.text();
     return predicate(text) ? text : null;
-  });
+  }, headers);
 }
 
-async function waitForResponse(url, mapper) {
+async function waitForResponse(url, mapper, headers = {}) {
   const deadline = Date.now() + 30_000;
   let lastError;
 
   while (Date.now() < deadline) {
     try {
-      const result = await mapper(await fetch(url));
+      const result = await mapper(await fetch(url, { headers }));
       if (result) return result;
     } catch (error) {
       lastError = error;
