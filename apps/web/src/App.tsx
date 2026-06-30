@@ -6,6 +6,7 @@ import {
   createKnowledgePoint,
   createTeacherQuestion,
   createMockAdminMetrics,
+  createMockAiFollowUp,
   createMockFeedbackList,
   createMockMasteryMap,
   createMockOverview,
@@ -30,6 +31,7 @@ import {
   fetchTrialProgress,
   generatePaper,
   loginAsRole,
+  requestAiFollowUp,
   requestTutorReply,
   reviewWrongQuestion,
   submitDiagnosticProfile,
@@ -39,6 +41,7 @@ import {
   submitStageAssessment,
   updateSystemConfig,
   type AdminMetrics,
+  type AiFollowUp,
   type DashboardOverview,
   type GeneratedPaper,
   type FeedbackList,
@@ -72,6 +75,7 @@ export function App() {
   const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
+  const [aiFollowUp, setAiFollowUp] = useState<AiFollowUp>(() => createMockAiFollowUp());
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
   const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
   const [reviewStatus, setReviewStatus] = useState('教师题目和 AI 生成内容会进入审核队列。');
@@ -379,6 +383,29 @@ export function App() {
       document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
       setTutorStatus('AI 答疑暂时不可用，请先查看标准解析。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleAskFollowUp(message: string) {
+    setTutorStatus('AI 正在整理追问解释和复习卡片...');
+
+    try {
+      const reply = await requestAiFollowUp({
+        userId: student.id,
+        questionId: currentQuestion.id,
+        message,
+      });
+      const nextQueue = await fetchReviewQueue();
+      const nextMetrics = await fetchAdminMetrics();
+      setAiFollowUp(reply);
+      setReviewQueue(nextQueue);
+      setAdminMetrics(nextMetrics);
+      setApiState('connected');
+      setTutorStatus(`已生成 ${reply.reviewCards.length} 张复习卡片：${reply.relatedKnowledgePoint.title}`);
+      document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch {
+      setTutorStatus('AI 追问暂时不可用，请先查看标准解析和错题复盘建议。');
       setApiState('mock');
     }
   }
@@ -1069,6 +1096,17 @@ export function App() {
             </button>
           </div>
           <p className="task-status">{tutorStatus}</p>
+          <div className="follow-up-actions">
+            <button type="button" onClick={() => handleAskFollowUp('为什么我选 A 不对？')}>
+              为什么选 A 不对
+            </button>
+            <button type="button" onClick={() => handleAskFollowUp('这个考点和相邻考点有什么区别？')}>
+              对比易混考点
+            </button>
+            <button type="button" onClick={() => handleAskFollowUp('帮我整理成复习卡片。')}>
+              生成复习卡片
+            </button>
+          </div>
           {tutorReply ? (
             <div className="tutor-result">
               <article>
@@ -1101,6 +1139,35 @@ export function App() {
               </article>
             </div>
           ) : null}
+          <div className="follow-up-result">
+            <article>
+              <strong>{aiFollowUp.relatedKnowledgePoint.title}</strong>
+              <p>{aiFollowUp.message}</p>
+              <ol>
+                {aiFollowUp.replySteps.map((step) => (
+                  <li key={step}>{step}</li>
+                ))}
+              </ol>
+            </article>
+            <article>
+              <strong>易错点提醒</strong>
+              <ul>
+                {aiFollowUp.misconceptionTips.map((tip) => (
+                  <li key={tip}>{tip}</li>
+                ))}
+              </ul>
+            </article>
+            <div className="review-card-list">
+              {aiFollowUp.reviewCards.map((card) => (
+                <article key={card.id} className={`review-card card-${card.type}`}>
+                  <span>{reviewCardTypeLabel[card.type]}</span>
+                  <strong>{card.title}</strong>
+                  <p>{card.content}</p>
+                  <small>{card.nextAction}</small>
+                </article>
+              ))}
+            </div>
+          </div>
         </section>
 
         <section className="panel teacher-panel">
@@ -1208,6 +1275,12 @@ const masteryStatusLabel = {
   weak: '去补弱',
   review: '去巩固',
   mastered: '限时训练',
+};
+
+const reviewCardTypeLabel = {
+  concept: '概念卡',
+  rule: '规则卡',
+  confusion: '易混卡',
 };
 
 const roleLabel = {

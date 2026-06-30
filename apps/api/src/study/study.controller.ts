@@ -175,6 +175,15 @@ export class StudyController {
     return this.studyService.createTutorReply(input);
   }
 
+  @Post('ai/follow-up')
+  createAiFollowUp(@Body() input: {
+    userId?: string;
+    questionId: string;
+    message?: string;
+  }) {
+    return this.studyService.createAiFollowUp(input);
+  }
+
   @Post('practice-records')
   createPracticeRecord(@Body() input: CreatePracticeRecordDto) {
     return this.studyService.createPracticeRecord(input);

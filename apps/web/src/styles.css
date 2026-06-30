@@ -433,6 +433,91 @@ button {
   padding: 10px;
 }
 
+.follow-up-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.follow-up-actions button {
+  background: #eef2ff;
+  color: #1e3a8a;
+  padding: 9px 12px;
+}
+
+.follow-up-result {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.follow-up-result > article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.follow-up-result p,
+.follow-up-result ol,
+.follow-up-result ul {
+  color: #475569;
+  margin: 0;
+}
+
+.follow-up-result ol,
+.follow-up-result ul {
+  padding-left: 18px;
+}
+
+.review-card-list {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.review-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #64748b;
+  border-radius: 6px;
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.review-card.card-concept {
+  border-left-color: #2563eb;
+}
+
+.review-card.card-rule {
+  border-left-color: #16a34a;
+}
+
+.review-card.card-confusion {
+  border-left-color: #d97706;
+}
+
+.review-card span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.review-card p,
+.review-card small {
+  color: #475569;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.review-card small {
+  font-size: 13px;
+}
+
 .teacher-grid {
   display: grid;
   gap: 14px;
@@ -1117,7 +1202,8 @@ button {
   .feedback-grid,
   .sprint-summary,
   .sprint-days,
-  .mastery-subjects {
+  .mastery-subjects,
+  .review-card-list {
     grid-template-columns: 1fr;
   }
 

@@ -308,6 +308,30 @@ export interface TutorReply {
   source: string;
 }
 
+export interface AiFollowUp {
+  id: string;
+  userId: string;
+  questionId: string;
+  message: string;
+  relatedKnowledgePoint: {
+    id?: string;
+    title: string;
+    subject: string;
+    chapter: string;
+  };
+  replySteps: string[];
+  misconceptionTips: string[];
+  reviewCards: Array<{
+    id: string;
+    type: 'concept' | 'rule' | 'confusion';
+    title: string;
+    content: string;
+    nextAction: string;
+  }>;
+  nextActions: string[];
+  source: string;
+}
+
 export interface CreateTeacherQuestionInput {
   stem: string;
   options: string[];
@@ -689,6 +713,44 @@ export function createMockLearningProfile(): LearningProfile {
   };
 }
 
+export function createMockAiFollowUp(): AiFollowUp {
+  return {
+    id: 'follow-up-mock',
+    userId: student.id,
+    questionId: questions[0].id,
+    message: '为什么我选 A 不对？',
+    relatedKnowledgePoint: {
+      id: 'co-cache',
+      title: 'Cache 映射与替换',
+      subject: '计算机组成原理',
+      chapter: '存储系统',
+    },
+    replySteps: [
+      '先定位考点：本题考查 Cache 映射与替换，不能只凭关键词判断。',
+      '再对照标准答案：逐项检查题干条件和选项是否匹配。',
+    ],
+    misconceptionTips: ['不要把直接映射和组相联映射的条件混用。'],
+    reviewCards: [
+      {
+        id: 'card-mock-concept',
+        type: 'concept',
+        title: '核心概念',
+        content: '复习 Cache 映射时先区分映射方式、替换发生位置和命中条件。',
+        nextAction: '用自己的话写出三种映射方式的区别。',
+      },
+      {
+        id: 'card-mock-rule',
+        type: 'rule',
+        title: '判断规则',
+        content: '先看题干给出的块号、组号或标记位，再判断选项是否符合。',
+        nextAction: '重做 2 道同考点题。',
+      },
+    ],
+    nextActions: ['回到错题本复盘本题，再做一组同知识点题。'],
+    source: 'mock',
+  };
+}
+
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   const response = await fetch(`${API_BASE_URL}/dashboard/overview`);
   if (!response.ok) {
@@ -994,6 +1056,26 @@ export async function requestTutorReply(input: {
   }
 
   return response.json() as Promise<TutorReply>;
+}
+
+export async function requestAiFollowUp(input: {
+  userId: string;
+  questionId: string;
+  message: string;
+}): Promise<AiFollowUp> {
+  const response = await fetch(`${API_BASE_URL}/ai/follow-up`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`AI follow-up request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<AiFollowUp>;
 }
 
 export async function createTeacherQuestion(input: CreateTeacherQuestionInput): Promise<Question> {

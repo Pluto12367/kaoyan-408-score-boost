@@ -1096,6 +1096,85 @@ export class StudyService {
     return reply;
   }
 
+  createAiFollowUp(input: {
+    userId?: string;
+    questionId: string;
+    message?: string;
+  }) {
+    const question = this.questions.find((item) => item.id === input.questionId);
+    if (!question) {
+      throw new BadRequestException(`Question ${input.questionId} was not found`);
+    }
+
+    const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
+    const message = input.message?.trim() || '请解释这道题并整理复习卡片。';
+    const relatedPointTitle = knowledgePoint?.title ?? question.knowledgePointIds[0] ?? '408 高频考点';
+    const reply = {
+      id: `follow-up-${Date.now()}`,
+      userId: input.userId ?? this.student.id,
+      questionId: question.id,
+      message,
+      relatedKnowledgePoint: {
+        id: knowledgePoint?.id ?? question.knowledgePointIds[0],
+        title: relatedPointTitle,
+        subject: knowledgePoint?.subject ?? '408',
+        chapter: knowledgePoint?.chapter ?? '高频章节',
+      },
+      replySteps: [
+        `先定位考点：本题主要考 ${relatedPointTitle}，不要只记答案，要看题干条件如何触发规则。`,
+        `再对照标准答案：正确答案是 ${question.answer}，解析依据是：${question.analysis}`,
+        message.includes('A')
+          ? '你提到的 A 选项通常是干扰项，建议把它和正确选项逐句比较，找出条件不匹配的位置。'
+          : '如果仍不确定，先把题干中的限制条件圈出来，再判断每个选项是否满足这些条件。',
+      ],
+      misconceptionTips: [
+        `不要把 ${relatedPointTitle} 的定义和相邻考点混用。`,
+        '408 选择题常用“看起来熟悉但条件不完整”的选项制造干扰。',
+      ],
+      reviewCards: [
+        {
+          id: `card-concept-${question.id}`,
+          type: 'concept',
+          title: `${relatedPointTitle} 核心概念`,
+          content: `复习时先能口述 ${relatedPointTitle} 的定义、适用条件和常见题干关键词。`,
+          nextAction: '用 2 分钟写出本考点的判断依据，再做 2 道同考点题。',
+        },
+        {
+          id: `card-rule-${question.id}`,
+          type: 'rule',
+          title: '本题判断规则',
+          content: `看到类似题目时，先提取题干条件，再和选项逐项匹配；本题标准答案为 ${question.answer}。`,
+          nextAction: '重做本题，并说明为什么其他选项不满足条件。',
+        },
+        {
+          id: `card-mix-${question.id}`,
+          type: 'confusion',
+          title: '易混点提醒',
+          content: `如果把 ${relatedPointTitle} 和前置知识混淆，容易只凭关键词选错。`,
+          nextAction: '整理一个“易混选项对比表”，记录正确条件和错误诱因。',
+        },
+      ],
+      nextActions: [
+        '先复述本题考点，再回到错题本标记是否真正理解。',
+        '完成 3 道同知识点题目，观察是否还会被同类干扰项影响。',
+      ],
+      source: 'standard-analysis-follow-up',
+    };
+
+    this.aiReviewItems.push({
+      id: `review-ai-${reply.id}`,
+      contentType: 'ai_reply',
+      relatedId: reply.id,
+      title: `${relatedPointTitle} 追问与复习卡片`,
+      summary: `AI 追问内容需审核：${message}`,
+      status: 'pending',
+      riskLevel: 'low',
+      createdAt: new Date().toISOString(),
+    });
+
+    return reply;
+  }
+
   private findSimilarQuestions(questionId: string, knowledgePointId: string) {
     const samePointQuestions = this.questions
       .filter((item) => item.id !== questionId)

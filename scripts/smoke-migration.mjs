@@ -222,6 +222,14 @@ async function main() {
   assert(tutorReply.explanationSteps.length >= 2, 'AI tutor reply should break explanation into steps');
   assert(tutorReply.similarQuestions.length > 0, 'AI tutor reply should recommend similar questions');
   assert(tutorReply.nextActions.length > 0, 'AI tutor reply should include next actions');
+  const followUpReply = await postJson(`${apiUrl}/ai/follow-up`, {
+    userId: 'u-001',
+    questionId: 'q-001',
+    message: '为什么我选 A 不对？请整理成复习卡片。',
+  });
+  assert(followUpReply.replySteps.length >= 2, 'AI follow-up should return step-by-step explanation');
+  assert(followUpReply.reviewCards.length >= 2, 'AI follow-up should return review cards');
+  assert(followUpReply.reviewCards.every((card) => card.title && card.type && card.content && card.nextAction), 'AI follow-up review cards should include title, type, content and next action');
   const reviewQueue = await waitForJson(`${apiUrl}/admin/review-queue`, (data) =>
     Array.isArray(data?.items) && data.items.length >= 2,
   );
