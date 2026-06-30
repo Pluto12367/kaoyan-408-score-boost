@@ -102,6 +102,29 @@ export interface StudyReminders {
   }>;
 }
 
+export interface SprintPlan {
+  userId: string;
+  title: string;
+  currentStage?: string;
+  scoreGap: number;
+  targetScore?: number;
+  currentScore?: number;
+  remainingDays?: number;
+  weeklyQuestionTarget: number;
+  weeklyReviewTarget: number;
+  risks: string[];
+  generatedAt: string;
+  days: Array<{
+    dayIndex: number;
+    date: string;
+    focus: string;
+    minutes: number;
+    questionTarget: number;
+    reviewTarget: number;
+    reason: string;
+  }>;
+}
+
 export interface ReviewItem {
   id: string;
   contentType: 'question' | 'ai_reply';
@@ -523,6 +546,39 @@ export function createMockStudyReminders(): StudyReminders {
   };
 }
 
+export function createMockSprintPlan(): SprintPlan {
+  const today = new Date().toISOString().slice(0, 10);
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(`${today}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() + index);
+
+    return {
+      dayIndex: index + 1,
+      date: date.toISOString().slice(0, 10),
+      focus: index === 6 ? '阶段小测与错题回看' : index % 2 === 0 ? 'Cache 映射与替换' : '操作系统进程同步',
+      minutes: 150,
+      questionTarget: index === 6 ? 40 : 30,
+      reviewTarget: index % 3 === 2 ? 4 : 2,
+      reason: index === 6 ? '用小测检查本周补弱效果。' : '围绕当前薄弱点做短周期补强。',
+    };
+  });
+
+  return {
+    userId: student.id,
+    title: '7 天冲刺计划',
+    currentStage: student.stage,
+    scoreGap: Math.max(0, (student.targetScore ?? 0) - (student.currentScore ?? 0)),
+    targetScore: student.targetScore,
+    currentScore: student.currentScore,
+    remainingDays: student.remainingDays,
+    weeklyQuestionTarget: days.reduce((sum, day) => sum + day.questionTarget, 0),
+    weeklyReviewTarget: days.reduce((sum, day) => sum + day.reviewTarget, 0),
+    risks: ['错题复盘不足时，本周提分会更依赖重复刷题而不是消化。'],
+    generatedAt: new Date().toISOString(),
+    days,
+  };
+}
+
 export function createMockPracticeSet(): PracticeSet {
   return {
     id: 'practice-set-mock',
@@ -591,6 +647,15 @@ export async function fetchStudyReminders(userId: string): Promise<StudyReminder
   }
 
   return response.json() as Promise<StudyReminders>;
+}
+
+export async function fetchSprintPlan(userId: string): Promise<SprintPlan> {
+  const response = await fetch(`${API_BASE_URL}/sprint-plan?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Sprint plan request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<SprintPlan>;
 }
 
 export async function fetchLearningProfile(userId: string): Promise<LearningProfile> {

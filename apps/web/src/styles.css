@@ -744,6 +744,100 @@ button {
   text-decoration: none;
 }
 
+.sprint-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.sprint-summary article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.sprint-summary strong {
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.sprint-summary span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.risk-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.risk-list span {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 9px;
+}
+
+.sprint-days {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.sprint-days article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  min-height: 178px;
+  padding: 12px;
+}
+
+.sprint-days div {
+  display: grid;
+  gap: 4px;
+}
+
+.sprint-days strong {
+  color: #0f172a;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.sprint-days span,
+.sprint-days p {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.sprint-days footer {
+  align-self: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.sprint-days footer span {
+  background: #eef2ff;
+  border-radius: 999px;
+  color: #1e3a8a;
+  font-weight: 700;
+  padding: 4px 8px;
+}
+
 .secondary-link {
   align-items: center;
   background: #eef2ff;
@@ -923,7 +1017,9 @@ button {
   .config-grid,
   .diagnostic-grid,
   .profile-grid,
-  .feedback-grid {
+  .feedback-grid,
+  .sprint-summary,
+  .sprint-days {
     grid-template-columns: 1fr;
   }
 

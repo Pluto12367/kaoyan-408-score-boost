@@ -37,6 +37,11 @@ export class StudyController {
     return this.studyService.getStudyReminders(userId);
   }
 
+  @Get('sprint-plan')
+  getSprintPlan(@Query('userId') userId?: string) {
+    return this.studyService.getSprintPlan(userId);
+  }
+
   @Get('students/:userId/profile')
   getStudentLearningProfile(@Param('userId') userId: string) {
     return this.studyService.getStudentLearningProfile(userId);

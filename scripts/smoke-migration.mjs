@@ -281,6 +281,10 @@ async function main() {
   const studyReminders = await waitForJson(`${apiUrl}/study-reminders?userId=u-001`, (data) => data.items?.length >= 3);
   assert(studyReminders.items.every((item) => item.priority && item.reason && item.actionAnchor), 'study reminders should include priority, reason and action anchor');
   assert(studyReminders.items.some((item) => item.type === 'weakness' || item.type === 'wrong-question'), 'study reminders should include an actionable weak point or wrong question suggestion');
+  const sprintPlan = await waitForJson(`${apiUrl}/sprint-plan?userId=u-001`, (data) => data.days?.length === 7);
+  assert(sprintPlan.scoreGap > 0, 'sprint plan should expose the score gap to target');
+  assert(sprintPlan.days.every((day) => day.focus && day.questionTarget > 0 && day.reviewTarget >= 0 && day.reason), 'sprint plan days should include focus, question target, review target and reason');
+  assert(sprintPlan.risks.length > 0, 'sprint plan should include at least one risk signal');
   const redoSubmitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',

@@ -11,6 +11,7 @@ import {
   createMockLearningProfile,
   createMockPracticeSet,
   createMockStudyReminders,
+  createMockSprintPlan,
   createMockTrialProgress,
   createMockReviewQueue,
   createMockSystemConfig,
@@ -22,6 +23,7 @@ import {
   fetchReviewQueue,
   fetchStageAssessment,
   fetchStudyReminders,
+  fetchSprintPlan,
   fetchSystemConfig,
   fetchTrialProgress,
   generatePaper,
@@ -44,6 +46,7 @@ import {
   type ReviewQueue,
   type StageAssessmentResult,
   type StudyReminders,
+  type SprintPlan,
   type SystemConfig,
   type TutorReply,
   type TrialProgress,
@@ -80,12 +83,13 @@ export function App() {
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
   const [trialProgress, setTrialProgress] = useState<TrialProgress>(() => createMockTrialProgress());
   const [studyReminders, setStudyReminders] = useState<StudyReminders>(() => createMockStudyReminders());
+  const [sprintPlan, setSprintPlan] = useState<SprintPlan>(() => createMockSprintPlan());
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -96,6 +100,7 @@ export function App() {
         setFeedbackList(feedback);
         setTrialProgress(trial);
         setStudyReminders(reminders);
+        setSprintPlan(sprint);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -110,6 +115,7 @@ export function App() {
         setFeedbackList(createMockFeedbackList());
         setTrialProgress(createMockTrialProgress());
         setStudyReminders(createMockStudyReminders());
+        setSprintPlan(createMockSprintPlan());
         setApiState('mock');
       });
 
@@ -129,6 +135,11 @@ export function App() {
   async function refreshStudyReminders(userId = student.id) {
     const nextStudyReminders = await fetchStudyReminders(userId);
     setStudyReminders(nextStudyReminders);
+  }
+
+  async function refreshSprintPlan(userId = student.id) {
+    const nextSprintPlan = await fetchSprintPlan(userId);
+    setSprintPlan(nextSprintPlan);
   }
 
   async function handleRoleSwitch(role: UserRole) {
@@ -162,6 +173,7 @@ export function App() {
       setApiState('connected');
       await refreshTrialProgress(nextOverview.student.id);
       await refreshStudyReminders(nextOverview.student.id);
+      await refreshSprintPlan(nextOverview.student.id);
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
@@ -186,6 +198,7 @@ export function App() {
       setAdminMetrics(nextMetrics);
       setApiState('connected');
       await refreshStudyReminders(student.id);
+      await refreshSprintPlan(student.id);
       if (record.correct && redoQuestionId === currentQuestion.id) {
         setRedoQuestionId(null);
         setPracticeStatus('回答正确，已从错题本移除。');
@@ -223,6 +236,7 @@ export function App() {
       setApiState('connected');
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
+      await refreshSprintPlan(student.id);
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
     } catch {
       setPracticeStatus('推荐题组提交失败，请稍后重试。');
@@ -247,6 +261,7 @@ export function App() {
       setApiState('connected');
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
+      await refreshSprintPlan(student.id);
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
@@ -269,6 +284,7 @@ export function App() {
       setAdminMetrics(nextMetrics);
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
+      await refreshSprintPlan(student.id);
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -317,6 +333,7 @@ export function App() {
       setLearningProfile(nextProfile);
       setApiState('connected');
       await refreshStudyReminders(student.id);
+      await refreshSprintPlan(student.id);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，计划已调整为${result.adjustment.planPhase}。`);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
     } catch {
@@ -485,6 +502,7 @@ export function App() {
       setFeedbackList(nextFeedbackList);
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
+      await refreshSprintPlan(student.id);
       setApiState('connected');
       setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
     } catch {
@@ -581,6 +599,50 @@ export function App() {
                   <p>{item.reason}</p>
                 </div>
                 <a href={item.actionAnchor}>{item.actionText}</a>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="panel sprint-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">7 天冲刺计划</p>
+              <h3>{sprintPlan.title}</h3>
+            </div>
+            <span>差 {sprintPlan.scoreGap} 分 · 剩余 {sprintPlan.remainingDays ?? 0} 天</span>
+          </div>
+          <div className="sprint-summary">
+            <article>
+              <strong>{sprintPlan.weeklyQuestionTarget}</strong>
+              <span>本周目标题量</span>
+            </article>
+            <article>
+              <strong>{sprintPlan.weeklyReviewTarget}</strong>
+              <span>本周复盘目标</span>
+            </article>
+            <article>
+              <strong>{sprintPlan.currentStage ?? '待诊断'}</strong>
+              <span>当前阶段</span>
+            </article>
+          </div>
+          <div className="risk-list">
+            {sprintPlan.risks.map((risk) => (
+              <span key={risk}>{risk}</span>
+            ))}
+          </div>
+          <div className="sprint-days">
+            {sprintPlan.days.map((day) => (
+              <article key={day.date}>
+                <div>
+                  <strong>第 {day.dayIndex} 天 · {day.focus}</strong>
+                  <span>{day.date} · {day.minutes} 分钟</span>
+                </div>
+                <p>{day.reason}</p>
+                <footer>
+                  <span>{day.questionTarget} 题</span>
+                  <span>{day.reviewTarget} 道复盘</span>
+                </footer>
               </article>
             ))}
           </div>
