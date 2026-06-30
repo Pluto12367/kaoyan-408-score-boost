@@ -27,6 +27,11 @@ export class StudyController {
     return this.studyService.getDashboardOverview();
   }
 
+  @Get('trial-progress')
+  getTrialProgress(@Query('userId') userId?: string) {
+    return this.studyService.getTrialProgress(userId);
+  }
+
   @Get('students/:userId/profile')
   getStudentLearningProfile(@Param('userId') userId: string) {
     return this.studyService.getStudentLearningProfile(userId);

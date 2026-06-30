@@ -274,6 +274,10 @@ async function main() {
   assert(learningProfile.loopStats.reviewedWrongQuestionCount >= 1, 'learning profile should count reviewed wrong questions');
   assert(learningProfile.timeline.some((item) => item.type === 'diagnostic'), 'learning profile should include diagnostic timeline event');
   assert(learningProfile.timeline.some((item) => item.type === 'stage_assessment'), 'learning profile should include stage assessment timeline event');
+  const trialProgress = await waitForJson(`${apiUrl}/trial-progress?userId=u-001`, (data) => data.items?.length === 5);
+  assert(trialProgress.completedCount === 5, 'trial progress should mark all guided trial tasks complete after smoke actions');
+  assert(trialProgress.completionRate === 100, 'trial progress should expose full completion rate');
+  assert(trialProgress.items.some((item) => item.id === 'feedback' && item.completed), 'trial progress should include feedback completion');
   const redoSubmitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',

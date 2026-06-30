@@ -71,6 +71,22 @@ export interface FeedbackList {
   items: FeedbackItem[];
 }
 
+export interface TrialProgress {
+  userId: string;
+  title: string;
+  completedCount: number;
+  totalCount: number;
+  completionRate: number;
+  items: Array<{
+    id: string;
+    title: string;
+    description: string;
+    completed: boolean;
+    actionAnchor: string;
+  }>;
+  nextAction: string;
+}
+
 export interface ReviewItem {
   id: string;
   contentType: 'question' | 'ai_reply';
@@ -437,6 +453,24 @@ export function createMockFeedbackList(): FeedbackList {
   };
 }
 
+export function createMockTrialProgress(): TrialProgress {
+  return {
+    userId: student.id,
+    title: '15 分钟体验任务',
+    completedCount: 0,
+    totalCount: 5,
+    completionRate: 0,
+    nextAction: '提交入学诊断',
+    items: [
+      { id: 'diagnostic', title: '提交入学诊断', description: '生成阶段计划。', completed: false, actionAnchor: '#dashboard' },
+      { id: 'daily-task', title: '完成一个今日任务', description: '记录今日进度。', completed: false, actionAnchor: '#plan' },
+      { id: 'practice-set', title: '提交推荐题组', description: '体验题组作答。', completed: false, actionAnchor: '#question' },
+      { id: 'wrong-review', title: '标记一次错题复盘', description: '体验错题闭环。', completed: false, actionAnchor: '#wrong-book' },
+      { id: 'feedback', title: '提交体验反馈', description: '提交站内反馈或问卷。', completed: false, actionAnchor: '#feedback' },
+    ],
+  };
+}
+
 export function createMockPracticeSet(): PracticeSet {
   return {
     id: 'practice-set-mock',
@@ -487,6 +521,15 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   }
 
   return response.json() as Promise<DashboardOverview>;
+}
+
+export async function fetchTrialProgress(userId: string): Promise<TrialProgress> {
+  const response = await fetch(`${API_BASE_URL}/trial-progress?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Trial progress request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<TrialProgress>;
 }
 
 export async function fetchLearningProfile(userId: string): Promise<LearningProfile> {

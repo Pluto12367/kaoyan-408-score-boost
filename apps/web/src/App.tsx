@@ -10,6 +10,7 @@ import {
   createMockOverview,
   createMockLearningProfile,
   createMockPracticeSet,
+  createMockTrialProgress,
   createMockReviewQueue,
   createMockSystemConfig,
   fetchAdminMetrics,
@@ -20,6 +21,7 @@ import {
   fetchReviewQueue,
   fetchStageAssessment,
   fetchSystemConfig,
+  fetchTrialProgress,
   generatePaper,
   loginAsRole,
   requestTutorReply,
@@ -41,6 +43,7 @@ import {
   type StageAssessmentResult,
   type SystemConfig,
   type TutorReply,
+  type TrialProgress,
 } from './api';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
 
@@ -72,12 +75,13 @@ export function App() {
   const [learningProfile, setLearningProfile] = useState<LearningProfile>(() => createMockLearningProfile());
   const [feedbackList, setFeedbackList] = useState<FeedbackList>(() => createMockFeedbackList());
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
+  const [trialProgress, setTrialProgress] = useState<TrialProgress>(() => createMockTrialProgress());
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList()])
-      .then(([data, metrics, queue, config, recommendedSet, profile, feedback]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -86,6 +90,7 @@ export function App() {
         setPracticeSet(recommendedSet);
         setLearningProfile(profile);
         setFeedbackList(feedback);
+        setTrialProgress(trial);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -98,6 +103,7 @@ export function App() {
         setPracticeSet(createMockPracticeSet());
         setLearningProfile(createMockLearningProfile());
         setFeedbackList(createMockFeedbackList());
+        setTrialProgress(createMockTrialProgress());
         setApiState('mock');
       });
 
@@ -108,6 +114,11 @@ export function App() {
 
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const currentQuestion = questions[0];
+
+  async function refreshTrialProgress(userId = student.id) {
+    const nextTrialProgress = await fetchTrialProgress(userId);
+    setTrialProgress(nextTrialProgress);
+  }
 
   async function handleRoleSwitch(role: UserRole) {
     setAuthStatus('正在切换演示身份...');
@@ -138,6 +149,7 @@ export function App() {
       setOverview(nextOverview);
       setSessionUser(nextOverview.student);
       setApiState('connected');
+      await refreshTrialProgress(nextOverview.student.id);
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
@@ -196,6 +208,7 @@ export function App() {
       setLearningProfile(nextProfile);
       setPracticeSetResult(result);
       setApiState('connected');
+      await refreshTrialProgress(student.id);
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
     } catch {
       setPracticeStatus('推荐题组提交失败，请稍后重试。');
@@ -218,6 +231,7 @@ export function App() {
       setAdminMetrics(nextMetrics);
       setLearningProfile(nextProfile);
       setApiState('connected');
+      await refreshTrialProgress(student.id);
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
@@ -238,6 +252,7 @@ export function App() {
       const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
+      await refreshTrialProgress(student.id);
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -451,6 +466,7 @@ export function App() {
       });
       const nextFeedbackList = await fetchFeedbackList();
       setFeedbackList(nextFeedbackList);
+      await refreshTrialProgress(student.id);
       setApiState('connected');
       setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
     } catch {
@@ -508,6 +524,28 @@ export function App() {
           <p className="task-status">{authStatus} {permissionHint[sessionUser?.role ?? 'student']}</p>
         </section>
 
+        <section id="trial" className="panel trial-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">试用引导</p>
+              <h3>{trialProgress.title}</h3>
+            </div>
+            <span>{trialProgress.completedCount}/{trialProgress.totalCount} 已完成 · {trialProgress.completionRate}%</span>
+          </div>
+          <p className="task-status">下一步：{trialProgress.nextAction}</p>
+          <div className="trial-list">
+            {trialProgress.items.map((item) => (
+              <article key={item.id} className={item.completed ? 'completed' : ''}>
+                <div>
+                  <strong>{item.title}</strong>
+                  <span>{item.description}</span>
+                </div>
+                <a href={item.actionAnchor}>{item.completed ? '已完成' : '去体验'}</a>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section id="dashboard" className="metrics-grid">
           <Metric title="目标分" value={`${student.targetScore ?? 0}`} caption={student.targetSchool ?? '目标院校未设置'} />
           <Metric title="正确率" value={`${report.accuracyRate}%`} caption="近 20 次练习统计" />
@@ -555,7 +593,7 @@ export function App() {
           </div>
         </section>
 
-        <section className="panel feedback-panel">
+        <section id="feedback" className="panel feedback-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">体验反馈</p>
@@ -718,7 +756,7 @@ export function App() {
           </div>
         </section>
 
-        <section className="panel">
+        <section id="wrong-book" className="panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">学习日历</p>
