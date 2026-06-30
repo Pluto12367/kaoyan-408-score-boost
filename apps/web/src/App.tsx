@@ -17,6 +17,7 @@ import {
   createMockTrialProgress,
   createMockReviewQueue,
   createMockSystemConfig,
+  createMockWrongQuestionSummary,
   fetchAdminMetrics,
   fetchDashboardOverview,
   fetchFeedbackList,
@@ -29,6 +30,7 @@ import {
   fetchSprintPlan,
   fetchSystemConfig,
   fetchTrialProgress,
+  fetchWrongQuestionSummary,
   generatePaper,
   loginAsRole,
   requestAiFollowUp,
@@ -56,6 +58,7 @@ import {
   type SystemConfig,
   type TutorReply,
   type TrialProgress,
+  type WrongQuestionSummary,
 } from './api';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
 
@@ -92,12 +95,13 @@ export function App() {
   const [studyReminders, setStudyReminders] = useState<StudyReminders>(() => createMockStudyReminders());
   const [sprintPlan, setSprintPlan] = useState<SprintPlan>(() => createMockSprintPlan());
   const [masteryMap, setMasteryMap] = useState<MasteryMap>(() => createMockMasteryMap());
+  const [wrongQuestionSummary, setWrongQuestionSummary] = useState<WrongQuestionSummary>(() => createMockWrongQuestionSummary());
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -110,6 +114,7 @@ export function App() {
         setStudyReminders(reminders);
         setSprintPlan(sprint);
         setMasteryMap(mastery);
+        setWrongQuestionSummary(wrongSummary);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -126,6 +131,7 @@ export function App() {
         setStudyReminders(createMockStudyReminders());
         setSprintPlan(createMockSprintPlan());
         setMasteryMap(createMockMasteryMap());
+        setWrongQuestionSummary(createMockWrongQuestionSummary());
         setApiState('mock');
       });
 
@@ -155,6 +161,11 @@ export function App() {
   async function refreshMasteryMap(userId = student.id) {
     const nextMasteryMap = await fetchMasteryMap(userId);
     setMasteryMap(nextMasteryMap);
+  }
+
+  async function refreshWrongQuestionSummary(userId = student.id) {
+    const nextWrongQuestionSummary = await fetchWrongQuestionSummary(userId);
+    setWrongQuestionSummary(nextWrongQuestionSummary);
   }
 
   async function handleRoleSwitch(role: UserRole) {
@@ -190,6 +201,7 @@ export function App() {
       await refreshStudyReminders(nextOverview.student.id);
       await refreshSprintPlan(nextOverview.student.id);
       await refreshMasteryMap(nextOverview.student.id);
+      await refreshWrongQuestionSummary(nextOverview.student.id);
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
@@ -216,6 +228,8 @@ export function App() {
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
       await refreshMasteryMap(student.id);
+      await refreshWrongQuestionSummary(student.id);
+      await refreshWrongQuestionSummary(student.id);
       if (record.correct && redoQuestionId === currentQuestion.id) {
         setRedoQuestionId(null);
         setPracticeStatus('回答正确，已从错题本移除。');
@@ -255,6 +269,7 @@ export function App() {
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
       await refreshMasteryMap(student.id);
+      await refreshWrongQuestionSummary(student.id);
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
     } catch {
       setPracticeStatus('推荐题组提交失败，请稍后重试。');
@@ -281,6 +296,7 @@ export function App() {
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
       await refreshMasteryMap(student.id);
+      await refreshWrongQuestionSummary(student.id);
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
@@ -305,6 +321,7 @@ export function App() {
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
       await refreshMasteryMap(student.id);
+      await refreshWrongQuestionSummary(student.id);
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -1214,6 +1231,50 @@ export function App() {
             <span>{wrongQuestions.length} 道待复盘</span>
           </div>
           <p className="task-status">{wrongStatus}</p>
+          <div className="wrong-summary-grid">
+            <article>
+              <strong>{wrongQuestionSummary.pendingCount}</strong>
+              <span>待复盘</span>
+            </article>
+            <article>
+              <strong>{wrongQuestionSummary.reviewedCount}</strong>
+              <span>已复盘</span>
+            </article>
+            <article>
+              <strong>{wrongQuestionSummary.resolvedCount}</strong>
+              <span>重做解决</span>
+            </article>
+            <article>
+              <strong>{wrongQuestionSummary.totalWrongCount}</strong>
+              <span>当前错题</span>
+            </article>
+          </div>
+          <div className="wrong-loop-panel">
+            <article>
+              <strong>高频错因</strong>
+              <div className="mistake-stat-list">
+                {wrongQuestionSummary.mistakeReasonStats.map((item) => (
+                  <span key={item.reason}>{item.reason} · {item.count}</span>
+                ))}
+              </div>
+            </article>
+            <article>
+              <strong>优先重做</strong>
+              {wrongQuestionSummary.priorityRedoItems[0] ? (
+                <p>{wrongQuestionSummary.priorityRedoItems[0].knowledgePointTitle} · 错 {wrongQuestionSummary.priorityRedoItems[0].wrongCount} 次 · {wrongQuestionSummary.priorityRedoItems[0].nextAction}</p>
+              ) : (
+                <p>当前没有待重做错题，可以进入限时训练。</p>
+              )}
+            </article>
+            <article>
+              <strong>闭环建议</strong>
+              <ul>
+                {wrongQuestionSummary.nextReviewActions.map((action) => (
+                  <li key={action}>{action}</li>
+                ))}
+              </ul>
+            </article>
+          </div>
           <div className="wrong-list">
             {wrongQuestions.map((item) => (
               <article key={item.questionId} className="wrong-row">

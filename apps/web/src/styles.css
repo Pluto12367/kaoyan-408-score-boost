@@ -1089,6 +1089,74 @@ button {
   margin-top: 18px;
 }
 
+.wrong-summary-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.wrong-summary-grid article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.wrong-summary-grid strong {
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.wrong-summary-grid span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.wrong-loop-panel {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.wrong-loop-panel article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.wrong-loop-panel p,
+.wrong-loop-panel ul {
+  color: #475569;
+  margin: 0;
+}
+
+.wrong-loop-panel ul {
+  padding-left: 18px;
+}
+
+.mistake-stat-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mistake-stat-list span {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  color: #9a3412;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 9px;
+}
+
 .wrong-row {
   align-items: center;
   border-top: 1px solid #eef2f7;
@@ -1203,7 +1271,9 @@ button {
   .sprint-summary,
   .sprint-days,
   .mastery-subjects,
-  .review-card-list {
+  .review-card-list,
+  .wrong-summary-grid,
+  .wrong-loop-panel {
     grid-template-columns: 1fr;
   }
 

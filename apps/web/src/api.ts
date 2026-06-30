@@ -411,6 +411,29 @@ export interface WrongQuestion {
   }>;
 }
 
+export interface WrongQuestionSummary {
+  userId: string;
+  pendingCount: number;
+  reviewedCount: number;
+  resolvedCount: number;
+  totalWrongCount: number;
+  mistakeReasonStats: Array<{
+    reason: string;
+    count: number;
+  }>;
+  priorityRedoItems: Array<{
+    questionId: string;
+    stem: string;
+    knowledgePointTitle: string;
+    wrongCount: number;
+    latestMistakeReason: string | null;
+    reviewStatus: 'pending' | 'reviewed';
+    nextAction: string;
+  }>;
+  nextReviewActions: string[];
+  generatedAt: string;
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000';
 
 export function createMockOverview(): DashboardOverview {
@@ -751,6 +774,36 @@ export function createMockAiFollowUp(): AiFollowUp {
   };
 }
 
+export function createMockWrongQuestionSummary(): WrongQuestionSummary {
+  return {
+    userId: student.id,
+    pendingCount: 1,
+    reviewedCount: 0,
+    resolvedCount: 0,
+    totalWrongCount: 1,
+    mistakeReasonStats: [
+      { reason: '概念不清', count: 2 },
+      { reason: '审题问题', count: 1 },
+    ],
+    priorityRedoItems: [
+      {
+        questionId: questions[0].id,
+        stem: questions[0].stem,
+        knowledgePointTitle: 'Cache 映射与替换',
+        wrongCount: 2,
+        latestMistakeReason: '概念不清',
+        reviewStatus: 'pending',
+        nextAction: '先标记复盘，写出错误原因后再重做。',
+      },
+    ],
+    nextReviewActions: [
+      '先复盘 1 道待处理错题，补全错因。',
+      '优先重做 Cache 映射与替换，它的错误次数最高。',
+    ],
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   const response = await fetch(`${API_BASE_URL}/dashboard/overview`);
   if (!response.ok) {
@@ -1003,6 +1056,15 @@ export async function reviewWrongQuestion(input: {
   }
 
   return response.json() as Promise<WrongQuestion>;
+}
+
+export async function fetchWrongQuestionSummary(userId: string): Promise<WrongQuestionSummary> {
+  const response = await fetch(`${API_BASE_URL}/wrong-questions/summary?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Wrong question summary request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<WrongQuestionSummary>;
 }
 
 export async function fetchStageAssessment(userId: string): Promise<StageAssessment> {

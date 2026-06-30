@@ -276,6 +276,10 @@ async function main() {
   assert(reviewedWrongQuestion.reviewStatus === 'reviewed', 'wrong question review should mark the item as reviewed');
   assert(reviewedWrongQuestion.nextAction, 'wrong question review should include a next action');
   assert(reviewedWrongQuestion.similarQuestions.length > 0, 'wrong question review should recommend similar questions');
+  const wrongQuestionSummary = await waitForJson(`${apiUrl}/wrong-questions/summary?userId=u-001`, (data) => Number.isFinite(data.pendingCount));
+  assert(Number.isFinite(wrongQuestionSummary.reviewedCount) && Number.isFinite(wrongQuestionSummary.resolvedCount), 'wrong question summary should expose reviewed and resolved counts');
+  assert(wrongQuestionSummary.mistakeReasonStats.length > 0, 'wrong question summary should include mistake reason stats');
+  assert(wrongQuestionSummary.nextReviewActions.length > 0, 'wrong question summary should include next review actions');
   const learningProfile = await waitForJson(`${apiUrl}/students/u-001/profile`, (data) => data.timeline?.length >= 4);
   assert(learningProfile.summary.currentStage === '基础', 'learning profile should include the adjusted current stage');
   assert(learningProfile.loopStats.practiceSetCount >= 1, 'learning profile should count submitted practice sets');

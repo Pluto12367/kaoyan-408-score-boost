@@ -723,6 +723,67 @@ export class StudyService {
     };
   }
 
+  getWrongQuestionSummary(userId = this.student.id) {
+    const wrongQuestions = this.listWrongQuestions(userId);
+    const reviewedQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
+    const userRecords = this.records.filter((record) => record.userId === userId);
+    const groupedRecords = new Map<string, PracticeRecord[]>();
+
+    for (const record of userRecords) {
+      const bucket = groupedRecords.get(record.questionId) ?? [];
+      bucket.push(record);
+      groupedRecords.set(record.questionId, bucket);
+    }
+
+    const resolvedQuestions = [...groupedRecords.entries()].filter(([, records]) => {
+      const hadWrong = records.some((record) => !record.correct);
+      const latestRecord = records[records.length - 1];
+      return hadWrong && latestRecord?.correct;
+    });
+    const mistakeReasonCounts = new Map<string, number>();
+    for (const record of userRecords.filter((item) => !item.correct)) {
+      const reason = record.mistakeReason ?? '待归因';
+      mistakeReasonCounts.set(reason, (mistakeReasonCounts.get(reason) ?? 0) + 1);
+    }
+
+    const priorityRedoItems = [...wrongQuestions]
+      .sort((left, right) => right.wrongCount - left.wrongCount)
+      .slice(0, 3)
+      .map((item) => ({
+        questionId: item.questionId,
+        stem: item.stem,
+        knowledgePointTitle: item.knowledgePointTitle,
+        wrongCount: item.wrongCount,
+        latestMistakeReason: item.latestMistakeReason,
+        reviewStatus: item.reviewStatus,
+        nextAction: item.reviewStatus === 'pending'
+          ? '先标记复盘，写出错误原因后再重做。'
+          : '进入重做模式，确认是否已经真正解决。',
+      }));
+    const pendingCount = wrongQuestions.filter((item) => item.reviewStatus === 'pending').length;
+    const reviewedCount = wrongQuestions.filter((item) => item.reviewStatus === 'reviewed').length;
+    const resolvedCount = resolvedQuestions.length;
+    const nextReviewActions = [
+      pendingCount > 0 ? `先复盘 ${pendingCount} 道待处理错题，补全错因。` : '待复盘错题已清空，可以进入重做验证。',
+      priorityRedoItems.length > 0 ? `优先重做 ${priorityRedoItems[0].knowledgePointTitle}，它的错误次数最高。` : '当前没有待重做错题，建议进入限时训练。',
+      resolvedCount > 0 ? `已有 ${resolvedCount} 道错题通过重做解决，继续保持闭环。` : '完成一次正确重做后，系统会将该题从错题本移除。',
+    ];
+
+    return {
+      userId,
+      pendingCount,
+      reviewedCount,
+      resolvedCount,
+      totalWrongCount: wrongQuestions.length,
+      mistakeReasonStats: [...mistakeReasonCounts.entries()]
+        .map(([reason, count]) => ({ reason, count }))
+        .sort((left, right) => right.count - left.count),
+      priorityRedoItems,
+      nextReviewActions,
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
   getRecommendedPracticeSet(userId = this.student.id) {
     const report = this.getOverviewReport();
     const stage = this.student.stage ?? '强化';

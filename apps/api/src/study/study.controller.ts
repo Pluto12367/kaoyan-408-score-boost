@@ -121,6 +121,11 @@ export class StudyController {
     return this.studyService.listWrongQuestions(userId);
   }
 
+  @Get('wrong-questions/summary')
+  getWrongQuestionSummary(@Query('userId') userId?: string) {
+    return this.studyService.getWrongQuestionSummary(userId);
+  }
+
   @Get('practice-sets/recommended')
   getRecommendedPracticeSet(@Query('userId') userId?: string) {
     return this.studyService.getRecommendedPracticeSet(userId);
