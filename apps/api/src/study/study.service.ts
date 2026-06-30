@@ -49,6 +49,17 @@ export class StudyService {
 
   private readonly aiReviewItems: ReviewItem[] = [];
 
+  private systemConfig = {
+    source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+    recommendation: {
+      stageAssessmentQuestionLimit: 6,
+      dailyTargetQuestionCount: 30,
+      speedRiskMultiplier: 1.4,
+    },
+    updatedBy: 'system',
+    updatedAt: new Date().toISOString(),
+  };
+
   listKnowledgePoints() {
     return this.knowledgePoints;
   }
@@ -116,6 +127,37 @@ export class StudyService {
       items,
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  getSystemConfig() {
+    return this.systemConfig;
+  }
+
+  updateSystemConfig(input: {
+    recommendation?: Partial<{
+      stageAssessmentQuestionLimit: number;
+      dailyTargetQuestionCount: number;
+      speedRiskMultiplier: number;
+    }>;
+    updatedBy?: string;
+  }) {
+    const nextRecommendation = {
+      ...this.systemConfig.recommendation,
+      ...input.recommendation,
+    };
+
+    this.systemConfig = {
+      ...this.systemConfig,
+      recommendation: {
+        stageAssessmentQuestionLimit: clampNumber(nextRecommendation.stageAssessmentQuestionLimit, 2, 20),
+        dailyTargetQuestionCount: clampNumber(nextRecommendation.dailyTargetQuestionCount, 5, 120),
+        speedRiskMultiplier: clampNumber(nextRecommendation.speedRiskMultiplier, 1, 3),
+      },
+      updatedBy: input.updatedBy ?? 'admin-001',
+      updatedAt: new Date().toISOString(),
+    };
+
+    return this.systemConfig;
   }
 
   approveReviewItem(reviewItemId: string, reviewerId = 'admin-001') {
@@ -261,7 +303,8 @@ export class StudyService {
       question.knowledgePointIds.some((id) => focusKnowledgePointIds.has(id)),
     );
     const fallbackQuestions = this.questions.filter((question) => !focusQuestions.includes(question));
-    const selectedQuestions = [...focusQuestions, ...fallbackQuestions].slice(0, Math.min(6, this.questions.length));
+    const questionLimit = this.systemConfig.recommendation.stageAssessmentQuestionLimit;
+    const selectedQuestions = [...focusQuestions, ...fallbackQuestions].slice(0, Math.min(questionLimit, this.questions.length));
     const focusKnowledgePoints = [...new Set(selectedQuestions.flatMap((question) => question.knowledgePointIds))]
       .map((id) => this.knowledgePoints.find((point) => point.id === id))
       .filter(Boolean);
@@ -457,4 +500,9 @@ function countByDate(dates: string[]) {
     acc.set(key, (acc.get(key) ?? 0) + 1);
     return acc;
   }, new Map<string, number>());
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
 }

@@ -7,17 +7,21 @@ import {
   createMockAdminMetrics,
   createMockOverview,
   createMockReviewQueue,
+  createMockSystemConfig,
   fetchAdminMetrics,
   fetchDashboardOverview,
   fetchReviewQueue,
   fetchStageAssessment,
+  fetchSystemConfig,
   requestTutorReply,
   submitPracticeAnswer,
   submitStageAssessment,
+  updateSystemConfig,
   type AdminMetrics,
   type DashboardOverview,
   type ReviewQueue,
   type StageAssessmentResult,
+  type SystemConfig,
   type TutorReply,
 } from './api';
 
@@ -25,6 +29,7 @@ export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics>(() => createMockAdminMetrics());
   const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
@@ -35,16 +40,18 @@ export function App() {
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
   const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
   const [reviewStatus, setReviewStatus] = useState('教师题目和 AI 生成内容会进入审核队列。');
+  const [configStatus, setConfigStatus] = useState('推荐策略参数会影响阶段测评和每日训练建议。');
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue()])
-      .then(([data, metrics, queue]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig()])
+      .then(([data, metrics, queue, config]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
         setReviewQueue(queue);
+        setSystemConfig(config);
         setApiState('connected');
       })
       .catch(() => {
@@ -52,6 +59,7 @@ export function App() {
         setOverview(createMockOverview());
         setAdminMetrics(createMockAdminMetrics());
         setReviewQueue(createMockReviewQueue());
+        setSystemConfig(createMockSystemConfig());
         setApiState('mock');
       });
 
@@ -229,6 +237,32 @@ export function App() {
     }
   }
 
+  async function handleApplySprintConfig() {
+    setConfigStatus('正在应用冲刺期推荐策略...');
+
+    try {
+      const nextConfig = await updateSystemConfig({
+        updatedBy: 'admin-001',
+        recommendation: {
+          stageAssessmentQuestionLimit: 2,
+          dailyTargetQuestionCount: 35,
+          speedRiskMultiplier: 1.25,
+        },
+      });
+      const nextAssessment = await fetchStageAssessment(student.id);
+      setSystemConfig(nextConfig);
+      setOverview((current) => ({
+        ...current,
+        stageAssessment: nextAssessment,
+      }));
+      setApiState('connected');
+      setConfigStatus(`已应用冲刺策略：阶段测评 ${nextConfig.recommendation.stageAssessmentQuestionLimit} 题，每日 ${nextConfig.recommendation.dailyTargetQuestionCount} 题。`);
+    } catch {
+      setConfigStatus('系统配置更新失败，请稍后重试。');
+      setApiState('mock');
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -243,6 +277,7 @@ export function App() {
           <a href="#report"><Target size={18} /> 提分报告</a>
           <a href="#admin"><Activity size={18} /> 数据看板</a>
           <a href="#review"><ShieldCheck size={18} /> 内容审核</a>
+          <a href="#config"><ClipboardCheck size={18} /> 系统配置</a>
           <a href="#ai"><Brain size={18} /> AI 答疑</a>
         </nav>
       </aside>
@@ -334,6 +369,37 @@ export function App() {
                 <span>新增教师题目或生成 AI 答疑后会自动进入这里。</span>
               </article>
             )}
+          </div>
+        </section>
+
+        <section id="config" className="panel config-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">管理端系统配置</p>
+              <h3>推荐策略参数</h3>
+            </div>
+            <button type="button" className="secondary-action" onClick={handleApplySprintConfig}>
+              <ClipboardCheck size={18} /> 应用冲刺配置
+            </button>
+          </div>
+          <p className="task-status">{configStatus}</p>
+          <div className="config-grid">
+            <article>
+              <strong>{systemConfig.recommendation.stageAssessmentQuestionLimit}</strong>
+              <span>阶段测评题量上限</span>
+            </article>
+            <article>
+              <strong>{systemConfig.recommendation.dailyTargetQuestionCount}</strong>
+              <span>每日推荐题量</span>
+            </article>
+            <article>
+              <strong>{systemConfig.recommendation.speedRiskMultiplier.toFixed(2)}x</strong>
+              <span>速度风险阈值</span>
+            </article>
+            <article>
+              <strong>{systemConfig.updatedBy}</strong>
+              <span>最近更新人</span>
+            </article>
           </div>
         </section>
 

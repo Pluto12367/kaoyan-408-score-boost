@@ -81,7 +81,19 @@ async function main() {
   assert(calendar.today.completedTaskCount >= 1, 'learning calendar should include completed task count for today');
   assert(calendar.today.practiceCount >= 1, 'learning calendar should include practice count for today');
   assert(calendar.streakDays >= 1, 'learning calendar should include active streak days');
+  const systemConfig = await waitForJson(`${apiUrl}/admin/system-config`, (data) => data.recommendation?.stageAssessmentQuestionLimit >= 2);
+  assert(systemConfig.recommendation.dailyTargetQuestionCount > 0, 'system config should include daily target question count');
+  const updatedSystemConfig = await postJson(`${apiUrl}/admin/system-config`, {
+    recommendation: {
+      stageAssessmentQuestionLimit: 2,
+      dailyTargetQuestionCount: 35,
+      speedRiskMultiplier: 1.25,
+    },
+  });
+  assert(updatedSystemConfig.recommendation.stageAssessmentQuestionLimit === 2, 'system config should persist assessment question limit');
+  assert(updatedSystemConfig.updatedBy === 'admin-001', 'system config should track updater');
   const stageAssessment = await waitForJson(`${apiUrl}/assessments/stage?userId=u-001`, (data) => data.questions?.length >= 2);
+  assert(stageAssessment.questions.length <= 2, 'stage assessment should respect configured question limit');
   assert(stageAssessment.focusKnowledgePoints.length > 0, 'stage assessment should include focused weak knowledge points');
   assert(stageAssessment.estimatedMinutes > 0, 'stage assessment should include estimated minutes');
   const stageResult = await postJson(`${apiUrl}/assessments/stage/submit`, {
@@ -171,6 +183,7 @@ async function main() {
     teacherQuestion: createdTeacherQuestion.id,
     adminAccuracyRate: adminMetrics.accuracyRate,
     reviewPendingCount: reviewQueueAfterApproval.pendingCount,
+    stageAssessmentQuestionLimit: updatedSystemConfig.recommendation.stageAssessmentQuestionLimit,
     processIds: {
       api: api.pid,
       web: web.pid,

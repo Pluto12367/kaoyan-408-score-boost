@@ -63,6 +63,17 @@ export interface ReviewItem {
   reviewedAt?: string;
 }
 
+export interface SystemConfig {
+  source: 'memory-api' | 'postgres-ready-api';
+  recommendation: {
+    stageAssessmentQuestionLimit: number;
+    dailyTargetQuestionCount: number;
+    speedRiskMultiplier: number;
+  };
+  updatedBy: string;
+  updatedAt: string;
+}
+
 export interface LearningCalendar {
   days: LearningCalendarDay[];
   today: LearningCalendarDay;
@@ -228,6 +239,19 @@ export function createMockReviewQueue(): ReviewQueue {
   };
 }
 
+export function createMockSystemConfig(): SystemConfig {
+  return {
+    source: 'memory-api',
+    recommendation: {
+      stageAssessmentQuestionLimit: 6,
+      dailyTargetQuestionCount: 30,
+      speedRiskMultiplier: 1.4,
+    },
+    updatedBy: 'system',
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 function createMockStageAssessment(): StageAssessment {
   return {
     id: `stage-${new Date().toISOString().slice(0, 10)}`,
@@ -306,6 +330,31 @@ export async function approveReviewItem(input: {
   }
 
   return response.json() as Promise<ReviewItem>;
+}
+
+export async function fetchSystemConfig(): Promise<SystemConfig> {
+  const response = await fetch(`${API_BASE_URL}/admin/system-config`);
+  if (!response.ok) {
+    throw new Error(`System config request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<SystemConfig>;
+}
+
+export async function updateSystemConfig(input: Partial<SystemConfig>): Promise<SystemConfig> {
+  const response = await fetch(`${API_BASE_URL}/admin/system-config`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  });
+
+  if (!response.ok) {
+    throw new Error(`System config update failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<SystemConfig>;
 }
 
 export async function submitPracticeAnswer(input: {

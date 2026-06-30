@@ -36,6 +36,23 @@ export class StudyController {
     return this.studyService.approveReviewItem(reviewItemId, reviewerId);
   }
 
+  @Get('admin/system-config')
+  getSystemConfig() {
+    return this.studyService.getSystemConfig();
+  }
+
+  @Post('admin/system-config')
+  updateSystemConfig(@Body() input: {
+    recommendation?: Partial<{
+      stageAssessmentQuestionLimit: number;
+      dailyTargetQuestionCount: number;
+      speedRiskMultiplier: number;
+    }>;
+    updatedBy?: string;
+  }) {
+    return this.studyService.updateSystemConfig(input);
+  }
+
   @Get('wrong-questions')
   listWrongQuestions(@Query('userId') userId?: string) {
     return this.studyService.listWrongQuestions(userId);
