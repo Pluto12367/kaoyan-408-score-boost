@@ -107,6 +107,13 @@ export interface StageAssessmentResult {
   totalQuestions: number;
   correctCount: number;
   score: number;
+  adjustment: {
+    previousStage: string;
+    stage: string;
+    planPhase: string;
+    scoreBand: string;
+    message: string;
+  };
   reviewItems: Array<{
     questionId: string;
     stem: string;

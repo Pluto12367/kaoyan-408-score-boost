@@ -189,6 +189,12 @@ async function main() {
   assert(stageResult.score >= 0 && stageResult.score <= 100, 'stage result should expose a percentage score');
   assert(stageResult.reviewItems.length > 0, 'stage result should include review items');
   assert(stageResult.nextActions.length > 0, 'stage result should include next actions');
+  assert(stageResult.adjustment?.stage === '基础', 'low stage assessment score should keep the student in foundation stage');
+  assert(stageResult.adjustment?.planPhase === '基础补强', 'stage assessment adjustment should expose the next plan phase');
+  const overviewAfterStageAssessment = await waitForJson(`${apiUrl}/dashboard/overview`, (data) =>
+    data.student?.stage === stageResult.adjustment.stage && data.plan?.phase === stageResult.adjustment.planPhase,
+  );
+  assert(overviewAfterStageAssessment.plan.dailyTasks[0].reason, 'adjusted plan should keep task recommendation reasons');
   const tutorReply = await postJson(`${apiUrl}/ai/tutor-reply`, {
     userId: 'u-001',
     questionId: 'q-001',

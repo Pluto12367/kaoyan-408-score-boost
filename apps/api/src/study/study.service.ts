@@ -8,6 +8,7 @@ import {
   type KnowledgePoint,
   type PracticeRecord,
   type Question,
+  type StudyStage,
   type Subject,
   type UserProfile,
 } from '@kaoyan408/shared';
@@ -483,6 +484,7 @@ export class StudyService {
         };
       });
     const weakPointTitles = [...new Set(reviewItems.map((item) => item.knowledgePointTitle))].slice(0, 3);
+    const adjustment = this.applyStageAssessmentAdjustment(score, weakPointTitles);
 
     return {
       id: `stage-result-${Date.now()}`,
@@ -491,11 +493,39 @@ export class StudyService {
       totalQuestions: records.length,
       correctCount,
       score,
+      adjustment,
       reviewItems,
       nextActions: [
+        adjustment.message,
         score >= 80 ? '进入真题限时训练，保持每 2-3 天一次阶段复测。' : '先复盘本次错题，再补 1 组同知识点专项练习。',
         weakPointTitles.length ? `优先复习：${weakPointTitles.join('、')}` : '本次正确率较好，建议增加限时速度训练。',
       ],
+    };
+  }
+
+  private applyStageAssessmentAdjustment(score: number, weakPointTitles: string[]) {
+    const previousStage = this.student.stage ?? '强化';
+    const nextStage: StudyStage = score < 60 ? '基础' : score >= 80 ? '冲刺' : '强化';
+    this.student.stage = nextStage;
+
+    if (score < 60) {
+      this.student.remainingDays = Math.max((this.student.remainingDays ?? 96) + 7, 14);
+    } else if (score >= 80) {
+      this.student.remainingDays = Math.max((this.student.remainingDays ?? 96) - 3, 1);
+    }
+
+    const adjustedPlan = this.generatePlan();
+
+    return {
+      previousStage,
+      stage: nextStage,
+      planPhase: adjustedPlan.phase,
+      scoreBand: score < 60 ? 'needs_foundation' : score >= 80 ? 'ready_for_sprint' : 'continue_strengthening',
+      message: score < 60
+        ? `阶段测评低于 60 分，系统已延长基础补强，并优先安排 ${weakPointTitles[0] ?? '薄弱章节'}。`
+        : score >= 80
+          ? '阶段测评达到 80 分以上，系统已切换到冲刺训练，增加真题和限时任务。'
+          : '阶段测评处于强化区间，系统会继续安排专项突破和错题回炉。',
     };
   }
 

@@ -228,6 +228,7 @@ export function App() {
       setAdminMetrics(nextMetrics);
       setStageResult(result);
       setApiState('connected');
+      setAssessmentStatus(`阶段测评完成：${result.score} 分，计划已调整为${result.adjustment.planPhase}。`);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
     } catch {
       setAssessmentStatus('阶段测评提交失败，请稍后重试。');
@@ -620,6 +621,8 @@ export function App() {
           {stageResult ? (
             <div className="assessment-result">
               <strong>本次得分 {stageResult.score} / 100</strong>
+              <p>{stageResult.adjustment.message}</p>
+              <p>下一阶段：{stageResult.adjustment.stage} / {stageResult.adjustment.planPhase}</p>
               <p>答对 {stageResult.correctCount}/{stageResult.totalQuestions} 题，复盘项 {stageResult.reviewItems.length} 个。</p>
               <ul>
                 {stageResult.nextActions.map((action) => (
