@@ -490,6 +490,20 @@ export function App() {
   async function handleGeneratePaper() {
     setPaperStatus('正在生成专项卷...');
 
+    if (isStaticDemoMode()) {
+      const mockPaper = createMockGeneratedPaper({
+        title: '存储系统专项卷',
+        paperType: '专项卷',
+        knowledgePointIds: ['co-cache'],
+        questionCount: 2,
+        createdBy: 'teacher-001',
+      });
+      setLatestPaper(mockPaper);
+      setApiState('mock');
+      setPaperStatus(`已使用静态演示数据生成 ${mockPaper.title}，共 ${mockPaper.questionCount} 题，可继续提交查看报告。`);
+      return;
+    }
+
     try {
       const paper = await generatePaper({
         title: '存储系统专项卷',
@@ -523,6 +537,16 @@ export function App() {
     }
 
     setPaperStatus('正在提交演示试卷...');
+
+    if (isStaticDemoMode()) {
+      const mockResult = createMockPaperSubmitResult(paper, student.id);
+      setPaperResult(mockResult);
+      setApiState('mock');
+      setPaperStatus(mockResult
+        ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
+        : '试卷提交失败，请稍后重试。');
+      return;
+    }
 
     try {
       const result = await submitPaper({
@@ -1441,3 +1465,9 @@ const permissionHint = {
   teacher: '教师可维护题库、知识点并生成试卷。',
   admin: '管理员可查看运营指标、审核内容并调整推荐策略。',
 };
+
+function isStaticDemoMode() {
+  return typeof window !== 'undefined'
+    && window.location.hostname.endsWith('github.io')
+    && !import.meta.env.VITE_API_BASE_URL;
+}
