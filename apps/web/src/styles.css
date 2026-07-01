@@ -194,6 +194,68 @@ button {
   font-size: 13px;
 }
 
+.admin-users-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.admin-users-summary article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.admin-users-summary strong {
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.admin-users-summary span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.admin-users-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.admin-users-list article {
+  align-items: start;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #2563eb;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 0.7fr 1fr 1.4fr;
+  padding: 14px;
+}
+
+.admin-users-list div {
+  display: grid;
+  gap: 4px;
+}
+
+.admin-users-list strong {
+  color: #0f172a;
+}
+
+.admin-users-list span,
+.admin-users-list small,
+.admin-users-list p {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
 .panel {
   padding: 20px;
 }
@@ -1639,6 +1701,8 @@ button {
   .two-column,
   .calendar-strip,
   .admin-grid,
+  .admin-users-summary,
+  .admin-users-list article,
   .assessment-grid,
   .tutor-result,
   .teacher-grid,

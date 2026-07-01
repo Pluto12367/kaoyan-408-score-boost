@@ -57,6 +57,16 @@ export class StudyController {
     return this.studyService.getAdminMetrics();
   }
 
+  @Get('admin/users')
+  getAdminUsers() {
+    return this.studyService.getAdminUsers();
+  }
+
+  @Post('admin/users/:userId/trial-status')
+  updateAdminUserTrialStatus(@Param('userId') userId: string, @Body('trialStatus') trialStatus?: string) {
+    return this.studyService.updateAdminUserTrialStatus(userId, trialStatus);
+  }
+
   @Get('admin/feedback')
   getFeedbackList() {
     return this.studyService.getFeedbackList();

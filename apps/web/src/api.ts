@@ -80,6 +80,32 @@ export interface TeacherClassAnalytics {
   teachingActions: string[];
 }
 
+export type TrialStatus = 'invited' | 'active' | 'completed' | 'follow_up';
+
+export interface AdminManagedUser {
+  id: string;
+  name: string;
+  role: 'student' | 'teacher' | 'admin';
+  trialStatus: TrialStatus;
+  stage?: string;
+  targetScore?: number;
+  targetSchool?: string;
+  lastActiveAt: string;
+  nextAction: string;
+}
+
+export interface AdminUserManagement {
+  source: 'memory-api' | 'postgres-ready-api' | 'mock';
+  generatedAt: string;
+  summary: {
+    totalUsers: number;
+    studentCount: number;
+    activeTrialCount: number;
+    followUpCount: number;
+  };
+  users: AdminManagedUser[];
+}
+
 export interface ReviewQueue {
   source: 'memory-api' | 'postgres-ready-api';
   pendingCount: number;
@@ -671,6 +697,52 @@ export function createMockTeacherClassAnalytics(): TeacherClassAnalytics {
   };
 }
 
+export function createMockAdminUserManagement(): AdminUserManagement {
+  const users: AdminManagedUser[] = [
+    {
+      id: student.id,
+      name: student.name,
+      role: 'student',
+      trialStatus: 'active',
+      stage: student.stage,
+      targetScore: student.targetScore,
+      targetSchool: student.targetSchool,
+      lastActiveAt: new Date().toISOString().slice(0, 10),
+      nextAction: '完成核心试用流程后，邀请填写问卷并追问真实备考痛点。',
+    },
+    {
+      id: 'teacher-001',
+      name: '王老师',
+      role: 'teacher',
+      trialStatus: 'active',
+      stage: '教研维护',
+      lastActiveAt: new Date().toISOString().slice(0, 10),
+      nextAction: '继续维护题库、知识点和班级学情分析。',
+    },
+    {
+      id: 'admin-001',
+      name: '管理员',
+      role: 'admin',
+      trialStatus: 'active',
+      stage: '平台运营',
+      lastActiveAt: new Date().toISOString().slice(0, 10),
+      nextAction: '查看试用名单、内容审核和运营数据。',
+    },
+  ];
+
+  return {
+    source: 'mock',
+    generatedAt: new Date().toISOString(),
+    summary: {
+      totalUsers: users.length,
+      studentCount: users.filter((user) => user.role === 'student').length,
+      activeTrialCount: users.filter((user) => user.trialStatus === 'active').length,
+      followUpCount: users.filter((user) => user.trialStatus === 'follow_up').length,
+    },
+    users,
+  };
+}
+
 export function createMockReviewQueue(): ReviewQueue {
   return {
     source: 'memory-api',
@@ -1200,6 +1272,34 @@ export async function fetchTeacherClassAnalytics(): Promise<TeacherClassAnalytic
   }
 
   return response.json() as Promise<TeacherClassAnalytics>;
+}
+
+export async function fetchAdminUsers(): Promise<AdminUserManagement> {
+  const response = await fetch(`${API_BASE_URL}/admin/users`);
+  if (!response.ok) {
+    throw new Error(`Admin users request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<AdminUserManagement>;
+}
+
+export async function updateAdminUserTrialStatus(input: {
+  userId: string;
+  trialStatus: TrialStatus;
+}): Promise<AdminManagedUser> {
+  const response = await fetch(`${API_BASE_URL}/admin/users/${input.userId}/trial-status`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ trialStatus: input.trialStatus }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Admin user trial status update failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<AdminManagedUser>;
 }
 
 export async function fetchReviewQueue(): Promise<ReviewQueue> {

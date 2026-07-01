@@ -55,6 +55,12 @@ export class StudyService {
 
   private readonly wrongQuestionReviewDatesByUser = new Map<string, Map<string, string>>();
 
+  private readonly trialStatusByUserId = new Map<string, TrialStatus>([
+    ['u-001', 'active'],
+    ['teacher-001', 'active'],
+    ['admin-001', 'active'],
+  ]);
+
   private readonly aiReviewItems: ReviewItem[] = [];
 
   private readonly papers: GeneratedPaper[] = [];
@@ -541,6 +547,39 @@ export class StudyService {
       topWeakPoint: report.weakPoints[0]?.title ?? null,
       generatedAt: new Date().toISOString(),
     };
+  }
+
+  getAdminUsers() {
+    const users = this.buildAdminUsers();
+    const studentCount = users.filter((user) => user.role === 'student').length;
+    const activeTrialCount = users.filter((user) => user.trialStatus === 'active').length;
+    const followUpCount = users.filter((user) => user.trialStatus === 'follow_up').length;
+
+    return {
+      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalUsers: users.length,
+        studentCount,
+        activeTrialCount,
+        followUpCount,
+      },
+      users,
+    };
+  }
+
+  updateAdminUserTrialStatus(userId: string, trialStatus: string | undefined) {
+    if (!isTrialStatus(trialStatus)) {
+      throw new BadRequestException('Trial status must be invited, active, completed or follow_up');
+    }
+
+    const users = this.buildAdminUsers();
+    if (!users.some((user) => user.id === userId)) {
+      throw new BadRequestException(`User ${userId} was not found`);
+    }
+
+    this.trialStatusByUserId.set(userId, trialStatus);
+    return this.buildAdminUsers().find((user) => user.id === userId);
   }
 
   getTeacherClassAnalytics() {
@@ -1538,6 +1577,49 @@ export class StudyService {
     return `先处理 ${weakPointTitle ?? '本次薄弱点'}，再补 1 组变式题验证是否真正掌握。`;
   }
 
+  private buildAdminUsers(): AdminManagedUser[] {
+    const calendar = this.getLearningCalendar(this.student.id);
+    const trialProgress = this.getTrialProgress(this.student.id);
+    const studentStatus = this.trialStatusByUserId.get(this.student.id)
+      ?? (trialProgress.completionRate === 100 ? 'completed' : trialProgress.completedCount > 0 ? 'active' : 'invited');
+
+    return [
+      {
+        id: this.student.id,
+        name: this.student.name,
+        role: 'student',
+        trialStatus: studentStatus,
+        stage: this.student.stage,
+        targetScore: this.student.targetScore,
+        targetSchool: this.student.targetSchool,
+        lastActiveAt: calendar.today.isActive ? calendar.today.date : this.records[this.records.length - 1]?.submittedAt ?? todayKey(),
+        nextAction: studentStatus === 'follow_up'
+          ? '联系学生填写问卷，并追问最影响备考效率的功能缺口。'
+          : studentStatus === 'completed'
+            ? '整理试用反馈，判断是否邀请继续深度体验。'
+            : trialProgress.nextAction,
+      },
+      {
+        id: 'teacher-001',
+        name: '王老师',
+        role: 'teacher',
+        trialStatus: this.trialStatusByUserId.get('teacher-001') ?? 'active',
+        stage: '教研维护',
+        lastActiveAt: todayKey(),
+        nextAction: '继续维护题库、知识点和班级学情分析。',
+      },
+      {
+        id: 'admin-001',
+        name: '管理员',
+        role: 'admin',
+        trialStatus: this.trialStatusByUserId.get('admin-001') ?? 'active',
+        stage: '平台运营',
+        lastActiveAt: todayKey(),
+        nextAction: '查看试用名单、内容审核和运营数据。',
+      },
+    ];
+  }
+
   generatePlan() {
     const plan = buildStudyPlan({
       targetScore: this.student.targetScore ?? 115,
@@ -1678,7 +1760,13 @@ function parseSubject(value: string | undefined): Subject | null {
   return null;
 }
 
+function isTrialStatus(value: string | undefined): value is TrialStatus {
+  return value === 'invited' || value === 'active' || value === 'completed' || value === 'follow_up';
+}
+
 export type PaperType = '模拟卷' | '阶段卷' | '专项卷';
+
+export type TrialStatus = 'invited' | 'active' | 'completed' | 'follow_up';
 
 export interface GeneratedPaper {
   id: string;
@@ -1705,6 +1793,18 @@ export interface AssessmentHistoryItem {
   unansweredCount: number;
   weakPointTitle: string;
   reviewSuggestion: string;
+}
+
+export interface AdminManagedUser {
+  id: string;
+  name: string;
+  role: 'student' | 'teacher' | 'admin';
+  trialStatus: TrialStatus;
+  stage?: string;
+  targetScore?: number;
+  targetSchool?: string;
+  lastActiveAt: string;
+  nextAction: string;
 }
 
 export interface FeedbackItem {

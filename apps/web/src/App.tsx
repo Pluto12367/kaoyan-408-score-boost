@@ -7,6 +7,7 @@ import {
   createTeacherQuestion,
   deleteTeacherQuestion,
   createMockAssessmentHistory,
+  createMockAdminUserManagement,
   createMockAdminMetrics,
   createMockAiFollowUp,
   createMockFeedbackList,
@@ -24,6 +25,7 @@ import {
   createMockTeacherClassAnalytics,
   createMockWrongQuestionSummary,
   fetchAdminMetrics,
+  fetchAdminUsers,
   fetchAssessmentHistory,
   fetchDashboardOverview,
   fetchFeedbackList,
@@ -50,9 +52,11 @@ import {
   submitPracticeAnswer,
   submitPracticeSet,
   submitStageAssessment,
+  updateAdminUserTrialStatus,
   updateTeacherQuestion,
   updateSystemConfig,
   type AdminMetrics,
+  type AdminUserManagement,
   type AssessmentHistory,
   type AiFollowUp,
   type DashboardOverview,
@@ -79,6 +83,7 @@ import type { UserProfile, UserRole } from '@kaoyan408/shared';
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics>(() => createMockAdminMetrics());
+  const [adminUsers, setAdminUsers] = useState<AdminUserManagement>(() => createMockAdminUserManagement());
   const [teacherClassAnalytics, setTeacherClassAnalytics] = useState<TeacherClassAnalytics>(() => createMockTeacherClassAnalytics());
   const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
@@ -111,6 +116,7 @@ export function App() {
   const [learningProfile, setLearningProfile] = useState<LearningProfile>(() => createMockLearningProfile());
   const [feedbackList, setFeedbackList] = useState<FeedbackList>(() => createMockFeedbackList());
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
+  const [userStatus, setUserStatus] = useState('管理员可以跟踪试用名单状态，方便后续邀请填写问卷。');
   const [trialProgress, setTrialProgress] = useState<TrialProgress>(() => createMockTrialProgress());
   const [studyReminders, setStudyReminders] = useState<StudyReminders>(() => createMockStudyReminders());
   const [sprintPlan, setSprintPlan] = useState<SprintPlan>(() => createMockSprintPlan());
@@ -120,11 +126,12 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
-      .then(([data, metrics, classAnalytics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchAdminUsers(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
+      .then(([data, metrics, users, classAnalytics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
+        setAdminUsers(users);
         setTeacherClassAnalytics(classAnalytics);
         setReviewQueue(queue);
         setSystemConfig(config);
@@ -145,6 +152,7 @@ export function App() {
         if (!active) return;
         setOverview(createMockOverview());
         setAdminMetrics(createMockAdminMetrics());
+        setAdminUsers(createMockAdminUserManagement());
         setTeacherClassAnalytics(createMockTeacherClassAnalytics());
         setReviewQueue(createMockReviewQueue());
         setSystemConfig(createMockSystemConfig());
@@ -880,6 +888,49 @@ export function App() {
     }
   }
 
+  async function handleMarkTrialFollowUp() {
+    const studentUser = adminUsers.users.find((user) => user.role === 'student');
+    if (!studentUser) {
+      setUserStatus('暂无可标记的学生账号。');
+      return;
+    }
+
+    setUserStatus('正在更新试用名单状态...');
+
+    if (isStaticDemoMode()) {
+      const nextUsers = adminUsers.users.map((user) => user.id === studentUser.id
+        ? { ...user, trialStatus: 'follow_up' as const, nextAction: '联系学生填写问卷，并追问最影响备考效率的功能缺口。' }
+        : user);
+      setAdminUsers({
+        ...adminUsers,
+        generatedAt: new Date().toISOString(),
+        summary: {
+          totalUsers: nextUsers.length,
+          studentCount: nextUsers.filter((user) => user.role === 'student').length,
+          activeTrialCount: nextUsers.filter((user) => user.trialStatus === 'active').length,
+          followUpCount: nextUsers.filter((user) => user.trialStatus === 'follow_up').length,
+        },
+        users: nextUsers,
+      });
+      setUserStatus(`已将 ${studentUser.name} 标记为待回访，可邀请填写问卷。`);
+      return;
+    }
+
+    try {
+      const updated = await updateAdminUserTrialStatus({
+        userId: studentUser.id,
+        trialStatus: 'follow_up',
+      });
+      const nextAdminUsers = await fetchAdminUsers();
+      setAdminUsers(nextAdminUsers);
+      setApiState('connected');
+      setUserStatus(`已将 ${updated.name} 标记为待回访，可邀请填写问卷。`);
+    } catch {
+      setUserStatus('试用状态更新失败，当前保留原名单。');
+      setApiState('mock');
+    }
+  }
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -1204,6 +1255,52 @@ export function App() {
           <p className="task-status">
             试用反馈：{feedbackList.totalCount} 条 · 平均评分 {feedbackList.averageRating} · {feedbackList.items[0]?.message ?? '暂无反馈'}
           </p>
+        </section>
+
+        <section className="panel admin-users-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">用户管理</p>
+              <h3>试用名单与角色状态</h3>
+            </div>
+            <button type="button" className="secondary-action" onClick={handleMarkTrialFollowUp}>
+              标记学生待回访
+            </button>
+          </div>
+          <p className="task-status">{userStatus}</p>
+          <div className="admin-users-summary">
+            <article>
+              <strong>{adminUsers.summary.totalUsers}</strong>
+              <span>全部账号</span>
+            </article>
+            <article>
+              <strong>{adminUsers.summary.studentCount}</strong>
+              <span>学生账号</span>
+            </article>
+            <article>
+              <strong>{adminUsers.summary.activeTrialCount}</strong>
+              <span>试用中</span>
+            </article>
+            <article>
+              <strong>{adminUsers.summary.followUpCount}</strong>
+              <span>待回访</span>
+            </article>
+          </div>
+          <div className="admin-users-list">
+            {adminUsers.users.map((user) => (
+              <article key={user.id}>
+                <div>
+                  <strong>{user.name}</strong>
+                  <span>{roleLabel[user.role]} · {trialStatusLabel[user.trialStatus]}</span>
+                </div>
+                <div>
+                  <span>{user.stage ?? '账号管理'}{user.targetScore ? ` · 目标 ${user.targetScore} 分` : ''}</span>
+                  <small>{user.targetSchool ?? '平台演示账号'} · 最近活跃 {user.lastActiveAt}</small>
+                </div>
+                <p>{user.nextAction}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section id="review" className="panel review-panel">
@@ -1861,6 +1958,13 @@ const roleLabel = {
   student: '学生',
   teacher: '教师',
   admin: '管理员',
+};
+
+const trialStatusLabel = {
+  invited: '已邀请',
+  active: '试用中',
+  completed: '已完成',
+  follow_up: '待回访',
 };
 
 const permissionHint = {

@@ -326,6 +326,20 @@ async function main() {
   assert(adminMetrics.todayPracticeCount >= 1, 'admin metrics should include today practice count');
   assert(adminMetrics.weakPointCount >= 1, 'admin metrics should include weak point count');
   assert(adminMetrics.pendingWrongQuestionCount >= 1, 'admin metrics should include pending wrong question count');
+  const adminUsers = await waitForJson(`${apiUrl}/admin/users`, (data) =>
+    data.summary?.totalUsers >= 3 && Array.isArray(data.users),
+  );
+  assert(adminUsers.users.some((user) => user.role === 'student'), 'admin users should include a student account');
+  assert(adminUsers.users.some((user) => user.role === 'teacher'), 'admin users should include a teacher account');
+  assert(adminUsers.users.some((user) => user.role === 'admin'), 'admin users should include an admin account');
+  const updatedTrialUser = await postJson(`${apiUrl}/admin/users/u-001/trial-status`, {
+    trialStatus: 'follow_up',
+  });
+  assert(updatedTrialUser.trialStatus === 'follow_up', 'admin user trial status update should persist');
+  const adminUsersAfterTrialUpdate = await waitForJson(`${apiUrl}/admin/users`, (data) =>
+    data.summary?.followUpCount >= 1,
+  );
+  assert(adminUsersAfterTrialUpdate.users.some((user) => user.id === 'u-001' && user.trialStatus === 'follow_up'), 'admin users should expose updated trial status');
   const deletedTeacherQuestion = await deleteJson(`${apiUrl}/questions/${createdTeacherQuestion.id}`);
   assert(deletedTeacherQuestion.id === createdTeacherQuestion.id && deletedTeacherQuestion.deleted === true, 'teacher question delete should return deleted question id');
   const questionsAfterDelete = await waitForJson(`${apiUrl}/questions?knowledgePointId=co-cache`, (data) =>
