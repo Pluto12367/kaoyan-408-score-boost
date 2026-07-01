@@ -1199,6 +1199,44 @@ button {
   padding: 14px;
 }
 
+.paper-session-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #2563eb;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+}
+
+.paper-session-panel div:first-child {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.paper-session-panel span,
+.paper-session-panel p {
+  color: #475569;
+  font-size: 13px;
+  margin: 0;
+}
+
+.paper-session-progress {
+  background: #e2e8f0;
+  border-radius: 999px;
+  height: 8px;
+  overflow: hidden;
+}
+
+.paper-session-progress span {
+  background: #2563eb;
+  display: block;
+  height: 100%;
+}
+
 .paper-result-summary {
   display: grid;
   gap: 12px;

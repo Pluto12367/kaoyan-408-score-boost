@@ -95,6 +95,7 @@ export function App() {
   const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => createMockPaperSubmitResult());
+  const [paperSession, setPaperSession] = useState<PaperSubmitResult['examSession'] | null>(null);
   const [teacherQuestionList, setTeacherQuestionList] = useState(() => createMockOverview().questions);
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
@@ -639,6 +640,8 @@ export function App() {
         createdBy: 'teacher-001',
       });
       setLatestPaper(mockPaper);
+      setPaperSession(createInitialPaperSession(mockPaper));
+      setPaperResult(null);
       setApiState('mock');
       setPaperStatus(`已使用静态演示数据生成 ${mockPaper.title}，共 ${mockPaper.questionCount} 题，可继续提交查看报告。`);
       return;
@@ -653,6 +656,8 @@ export function App() {
         createdBy: 'teacher-001',
       });
       setLatestPaper(paper);
+      setPaperSession(createInitialPaperSession(paper));
+      setPaperResult(null);
       setApiState('connected');
       setPaperStatus(`已生成 ${paper.title}，共 ${paper.questionCount} 题，预计 ${paper.estimatedMinutes} 分钟。`);
     } catch {
@@ -664,9 +669,32 @@ export function App() {
         createdBy: 'teacher-001',
       });
       setLatestPaper(mockPaper);
+      setPaperSession(createInitialPaperSession(mockPaper));
+      setPaperResult(null);
       setPaperStatus(`已使用静态演示数据生成 ${mockPaper.title}，共 ${mockPaper.questionCount} 题，可继续提交查看报告。`);
       setApiState('mock');
     }
+  }
+
+  function handleStartPaperSession() {
+    const paper = latestPaper;
+    if (!paper) {
+      setPaperStatus('请先生成一套演示试卷。');
+      return;
+    }
+
+    const elapsedSec = paper.questions.reduce((sum, question) => sum + question.expectedTimeSec + 15, 0);
+    const session = {
+      answeredCount: paper.questions.length,
+      unansweredCount: 0,
+      totalQuestions: paper.questions.length,
+      elapsedSec,
+      timeLimitSec: paper.estimatedMinutes * 60,
+      overtime: elapsedSec > paper.estimatedMinutes * 60,
+      progressRate: 100,
+    };
+    setPaperSession(session);
+    setPaperStatus(`已完成演示答卷：${session.answeredCount}/${session.totalQuestions} 题，用时 ${Math.round(session.elapsedSec / 60)} 分钟，可提交查看报告。`);
   }
 
   async function handleSubmitPaper() {
@@ -681,6 +709,7 @@ export function App() {
     if (isStaticDemoMode()) {
       const mockResult = createMockPaperSubmitResult(paper, student.id);
       setPaperResult(mockResult);
+      setPaperSession(mockResult?.examSession ?? null);
       setApiState('mock');
       setPaperStatus(mockResult
         ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
@@ -701,6 +730,7 @@ export function App() {
       const nextOverview = await fetchDashboardOverview();
       const nextMetrics = await fetchAdminMetrics();
       setPaperResult(result);
+      setPaperSession(result.examSession);
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
       await refreshMasteryMap(student.id);
@@ -710,6 +740,7 @@ export function App() {
     } catch {
       const mockResult = createMockPaperSubmitResult(paper, student.id);
       setPaperResult(mockResult);
+      setPaperSession(mockResult?.examSession ?? null);
       setPaperStatus(mockResult
         ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
         : '试卷提交失败，请稍后重试。');
@@ -1441,6 +1472,9 @@ export function App() {
               <button type="button" className="secondary-action" onClick={handleGeneratePaper}>
                 <ClipboardCheck size={18} /> 生成专项卷
               </button>
+              <button type="button" className="secondary-action" onClick={handleStartPaperSession}>
+                <ClipboardCheck size={18} /> 开始演示答卷
+              </button>
               <button type="button" className="secondary-action" onClick={handleSubmitPaper}>
                 <ClipboardCheck size={18} /> 提交演示试卷
               </button>
@@ -1472,6 +1506,22 @@ export function App() {
               </article>
             ))}
           </div>
+          {latestPaper && paperSession ? (
+            <div className="paper-session-panel">
+              <div>
+                <strong>{latestPaper.title}</strong>
+                <span>{paperSession.answeredCount}/{paperSession.totalQuestions} 题 · 进度 {paperSession.progressRate}%</span>
+              </div>
+              <div className="paper-session-progress">
+                <span style={{ width: `${paperSession.progressRate}%` }} />
+              </div>
+              <p>
+                用时 {Math.round(paperSession.elapsedSec / 60)} / {Math.round(paperSession.timeLimitSec / 60)} 分钟
+                · {paperSession.overtime ? '已超时，需要压缩答题节奏' : '未超时，节奏正常'}
+                · 未答 {paperSession.unansweredCount} 题
+              </p>
+            </div>
+          ) : null}
           {paperResult ? (
             <div className="paper-result-panel">
               <div className="paper-result-summary">
@@ -1644,4 +1694,16 @@ function isStaticDemoMode() {
   return typeof window !== 'undefined'
     && window.location.hostname.endsWith('github.io')
     && !import.meta.env.VITE_API_BASE_URL;
+}
+
+function createInitialPaperSession(paper: GeneratedPaper): PaperSubmitResult['examSession'] {
+  return {
+    answeredCount: 0,
+    unansweredCount: paper.questionCount,
+    totalQuestions: paper.questionCount,
+    elapsedSec: 0,
+    timeLimitSec: paper.estimatedMinutes * 60,
+    overtime: false,
+    progressRate: 0,
+  };
 }

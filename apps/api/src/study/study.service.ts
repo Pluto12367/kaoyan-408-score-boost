@@ -695,6 +695,9 @@ export class StudyService {
       accuracyRate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
     }));
     const weakKnowledgePoints = [...new Set(reviewItems.map((item) => item.knowledgePointTitle))].slice(0, 4);
+    const answeredCount = answers.length;
+    const timeLimitSec = Math.max(1, paper.estimatedMinutes * 60);
+    const elapsedSec = answers.reduce((sum, answer) => sum + Math.max(0, answer.timeSpentSec), 0);
 
     return {
       id: `paper-result-${Date.now()}`,
@@ -709,6 +712,15 @@ export class StudyService {
       reviewItems,
       weakKnowledgePoints,
       syncedPracticeRecordCount: records.length,
+      examSession: {
+        answeredCount,
+        unansweredCount: Math.max(0, paper.questionCount - answeredCount),
+        totalQuestions: paper.questionCount,
+        elapsedSec,
+        timeLimitSec,
+        overtime: elapsedSec > timeLimitSec,
+        progressRate: paper.questionCount ? Math.round((answeredCount / paper.questionCount) * 100) : 0,
+      },
       nextActions: [
         accuracyRate >= 80 ? '本套卷表现较好，建议进入限时真题训练。' : '先复盘本套卷错题，再按薄弱知识点补一组专项题。',
         reviewItems.length ? `已同步 ${reviewItems.length} 道需要复盘的题目到错题闭环。` : '本套卷暂无错题，建议提高限时要求。',

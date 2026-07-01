@@ -395,6 +395,15 @@ export interface PaperSubmitResult {
   }>;
   weakKnowledgePoints: string[];
   syncedPracticeRecordCount: number;
+  examSession: {
+    answeredCount: number;
+    unansweredCount: number;
+    totalQuestions: number;
+    elapsedSec: number;
+    timeLimitSec: number;
+    overtime: boolean;
+    progressRate: number;
+  };
   nextActions: string[];
 }
 
@@ -875,6 +884,8 @@ export function createMockPaperSubmitResult(paper?: GeneratedPaper, userId = stu
   const reviewPoint = knowledgePoints.find((point) => reviewQuestion.knowledgePointIds.includes(point.id)) ?? knowledgePoints[0];
   const correctCount = Math.max(0, paper.questions.length - 1);
   const accuracyRate = Math.round((correctCount / paper.questions.length) * 100);
+  const timeLimitSec = paper.estimatedMinutes * 60;
+  const elapsedSec = paper.questions.reduce((sum, question) => sum + question.expectedTimeSec + 15, 0);
 
   return {
     id: `paper-result-mock-${new Date().toISOString().slice(0, 10)}`,
@@ -908,6 +919,15 @@ export function createMockPaperSubmitResult(paper?: GeneratedPaper, userId = stu
     ],
     weakKnowledgePoints: [reviewPoint.title],
     syncedPracticeRecordCount: paper.questions.length,
+    examSession: {
+      answeredCount: paper.questions.length,
+      unansweredCount: 0,
+      totalQuestions: paper.questions.length,
+      elapsedSec,
+      timeLimitSec,
+      overtime: elapsedSec > timeLimitSec,
+      progressRate: 100,
+    },
     nextActions: [
       '先复盘本套卷错题，再按薄弱知识点补一组专项题。',
       '已同步 1 道需要复盘的题目到错题闭环。',

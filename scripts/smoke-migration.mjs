@@ -156,6 +156,11 @@ async function main() {
   assert(paperResult.subjectBreakdown.length > 0, 'paper submission should include subject breakdown');
   assert(paperResult.reviewItems.length > 0, 'paper submission should include review items for wrong answers');
   assert(paperResult.nextActions.length > 0, 'paper submission should include next actions');
+  assert(paperResult.examSession?.answeredCount === generatedPaper.questions.length, 'paper submission should include answered question count');
+  assert(paperResult.examSession?.timeLimitSec > 0, 'paper submission should include exam time limit');
+  assert(Number.isFinite(paperResult.examSession?.elapsedSec), 'paper submission should include elapsed time');
+  assert(typeof paperResult.examSession?.overtime === 'boolean', 'paper submission should identify overtime status');
+  assert(paperResult.examSession?.progressRate === 100, 'paper submission should expose answer progress rate');
   const firstTaskId = overview.plan.dailyTasks[0].id;
   const completedTask = await postJson(`${apiUrl}/study-tasks/${firstTaskId}/complete`, {
     userId: 'u-001',
