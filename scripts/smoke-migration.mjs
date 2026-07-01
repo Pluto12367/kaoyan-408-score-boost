@@ -299,14 +299,24 @@ async function main() {
   assert(reviewQueue.pendingCount >= 2, 'review queue should include pending content');
   assert(reviewQueue.items.some((item) => item.contentType === 'question' && item.relatedId === createdTeacherQuestion.id), 'review queue should include teacher-created question');
   assert(reviewQueue.items.some((item) => item.contentType === 'ai_reply' && item.relatedId === tutorReply.id), 'review queue should include AI tutor reply');
-  const approvedReviewItem = await postJson(`${apiUrl}/admin/review-queue/${reviewQueue.items[0].id}/approve`, {
+  const aiReviewItem = reviewQueue.items.find((item) => item.contentType === 'ai_reply' && item.relatedId === tutorReply.id);
+  assert(aiReviewItem.reviewReason, 'AI review item should include a review reason');
+  assert(aiReviewItem.suggestedAction, 'AI review item should include a suggested action');
+  const recheckReviewItem = await postJson(`${apiUrl}/admin/review-queue/${aiReviewItem.id}/recheck`, {
+    reviewerId: 'admin-001',
+  });
+  assert(recheckReviewItem.status === 'needs_recheck', 'AI review item should support needs recheck status');
+  const approvalTarget = reviewQueue.items.find((item) => item.id !== aiReviewItem.id && item.status === 'pending');
+  assert(approvalTarget, 'review queue should include another pending item to approve after recheck');
+  const approvedReviewItem = await postJson(`${apiUrl}/admin/review-queue/${approvalTarget.id}/approve`, {
     reviewerId: 'admin-001',
   });
   assert(approvedReviewItem.status === 'approved', 'review approval should mark the item as approved');
   const reviewQueueAfterApproval = await waitForJson(`${apiUrl}/admin/review-queue`, (data) =>
     Array.isArray(data?.items) && data.items.some((item) => item.id === approvedReviewItem.id && item.status === 'approved'),
   );
-  assert(reviewQueueAfterApproval.pendingCount === reviewQueue.pendingCount - 1, 'review queue pending count should decrease after approval');
+  assert(reviewQueueAfterApproval.pendingCount === reviewQueue.pendingCount - 2, 'review queue pending count should decrease after recheck and approval');
+  assert(reviewQueueAfterApproval.items.some((item) => item.id === aiReviewItem.id && item.status === 'needs_recheck'), 'review queue should expose needs recheck status');
   const feedback = await postJson(`${apiUrl}/feedback`, {
     userId: 'u-001',
     rating: 4,

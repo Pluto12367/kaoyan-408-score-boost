@@ -101,6 +101,8 @@ export class QuestionsService {
       summary: `教师新增题目，绑定 ${question.knowledgePointIds.length} 个知识点，来源：${question.source}`,
       status: 'pending',
       riskLevel: 'medium',
+      reviewReason: '教师新增题目需要确认题干、答案、解析和知识点绑定是否准确。',
+      suggestedAction: '检查标准答案、解析步骤、难度和知识点绑定；确认无误后通过审核。',
       createdAt: new Date().toISOString(),
     });
     return question;
@@ -163,6 +165,16 @@ export class QuestionsService {
     return item;
   }
 
+  markReviewItemNeedsRecheck(reviewItemId: string, reviewerId: string) {
+    const item = this.reviewItems.find((candidate) => candidate.id === reviewItemId);
+    if (!item) return null;
+
+    item.status = 'needs_recheck';
+    item.reviewerId = reviewerId;
+    item.reviewedAt = new Date().toISOString();
+    return item;
+  }
+
   private get questions() {
     return QuestionsService.questions;
   }
@@ -178,8 +190,10 @@ export interface ReviewItem {
   relatedId: string;
   title: string;
   summary: string;
-  status: 'pending' | 'approved';
+  status: 'pending' | 'approved' | 'needs_recheck';
   riskLevel: 'low' | 'medium' | 'high';
+  reviewReason: string;
+  suggestedAction: string;
   createdAt: string;
   reviewerId?: string;
   reviewedAt?: string;

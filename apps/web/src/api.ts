@@ -222,8 +222,10 @@ export interface ReviewItem {
   relatedId: string;
   title: string;
   summary: string;
-  status: 'pending' | 'approved';
+  status: 'pending' | 'approved' | 'needs_recheck';
   riskLevel: 'low' | 'medium' | 'high';
+  reviewReason: string;
+  suggestedAction: string;
   createdAt: string;
   reviewerId?: string;
   reviewedAt?: string;
@@ -1356,6 +1358,25 @@ export async function approveReviewItem(input: {
 
   if (!response.ok) {
     throw new Error(`Review approval failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ReviewItem>;
+}
+
+export async function markReviewItemNeedsRecheck(input: {
+  reviewItemId: string;
+  reviewerId: string;
+}): Promise<ReviewItem> {
+  const response = await fetch(`${API_BASE_URL}/admin/review-queue/${input.reviewItemId}/recheck`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ reviewerId: input.reviewerId }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Review recheck failed with ${response.status}`);
   }
 
   return response.json() as Promise<ReviewItem>;

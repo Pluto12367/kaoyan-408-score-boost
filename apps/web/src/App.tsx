@@ -43,6 +43,7 @@ import {
   fetchWrongQuestionSummary,
   generatePaper,
   loginAsRole,
+  markReviewItemNeedsRecheck,
   requestAiFollowUp,
   requestTutorReply,
   reviewWrongQuestion,
@@ -838,6 +839,24 @@ export function App() {
     }
   }
 
+  async function handleMarkReviewItemNeedsRecheck(reviewItemId: string) {
+    setReviewStatus('正在标记复查...');
+
+    try {
+      await markReviewItemNeedsRecheck({
+        reviewItemId,
+        reviewerId: 'admin-001',
+      });
+      const nextQueue = await fetchReviewQueue();
+      setReviewQueue(nextQueue);
+      setApiState('connected');
+      setReviewStatus(`已标记复查，当前仍有 ${nextQueue.pendingCount} 项待处理。`);
+    } catch {
+      setReviewStatus('复查标记失败，请稍后重试。');
+      setApiState('mock');
+    }
+  }
+
   async function handleApplySprintConfig() {
     setConfigStatus('正在应用冲刺期推荐策略...');
 
@@ -1318,11 +1337,20 @@ export function App() {
                 <div>
                   <strong>{item.contentType === 'question' ? '题目审核' : 'AI 答疑审核'} · {item.title}</strong>
                   <p>{item.summary}</p>
-                  <span>风险：{riskLabel[item.riskLevel]} · 状态：{item.status === 'approved' ? '已通过' : '待审核'}</span>
+                  <div className="review-meta">
+                    <span>风险：{riskLabel[item.riskLevel]} · 状态：{reviewStatusLabel[item.status]}</span>
+                    <span>原因：{item.reviewReason ?? '需要管理员确认内容质量。'}</span>
+                    <span>建议：{item.suggestedAction ?? '确认无误后通过，存在疑问则标记复查。'}</span>
+                  </div>
                 </div>
-                <button type="button" disabled={item.status === 'approved'} onClick={() => handleApproveReviewItem(item.id)}>
-                  {item.status === 'approved' ? '已通过' : '通过'}
-                </button>
+                <div className="review-actions">
+                  <button type="button" disabled={item.status === 'approved'} onClick={() => handleApproveReviewItem(item.id)}>
+                    {item.status === 'approved' ? '已通过' : '通过'}
+                  </button>
+                  <button type="button" disabled={item.status === 'approved' || item.status === 'needs_recheck'} onClick={() => handleMarkReviewItemNeedsRecheck(item.id)}>
+                    {item.status === 'needs_recheck' ? '已复查标记' : '标记复查'}
+                  </button>
+                </div>
               </article>
             )) : (
               <article className="review-empty">
@@ -1580,6 +1608,7 @@ export function App() {
             </button>
           </div>
           <p className="task-status">{tutorStatus}</p>
+          <p className="ai-safety-note">AI 解释仅作辅助，最终以标准答案、标准解析和教师审核内容为准。</p>
           <div className="follow-up-actions">
             <button type="button" onClick={() => handleAskFollowUp('为什么我选 A 不对？')}>
               为什么选 A 不对
@@ -1934,6 +1963,12 @@ const riskLabel = {
   low: '低',
   medium: '中',
   high: '高',
+};
+
+const reviewStatusLabel = {
+  pending: '待审核',
+  approved: '已通过',
+  needs_recheck: '需复查',
 };
 
 const priorityLabel = {

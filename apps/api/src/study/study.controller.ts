@@ -82,6 +82,11 @@ export class StudyController {
     return this.studyService.approveReviewItem(reviewItemId, reviewerId);
   }
 
+  @Post('admin/review-queue/:reviewItemId/recheck')
+  markReviewItemNeedsRecheck(@Param('reviewItemId') reviewItemId: string, @Body('reviewerId') reviewerId?: string) {
+    return this.studyService.markReviewItemNeedsRecheck(reviewItemId, reviewerId);
+  }
+
   @Get('admin/system-config')
   getSystemConfig() {
     return this.studyService.getSystemConfig();

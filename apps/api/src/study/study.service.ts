@@ -940,6 +940,21 @@ export class StudyService {
     return aiReviewItem;
   }
 
+  markReviewItemNeedsRecheck(reviewItemId: string, reviewerId = 'admin-001') {
+    const questionReviewItem = this.questionsService.markReviewItemNeedsRecheck(reviewItemId, reviewerId);
+    if (questionReviewItem) return questionReviewItem;
+
+    const aiReviewItem = this.aiReviewItems.find((item) => item.id === reviewItemId);
+    if (!aiReviewItem) {
+      throw new BadRequestException(`Review item ${reviewItemId} was not found`);
+    }
+
+    aiReviewItem.status = 'needs_recheck';
+    aiReviewItem.reviewerId = reviewerId;
+    aiReviewItem.reviewedAt = new Date().toISOString();
+    return aiReviewItem;
+  }
+
   listWrongQuestions(userId = this.student.id) {
     const grouped = new Map<string, PracticeRecord[]>();
     const reviewedQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
@@ -1438,6 +1453,8 @@ export class StudyService {
       summary: `AI 生成内容需审核：${reply.answerCheck}`,
       status: 'pending',
       riskLevel: 'low',
+      reviewReason: 'AI 答疑会影响学生对标准答案的理解，需要确认没有偏离题目解析。',
+      suggestedAction: '核对正确答案、解析步骤和相似题推荐；确认只作为辅助解释后再通过。',
       createdAt: new Date().toISOString(),
     });
 
@@ -1517,6 +1534,8 @@ export class StudyService {
       summary: `AI 追问内容需审核：${message}`,
       status: 'pending',
       riskLevel: 'low',
+      reviewReason: 'AI 追问和复习卡片可能扩展到相邻知识点，需要确认概念边界准确。',
+      suggestedAction: '检查复习卡片、易错提示和下一步建议；如存在概念混淆则标记复查。',
       createdAt: new Date().toISOString(),
     });
 
