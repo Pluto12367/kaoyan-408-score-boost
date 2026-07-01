@@ -367,6 +367,37 @@ export interface GeneratedPaper {
   createdAt: string;
 }
 
+export interface PaperSubmitResult {
+  id: string;
+  paperId: string;
+  userId: string;
+  submittedAt: string;
+  totalQuestions: number;
+  correctCount: number;
+  score: number;
+  accuracyRate: number;
+  subjectBreakdown: Array<{
+    subject: string;
+    totalQuestions: number;
+    correctCount: number;
+    accuracyRate: number;
+  }>;
+  reviewItems: Array<{
+    questionId: string;
+    stem: string;
+    selectedAnswer?: string;
+    correctAnswer?: string;
+    correct: boolean;
+    knowledgePointId: string;
+    knowledgePointTitle: string;
+    subject: string;
+    mistakeReason: string | null;
+  }>;
+  weakKnowledgePoints: string[];
+  syncedPracticeRecordCount: number;
+  nextActions: string[];
+}
+
 export interface GeneratePaperInput {
   title: string;
   paperType: GeneratedPaper['paperType'];
@@ -804,6 +835,10 @@ export function createMockWrongQuestionSummary(): WrongQuestionSummary {
   };
 }
 
+export function createMockPaperSubmitResult(): PaperSubmitResult | null {
+  return null;
+}
+
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   const response = await fetch(`${API_BASE_URL}/dashboard/overview`);
   if (!response.ok) {
@@ -1186,6 +1221,33 @@ export async function generatePaper(input: GeneratePaperInput): Promise<Generate
   }
 
   return response.json() as Promise<GeneratedPaper>;
+}
+
+export async function submitPaper(input: {
+  userId: string;
+  paperId: string;
+  answers: Array<{
+    questionId: string;
+    selectedAnswer: string;
+    timeSpentSec: number;
+  }>;
+}): Promise<PaperSubmitResult> {
+  const response = await fetch(`${API_BASE_URL}/papers/${input.paperId}/submit`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      userId: input.userId,
+      answers: input.answers,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Paper submission failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<PaperSubmitResult>;
 }
 
 export async function loginAsRole(role: UserRole): Promise<AuthSession> {

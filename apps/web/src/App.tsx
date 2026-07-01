@@ -10,6 +10,7 @@ import {
   createMockFeedbackList,
   createMockMasteryMap,
   createMockOverview,
+  createMockPaperSubmitResult,
   createMockLearningProfile,
   createMockPracticeSet,
   createMockStudyReminders,
@@ -38,6 +39,7 @@ import {
   reviewWrongQuestion,
   submitDiagnosticProfile,
   submitFeedback,
+  submitPaper,
   submitPracticeAnswer,
   submitPracticeSet,
   submitStageAssessment,
@@ -49,6 +51,7 @@ import {
   type FeedbackList,
   type LearningProfile,
   type MasteryMap,
+  type PaperSubmitResult,
   type PracticeSet,
   type PracticeSetResult,
   type ReviewQueue,
@@ -86,6 +89,7 @@ export function App() {
   const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
   const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
+  const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => createMockPaperSubmitResult());
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [learningProfile, setLearningProfile] = useState<LearningProfile>(() => createMockLearningProfile());
@@ -498,6 +502,40 @@ export function App() {
       setPaperStatus(`已生成 ${paper.title}，共 ${paper.questionCount} 题，预计 ${paper.estimatedMinutes} 分钟。`);
     } catch {
       setPaperStatus('试卷生成失败，请确认题库中有匹配知识点的题目。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleSubmitPaper() {
+    const paper = latestPaper;
+    if (!paper) {
+      setPaperStatus('请先生成一套演示试卷。');
+      return;
+    }
+
+    setPaperStatus('正在提交演示试卷...');
+
+    try {
+      const result = await submitPaper({
+        userId: student.id,
+        paperId: paper.id,
+        answers: paper.questions.map((question, index) => ({
+          questionId: question.id,
+          selectedAnswer: index === 0 ? (question.answer === 'A' ? 'B' : 'A') : question.answer,
+          timeSpentSec: question.expectedTimeSec + 15,
+        })),
+      });
+      const nextOverview = await fetchDashboardOverview();
+      const nextMetrics = await fetchAdminMetrics();
+      setPaperResult(result);
+      setOverview(nextOverview);
+      setAdminMetrics(nextMetrics);
+      await refreshMasteryMap(student.id);
+      await refreshWrongQuestionSummary(student.id);
+      setApiState('connected');
+      setPaperStatus(`试卷已提交：${result.score} 分，正确率 ${result.accuracyRate}%，已同步 ${result.syncedPracticeRecordCount} 条练习记录。`);
+    } catch {
+      setPaperStatus('试卷提交失败，请稍后重试。');
       setApiState('mock');
     }
   }
@@ -1203,6 +1241,9 @@ export function App() {
               <button type="button" className="secondary-action" onClick={handleGeneratePaper}>
                 <ClipboardCheck size={18} /> 生成专项卷
               </button>
+              <button type="button" className="secondary-action" onClick={handleSubmitPaper}>
+                <ClipboardCheck size={18} /> 提交演示试卷
+              </button>
             </div>
           </div>
           <p className="task-status">{knowledgeStatus} {teacherStatus} {paperStatus}</p>
@@ -1220,6 +1261,38 @@ export function App() {
               <span>{latestPaper ? `${latestPaper.title} · ${latestPaper.estimatedMinutes} 分钟` : '可按知识点生成专项卷。'}</span>
             </article>
           </div>
+          {paperResult ? (
+            <div className="paper-result-panel">
+              <div className="paper-result-summary">
+                <article>
+                  <strong>{paperResult.score}</strong>
+                  <span>试卷得分</span>
+                </article>
+                <article>
+                  <strong>{paperResult.accuracyRate}%</strong>
+                  <span>正确率</span>
+                </article>
+                <article>
+                  <strong>{paperResult.reviewItems.length}</strong>
+                  <span>需复盘题</span>
+                </article>
+                <article>
+                  <strong>{paperResult.syncedPracticeRecordCount}</strong>
+                  <span>同步记录</span>
+                </article>
+              </div>
+              <div className="paper-breakdown">
+                {paperResult.subjectBreakdown.map((item) => (
+                  <span key={item.subject}>{item.subject} · {item.correctCount}/{item.totalQuestions} · {item.accuracyRate}%</span>
+                ))}
+              </div>
+              <div className="paper-actions">
+                {paperResult.nextActions.map((action) => (
+                  <p key={action}>{action}</p>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="panel">

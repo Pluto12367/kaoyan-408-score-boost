@@ -116,6 +116,18 @@ export class StudyController {
     return this.studyService.generatePaper(input);
   }
 
+  @Post('papers/:paperId/submit')
+  submitPaper(@Param('paperId') paperId: string, @Body() input: {
+    userId?: string;
+    answers?: Array<{
+      questionId: string;
+      selectedAnswer: string;
+      timeSpentSec: number;
+    }>;
+  }) {
+    return this.studyService.submitPaper(paperId, input);
+  }
+
   @Get('wrong-questions')
   listWrongQuestions(@Query('userId') userId?: string) {
     return this.studyService.listWrongQuestions(userId);

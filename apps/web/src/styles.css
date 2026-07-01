@@ -1115,6 +1115,66 @@ button {
   font-size: 13px;
 }
 
+.paper-result-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+}
+
+.paper-result-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.paper-result-summary article {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.paper-result-summary strong {
+  color: #0f172a;
+  font-size: 24px;
+}
+
+.paper-result-summary span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.paper-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.paper-breakdown span {
+  background: #eef2ff;
+  border-radius: 999px;
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 9px;
+}
+
+.paper-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.paper-actions p {
+  color: #475569;
+  margin: 0;
+}
+
 .wrong-loop-panel {
   display: grid;
   gap: 12px;
@@ -1273,6 +1333,7 @@ button {
   .mastery-subjects,
   .review-card-list,
   .wrong-summary-grid,
+  .paper-result-summary,
   .wrong-loop-panel {
     grid-template-columns: 1fr;
   }

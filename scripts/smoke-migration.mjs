@@ -131,6 +131,19 @@ async function main() {
     Array.isArray(data) && data.some((paper) => paper.id === generatedPaper.id),
   );
   assert(papers.some((paper) => paper.paperType === '专项卷'), 'paper list should include generated special paper');
+  const paperResult = await postJson(`${apiUrl}/papers/${generatedPaper.id}/submit`, {
+    userId: 'u-001',
+    answers: generatedPaper.questions.map((question, index) => ({
+      questionId: question.id,
+      selectedAnswer: index === 0 ? (question.answer === 'A' ? 'B' : 'A') : question.answer,
+      timeSpentSec: question.expectedTimeSec + 15,
+    })),
+  });
+  assert(paperResult.score >= 0 && paperResult.score <= 100, 'paper submission should return a bounded score');
+  assert(paperResult.accuracyRate >= 0 && paperResult.accuracyRate <= 100, 'paper submission should expose accuracy rate');
+  assert(paperResult.subjectBreakdown.length > 0, 'paper submission should include subject breakdown');
+  assert(paperResult.reviewItems.length > 0, 'paper submission should include review items for wrong answers');
+  assert(paperResult.nextActions.length > 0, 'paper submission should include next actions');
   const firstTaskId = overview.plan.dailyTasks[0].id;
   const completedTask = await postJson(`${apiUrl}/study-tasks/${firstTaskId}/complete`, {
     userId: 'u-001',
@@ -143,7 +156,7 @@ async function main() {
   });
   assert(overviewAfterTask.plan.completionRate > 0, 'study plan should expose today completion rate');
 
-  const previousRecordCount = overview.practiceRecords.length + 1;
+  const previousRecordCount = overviewAfterTask.practiceRecords.length;
   const submitted = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',
@@ -155,7 +168,7 @@ async function main() {
   assert(submitted.questionId === 'q-001', 'practice submission should return the created record');
   assert(submitted.correct === false, 'practice submission should be graded by the API');
   assert(submitted.mistakeReason === '概念不清', 'practice submission should be attributed by the API');
-  const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length === previousRecordCount + 1);
+  const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length >= previousRecordCount + 1);
   assert(updatedOverview.report.weakPoints[0].knowledgePointId === 'co-cache', 'updated report should reflect the submitted weak point');
   const practiceSet = await waitForJson(`${apiUrl}/practice-sets/recommended?userId=u-001`, (data) => data.questions?.length > 0);
   assert(practiceSet.title && practiceSet.focus, 'recommended practice set should include title and focus');

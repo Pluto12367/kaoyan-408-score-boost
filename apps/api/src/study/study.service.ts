@@ -624,6 +624,99 @@ export class StudyService {
     return paper;
   }
 
+  submitPaper(paperId: string, input: {
+    userId?: string;
+    answers?: Array<{
+      questionId: string;
+      selectedAnswer: string;
+      timeSpentSec: number;
+    }>;
+  }) {
+    const paper = this.papers.find((item) => item.id === paperId);
+    if (!paper) {
+      throw new BadRequestException(`Paper ${paperId} was not found`);
+    }
+
+    const userId = input.userId ?? this.student.id;
+    const answers = input.answers ?? [];
+    if (answers.length === 0) {
+      throw new BadRequestException('Paper answers are required');
+    }
+
+    const records = answers.map((answer) => this.createPracticeRecord({
+      userId,
+      questionId: answer.questionId,
+      knowledgePointId: '',
+      selectedAnswer: answer.selectedAnswer,
+      timeSpentSec: answer.timeSpentSec,
+    }));
+    const correctCount = records.filter((record) => record.correct).length;
+    const accuracyRate = Math.round((correctCount / records.length) * 100);
+    const subjectStats = new Map<string, { total: number; correct: number }>();
+    const reviewItems = records
+      .filter((record) => !record.correct || record.mistakeReason !== null)
+      .map((record) => {
+        const question = this.questions.find((item) => item.id === record.questionId);
+        const point = this.knowledgePoints.find((item) => item.id === record.knowledgePointId);
+        const subject = point?.subject ?? '未分类';
+        const current = subjectStats.get(subject) ?? { total: 0, correct: 0 };
+        current.total += 1;
+        if (record.correct) current.correct += 1;
+        subjectStats.set(subject, current);
+
+        return {
+          questionId: record.questionId,
+          stem: question?.stem ?? record.questionId,
+          selectedAnswer: record.selectedAnswer,
+          correctAnswer: question?.answer,
+          correct: record.correct,
+          knowledgePointId: record.knowledgePointId,
+          knowledgePointTitle: point?.title ?? record.knowledgePointId,
+          subject,
+          mistakeReason: record.mistakeReason,
+        };
+      });
+
+    for (const record of records.filter((item) => item.correct)) {
+      const point = this.knowledgePoints.find((item) => item.id === record.knowledgePointId);
+      const subject = point?.subject ?? '未分类';
+      const current = subjectStats.get(subject) ?? { total: 0, correct: 0 };
+      if (!reviewItems.some((item) => item.questionId === record.questionId)) {
+        current.total += 1;
+        current.correct += 1;
+        subjectStats.set(subject, current);
+      }
+    }
+
+    const subjectBreakdown = [...subjectStats.entries()].map(([subject, stats]) => ({
+      subject,
+      totalQuestions: stats.total,
+      correctCount: stats.correct,
+      accuracyRate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
+    }));
+    const weakKnowledgePoints = [...new Set(reviewItems.map((item) => item.knowledgePointTitle))].slice(0, 4);
+
+    return {
+      id: `paper-result-${Date.now()}`,
+      paperId,
+      userId,
+      submittedAt: new Date().toISOString(),
+      totalQuestions: records.length,
+      correctCount,
+      score: accuracyRate,
+      accuracyRate,
+      subjectBreakdown,
+      reviewItems,
+      weakKnowledgePoints,
+      syncedPracticeRecordCount: records.length,
+      nextActions: [
+        accuracyRate >= 80 ? '本套卷表现较好，建议进入限时真题训练。' : '先复盘本套卷错题，再按薄弱知识点补一组专项题。',
+        reviewItems.length ? `已同步 ${reviewItems.length} 道需要复盘的题目到错题闭环。` : '本套卷暂无错题，建议提高限时要求。',
+        weakKnowledgePoints.length ? `优先处理：${weakKnowledgePoints.join('、')}。` : '保持当前节奏，继续做整卷训练。',
+      ],
+    };
+  }
+
   updateSystemConfig(input: {
     recommendation?: Partial<{
       stageAssessmentQuestionLimit: number;
