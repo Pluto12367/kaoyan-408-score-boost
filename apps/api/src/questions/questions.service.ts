@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
 import { CreateQuestionDto } from './dto/create-question.dto';
 
@@ -104,6 +104,49 @@ export class QuestionsService {
       createdAt: new Date().toISOString(),
     });
     return question;
+  }
+
+  updateQuestion(questionId: string, input: Partial<CreateQuestionDto>) {
+    const index = this.questions.findIndex((question) => question.id === questionId);
+    if (index === -1) {
+      throw new BadRequestException(`Question ${questionId} was not found`);
+    }
+
+    const current = this.questions[index];
+    const question = requireQuestionKnowledgePoint<Question>({
+      ...current,
+      stem: input.stem?.trim() ?? current.stem,
+      options: input.options ? input.options.map((option) => option.trim()).filter(Boolean) : current.options,
+      answer: input.answer ?? current.answer,
+      analysis: input.analysis?.trim() ?? current.analysis,
+      knowledgePointIds: input.knowledgePointIds ?? current.knowledgePointIds,
+      difficulty: input.difficulty ?? current.difficulty,
+      type: input.type ?? current.type,
+      source: input.source ?? current.source,
+      year: input.year ?? current.year,
+      expectedTimeSec: input.expectedTimeSec ?? current.expectedTimeSec,
+    });
+
+    this.questions[index] = question;
+    return question;
+  }
+
+  deleteQuestion(questionId: string) {
+    const index = this.questions.findIndex((question) => question.id === questionId);
+    if (index === -1) {
+      throw new BadRequestException(`Question ${questionId} was not found`);
+    }
+
+    this.questions.splice(index, 1);
+    const reviewIndex = this.reviewItems.findIndex((item) => item.relatedId === questionId);
+    if (reviewIndex !== -1) {
+      this.reviewItems.splice(reviewIndex, 1);
+    }
+
+    return {
+      id: questionId,
+      deleted: true,
+    };
   }
 
   listReviewItems() {

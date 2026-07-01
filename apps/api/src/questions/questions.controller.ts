@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { AuthService } from '../auth/auth.service';
@@ -19,6 +19,16 @@ export class QuestionsController {
   @Post()
   createQuestion(@Body() input: CreateQuestionDto) {
     return this.questionsService.createQuestion(input);
+  }
+
+  @Patch(':questionId')
+  updateQuestion(@Param('questionId') questionId: string, @Body() input: Partial<CreateQuestionDto>) {
+    return this.questionsService.updateQuestion(questionId, input);
+  }
+
+  @Delete(':questionId')
+  deleteQuestion(@Param('questionId') questionId: string) {
+    return this.questionsService.deleteQuestion(questionId);
   }
 }
 

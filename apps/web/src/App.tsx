@@ -5,6 +5,7 @@ import {
   completeStudyTask,
   createKnowledgePoint,
   createTeacherQuestion,
+  deleteTeacherQuestion,
   createMockAdminMetrics,
   createMockAiFollowUp,
   createMockFeedbackList,
@@ -25,6 +26,7 @@ import {
   fetchFeedbackList,
   fetchLearningProfile,
   fetchMasteryMap,
+  fetchQuestions,
   fetchRecommendedPracticeSet,
   fetchReviewQueue,
   fetchStageAssessment,
@@ -44,6 +46,7 @@ import {
   submitPracticeAnswer,
   submitPracticeSet,
   submitStageAssessment,
+  updateTeacherQuestion,
   updateSystemConfig,
   type AdminMetrics,
   type AiFollowUp,
@@ -92,6 +95,7 @@ export function App() {
   const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => createMockPaperSubmitResult());
+  const [teacherQuestionList, setTeacherQuestionList] = useState(() => createMockOverview().questions);
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
@@ -114,6 +118,7 @@ export function App() {
         setAdminMetrics(metrics);
         setReviewQueue(queue);
         setSystemConfig(config);
+        setTeacherQuestionList(data.questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
         setPracticeSet(recommendedSet);
         setLearningProfile(profile);
         setFeedbackList(feedback);
@@ -499,13 +504,100 @@ export function App() {
       const nextOverview = await fetchDashboardOverview();
       const nextMetrics = await fetchAdminMetrics();
       const nextQueue = await fetchReviewQueue();
+      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
       setOverview(nextOverview);
       setAdminMetrics(nextMetrics);
       setReviewQueue(nextQueue);
+      setTeacherQuestionList(nextQuestions);
       setApiState('connected');
       setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
     } catch {
       setTeacherStatus('题目录入失败，请检查题干、选项、答案和知识点绑定。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleFilterTeacherQuestions() {
+    setTeacherStatus('正在按 Cache 考点筛选题目...');
+
+    try {
+      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
+      setTeacherQuestionList(nextQuestions);
+      setApiState('connected');
+      setTeacherStatus(`已筛选出 ${nextQuestions.length} 道 Cache 映射与替换相关题目。`);
+    } catch {
+      setTeacherQuestionList(questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
+      setTeacherStatus('已使用静态演示数据筛选 Cache 相关题目。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleUpdateTeacherQuestion() {
+    const target = teacherQuestionList.find((question) => question.id.startsWith('q-')) ?? teacherQuestionList[0];
+    if (!target) {
+      setTeacherStatus('当前没有可编辑的演示题目。');
+      return;
+    }
+
+    setTeacherStatus('正在编辑演示题目...');
+
+    if (isStaticDemoMode()) {
+      const updated = {
+        ...target,
+        difficulty: '困难' as typeof target.difficulty,
+        analysis: '更新后的解析用于教师维护题目质量。',
+        expectedTimeSec: 150,
+      };
+      setTeacherQuestionList(teacherQuestionList.map((question) => question.id === target.id ? updated : question));
+      setTeacherStatus(`已使用静态演示数据更新 ${target.id}：难度改为困难，预计 150 秒。`);
+      setApiState('mock');
+      return;
+    }
+
+    try {
+      const updated = await updateTeacherQuestion(target.id, {
+        difficulty: '困难',
+        analysis: '更新后的解析用于教师维护题目质量。',
+        expectedTimeSec: 150,
+      });
+      const nextOverview = await fetchDashboardOverview();
+      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
+      setOverview(nextOverview);
+      setTeacherQuestionList(nextQuestions);
+      setApiState('connected');
+      setTeacherStatus(`已更新 ${updated.id}：难度 ${updated.difficulty}，预计 ${updated.expectedTimeSec} 秒。`);
+    } catch {
+      setTeacherStatus('题目编辑失败，请稍后重试。');
+      setApiState('mock');
+    }
+  }
+
+  async function handleDeleteTeacherQuestion() {
+    const target = teacherQuestionList.find((question) => !['q-001', 'q-002'].includes(question.id)) ?? teacherQuestionList[0];
+    if (!target) {
+      setTeacherStatus('当前没有可删除的演示题目。');
+      return;
+    }
+
+    setTeacherStatus('正在删除演示题目...');
+
+    if (isStaticDemoMode()) {
+      setTeacherQuestionList(teacherQuestionList.filter((question) => question.id !== target.id));
+      setTeacherStatus(`已使用静态演示数据删除 ${target.id}。`);
+      setApiState('mock');
+      return;
+    }
+
+    try {
+      const deleted = await deleteTeacherQuestion(target.id);
+      const nextOverview = await fetchDashboardOverview();
+      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
+      setOverview(nextOverview);
+      setTeacherQuestionList(nextQuestions);
+      setApiState('connected');
+      setTeacherStatus(`已删除 ${deleted.id}，筛选列表已刷新。`);
+    } catch {
+      setTeacherStatus('题目删除失败，请稍后重试。');
       setApiState('mock');
     }
   }
@@ -1337,6 +1429,15 @@ export function App() {
               <button type="button" className="secondary-action" onClick={handleCreateTeacherQuestion}>
                 <ClipboardList size={18} /> 新增演示题
               </button>
+              <button type="button" className="secondary-action" onClick={handleFilterTeacherQuestions}>
+                <ClipboardList size={18} /> 筛选 Cache 题
+              </button>
+              <button type="button" className="secondary-action" onClick={handleUpdateTeacherQuestion}>
+                <ClipboardList size={18} /> 编辑演示题
+              </button>
+              <button type="button" className="secondary-action" onClick={handleDeleteTeacherQuestion}>
+                <ClipboardList size={18} /> 删除演示题
+              </button>
               <button type="button" className="secondary-action" onClick={handleGeneratePaper}>
                 <ClipboardCheck size={18} /> 生成专项卷
               </button>
@@ -1359,6 +1460,17 @@ export function App() {
               <strong>{latestPaper ? `${latestPaper.questionCount} 题` : '试卷管理'}</strong>
               <span>{latestPaper ? `${latestPaper.title} · ${latestPaper.estimatedMinutes} 分钟` : '可按知识点生成专项卷。'}</span>
             </article>
+          </div>
+          <div className="teacher-question-list">
+            {teacherQuestionList.slice(0, 4).map((question) => (
+              <article key={question.id}>
+                <div>
+                  <strong>{question.id} · {question.difficulty}</strong>
+                  <span>{question.stem}</span>
+                </div>
+                <small>{question.source} · {question.expectedTimeSec} 秒 · {question.knowledgePointIds.join('、')}</small>
+              </article>
+            ))}
           </div>
           {paperResult ? (
             <div className="paper-result-panel">

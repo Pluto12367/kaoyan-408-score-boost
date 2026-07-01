@@ -107,6 +107,18 @@ async function main() {
     data.questions?.some((question) => question.id === createdTeacherQuestion.id),
   );
   assert(overviewAfterTeacherQuestion.questions.some((question) => question.id === createdTeacherQuestion.id), 'student dashboard should include teacher-created questions');
+  const updatedTeacherQuestion = await patchJson(`${apiUrl}/questions/${createdTeacherQuestion.id}`, {
+    difficulty: '困难',
+    analysis: '更新后的解析用于教师维护题目质量。',
+    expectedTimeSec: 150,
+  });
+  assert(updatedTeacherQuestion.difficulty === '困难', 'teacher question edit should update difficulty');
+  assert(updatedTeacherQuestion.analysis.includes('更新后的解析'), 'teacher question edit should update analysis');
+  assert(updatedTeacherQuestion.expectedTimeSec === 150, 'teacher question edit should update expected time');
+  const questionsAfterEdit = await waitForJson(`${apiUrl}/questions?knowledgePointId=co-cache`, (data) =>
+    Array.isArray(data) && data.some((question) => question.id === createdTeacherQuestion.id && question.difficulty === '困难'),
+  );
+  assert(questionsAfterEdit.some((question) => question.id === createdTeacherQuestion.id), 'question search should include edited teacher question');
   const teacherQuestionPractice = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: createdTeacherQuestion.id,
@@ -285,6 +297,12 @@ async function main() {
   assert(adminMetrics.todayPracticeCount >= 1, 'admin metrics should include today practice count');
   assert(adminMetrics.weakPointCount >= 1, 'admin metrics should include weak point count');
   assert(adminMetrics.pendingWrongQuestionCount >= 1, 'admin metrics should include pending wrong question count');
+  const deletedTeacherQuestion = await deleteJson(`${apiUrl}/questions/${createdTeacherQuestion.id}`);
+  assert(deletedTeacherQuestion.id === createdTeacherQuestion.id && deletedTeacherQuestion.deleted === true, 'teacher question delete should return deleted question id');
+  const questionsAfterDelete = await waitForJson(`${apiUrl}/questions?knowledgePointId=co-cache`, (data) =>
+    Array.isArray(data) && !data.some((question) => question.id === createdTeacherQuestion.id),
+  );
+  assert(!questionsAfterDelete.some((question) => question.id === createdTeacherQuestion.id), 'deleted teacher question should be removed from search results');
   const wrongQuestions = await waitForJson(`${apiUrl}/wrong-questions?userId=u-001`, (data) => Array.isArray(data) && data.length > 0);
   const cacheWrongQuestion = wrongQuestions.find((item) => item.questionId === 'q-001');
   assert(cacheWrongQuestion, 'wrong question book should include the submitted wrong question');
@@ -379,6 +397,34 @@ async function postJson(url, body) {
 
   if (!response.ok) {
     throw new Error(`POST ${url} failed with ${response.status}: ${await response.text()}`);
+  }
+
+  return response.json();
+}
+
+async function patchJson(url, body) {
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`PATCH ${url} failed with ${response.status}: ${await response.text()}`);
+  }
+
+  return response.json();
+}
+
+async function deleteJson(url) {
+  const response = await fetch(url, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`DELETE ${url} failed with ${response.status}: ${await response.text()}`);
   }
 
   return response.json();
