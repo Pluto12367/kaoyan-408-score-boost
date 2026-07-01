@@ -6,6 +6,7 @@ import {
   createKnowledgePoint,
   createTeacherQuestion,
   deleteTeacherQuestion,
+  createMockAssessmentHistory,
   createMockAdminMetrics,
   createMockAiFollowUp,
   createMockFeedbackList,
@@ -22,6 +23,7 @@ import {
   createMockSystemConfig,
   createMockWrongQuestionSummary,
   fetchAdminMetrics,
+  fetchAssessmentHistory,
   fetchDashboardOverview,
   fetchFeedbackList,
   fetchLearningProfile,
@@ -49,6 +51,7 @@ import {
   updateTeacherQuestion,
   updateSystemConfig,
   type AdminMetrics,
+  type AssessmentHistory,
   type AiFollowUp,
   type DashboardOverview,
   type GeneratedPaper,
@@ -96,6 +99,7 @@ export function App() {
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => createMockPaperSubmitResult());
   const [paperSession, setPaperSession] = useState<PaperSubmitResult['examSession'] | null>(null);
+  const [assessmentHistory, setAssessmentHistory] = useState<AssessmentHistory>(() => createMockAssessmentHistory());
   const [teacherQuestionList, setTeacherQuestionList] = useState(() => createMockOverview().questions);
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
@@ -112,8 +116,8 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
+      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -128,6 +132,7 @@ export function App() {
         setSprintPlan(sprint);
         setMasteryMap(mastery);
         setWrongQuestionSummary(wrongSummary);
+        setAssessmentHistory(history);
         setSessionUser(data.student);
         setApiState('connected');
       })
@@ -145,6 +150,7 @@ export function App() {
         setSprintPlan(createMockSprintPlan());
         setMasteryMap(createMockMasteryMap());
         setWrongQuestionSummary(createMockWrongQuestionSummary());
+        setAssessmentHistory(createMockAssessmentHistory());
         setApiState('mock');
       });
 
@@ -179,6 +185,53 @@ export function App() {
   async function refreshWrongQuestionSummary(userId = student.id) {
     const nextWrongQuestionSummary = await fetchWrongQuestionSummary(userId);
     setWrongQuestionSummary(nextWrongQuestionSummary);
+  }
+
+  async function refreshAssessmentHistory(userId = student.id) {
+    const nextAssessmentHistory = await fetchAssessmentHistory(userId);
+    setAssessmentHistory(nextAssessmentHistory);
+  }
+
+  function addMockPaperResultToHistory(result: PaperSubmitResult, paper: GeneratedPaper) {
+    setAssessmentHistory((current) => {
+      const nextItem = {
+        id: `assessment-history-static-${Date.now()}`,
+        paperId: paper.id,
+        userId: result.userId,
+        title: paper.title,
+        submittedAt: result.submittedAt,
+        score: result.score,
+        totalScore: 100,
+        accuracyRate: result.accuracyRate,
+        elapsedSec: result.examSession.elapsedSec,
+        unansweredCount: result.examSession.unansweredCount,
+        weakPointTitle: result.weakKnowledgePoints[0] ?? '限时整卷训练',
+        reviewSuggestion: result.accuracyRate >= 80
+          ? '本次表现较稳定，建议进入真题整卷训练，并保留错题复盘节奏。'
+          : `先处理 ${result.weakKnowledgePoints[0] ?? '本次薄弱点'}，再补 1 组变式题验证是否真正掌握。`,
+      };
+      const items = [nextItem, ...current.items].slice(0, 5);
+      const previous = current.items[0];
+      const bestScore = Math.max(...items.map((item) => item.score));
+      const improvementText = previous
+        ? nextItem.score > previous.score
+          ? `较上次提升 ${nextItem.score - previous.score} 分，继续巩固本次薄弱点。`
+          : nextItem.score === previous.score
+            ? '与上次持平，建议通过限时训练和错题复盘提高稳定性。'
+            : `较上次下降 ${previous.score - nextItem.score} 分，先复盘本次错题再进入新题训练。`
+        : '已建立第一次测评基线，下一次可重点观察正确率和用时变化。';
+
+      return {
+        userId: result.userId,
+        items,
+        summary: {
+          attemptCount: items.length,
+          bestScore,
+          latestAccuracyRate: nextItem.accuracyRate,
+          improvementText,
+        },
+      };
+    });
   }
 
   async function handleRoleSwitch(role: UserRole) {
@@ -710,6 +763,7 @@ export function App() {
       const mockResult = createMockPaperSubmitResult(paper, student.id);
       setPaperResult(mockResult);
       setPaperSession(mockResult?.examSession ?? null);
+      if (mockResult) addMockPaperResultToHistory(mockResult, paper);
       setApiState('mock');
       setPaperStatus(mockResult
         ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
@@ -735,12 +789,14 @@ export function App() {
       setAdminMetrics(nextMetrics);
       await refreshMasteryMap(student.id);
       await refreshWrongQuestionSummary(student.id);
+      await refreshAssessmentHistory(student.id);
       setApiState('connected');
       setPaperStatus(`试卷已提交：${result.score} 分，正确率 ${result.accuracyRate}%，已同步 ${result.syncedPracticeRecordCount} 条练习记录。`);
     } catch {
       const mockResult = createMockPaperSubmitResult(paper, student.id);
       setPaperResult(mockResult);
       setPaperSession(mockResult?.examSession ?? null);
+      if (mockResult) addMockPaperResultToHistory(mockResult, paper);
       setPaperStatus(mockResult
         ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
         : '试卷提交失败，请稍后重试。');
@@ -1360,6 +1416,54 @@ export function App() {
               ))}
             </div>
           </article>
+        </section>
+
+        <section id="assessment-history" className="panel assessment-history-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">测评历史</p>
+              <h3>最近测评与复盘建议</h3>
+            </div>
+            <span>{assessmentHistory.summary.improvementText}</span>
+          </div>
+          <div className="assessment-history-summary">
+            <article>
+              <strong>{assessmentHistory.summary.attemptCount}</strong>
+              <span>最近测评</span>
+            </article>
+            <article>
+              <strong>{assessmentHistory.summary.bestScore}</strong>
+              <span>最高得分</span>
+            </article>
+            <article>
+              <strong>{assessmentHistory.summary.latestAccuracyRate}%</strong>
+              <span>最近正确率</span>
+            </article>
+            <article>
+              <strong>{assessmentHistory.items[0]?.unansweredCount ?? 0}</strong>
+              <span>最近未答</span>
+            </article>
+          </div>
+          {assessmentHistory.items.length ? (
+            <div className="assessment-history-list">
+              {assessmentHistory.items.slice(0, 4).map((item, index) => (
+                <article key={item.id} className={index === 0 ? 'latest' : ''}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{new Date(item.submittedAt).toLocaleDateString('zh-CN')} · 用时 {Math.round(item.elapsedSec / 60)} 分钟 · 未答 {item.unansweredCount} 题</span>
+                  </div>
+                  <div className="assessment-score">
+                    <strong>{item.score}/{item.totalScore}</strong>
+                    <span>正确率 {item.accuracyRate}%</span>
+                  </div>
+                  <p>薄弱点：{item.weakPointTitle}</p>
+                  <small>{item.reviewSuggestion}</small>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="empty-state">完成一套模拟卷后，这里会沉淀得分、耗时、薄弱点和下一步复盘建议。</p>
+          )}
         </section>
 
         <section id="ai" className="panel tutor-panel">

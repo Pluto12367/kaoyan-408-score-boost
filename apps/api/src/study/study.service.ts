@@ -59,6 +59,23 @@ export class StudyService {
 
   private readonly papers: GeneratedPaper[] = [];
 
+  private readonly assessmentHistoryItems: AssessmentHistoryItem[] = [
+    {
+      id: 'assessment-history-seed-001',
+      paperId: 'seed-paper-001',
+      userId: 'u-001',
+      title: '408 基础诊断卷',
+      submittedAt: '2026-06-25T09:30:00.000Z',
+      score: 62,
+      totalScore: 100,
+      accuracyRate: 62,
+      elapsedSec: 42 * 60,
+      unansweredCount: 1,
+      weakPointTitle: 'Cache 映射与替换',
+      reviewSuggestion: '先复盘 Cache 映射与替换错题，再补 1 组同考点基础题。',
+    },
+  ];
+
   private readonly stageAssessmentResults: Array<Record<string, unknown>> = [];
 
   private readonly practiceSetResults: Array<Record<string, unknown>> = [];
@@ -588,6 +605,18 @@ export class StudyService {
     return this.papers;
   }
 
+  getAssessmentHistory(userId = this.student.id) {
+    const items = this.assessmentHistoryItems
+      .filter((item) => item.userId === userId)
+      .sort((left, right) => right.submittedAt.localeCompare(left.submittedAt));
+
+    return {
+      userId,
+      items,
+      summary: this.buildAssessmentHistorySummary(items),
+    };
+  }
+
   generatePaper(input: {
     title?: string;
     paperType?: PaperType;
@@ -699,7 +728,7 @@ export class StudyService {
     const timeLimitSec = Math.max(1, paper.estimatedMinutes * 60);
     const elapsedSec = answers.reduce((sum, answer) => sum + Math.max(0, answer.timeSpentSec), 0);
 
-    return {
+    const result = {
       id: `paper-result-${Date.now()}`,
       paperId,
       userId,
@@ -727,6 +756,23 @@ export class StudyService {
         weakKnowledgePoints.length ? `优先处理：${weakKnowledgePoints.join('、')}。` : '保持当前节奏，继续做整卷训练。',
       ],
     };
+
+    this.assessmentHistoryItems.push({
+      id: `assessment-history-${Date.now()}`,
+      paperId,
+      userId,
+      title: paper.title,
+      submittedAt: result.submittedAt,
+      score: result.score,
+      totalScore: 100,
+      accuracyRate: result.accuracyRate,
+      elapsedSec,
+      unansweredCount: result.examSession.unansweredCount,
+      weakPointTitle: weakKnowledgePoints[0] ?? '限时整卷训练',
+      reviewSuggestion: this.createAssessmentReviewSuggestion(result.accuracyRate, weakKnowledgePoints[0], result.examSession.overtime),
+    });
+
+    return result;
   }
 
   updateSystemConfig(input: {
@@ -1370,6 +1416,44 @@ export class StudyService {
     }));
   }
 
+  private buildAssessmentHistorySummary(items: AssessmentHistoryItem[]) {
+    const latest = items[0];
+    const previous = items[1];
+    const bestScore = items.length ? Math.max(...items.map((item) => item.score)) : 0;
+    const improvementText = !latest
+      ? '还没有测评记录，先完成一套模拟卷建立基线。'
+      : !previous
+        ? '已建立第一次测评基线，下一次可重点观察正确率和用时变化。'
+        : latest.score > previous.score
+          ? `较上次提升 ${latest.score - previous.score} 分，继续巩固本次薄弱点。`
+          : latest.score === previous.score
+            ? '与上次持平，建议通过限时训练和错题复盘提高稳定性。'
+            : `较上次下降 ${previous.score - latest.score} 分，先复盘本次错题再进入新题训练。`;
+
+    return {
+      attemptCount: items.length,
+      bestScore,
+      latestAccuracyRate: latest?.accuracyRate ?? 0,
+      improvementText,
+    };
+  }
+
+  private createAssessmentReviewSuggestion(accuracyRate: number, weakPointTitle: string | undefined, overtime: boolean) {
+    if (accuracyRate < 60) {
+      return `先回到 ${weakPointTitle ?? '本次错题'} 的基础概念，复盘错因后再做一组同考点基础题。`;
+    }
+
+    if (overtime) {
+      return `正确率已有基础，下一轮围绕 ${weakPointTitle ?? '薄弱题型'} 做限时训练，压缩审题和计算时间。`;
+    }
+
+    if (accuracyRate >= 85) {
+      return '本次表现较稳定，建议进入真题整卷训练，并保留错题复盘节奏。';
+    }
+
+    return `先处理 ${weakPointTitle ?? '本次薄弱点'}，再补 1 组变式题验证是否真正掌握。`;
+  }
+
   generatePlan() {
     const plan = buildStudyPlan({
       targetScore: this.student.targetScore ?? 115,
@@ -1522,6 +1606,21 @@ export interface GeneratedPaper {
   estimatedMinutes: number;
   createdBy: string;
   createdAt: string;
+}
+
+export interface AssessmentHistoryItem {
+  id: string;
+  paperId?: string;
+  userId: string;
+  title: string;
+  submittedAt: string;
+  score: number;
+  totalScore: number;
+  accuracyRate: number;
+  elapsedSec: number;
+  unansweredCount: number;
+  weakPointTitle: string;
+  reviewSuggestion: string;
 }
 
 export interface FeedbackItem {

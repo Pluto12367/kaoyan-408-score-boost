@@ -407,6 +407,32 @@ export interface PaperSubmitResult {
   nextActions: string[];
 }
 
+export interface AssessmentHistoryItem {
+  id: string;
+  paperId?: string;
+  userId: string;
+  title: string;
+  submittedAt: string;
+  score: number;
+  totalScore: number;
+  accuracyRate: number;
+  elapsedSec: number;
+  unansweredCount: number;
+  weakPointTitle: string;
+  reviewSuggestion: string;
+}
+
+export interface AssessmentHistory {
+  userId: string;
+  items: AssessmentHistoryItem[];
+  summary: {
+    attemptCount: number;
+    bestScore: number;
+    latestAccuracyRate: number;
+    improvementText: string;
+  };
+}
+
 export interface GeneratePaperInput {
   title: string;
   paperType: GeneratedPaper['paperType'];
@@ -936,6 +962,50 @@ export function createMockPaperSubmitResult(paper?: GeneratedPaper, userId = stu
   };
 }
 
+export function createMockAssessmentHistory(): AssessmentHistory {
+  const now = new Date().toISOString();
+
+  return {
+    userId: student.id,
+    summary: {
+      attemptCount: 2,
+      bestScore: 76,
+      latestAccuracyRate: 76,
+      improvementText: '较上次提升 14 分，继续巩固 Cache 映射与替换。',
+    },
+    items: [
+      {
+        id: 'assessment-history-mock-002',
+        paperId: 'paper-mock-latest',
+        userId: student.id,
+        title: '存储系统专项卷',
+        submittedAt: now,
+        score: 76,
+        totalScore: 100,
+        accuracyRate: 76,
+        elapsedSec: 38 * 60,
+        unansweredCount: 0,
+        weakPointTitle: 'Cache 映射与替换',
+        reviewSuggestion: '先处理 Cache 映射与替换，再补 1 组变式题验证是否真正掌握。',
+      },
+      {
+        id: 'assessment-history-mock-001',
+        paperId: 'paper-mock-baseline',
+        userId: student.id,
+        title: '408 基础诊断卷',
+        submittedAt: '2026-06-25T09:30:00.000Z',
+        score: 62,
+        totalScore: 100,
+        accuracyRate: 62,
+        elapsedSec: 42 * 60,
+        unansweredCount: 1,
+        weakPointTitle: '进程同步与互斥',
+        reviewSuggestion: '回到 PV 操作和临界区概念，先复盘错因再做同考点基础题。',
+      },
+    ],
+  };
+}
+
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   const response = await fetch(`${API_BASE_URL}/dashboard/overview`);
   if (!response.ok) {
@@ -1217,6 +1287,15 @@ export async function fetchStageAssessment(userId: string): Promise<StageAssessm
   }
 
   return response.json() as Promise<StageAssessment>;
+}
+
+export async function fetchAssessmentHistory(userId: string): Promise<AssessmentHistory> {
+  const response = await fetch(`${API_BASE_URL}/assessment-history?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Assessment history request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<AssessmentHistory>;
 }
 
 export async function submitStageAssessment(input: {

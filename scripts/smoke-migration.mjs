@@ -143,6 +143,11 @@ async function main() {
     Array.isArray(data) && data.some((paper) => paper.id === generatedPaper.id),
   );
   assert(papers.some((paper) => paper.paperType === '专项卷'), 'paper list should include generated special paper');
+  const historyBeforePaper = await waitForJson(`${apiUrl}/assessment-history?userId=u-001`, (data) =>
+    Array.isArray(data.items) && data.summary,
+  );
+  const historyCountBeforePaper = historyBeforePaper.items.length;
+  assert(Number.isFinite(historyBeforePaper.summary.attemptCount), 'assessment history should expose attempt count');
   const paperResult = await postJson(`${apiUrl}/papers/${generatedPaper.id}/submit`, {
     userId: 'u-001',
     answers: generatedPaper.questions.map((question, index) => ({
@@ -161,6 +166,17 @@ async function main() {
   assert(Number.isFinite(paperResult.examSession?.elapsedSec), 'paper submission should include elapsed time');
   assert(typeof paperResult.examSession?.overtime === 'boolean', 'paper submission should identify overtime status');
   assert(paperResult.examSession?.progressRate === 100, 'paper submission should expose answer progress rate');
+  const historyAfterPaper = await waitForJson(`${apiUrl}/assessment-history?userId=u-001`, (data) =>
+    Array.isArray(data.items) && data.items.length === historyCountBeforePaper + 1,
+  );
+  const latestHistory = historyAfterPaper.items[0];
+  assert(latestHistory.paperId === generatedPaper.id, 'assessment history should include the submitted paper id');
+  assert(latestHistory.score === paperResult.score, 'assessment history should keep the paper score');
+  assert(latestHistory.accuracyRate === paperResult.accuracyRate, 'assessment history should keep paper accuracy');
+  assert(Number.isFinite(latestHistory.elapsedSec), 'assessment history should keep elapsed time');
+  assert(Number.isFinite(latestHistory.unansweredCount), 'assessment history should keep unanswered count');
+  assert(latestHistory.reviewSuggestion, 'assessment history should include a review suggestion');
+  assert(historyAfterPaper.summary.attemptCount === historyCountBeforePaper + 1, 'assessment history summary should update attempt count');
   const firstTaskId = overview.plan.dailyTasks[0].id;
   const completedTask = await postJson(`${apiUrl}/study-tasks/${firstTaskId}/complete`, {
     userId: 'u-001',

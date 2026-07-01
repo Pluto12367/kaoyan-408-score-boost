@@ -105,6 +105,11 @@ export class StudyController {
     return this.studyService.listPapers();
   }
 
+  @Get('assessment-history')
+  getAssessmentHistory(@Query('userId') userId?: string) {
+    return this.studyService.getAssessmentHistory(userId);
+  }
+
   @Post('papers/generate')
   generatePaper(@Body() input: {
     title?: string;
