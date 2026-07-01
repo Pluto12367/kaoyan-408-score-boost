@@ -1059,6 +1059,51 @@ button {
   padding: 10px 12px;
 }
 
+.task-adjustment {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-left: 4px solid #2563eb;
+  border-radius: 6px;
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 14px;
+}
+
+.task-adjustment.intensity-decrease {
+  border-left-color: #d97706;
+}
+
+.task-adjustment.intensity-increase {
+  border-left-color: #16a34a;
+}
+
+.task-adjustment div {
+  display: grid;
+  gap: 4px;
+}
+
+.task-adjustment strong {
+  color: #0f172a;
+}
+
+.task-adjustment span,
+.task-adjustment p,
+.task-adjustment li {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.task-adjustment p,
+.task-adjustment ul {
+  margin: 0;
+}
+
+.task-adjustment ul {
+  padding-left: 18px;
+}
+
 .two-column {
   display: grid;
   gap: 20px;

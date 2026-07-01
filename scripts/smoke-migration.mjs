@@ -147,9 +147,18 @@ async function main() {
   const firstTaskId = overview.plan.dailyTasks[0].id;
   const completedTask = await postJson(`${apiUrl}/study-tasks/${firstTaskId}/complete`, {
     userId: 'u-001',
+    completedQuestionCount: 12,
+    correctCount: 7,
+    minutesSpent: 65,
+    selfRating: 2,
   });
   assert(completedTask.completed === true, 'completed task endpoint should mark the task as completed');
   assert(completedTask.feedback?.nextAction, 'completed task endpoint should return next action feedback');
+  assert(completedTask.adjustment?.tomorrowQuestionTarget > 0, 'completed task should return tomorrow question target');
+  assert(completedTask.adjustment?.reviewTarget > 0, 'completed task should return a review target when quality is weak');
+  assert(completedTask.adjustment?.intensity === 'hold' || completedTask.adjustment?.intensity === 'decrease', 'weak completion quality should avoid increasing intensity');
+  assert(completedTask.adjustment?.reasons?.length > 0, 'completed task adjustment should explain its reasons');
+  assert(completedTask.adjustment?.nextActions?.length > 0, 'completed task adjustment should include actionable next steps');
   const overviewAfterTask = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => {
     const task = data.plan?.dailyTasks?.find((item) => item.id === firstTaskId);
     return task?.completed === true && data.plan?.completedTaskCount === 1;

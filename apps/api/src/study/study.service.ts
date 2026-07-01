@@ -1004,7 +1004,14 @@ export class StudyService {
     return record;
   }
 
-  completeStudyTask(taskId: string, userId = this.student.id) {
+  completeStudyTask(taskId: string, input: {
+    userId?: string;
+    completedQuestionCount?: number;
+    correctCount?: number;
+    minutesSpent?: number;
+    selfRating?: number;
+  } = {}) {
+    const userId = input.userId ?? this.student.id;
     const plan = this.generatePlan();
     const task = plan.dailyTasks.find((item) => item.id === taskId);
     if (!task) {
@@ -1018,6 +1025,12 @@ export class StudyService {
     return {
       ...task,
       completed: true,
+      adjustment: this.createTaskCompletionAdjustment(task, {
+        completedQuestionCount: input.completedQuestionCount,
+        correctCount: input.correctCount,
+        minutesSpent: input.minutesSpent,
+        selfRating: input.selfRating,
+      }),
       feedback: {
         message: `已完成 ${task.title}，今日计划进度已更新。`,
         nextAction: task.nextAction,
@@ -1370,6 +1383,66 @@ export class StudyService {
       completedTaskCount,
       totalTaskCount: dailyTasks.length,
       completionRate: dailyTasks.length ? Math.round((completedTaskCount / dailyTasks.length) * 100) : 0,
+    };
+  }
+
+  private createTaskCompletionAdjustment(task: ReturnType<typeof buildStudyPlan>['dailyTasks'][number], input: {
+    completedQuestionCount?: number;
+    correctCount?: number;
+    minutesSpent?: number;
+    selfRating?: number;
+  }) {
+    const completedQuestionCount = clampNumber(input.completedQuestionCount ?? task.questionCount, 0, 200);
+    const correctCount = clampNumber(input.correctCount ?? Math.round(completedQuestionCount * 0.75), 0, completedQuestionCount);
+    const minutesSpent = clampNumber(input.minutesSpent ?? task.minutes, 1, 600);
+    const selfRating = clampNumber(input.selfRating ?? 3, 1, 5);
+    const accuracyRate = completedQuestionCount ? Math.round((correctCount / completedQuestionCount) * 100) : 0;
+    const speedRatio = minutesSpent / Math.max(1, task.minutes);
+    const reasons: string[] = [];
+
+    if (accuracyRate < 65) {
+      reasons.push(`本任务正确率 ${accuracyRate}%，说明 ${task.title} 仍需要先复盘再加题。`);
+    } else if (accuracyRate >= 85) {
+      reasons.push(`本任务正确率 ${accuracyRate}%，可以在保持复盘的前提下提高训练量。`);
+    } else {
+      reasons.push(`本任务正确率 ${accuracyRate}%，建议维持当前节奏并补一组同考点题。`);
+    }
+
+    if (speedRatio > 1.2) {
+      reasons.push(`实际用时 ${minutesSpent} 分钟，高于计划 ${task.minutes} 分钟，需要加入限时训练。`);
+    }
+
+    if (selfRating <= 2) {
+      reasons.push('自评掌握度偏低，明日优先安排概念复述和错题重做。');
+    }
+
+    const weakQuality = accuracyRate < 65 || selfRating <= 2;
+    const slowQuality = speedRatio > 1.2;
+    const strongQuality = accuracyRate >= 85 && selfRating >= 4 && !slowQuality;
+    const intensity = strongQuality ? 'increase' : weakQuality ? 'decrease' : 'hold';
+    const tomorrowQuestionTarget = intensity === 'increase'
+      ? task.questionCount + 4
+      : intensity === 'decrease'
+        ? Math.max(6, task.questionCount - 2)
+        : task.questionCount;
+    const reviewTarget = weakQuality ? 4 : slowQuality ? 3 : 2;
+
+    return {
+      accuracyRate,
+      completedQuestionCount,
+      correctCount,
+      minutesSpent,
+      selfRating,
+      intensity,
+      tomorrowQuestionTarget,
+      reviewTarget,
+      focusKnowledgePointId: task.knowledgePointId,
+      focusTitle: task.title,
+      reasons,
+      nextActions: [
+        weakQuality ? `先复盘 ${task.title} 的错题和概念，再做 ${reviewTarget} 道回炉题。` : `明日继续围绕 ${task.title} 做 ${tomorrowQuestionTarget} 道训练题。`,
+        slowQuality ? '加入 10 分钟限时小练，优先压缩审题和计算步骤。' : '完成后用一句话写下本考点最容易混淆的条件。',
+      ],
     };
   }
 }

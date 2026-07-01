@@ -465,6 +465,21 @@ export interface WrongQuestionSummary {
   generatedAt: string;
 }
 
+export interface TaskCompletionAdjustment {
+  accuracyRate: number;
+  completedQuestionCount: number;
+  correctCount: number;
+  minutesSpent: number;
+  selfRating: number;
+  intensity: 'increase' | 'hold' | 'decrease';
+  tomorrowQuestionTarget: number;
+  reviewTarget: number;
+  focusKnowledgePointId: string;
+  focusTitle: string;
+  reasons: string[];
+  nextActions: string[];
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://127.0.0.1:3000';
 
 export function createMockOverview(): DashboardOverview {
@@ -1113,13 +1128,23 @@ export async function submitPracticeAnswer(input: {
 export async function completeStudyTask(input: {
   userId: string;
   taskId: string;
+  completedQuestionCount?: number;
+  correctCount?: number;
+  minutesSpent?: number;
+  selfRating?: number;
 }) {
   const response = await fetch(`${API_BASE_URL}/study-tasks/${input.taskId}/complete`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
     },
-    body: JSON.stringify({ userId: input.userId }),
+    body: JSON.stringify({
+      userId: input.userId,
+      completedQuestionCount: input.completedQuestionCount,
+      correctCount: input.correctCount,
+      minutesSpent: input.minutesSpent,
+      selfRating: input.selfRating,
+    }),
   });
 
   if (!response.ok) {
@@ -1129,6 +1154,7 @@ export async function completeStudyTask(input: {
   return response.json() as Promise<{
     id: string;
     completed: boolean;
+    adjustment: TaskCompletionAdjustment;
     feedback: {
       message: string;
       nextAction: string;

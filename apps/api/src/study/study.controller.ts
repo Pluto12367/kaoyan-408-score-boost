@@ -207,8 +207,14 @@ export class StudyController {
   }
 
   @Post('study-tasks/:taskId/complete')
-  completeStudyTask(@Param('taskId') taskId: string, @Body('userId') userId?: string) {
-    return this.studyService.completeStudyTask(taskId, userId);
+  completeStudyTask(@Param('taskId') taskId: string, @Body() input: {
+    userId?: string;
+    completedQuestionCount?: number;
+    correctCount?: number;
+    minutesSpent?: number;
+    selfRating?: number;
+  }) {
+    return this.studyService.completeStudyTask(taskId, input);
   }
 
   @Post('diagnostics/plan')
