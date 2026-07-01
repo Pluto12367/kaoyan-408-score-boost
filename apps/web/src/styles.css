@@ -543,6 +543,124 @@ button {
   font-size: 14px;
 }
 
+.class-analytics-panel {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.class-analytics-heading {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.class-analytics-heading h3,
+.class-analytics-heading p {
+  margin: 0;
+}
+
+.class-analytics-heading > span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.class-analytics-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.class-analytics-grid article {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.class-analytics-grid strong {
+  color: #0f172a;
+  font-size: 22px;
+}
+
+.class-analytics-grid span,
+.class-analytics-panel small,
+.class-analytics-panel p {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.class-analytics-columns {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+}
+
+.class-analytics-columns > div {
+  display: grid;
+  gap: 10px;
+}
+
+.subject-weakness-list,
+.risk-student-list,
+.weak-point-teaching-list {
+  display: grid;
+  gap: 8px;
+}
+
+.subject-weakness-list article,
+.risk-student-list article,
+.weak-point-teaching-list article {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.subject-weakness-list article div {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.subject-weakness-list span,
+.risk-student-list span,
+.weak-point-teaching-list strong {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.weak-point-teaching-list {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.teaching-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.teaching-actions span {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  color: #1d4ed8;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
 .teacher-question-list {
   display: grid;
   gap: 10px;
@@ -1524,6 +1642,9 @@ button {
   .assessment-grid,
   .tutor-result,
   .teacher-grid,
+  .class-analytics-grid,
+  .class-analytics-columns,
+  .weak-point-teaching-list,
   .config-grid,
   .diagnostic-grid,
   .profile-grid,
@@ -1551,6 +1672,11 @@ button {
   .assessment-score {
     min-width: 0;
     text-align: left;
+  }
+
+  .class-analytics-heading,
+  .subject-weakness-list article div {
+    display: grid;
   }
 
   .timeline-list article {

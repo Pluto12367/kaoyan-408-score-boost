@@ -21,6 +21,7 @@ import {
   createMockTrialProgress,
   createMockReviewQueue,
   createMockSystemConfig,
+  createMockTeacherClassAnalytics,
   createMockWrongQuestionSummary,
   fetchAdminMetrics,
   fetchAssessmentHistory,
@@ -35,6 +36,7 @@ import {
   fetchStudyReminders,
   fetchSprintPlan,
   fetchSystemConfig,
+  fetchTeacherClassAnalytics,
   fetchTrialProgress,
   fetchWrongQuestionSummary,
   generatePaper,
@@ -67,6 +69,7 @@ import {
   type SprintPlan,
   type SystemConfig,
   type TaskCompletionAdjustment,
+  type TeacherClassAnalytics,
   type TutorReply,
   type TrialProgress,
   type WrongQuestionSummary,
@@ -76,6 +79,7 @@ import type { UserProfile, UserRole } from '@kaoyan408/shared';
 export function App() {
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics>(() => createMockAdminMetrics());
+  const [teacherClassAnalytics, setTeacherClassAnalytics] = useState<TeacherClassAnalytics>(() => createMockTeacherClassAnalytics());
   const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
@@ -116,11 +120,12 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
-      .then(([data, metrics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
+      .then(([data, metrics, classAnalytics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
+        setTeacherClassAnalytics(classAnalytics);
         setReviewQueue(queue);
         setSystemConfig(config);
         setTeacherQuestionList(data.questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
@@ -140,6 +145,7 @@ export function App() {
         if (!active) return;
         setOverview(createMockOverview());
         setAdminMetrics(createMockAdminMetrics());
+        setTeacherClassAnalytics(createMockTeacherClassAnalytics());
         setReviewQueue(createMockReviewQueue());
         setSystemConfig(createMockSystemConfig());
         setPracticeSet(createMockPracticeSet());
@@ -1598,6 +1604,75 @@ export function App() {
               <strong>{latestPaper ? `${latestPaper.questionCount} 题` : '试卷管理'}</strong>
               <span>{latestPaper ? `${latestPaper.title} · ${latestPaper.estimatedMinutes} 分钟` : '可按知识点生成专项卷。'}</span>
             </article>
+          </div>
+          <div className="class-analytics-panel">
+            <div className="class-analytics-heading">
+              <div>
+                <p className="eyebrow">班级学情分析</p>
+                <h3>{teacherClassAnalytics.className}</h3>
+              </div>
+              <span>更新于 {new Date(teacherClassAnalytics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div className="class-analytics-grid">
+              <article>
+                <strong>{teacherClassAnalytics.overview.studentCount}</strong>
+                <span>班级学生</span>
+              </article>
+              <article>
+                <strong>{teacherClassAnalytics.overview.averageAccuracyRate}%</strong>
+                <span>平均正确率</span>
+              </article>
+              <article>
+                <strong>{teacherClassAnalytics.overview.averageCompletionRate}%</strong>
+                <span>任务完成率</span>
+              </article>
+              <article>
+                <strong>{teacherClassAnalytics.overview.pendingWrongQuestionCount}</strong>
+                <span>待复盘错题</span>
+              </article>
+            </div>
+            <div className="class-analytics-columns">
+              <div>
+                <strong>四科薄弱分布</strong>
+                <div className="subject-weakness-list">
+                  {teacherClassAnalytics.subjectWeakness.map((item) => (
+                    <article key={item.subject}>
+                      <div>
+                        <span>{item.subject}</span>
+                        <small>掌握度 {item.averageMastery}% · 薄弱点 {item.weakPointCount}</small>
+                      </div>
+                      <p>{item.recommendation}</p>
+                    </article>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <strong>风险学生</strong>
+                <div className="risk-student-list">
+                  {teacherClassAnalytics.atRiskStudents.map((item) => (
+                    <article key={item.userId}>
+                      <span>{item.name} · {item.riskType}</span>
+                      <p>{item.reason}</p>
+                      <small>{item.nextAction}</small>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="weak-point-teaching-list">
+              {teacherClassAnalytics.weakKnowledgePoints.slice(0, 3).map((item) => (
+                <article key={item.knowledgePointId}>
+                  <strong>{item.title}</strong>
+                  <span>{item.subject} · 正确率 {item.accuracyRate}% · 错题 {item.wrongCount}</span>
+                  <p>{item.recommendedAction}</p>
+                </article>
+              ))}
+            </div>
+            <div className="teaching-actions">
+              {teacherClassAnalytics.teachingActions.map((action) => (
+                <span key={action}>{action}</span>
+              ))}
+            </div>
           </div>
           <div className="teacher-question-list">
             {teacherQuestionList.slice(0, 4).map((question) => (

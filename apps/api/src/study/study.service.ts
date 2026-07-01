@@ -543,6 +543,90 @@ export class StudyService {
     };
   }
 
+  getTeacherClassAnalytics() {
+    const report = this.getOverviewReport();
+    const plan = this.generatePlan();
+    const wrongQuestions = this.listWrongQuestions(this.student.id);
+    const masteryMap = this.getMasteryMap(this.student.id);
+    const assessmentHistory = this.getAssessmentHistory(this.student.id);
+    const latestAssessment = assessmentHistory.items[0];
+    const topWeakPoint = report.weakPoints[0];
+    const averageCompletionRate = plan.completionRate ?? 0;
+
+    const subjectWeakness = masteryMap.subjects.map((subject) => ({
+      subject: subject.subject,
+      weakPointCount: subject.weakCount,
+      averageMastery: subject.averageMastery,
+      recommendation: subject.weakCount > 0
+        ? `安排 ${subject.subject} 薄弱点讲解，并配 1 组同考点训练。`
+        : `${subject.subject} 当前以保持训练和真题巩固为主。`,
+    }));
+
+    const weakKnowledgePoints = (report.weakPoints.length ? report.weakPoints : masteryMap.weakestPoints)
+      .slice(0, 4)
+      .map((point) => {
+        const knowledgePoint = this.knowledgePoints.find((item) => item.id === point.knowledgePointId);
+        const wrongCount = wrongQuestions
+          .filter((item) => item.knowledgePointId === point.knowledgePointId)
+          .reduce((sum, item) => sum + item.wrongCount, 0);
+
+        return {
+          knowledgePointId: point.knowledgePointId,
+          title: point.title,
+          subject: knowledgePoint?.subject ?? '408',
+          accuracyRate: 'accuracyRate' in point ? point.accuracyRate : 0,
+          wrongCount,
+          recommendedAction: `围绕 ${point.title} 做 15 分钟概念串讲，再布置 5 道变式题。`,
+        };
+      });
+
+    const riskReasons = [
+      ...(report.accuracyRate < 65 ? [`班级平均正确率 ${report.accuracyRate}%，基础题稳定性不足。`] : []),
+      ...(averageCompletionRate < 60 ? [`今日任务完成率 ${averageCompletionRate}%，需要提醒补齐计划任务。`] : []),
+      ...(wrongQuestions.length > 0 ? [`仍有 ${wrongQuestions.length} 道错题未完成闭环复盘。`] : []),
+      ...(latestAssessment && latestAssessment.accuracyRate < 70 ? [`最近测评正确率 ${latestAssessment.accuracyRate}%，测评后复盘优先级较高。`] : []),
+    ];
+
+    const atRiskStudents = [{
+      userId: this.student.id,
+      name: this.student.name,
+      riskType: report.accuracyRate < 65 ? '正确率偏低' : averageCompletionRate < 60 ? '任务完成不足' : '错题复盘待加强',
+      reason: riskReasons[0] ?? `${this.student.name} 需要继续保持错题复盘和限时训练节奏。`,
+      nextAction: topWeakPoint
+        ? `本周优先跟进 ${topWeakPoint.title}，要求完成错题复盘和同考点训练。`
+        : '保持每日任务完成，并安排一次阶段测评观察趋势。',
+    }];
+
+    const teachingActions = [
+      topWeakPoint
+        ? `本周小课优先讲 ${topWeakPoint.title}，讲完立即做变式题检验。`
+        : '先收集更多练习记录，再判断下一轮共性薄弱点。',
+      wrongQuestions.length > 0
+        ? '安排一次错题复盘课，要求学生写出错因而不是只看答案。'
+        : '错题闭环压力较低，可以增加整卷限时训练。',
+      latestAssessment?.unansweredCount
+        ? `最近测评仍有 ${latestAssessment.unansweredCount} 题未答，加入审题速度训练。`
+        : '保持测评后复盘节奏，用历史记录观察连续两次趋势。',
+    ];
+
+    return {
+      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      className: '408 强化体验班',
+      generatedAt: new Date().toISOString(),
+      overview: {
+        studentCount: 1,
+        activeStudentCount: 1,
+        averageAccuracyRate: report.accuracyRate,
+        averageCompletionRate,
+        pendingWrongQuestionCount: wrongQuestions.length,
+      },
+      subjectWeakness,
+      weakKnowledgePoints,
+      atRiskStudents,
+      teachingActions,
+    };
+  }
+
   getReviewQueue() {
     const items = [...this.questionsService.listReviewItems(), ...this.aiReviewItems]
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));

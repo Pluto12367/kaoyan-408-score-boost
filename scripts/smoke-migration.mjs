@@ -34,6 +34,14 @@ async function main() {
   await expectForbidden(`${apiUrl}/teacher/questions`, {
     Authorization: `Bearer ${studentSession.token}`,
   }, 'student session should not access teacher question management');
+  const classAnalytics = await waitForJson(`${apiUrl}/teacher/class-analytics`, (data) =>
+    data.overview?.studentCount >= 1 && Array.isArray(data.subjectWeakness),
+  );
+  assert(classAnalytics.overview.averageAccuracyRate >= 0, 'class analytics should expose average accuracy');
+  assert(classAnalytics.subjectWeakness.length >= 4, 'class analytics should include 408 subject weakness data');
+  assert(classAnalytics.weakKnowledgePoints.length > 0, 'class analytics should include weak knowledge points');
+  assert(classAnalytics.atRiskStudents.length > 0, 'class analytics should include at-risk students');
+  assert(classAnalytics.teachingActions.length > 0, 'class analytics should include teaching actions');
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');

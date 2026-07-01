@@ -77,6 +77,11 @@ export class StudyController {
     return this.studyService.getSystemConfig();
   }
 
+  @Get('teacher/class-analytics')
+  getTeacherClassAnalytics() {
+    return this.studyService.getTeacherClassAnalytics();
+  }
+
   @Post('admin/system-config')
   updateSystemConfig(@Body() input: {
     recommendation?: Partial<{

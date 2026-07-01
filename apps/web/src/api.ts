@@ -45,6 +45,41 @@ export interface AdminMetrics {
   generatedAt: string;
 }
 
+export interface TeacherClassAnalytics {
+  source: 'memory-api' | 'postgres-ready-api' | 'mock';
+  className: string;
+  generatedAt: string;
+  overview: {
+    studentCount: number;
+    activeStudentCount: number;
+    averageAccuracyRate: number;
+    averageCompletionRate: number;
+    pendingWrongQuestionCount: number;
+  };
+  subjectWeakness: Array<{
+    subject: string;
+    weakPointCount: number;
+    averageMastery: number;
+    recommendation: string;
+  }>;
+  weakKnowledgePoints: Array<{
+    knowledgePointId: string;
+    title: string;
+    subject: string;
+    accuracyRate: number;
+    wrongCount: number;
+    recommendedAction: string;
+  }>;
+  atRiskStudents: Array<{
+    userId: string;
+    name: string;
+    riskType: string;
+    reason: string;
+    nextAction: string;
+  }>;
+  teachingActions: string[];
+}
+
 export interface ReviewQueue {
   source: 'memory-api' | 'postgres-ready-api';
   pendingCount: number;
@@ -583,6 +618,59 @@ export function createMockAdminMetrics(): AdminMetrics {
   };
 }
 
+export function createMockTeacherClassAnalytics(): TeacherClassAnalytics {
+  return {
+    source: 'mock',
+    className: '408 强化体验班',
+    generatedAt: new Date().toISOString(),
+    overview: {
+      studentCount: 1,
+      activeStudentCount: 1,
+      averageAccuracyRate: 66.7,
+      averageCompletionRate: 40,
+      pendingWrongQuestionCount: 1,
+    },
+    subjectWeakness: [
+      { subject: '数据结构', weakPointCount: 0, averageMastery: 72, recommendation: '保持树与图的真题巩固。' },
+      { subject: '计算机组成原理', weakPointCount: 1, averageMastery: 38, recommendation: '安排 Cache 映射与替换专题讲解。' },
+      { subject: '操作系统', weakPointCount: 1, averageMastery: 58, recommendation: '补一次进程同步与 PV 操作小课。' },
+      { subject: '计算机网络', weakPointCount: 0, averageMastery: 70, recommendation: '继续做 TCP 可靠传输限时训练。' },
+    ],
+    weakKnowledgePoints: [
+      {
+        knowledgePointId: 'co-cache',
+        title: 'Cache 映射与替换',
+        subject: '计算机组成原理',
+        accuracyRate: 0,
+        wrongCount: 2,
+        recommendedAction: '围绕 Cache 映射与替换做 15 分钟概念串讲，再布置 5 道变式题。',
+      },
+      {
+        knowledgePointId: 'os-sync',
+        title: '进程同步与互斥',
+        subject: '操作系统',
+        accuracyRate: 50,
+        wrongCount: 1,
+        recommendedAction: '用生产者消费者模型串讲 PV 操作，再做同类题。',
+      },
+    ],
+    atRiskStudents: [
+      {
+        userId: student.id,
+        name: student.name,
+        riskType: '正确率偏低',
+        reason: '最近练习正确率低于 70%，错题集中在高频考点。',
+        nextAction: '本周优先跟进 Cache 映射与替换，要求完成错题复盘和同考点训练。',
+      },
+    ],
+    teachingActions: [
+      '本周小课优先讲 Cache 映射与替换，讲完立即做变式题检验。',
+      '安排一次错题复盘课，要求学生写出错因而不是只看答案。',
+      '保持测评后复盘节奏，用历史记录观察连续两次趋势。',
+    ],
+  };
+}
+
 export function createMockReviewQueue(): ReviewQueue {
   return {
     source: 'memory-api',
@@ -1103,6 +1191,15 @@ export async function fetchAdminMetrics(): Promise<AdminMetrics> {
   }
 
   return response.json() as Promise<AdminMetrics>;
+}
+
+export async function fetchTeacherClassAnalytics(): Promise<TeacherClassAnalytics> {
+  const response = await fetch(`${API_BASE_URL}/teacher/class-analytics`);
+  if (!response.ok) {
+    throw new Error(`Teacher class analytics request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<TeacherClassAnalytics>;
 }
 
 export async function fetchReviewQueue(): Promise<ReviewQueue> {
