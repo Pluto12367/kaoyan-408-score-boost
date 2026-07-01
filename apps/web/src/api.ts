@@ -835,8 +835,70 @@ export function createMockWrongQuestionSummary(): WrongQuestionSummary {
   };
 }
 
-export function createMockPaperSubmitResult(): PaperSubmitResult | null {
-  return null;
+export function createMockGeneratedPaper(input?: Partial<GeneratePaperInput>): GeneratedPaper {
+  const selectedQuestions = questions.slice(0, input?.questionCount ?? 2);
+
+  return {
+    id: `paper-mock-${new Date().toISOString().slice(0, 10)}`,
+    title: input?.title ?? '存储系统专项卷',
+    paperType: input?.paperType ?? '专项卷',
+    questionCount: selectedQuestions.length,
+    knowledgePointIds: input?.knowledgePointIds ?? ['co-cache'],
+    questions: selectedQuestions,
+    estimatedMinutes: Math.max(8, selectedQuestions.length * 4),
+    createdBy: input?.createdBy ?? 'teacher-001',
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export function createMockPaperSubmitResult(paper?: GeneratedPaper, userId = student.id): PaperSubmitResult | null {
+  if (!paper) {
+    return null;
+  }
+
+  const reviewQuestion = paper.questions[0];
+  const reviewPoint = knowledgePoints.find((point) => reviewQuestion.knowledgePointIds.includes(point.id)) ?? knowledgePoints[0];
+  const correctCount = Math.max(0, paper.questions.length - 1);
+  const accuracyRate = Math.round((correctCount / paper.questions.length) * 100);
+
+  return {
+    id: `paper-result-mock-${new Date().toISOString().slice(0, 10)}`,
+    paperId: paper.id,
+    userId,
+    submittedAt: new Date().toISOString(),
+    totalQuestions: paper.questions.length,
+    correctCount,
+    score: accuracyRate,
+    accuracyRate,
+    subjectBreakdown: [
+      {
+        subject: reviewPoint.subject,
+        totalQuestions: paper.questions.length,
+        correctCount,
+        accuracyRate,
+      },
+    ],
+    reviewItems: [
+      {
+        questionId: reviewQuestion.id,
+        stem: reviewQuestion.stem,
+        selectedAnswer: reviewQuestion.answer === 'A' ? 'B' : 'A',
+        correctAnswer: reviewQuestion.answer,
+        correct: false,
+        knowledgePointId: reviewPoint.id,
+        knowledgePointTitle: reviewPoint.title,
+        subject: reviewPoint.subject,
+        mistakeReason: '概念不清',
+      },
+    ],
+    weakKnowledgePoints: [reviewPoint.title],
+    syncedPracticeRecordCount: paper.questions.length,
+    nextActions: [
+      '先复盘本套卷错题，再按薄弱知识点补一组专项题。',
+      '已同步 1 道需要复盘的题目到错题闭环。',
+      `优先处理：${reviewPoint.title}。`,
+    ],
+  };
 }
 
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {

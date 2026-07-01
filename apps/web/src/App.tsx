@@ -8,6 +8,7 @@ import {
   createMockAdminMetrics,
   createMockAiFollowUp,
   createMockFeedbackList,
+  createMockGeneratedPaper,
   createMockMasteryMap,
   createMockOverview,
   createMockPaperSubmitResult,
@@ -501,7 +502,15 @@ export function App() {
       setApiState('connected');
       setPaperStatus(`已生成 ${paper.title}，共 ${paper.questionCount} 题，预计 ${paper.estimatedMinutes} 分钟。`);
     } catch {
-      setPaperStatus('试卷生成失败，请确认题库中有匹配知识点的题目。');
+      const mockPaper = createMockGeneratedPaper({
+        title: '存储系统专项卷',
+        paperType: '专项卷',
+        knowledgePointIds: ['co-cache'],
+        questionCount: 2,
+        createdBy: 'teacher-001',
+      });
+      setLatestPaper(mockPaper);
+      setPaperStatus(`已使用静态演示数据生成 ${mockPaper.title}，共 ${mockPaper.questionCount} 题，可继续提交查看报告。`);
       setApiState('mock');
     }
   }
@@ -535,7 +544,11 @@ export function App() {
       setApiState('connected');
       setPaperStatus(`试卷已提交：${result.score} 分，正确率 ${result.accuracyRate}%，已同步 ${result.syncedPracticeRecordCount} 条练习记录。`);
     } catch {
-      setPaperStatus('试卷提交失败，请稍后重试。');
+      const mockResult = createMockPaperSubmitResult(paper, student.id);
+      setPaperResult(mockResult);
+      setPaperStatus(mockResult
+        ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
+        : '试卷提交失败，请稍后重试。');
       setApiState('mock');
     }
   }
