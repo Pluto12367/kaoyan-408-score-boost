@@ -33,18 +33,20 @@ enum QuestionType {
 }
 
 model User {
-  id             String           @id @default(cuid())
-  name           String
-  role           UserRole
-  targetSchool   String?
-  targetScore    Int?
-  currentScore   Int?
-  dailyHours     Float?
-  remainingDays  Int?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  practiceRecords PracticeRecord[]
-  studyPlans      StudyPlan[]
+  id                   String                @id @default(cuid())
+  name                 String
+  role                 UserRole
+  targetSchool         String?
+  targetScore          Int?
+  currentScore         Int?
+  dailyHours           Float?
+  remainingDays        Int?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  practiceRecords      PracticeRecord[]
+  studyPlans           StudyPlan[]
+  wrongQuestionReviews WrongQuestionReview[]
+  taskCompletions      StudyTaskCompletion[]
 }
 
 model KnowledgePoint {
@@ -62,20 +64,21 @@ model KnowledgePoint {
 }
 
 model Question {
-  id               String                   @id @default(cuid())
-  stem             String
-  options          String[]
-  answer           String
-  analysis         String
-  difficulty       Difficulty
-  type             QuestionType
-  source           String
-  year             Int?
-  expectedTimeSec  Int                      @default(100)
-  knowledgePoints  QuestionKnowledgePoint[]
-  records          PracticeRecord[]
-  createdAt        DateTime                 @default(now())
-  updatedAt        DateTime                 @updatedAt
+  id                   String                   @id @default(cuid())
+  stem                 String
+  options              String[]
+  answer               String
+  analysis             String
+  difficulty           Difficulty
+  type                 QuestionType
+  source               String
+  year                 Int?
+  expectedTimeSec      Int                      @default(100)
+  knowledgePoints      QuestionKnowledgePoint[]
+  records              PracticeRecord[]
+  wrongQuestionReviews WrongQuestionReview[]
+  createdAt            DateTime                 @default(now())
+  updatedAt            DateTime                 @updatedAt
 }
 
 model QuestionKnowledgePoint {
@@ -104,6 +107,34 @@ model PracticeRecord {
 
   @@index([userId, submittedAt])
   @@index([knowledgePointId, correct])
+}
+
+model WrongQuestionReview {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  reviewedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, reviewedAt])
+}
+
+model StudyTaskCompletion {
+  id                     String   @id @default(cuid())
+  userId                 String
+  taskId                 String
+  completedDate          String
+  completedQuestionCount Int?
+  correctCount           Int?
+  minutesSpent           Int?
+  selfRating             Int?
+  completedAt            DateTime @default(now())
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId, completedDate])
+  @@index([userId, completedAt])
 }
 
 model StudyPlan {

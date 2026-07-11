@@ -16,12 +16,14 @@ import {
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
 import { PracticeRecordRepository } from './practice-record.repository';
+import { LearningProgressRepository } from './learning-progress.repository';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
   constructor(
     private readonly questionsService: QuestionsService,
     private readonly practiceRecordRepository: PracticeRecordRepository,
+    private readonly learningProgressRepository: LearningProgressRepository,
   ) {}
 
   private readonly student: UserProfile = {
@@ -64,6 +66,9 @@ export class StudyService implements OnModuleInit {
       seedRecords: this.records,
     });
     this.records.splice(0, this.records.length, ...records);
+    const progress = await this.learningProgressRepository.load();
+    replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
+    replaceNestedMap(this.wrongQuestionReviewDatesByUser, progress.wrongQuestionReviews);
   }
 
   private get dataSource(): 'memory-api' | 'postgresql' {
@@ -1011,7 +1016,7 @@ export class StudyService implements OnModuleInit {
     });
   }
 
-  reviewWrongQuestion(questionId: string, userId = this.student.id) {
+  async reviewWrongQuestion(questionId: string, userId = this.student.id) {
     const wrongQuestion = this.listWrongQuestions(userId).find((item) => item.questionId === questionId);
     if (!wrongQuestion) {
       throw new BadRequestException(`Wrong question ${questionId} was not found`);
@@ -1019,6 +1024,7 @@ export class StudyService implements OnModuleInit {
 
     const reviewed = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
     const reviewedAt = new Date().toISOString();
+    await this.learningProgressRepository.saveWrongQuestionReview(userId, questionId, reviewedAt);
     reviewed.set(questionId, reviewedAt);
     this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
 
@@ -1309,7 +1315,7 @@ export class StudyService implements OnModuleInit {
     return savedRecord;
   }
 
-  completeStudyTask(taskId: string, input: {
+  async completeStudyTask(taskId: string, input: {
     userId?: string;
     completedQuestionCount?: number;
     correctCount?: number;
@@ -1324,7 +1330,17 @@ export class StudyService implements OnModuleInit {
     }
 
     const completed = this.completedTaskDatesByUser.get(userId) ?? new Map<string, string>();
-    completed.set(taskId, todayKey());
+    const completedAt = new Date().toISOString();
+    await this.learningProgressRepository.saveTaskCompletion({
+      userId,
+      taskId,
+      completedAt,
+      completedQuestionCount: input.completedQuestionCount,
+      correctCount: input.correctCount,
+      minutesSpent: input.minutesSpent,
+      selfRating: input.selfRating,
+    });
+    completed.set(taskCompletionKey(taskId, completedAt.slice(0, 10)), completedAt.slice(0, 10));
     this.completedTaskDatesByUser.set(userId, completed);
 
     return {
@@ -1760,7 +1776,7 @@ export class StudyService implements OnModuleInit {
     const completedTaskDates = this.completedTaskDatesByUser.get(this.student.id) ?? new Map<string, string>();
     const completedIds = new Set([...completedTaskDates.entries()]
       .filter(([, date]) => date === todayKey())
-      .map(([taskId]) => taskId));
+      .map(([taskKey]) => taskKey.split('@')[0]));
     const dailyTasks = plan.dailyTasks.map((task) => ({
       ...task,
       completed: completedIds.has(task.id),
@@ -1890,6 +1906,20 @@ function parseSubject(value: string | undefined): Subject | null {
 
 function isTrialStatus(value: string | undefined): value is TrialStatus {
   return value === 'invited' || value === 'active' || value === 'completed' || value === 'follow_up';
+}
+
+function replaceNestedMap(
+  target: Map<string, Map<string, string>>,
+  source: Map<string, Map<string, string>>,
+) {
+  target.clear();
+  for (const [userId, values] of source) {
+    target.set(userId, new Map(values));
+  }
+}
+
+function taskCompletionKey(taskId: string, completedDate: string) {
+  return `${taskId}@${completedDate}`;
 }
 
 export type PaperType = '模拟卷' | '阶段卷' | '专项卷';

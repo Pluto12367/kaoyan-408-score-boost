@@ -39,18 +39,40 @@ async function main() {
   });
   assert(created.id && created.correct === false, 'practice submission should be persisted');
 
+  const reviewed = await postJson(`${apiUrl}/wrong-questions/q-001/review`, { userId: 'u-001' });
+  assert(reviewed.reviewStatus === 'reviewed' && reviewed.reviewedAt, 'wrong-question review should be persisted');
+
+  const taskId = initial.plan?.dailyTasks?.[0]?.id;
+  assert(taskId, 'dashboard should expose a study task for completion testing');
+  const completedTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(taskId)}/complete`, {
+    userId: 'u-001',
+    completedQuestionCount: 8,
+    correctCount: 6,
+    minutesSpent: 24,
+    selfRating: 4,
+  });
+  assert(completedTask.completed === true, 'study-task completion should be persisted');
+
   await stop(activeApi);
   activeApi = startApi();
   const restored = await waitForOverview((data) =>
-    data.practiceRecords?.some((record) => record.id === created.id),
+    data.practiceRecords?.some((record) => record.id === created.id)
+      && data.wrongQuestions?.some((item) => item.questionId === 'q-001' && item.reviewStatus === 'reviewed')
+      && data.plan?.dailyTasks?.some((task) => task.id === taskId && task.completed),
   );
   const restoredRecord = restored.practiceRecords.find((record) => record.id === created.id);
   assert(restoredRecord.timeSpentSec === 137, 'record should survive an API restart');
+  const restoredReview = restored.wrongQuestions.find((item) => item.questionId === 'q-001');
+  assert(restoredReview.reviewedAt === reviewed.reviewedAt, 'wrong-question review should survive an API restart');
+  const restoredTask = restored.plan.dailyTasks.find((task) => task.id === taskId);
+  assert(restoredTask.completed === true, 'study-task completion should survive an API restart');
 
   console.log(JSON.stringify({
     ok: true,
     source: restored.source,
     persistedRecordId: created.id,
+    reviewedQuestionId: restoredReview.questionId,
+    completedTaskId: restoredTask.id,
     practiceRecordCount: restored.practiceRecords.length,
   }, null, 2));
 
