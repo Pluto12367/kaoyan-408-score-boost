@@ -220,6 +220,16 @@ async function main() {
   assert(submitted.mistakeReason === '概念不清', 'practice submission should be attributed by the API');
   const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length >= previousRecordCount + 1);
   assert(updatedOverview.report.weakPoints[0].knowledgePointId === 'co-cache', 'updated report should reflect the submitted weak point');
+  const reviewResources = await waitForJson(`${apiUrl}/review-resources/recommended?userId=u-001`, (data) =>
+    data.items?.length >= 3 && data.items.some((item) => item.knowledgePointId === 'co-cache'),
+  );
+  assert(reviewResources.weakPointCount >= 1, 'review resources should expose weak point count');
+  assert(
+    reviewResources.items.every((item) =>
+      item.knowledgePointId && item.resourceType && item.estimatedMinutes > 0 && item.actionAnchor,
+    ),
+    'review resources should include actionable metadata',
+  );
   const practiceSet = await waitForJson(`${apiUrl}/practice-sets/recommended?userId=u-001`, (data) => data.questions?.length > 0);
   assert(practiceSet.title && practiceSet.focus, 'recommended practice set should include title and focus');
   assert(practiceSet.knowledgePointIds.includes('co-cache'), 'recommended practice set should focus on the current weak point');

@@ -89,7 +89,7 @@ export class StudyService {
   private readonly feedbackItems: FeedbackItem[] = [];
 
   private systemConfig = {
-    source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+    source: 'memory-api' as const,
     recommendation: {
       stageAssessmentQuestionLimit: 6,
       dailyTargetQuestionCount: 30,
@@ -142,7 +142,7 @@ export class StudyService {
 
   getDashboardOverview() {
     return {
-      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      source: 'memory-api' as const,
       student: this.student,
       knowledgePoints: this.knowledgePoints,
       questions: this.questions,
@@ -528,7 +528,7 @@ export class StudyService {
     const activeDates = new Set(this.records.map((record) => record.submittedAt.slice(0, 10)));
 
     return {
-      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      source: 'memory-api' as const,
       activeStudentCount: 1,
       questionCount: this.questions.length,
       knowledgePointCount: this.knowledgePoints.length,
@@ -556,7 +556,7 @@ export class StudyService {
     const followUpCount = users.filter((user) => user.trialStatus === 'follow_up').length;
 
     return {
-      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      source: 'memory-api' as const,
       generatedAt: new Date().toISOString(),
       summary: {
         totalUsers: users.length,
@@ -649,7 +649,7 @@ export class StudyService {
     ];
 
     return {
-      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      source: 'memory-api' as const,
       className: '408 强化体验班',
       generatedAt: new Date().toISOString(),
       overview: {
@@ -671,7 +671,7 @@ export class StudyService {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
     return {
-      source: process.env.DATABASE_URL ? 'postgres-ready-api' : 'memory-api',
+      source: 'memory-api' as const,
       pendingCount: items.filter((item) => item.status === 'pending').length,
       approvedCount: items.filter((item) => item.status === 'approved').length,
       items,
@@ -1112,6 +1112,95 @@ export class StudyService {
       questionCount: questions.length,
       estimatedMinutes: Math.max(10, Math.round(questions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
       questions,
+    };
+  }
+
+  getRecommendedReviewResources(userId = this.student.id): ReviewResourceRecommendation {
+    const report = this.getOverviewReport();
+    const masteryMap = this.getMasteryMap(userId);
+    const wrongQuestions = this.listWrongQuestions(userId);
+    const weakPointCandidates = report.weakPoints.length
+      ? report.weakPoints.map((point) => ({
+        knowledgePointId: point.knowledgePointId,
+        title: point.title,
+        subject: point.subject,
+        accuracyRate: point.accuracyRate,
+      }))
+      : masteryMap.weakestPoints.map((point) => ({
+        knowledgePointId: point.knowledgePointId,
+        title: point.title,
+        subject: point.subject,
+        accuracyRate: point.accuracyRate,
+      }));
+    const selectedPoints = weakPointCandidates.slice(0, 3);
+    const fallbackPoint = this.knowledgePoints[0];
+    const resourcePoints = selectedPoints.length
+      ? selectedPoints
+      : [{
+        knowledgePointId: fallbackPoint.id,
+        title: fallbackPoint.title,
+        subject: fallbackPoint.subject,
+        accuracyRate: 70,
+      }];
+    const items = resourcePoints.flatMap((point, index) => {
+      const wrongQuestion = wrongQuestions.find((item) => item.knowledgePointId === point.knowledgePointId);
+      const knowledgePoint = this.knowledgePoints.find((item) => item.id === point.knowledgePointId);
+      const title = knowledgePoint?.title ?? point.title;
+      const subject = knowledgePoint?.subject ?? point.subject ?? '408';
+      const chapter = knowledgePoint?.chapter ?? '高频章节';
+      const baseMinutes = point.accuracyRate < 50 ? 18 : 12;
+
+      return [
+        {
+          id: `resource-${point.knowledgePointId}-concept`,
+          knowledgePointId: point.knowledgePointId,
+          knowledgePointTitle: title,
+          subject,
+          resourceType: 'concept_card' as const,
+          title: `${title} 核心概念卡`,
+          summary: `先复述 ${chapter} 中 ${title} 的定义、适用条件和常见题干关键词。`,
+          estimatedMinutes: baseMinutes,
+          difficulty: index === 0 ? '基础' as const : '中等' as const,
+          actionText: '看完后做一组同考点题',
+          actionAnchor: '#question',
+        },
+        {
+          id: `resource-${point.knowledgePointId}-mistake`,
+          knowledgePointId: point.knowledgePointId,
+          knowledgePointTitle: title,
+          subject,
+          resourceType: 'mistake_checklist' as const,
+          title: `${title} 错因检查清单`,
+          summary: wrongQuestion
+            ? `该考点已有 ${wrongQuestion.wrongCount} 次错误，优先检查：${wrongQuestion.latestMistakeReason ?? '概念混淆'}。`
+            : '按概念不清、条件遗漏、计算失误、审题偏差四类检查最近错因。',
+          estimatedMinutes: 8,
+          difficulty: '基础' as const,
+          actionText: '去错题本复盘',
+          actionAnchor: '#wrong-book',
+        },
+        {
+          id: `resource-${point.knowledgePointId}-practice`,
+          knowledgePointId: point.knowledgePointId,
+          knowledgePointTitle: title,
+          subject,
+          resourceType: 'practice_set' as const,
+          title: `${title} 专项验证训练`,
+          summary: '完成 3 到 5 道同知识点题目，用正确率和耗时判断是否已经补上。',
+          estimatedMinutes: 15,
+          difficulty: point.accuracyRate < 60 ? '中等' as const : '提高' as const,
+          actionText: '进入专项训练',
+          actionAnchor: '#question',
+        },
+      ];
+    }).slice(0, 6);
+
+    return {
+      source: 'memory-api' as const,
+      userId,
+      generatedAt: new Date().toISOString(),
+      weakPointCount: report.weakPoints.length,
+      items,
     };
   }
 
@@ -1843,6 +1932,28 @@ export interface StudyReminder {
   priority: 'high' | 'medium' | 'low';
   title: string;
   reason: string;
+  actionText: string;
+  actionAnchor: string;
+}
+
+export interface ReviewResourceRecommendation {
+  source: 'memory-api' | 'postgresql';
+  userId: string;
+  generatedAt: string;
+  weakPointCount: number;
+  items: ReviewResource[];
+}
+
+export interface ReviewResource {
+  id: string;
+  knowledgePointId: string;
+  knowledgePointTitle: string;
+  subject: string;
+  resourceType: 'concept_card' | 'mistake_checklist' | 'example_walkthrough' | 'practice_set';
+  title: string;
+  summary: string;
+  estimatedMinutes: number;
+  difficulty: '基础' | '中等' | '提高';
   actionText: string;
   actionAnchor: string;
 }

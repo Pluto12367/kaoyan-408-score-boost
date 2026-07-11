@@ -17,6 +17,7 @@ import {
   createMockPaperSubmitResult,
   createMockLearningProfile,
   createMockPracticeSet,
+  createMockReviewResourceRecommendations,
   createMockStudyReminders,
   createMockSprintPlan,
   createMockTrialProgress,
@@ -33,6 +34,7 @@ import {
   fetchMasteryMap,
   fetchQuestions,
   fetchRecommendedPracticeSet,
+  fetchReviewResourceRecommendations,
   fetchReviewQueue,
   fetchStageAssessment,
   fetchStudyReminders,
@@ -68,6 +70,7 @@ import {
   type PaperSubmitResult,
   type PracticeSet,
   type PracticeSetResult,
+  type ReviewResourceRecommendation,
   type ReviewQueue,
   type StageAssessmentResult,
   type StudyReminders,
@@ -112,6 +115,7 @@ export function App() {
   const [assessmentHistory, setAssessmentHistory] = useState<AssessmentHistory>(() => createMockAssessmentHistory());
   const [teacherQuestionList, setTeacherQuestionList] = useState(() => createMockOverview().questions);
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
+  const [reviewResources, setReviewResources] = useState<ReviewResourceRecommendation>(() => createMockReviewResourceRecommendations());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
   const [learningProfile, setLearningProfile] = useState<LearningProfile>(() => createMockLearningProfile());
@@ -127,8 +131,8 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchAdminUsers(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
-      .then(([data, metrics, users, classAnalytics, queue, config, recommendedSet, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
+    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchAdminUsers(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchReviewResourceRecommendations('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
+      .then(([data, metrics, users, classAnalytics, queue, config, recommendedSet, resources, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
         if (!active) return;
         setOverview(data);
         setAdminMetrics(metrics);
@@ -138,6 +142,7 @@ export function App() {
         setSystemConfig(config);
         setTeacherQuestionList(data.questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
         setPracticeSet(recommendedSet);
+        setReviewResources(resources);
         setLearningProfile(profile);
         setFeedbackList(feedback);
         setTrialProgress(trial);
@@ -158,6 +163,7 @@ export function App() {
         setReviewQueue(createMockReviewQueue());
         setSystemConfig(createMockSystemConfig());
         setPracticeSet(createMockPracticeSet());
+        setReviewResources(createMockReviewResourceRecommendations());
         setLearningProfile(createMockLearningProfile());
         setFeedbackList(createMockFeedbackList());
         setTrialProgress(createMockTrialProgress());
@@ -1549,6 +1555,33 @@ export function App() {
           </article>
         </section>
 
+        <section id="review-resources" className="panel review-resources-panel">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">复习资源推荐</p>
+              <h3>把薄弱点变成下一步复习动作</h3>
+            </div>
+            <span>{reviewResources.weakPointCount} 个薄弱点</span>
+          </div>
+          <p className="task-status">
+            更新时间 {new Date(reviewResources.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}，
+            优先处理当前报告和错题本里最容易提分的知识点。
+          </p>
+          <div className="review-resource-grid">
+            {reviewResources.items.map((item) => (
+              <article key={item.id} className={`review-resource-card resource-${item.resourceType}`}>
+                <div>
+                  <span>{reviewResourceTypeLabel[item.resourceType]}</span>
+                  <small>{item.subject} / {item.difficulty} / {item.estimatedMinutes} 分钟</small>
+                </div>
+                <strong>{item.title}</strong>
+                <p>{item.summary}</p>
+                <a href={item.actionAnchor}>{item.actionText}</a>
+              </article>
+            ))}
+          </div>
+        </section>
+
         <section id="assessment-history" className="panel assessment-history-panel">
           <div className="panel-heading">
             <div>
@@ -1987,6 +2020,13 @@ const reviewCardTypeLabel = {
   concept: '概念卡',
   rule: '规则卡',
   confusion: '易混卡',
+};
+
+const reviewResourceTypeLabel = {
+  concept_card: '概念卡片',
+  mistake_checklist: '错因清单',
+  example_walkthrough: '例题拆解',
+  practice_set: '专项训练',
 };
 
 const roleLabel = {

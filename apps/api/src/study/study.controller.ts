@@ -168,6 +168,11 @@ export class StudyController {
     return this.studyService.getRecommendedPracticeSet(userId);
   }
 
+  @Get('review-resources/recommended')
+  getRecommendedReviewResources(@Query('userId') userId?: string) {
+    return this.studyService.getRecommendedReviewResources(userId);
+  }
+
   @Post('practice-sets/:practiceSetId/submit')
   submitPracticeSet(@Param('practiceSetId') practiceSetId: string, @Body() input: {
     userId?: string;

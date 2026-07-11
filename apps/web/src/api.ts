@@ -14,7 +14,7 @@ import {
 import { knowledgePoints, practiceRecords, questions, student } from './mockData';
 
 export interface DashboardOverview {
-  source: 'memory-api' | 'postgres-ready-api' | 'mock';
+  source: 'memory-api' | 'postgresql' | 'mock';
   student: UserProfile;
   knowledgePoints: KnowledgePoint[];
   questions: Question[];
@@ -27,7 +27,7 @@ export interface DashboardOverview {
 }
 
 export interface AdminMetrics {
-  source: 'memory-api' | 'postgres-ready-api';
+  source: 'memory-api' | 'postgresql';
   activeStudentCount: number;
   questionCount: number;
   knowledgePointCount: number;
@@ -46,7 +46,7 @@ export interface AdminMetrics {
 }
 
 export interface TeacherClassAnalytics {
-  source: 'memory-api' | 'postgres-ready-api' | 'mock';
+  source: 'memory-api' | 'postgresql' | 'mock';
   className: string;
   generatedAt: string;
   overview: {
@@ -95,7 +95,7 @@ export interface AdminManagedUser {
 }
 
 export interface AdminUserManagement {
-  source: 'memory-api' | 'postgres-ready-api' | 'mock';
+  source: 'memory-api' | 'postgresql' | 'mock';
   generatedAt: string;
   summary: {
     totalUsers: number;
@@ -107,7 +107,7 @@ export interface AdminUserManagement {
 }
 
 export interface ReviewQueue {
-  source: 'memory-api' | 'postgres-ready-api';
+  source: 'memory-api' | 'postgresql';
   pendingCount: number;
   approvedCount: number;
   items: ReviewItem[];
@@ -232,7 +232,7 @@ export interface ReviewItem {
 }
 
 export interface SystemConfig {
-  source: 'memory-api' | 'postgres-ready-api';
+  source: 'memory-api' | 'postgresql';
   recommendation: {
     stageAssessmentQuestionLimit: number;
     dailyTargetQuestionCount: number;
@@ -322,6 +322,28 @@ export interface PracticeSetResult {
     mistakeReason: string | null;
   }>;
   nextActions: string[];
+}
+
+export interface ReviewResourceRecommendation {
+  source: 'memory-api' | 'postgresql';
+  userId: string;
+  generatedAt: string;
+  weakPointCount: number;
+  items: ReviewResource[];
+}
+
+export interface ReviewResource {
+  id: string;
+  knowledgePointId: string;
+  knowledgePointTitle: string;
+  subject: string;
+  resourceType: 'concept_card' | 'mistake_checklist' | 'example_walkthrough' | 'practice_set';
+  title: string;
+  summary: string;
+  estimatedMinutes: number;
+  difficulty: '基础' | '中等' | '提高';
+  actionText: string;
+  actionAnchor: string;
 }
 
 export interface LearningProfile {
@@ -951,6 +973,56 @@ export function createMockPracticeSet(): PracticeSet {
   };
 }
 
+export function createMockReviewResourceRecommendations(): ReviewResourceRecommendation {
+  return {
+    source: 'memory-api',
+    userId: student.id,
+    generatedAt: new Date().toISOString(),
+    weakPointCount: 1,
+    items: [
+      {
+        id: 'resource-co-cache-concept',
+        knowledgePointId: 'co-cache',
+        knowledgePointTitle: 'Cache 映射与替换',
+        subject: '计算机组成原理',
+        resourceType: 'concept_card',
+        title: 'Cache 映射与替换核心概念卡',
+        summary: '先复述直接映射、组相联和全相联的地址划分、命中判断与替换条件。',
+        estimatedMinutes: 15,
+        difficulty: '基础',
+        actionText: '看完后做同考点题',
+        actionAnchor: '#question',
+      },
+      {
+        id: 'resource-co-cache-mistake',
+        knowledgePointId: 'co-cache',
+        knowledgePointTitle: 'Cache 映射与替换',
+        subject: '计算机组成原理',
+        resourceType: 'mistake_checklist',
+        title: 'Cache 映射与替换错因检查清单',
+        summary: '依次检查地址位数、组号计算、替换范围和写策略，定位最近错误发生在哪一步。',
+        estimatedMinutes: 8,
+        difficulty: '基础',
+        actionText: '去错题本复盘',
+        actionAnchor: '#wrong-book',
+      },
+      {
+        id: 'resource-co-cache-practice',
+        knowledgePointId: 'co-cache',
+        knowledgePointTitle: 'Cache 映射与替换',
+        subject: '计算机组成原理',
+        resourceType: 'practice_set',
+        title: 'Cache 映射与替换专项验证训练',
+        summary: '完成 3 到 5 道变式题，用正确率和耗时判断薄弱点是否已经补上。',
+        estimatedMinutes: 15,
+        difficulty: '中等',
+        actionText: '进入专项训练',
+        actionAnchor: '#question',
+      },
+    ],
+  };
+}
+
 export function createMockLearningProfile(): LearningProfile {
   return {
     userId: student.id,
@@ -1229,6 +1301,15 @@ export async function fetchRecommendedPracticeSet(userId: string): Promise<Pract
   }
 
   return response.json() as Promise<PracticeSet>;
+}
+
+export async function fetchReviewResourceRecommendations(userId: string): Promise<ReviewResourceRecommendation> {
+  const response = await fetch(`${API_BASE_URL}/review-resources/recommended?userId=${encodeURIComponent(userId)}`);
+  if (!response.ok) {
+    throw new Error(`Review resources request failed with ${response.status}`);
+  }
+
+  return response.json() as Promise<ReviewResourceRecommendation>;
 }
 
 export async function submitPracticeSet(input: {

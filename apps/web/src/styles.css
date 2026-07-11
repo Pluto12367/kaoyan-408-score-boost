@@ -1492,6 +1492,72 @@ button {
   text-align: right;
 }
 
+.review-resources-panel {
+  scroll-margin-top: 24px;
+}
+
+.review-resource-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.review-resource-card {
+  display: flex;
+  min-height: 210px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.review-resource-card.resource-mistake_checklist {
+  border-left-color: #dc2626;
+}
+
+.review-resource-card.resource-practice_set {
+  border-left-color: #15803d;
+}
+
+.review-resource-card > div {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.review-resource-card span {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.review-resource-card small,
+.review-resource-card p {
+  color: var(--muted);
+}
+
+.review-resource-card p {
+  flex: 1;
+  margin: 0;
+  line-height: 1.65;
+}
+
+.review-resource-card a {
+  align-self: flex-start;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.review-resource-card a:hover {
+  text-decoration: underline;
+}
+
 .assessment-history-summary {
   display: grid;
   gap: 12px;
@@ -1760,6 +1826,7 @@ button {
   .mastery-subjects,
   .review-card-list,
   .wrong-summary-grid,
+  .review-resource-grid,
   .assessment-history-summary,
   .paper-result-summary,
   .wrong-loop-panel {
