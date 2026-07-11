@@ -30,6 +30,24 @@ async function main() {
   const initial = await waitForOverview();
   assert(initial.source === 'postgresql', 'API should report the real PostgreSQL data source');
 
+  const credentials = {
+    email: 'integration.student@example.com',
+    password: 'ReliableTestPassword!408',
+    name: '集成测试学生',
+  };
+  const registered = await postJson(`${apiUrl}/auth/register`, credentials);
+  assert(registered.user.email === undefined && registered.user.role === 'student', 'registration should return a safe student profile');
+  assert(registered.accessToken && registered.refreshToken, 'registration should issue access and refresh tokens');
+  const loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
+  assert(loggedIn.user.id === registered.user.id, 'password login should return the registered user');
+  await expectPostStatus(`${apiUrl}/auth/login`, { email: credentials.email, password: 'wrong-password' }, 401);
+  await expectGetStatus(`${apiUrl}/teacher/questions`, { Authorization: `Bearer ${loggedIn.accessToken}` }, 403);
+  const refreshed = await postJson(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken });
+  assert(refreshed.refreshToken !== loggedIn.refreshToken, 'refresh should rotate the refresh token');
+  await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken }, 401);
+  await postJson(`${apiUrl}/auth/logout`, { refreshToken: refreshed.refreshToken });
+  await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: refreshed.refreshToken }, 401);
+
   const created = await postJson(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-001',
@@ -88,6 +106,7 @@ function startApi() {
       PORT: '3200',
       WEB_ORIGIN: 'http://127.0.0.1:5173',
       DATABASE_URL: databaseUrl,
+      JWT_SECRET: 'integration-test-jwt-secret-with-more-than-32-characters',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -126,6 +145,20 @@ async function postJson(url, body) {
   });
   if (!response.ok) throw new Error(`POST ${url} failed with ${response.status}: ${await response.text()}`);
   return response.json();
+}
+
+async function expectPostStatus(url, body, expectedStatus) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  assert(response.status === expectedStatus, `POST ${url} should return ${expectedStatus}, received ${response.status}`);
+}
+
+async function expectGetStatus(url, headers, expectedStatus) {
+  const response = await fetch(url, { headers });
+  assert(response.status === expectedStatus, `GET ${url} should return ${expectedStatus}, received ${response.status}`);
 }
 
 async function stop(child) {

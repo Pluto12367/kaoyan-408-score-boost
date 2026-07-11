@@ -14,15 +14,16 @@ async function main() {
       PORT: '3100',
       WEB_ORIGIN: webUrl,
       DATABASE_URL: '',
+      ALLOW_DEMO_AUTH: 'true',
     },
   });
 
   await waitForJson(`${apiUrl}/health`, (data) => data.status === 'ok');
-  const studentSession = await postJson(`${apiUrl}/auth/login`, {
+  const studentSession = await postJson(`${apiUrl}/auth/demo-login`, {
     role: 'student',
   });
   assert(studentSession.token && studentSession.user.role === 'student', 'student login should return a student session');
-  const teacherSession = await postJson(`${apiUrl}/auth/login`, {
+  const teacherSession = await postJson(`${apiUrl}/auth/demo-login`, {
     role: 'teacher',
   });
   assert(teacherSession.token && teacherSession.user.role === 'teacher', 'teacher login should return a teacher session');

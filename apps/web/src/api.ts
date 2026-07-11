@@ -528,6 +528,9 @@ export interface GeneratePaperInput {
 
 export interface AuthSession {
   token: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresIn?: number;
   user: UserProfile;
 }
 
@@ -1784,7 +1787,7 @@ export async function submitPaper(input: {
 }
 
 export async function loginAsRole(role: UserRole): Promise<AuthSession> {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await fetch(`${API_BASE_URL}/auth/demo-login`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
