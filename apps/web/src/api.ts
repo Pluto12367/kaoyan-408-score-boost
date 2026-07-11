@@ -534,6 +534,36 @@ export interface AuthSession {
   user: UserProfile;
 }
 
+const AUTH_STORAGE_KEY = 'kaoyan408.auth.session';
+
+export function loadStoredAuthSession(): AuthSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = window.localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!value) return null;
+    const session = JSON.parse(value) as Partial<AuthSession>;
+    return isAuthSession(session) ? session : null;
+  } catch {
+    return null;
+  }
+}
+
+function isAuthSession(value: Partial<AuthSession>): value is AuthSession {
+  return typeof value.token === 'string'
+    && Boolean(value.user)
+    && typeof value.user?.id === 'string'
+    && typeof value.user?.name === 'string'
+    && (value.user?.role === 'student' || value.user?.role === 'teacher' || value.user?.role === 'admin');
+}
+
+export function storeAuthSession(session: AuthSession) {
+  if (typeof window !== 'undefined') window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
+}
+
+export function clearStoredAuthSession() {
+  if (typeof window !== 'undefined') window.localStorage.removeItem(AUTH_STORAGE_KEY);
+}
+
 export interface DiagnosticInput {
   targetScore: number;
   currentScore: number;
@@ -1799,6 +1829,41 @@ export async function loginAsRole(role: UserRole): Promise<AuthSession> {
     throw new Error(`Login failed with ${response.status}`);
   }
 
+  return response.json() as Promise<AuthSession>;
+}
+
+export async function registerAccount(input: { email: string; password: string; name: string }): Promise<AuthSession> {
+  return requestAuthSession('/auth/register', input);
+}
+
+export async function loginAccount(input: { email: string; password: string }): Promise<AuthSession> {
+  return requestAuthSession('/auth/login', input);
+}
+
+export async function refreshAuthSession(refreshToken: string): Promise<AuthSession> {
+  return requestAuthSession('/auth/refresh', { refreshToken });
+}
+
+export async function logoutAccount(refreshToken?: string): Promise<void> {
+  if (!refreshToken) return;
+  const response = await fetch(`${API_BASE_URL}/auth/logout`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ refreshToken }),
+  });
+  if (!response.ok) throw new Error(`Logout failed with ${response.status}`);
+}
+
+async function requestAuthSession(path: string, body: object): Promise<AuthSession> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(payload?.message ?? `Authentication failed with ${response.status}`);
+  }
   return response.json() as Promise<AuthSession>;
 }
 

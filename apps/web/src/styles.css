@@ -64,6 +64,7 @@ button {
 .workspace {
   display: grid;
   gap: 20px;
+  min-width: 0;
   padding: 28px;
 }
 
@@ -73,6 +74,11 @@ button {
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
+}
+
+.topbar,
+.panel {
+  min-width: 0;
 }
 
 .topbar {
@@ -311,6 +317,67 @@ button {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.account-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.account-form label {
+  display: grid;
+  gap: 7px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.account-form input {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+  font: inherit;
+}
+
+.account-form input:focus {
+  border-color: #2563eb;
+  outline: 2px solid #bfdbfe;
+  outline-offset: 1px;
+}
+
+.account-actions {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  grid-column: 1 / -1;
+}
+
+.demo-role-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.demo-role-actions > span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.role-panel .task-status {
+  overflow-wrap: anywhere;
 }
 
 .task-list,
@@ -1806,6 +1873,7 @@ button {
   }
 
   .metrics-grid,
+  .account-form,
   .two-column,
   .calendar-strip,
   .admin-grid,
@@ -1881,5 +1949,10 @@ button {
 
   .panel-actions {
     justify-content: flex-start;
+  }
+
+  .demo-role-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
