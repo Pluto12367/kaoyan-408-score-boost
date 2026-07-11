@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
+import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import {
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildStudyPlan,
@@ -14,10 +15,14 @@ import {
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
+import { PracticeRecordRepository } from './practice-record.repository';
 
 @Injectable()
-export class StudyService {
-  constructor(private readonly questionsService: QuestionsService) {}
+export class StudyService implements OnModuleInit {
+  constructor(
+    private readonly questionsService: QuestionsService,
+    private readonly practiceRecordRepository: PracticeRecordRepository,
+  ) {}
 
   private readonly student: UserProfile = {
     id: 'u-001',
@@ -50,6 +55,20 @@ export class StudyService {
     { id: 'r-002', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 120, expectedTimeSec: 100, mistakeReason: '概念不清', submittedAt: '2026-06-22' },
     { id: 'r-003', userId: 'u-001', questionId: 'q-002', knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: null, submittedAt: '2026-06-24' },
   ];
+
+  async onModuleInit() {
+    const records = await this.practiceRecordRepository.initialize({
+      user: this.student,
+      knowledgePoints: this.knowledgePoints,
+      questions: this.questions,
+      seedRecords: this.records,
+    });
+    this.records.splice(0, this.records.length, ...records);
+  }
+
+  private get dataSource(): 'memory-api' | 'postgresql' {
+    return this.practiceRecordRepository.enabled ? 'postgresql' : 'memory-api';
+  }
 
   private readonly completedTaskDatesByUser = new Map<string, Map<string, string>>();
 
@@ -142,7 +161,7 @@ export class StudyService {
 
   getDashboardOverview() {
     return {
-      source: 'memory-api' as const,
+      source: this.dataSource,
       student: this.student,
       knowledgePoints: this.knowledgePoints,
       questions: this.questions,
@@ -528,7 +547,7 @@ export class StudyService {
     const activeDates = new Set(this.records.map((record) => record.submittedAt.slice(0, 10)));
 
     return {
-      source: 'memory-api' as const,
+      source: this.dataSource,
       activeStudentCount: 1,
       questionCount: this.questions.length,
       knowledgePointCount: this.knowledgePoints.length,
@@ -556,7 +575,7 @@ export class StudyService {
     const followUpCount = users.filter((user) => user.trialStatus === 'follow_up').length;
 
     return {
-      source: 'memory-api' as const,
+      source: this.dataSource,
       generatedAt: new Date().toISOString(),
       summary: {
         totalUsers: users.length,
@@ -649,7 +668,7 @@ export class StudyService {
     ];
 
     return {
-      source: 'memory-api' as const,
+      source: this.dataSource,
       className: '408 强化体验班',
       generatedAt: new Date().toISOString(),
       overview: {
@@ -671,7 +690,7 @@ export class StudyService {
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
 
     return {
-      source: 'memory-api' as const,
+      source: this.dataSource,
       pendingCount: items.filter((item) => item.status === 'pending').length,
       approvedCount: items.filter((item) => item.status === 'approved').length,
       items,
@@ -680,7 +699,7 @@ export class StudyService {
   }
 
   getSystemConfig() {
-    return this.systemConfig;
+    return { ...this.systemConfig, source: this.dataSource };
   }
 
   submitFeedback(input: {
@@ -776,7 +795,7 @@ export class StudyService {
     return paper;
   }
 
-  submitPaper(paperId: string, input: {
+  async submitPaper(paperId: string, input: {
     userId?: string;
     answers?: Array<{
       questionId: string;
@@ -795,13 +814,13 @@ export class StudyService {
       throw new BadRequestException('Paper answers are required');
     }
 
-    const records = answers.map((answer) => this.createPracticeRecord({
+    const records = await Promise.all(answers.map((answer) => this.createPracticeRecord({
       userId,
       questionId: answer.questionId,
       knowledgePointId: '',
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
-    }));
+    })));
     const correctCount = records.filter((record) => record.correct).length;
     const accuracyRate = Math.round((correctCount / records.length) * 100);
     const subjectStats = new Map<string, { total: number; correct: number }>();
@@ -922,7 +941,7 @@ export class StudyService {
       updatedAt: new Date().toISOString(),
     };
 
-    return this.systemConfig;
+    return { ...this.systemConfig, source: this.dataSource };
   }
 
   approveReviewItem(reviewItemId: string, reviewerId = 'admin-001') {
@@ -1196,7 +1215,7 @@ export class StudyService {
     }).slice(0, 6);
 
     return {
-      source: 'memory-api' as const,
+      source: this.dataSource,
       userId,
       generatedAt: new Date().toISOString(),
       weakPointCount: report.weakPoints.length,
@@ -1204,7 +1223,7 @@ export class StudyService {
     };
   }
 
-  submitPracticeSet(practiceSetId: string, input: {
+  async submitPracticeSet(practiceSetId: string, input: {
     userId?: string;
     answers?: Array<{
       questionId: string;
@@ -1218,13 +1237,13 @@ export class StudyService {
       throw new BadRequestException('Practice set answers are required');
     }
 
-    const records = answers.map((answer) => this.createPracticeRecord({
+    const records = await Promise.all(answers.map((answer) => this.createPracticeRecord({
       userId,
       questionId: answer.questionId,
       knowledgePointId: '',
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
-    }));
+    })));
     const correctCount = records.filter((record) => record.correct).length;
     const accuracyRate = Math.round((correctCount / records.length) * 100);
 
@@ -1257,7 +1276,7 @@ export class StudyService {
     return result;
   }
 
-  createPracticeRecord(input: CreatePracticeRecordDto) {
+  async createPracticeRecord(input: CreatePracticeRecordDto) {
     const question = this.questions.find((item) => item.id === input.questionId);
     if (!question) {
       throw new BadRequestException(`Question ${input.questionId} was not found`);
@@ -1274,7 +1293,7 @@ export class StudyService {
     });
 
     const record: PracticeRecord = {
-      id: `r-${Date.now()}`,
+      id: `r-${randomUUID()}`,
       userId: input.userId,
       questionId: input.questionId,
       knowledgePointId: question.knowledgePointIds[0] ?? input.knowledgePointId,
@@ -1285,8 +1304,9 @@ export class StudyService {
       mistakeReason,
       submittedAt: new Date().toISOString().slice(0, 10),
     };
-    this.records.push(record);
-    return record;
+    const savedRecord = await this.practiceRecordRepository.save(record);
+    this.records.push(savedRecord);
+    return savedRecord;
   }
 
   completeStudyTask(taskId: string, input: {
@@ -1385,7 +1405,7 @@ export class StudyService {
     };
   }
 
-  submitStageAssessment(input: {
+  async submitStageAssessment(input: {
     userId?: string;
     answers?: Array<{
       questionId: string;
@@ -1399,13 +1419,13 @@ export class StudyService {
       throw new BadRequestException('Stage assessment answers are required');
     }
 
-    const records = answers.map((answer) => this.createPracticeRecord({
+    const records = await Promise.all(answers.map((answer) => this.createPracticeRecord({
       userId,
       questionId: answer.questionId,
       knowledgePointId: '',
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
-    }));
+    })));
     const correctCount = records.filter((record) => record.correct).length;
     const score = Math.round((correctCount / records.length) * 100);
     const reviewItems = records
