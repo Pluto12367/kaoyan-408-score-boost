@@ -1996,6 +1996,165 @@ export class StudyService implements OnModuleInit {
       ],
     };
   }
+
+  // ---- Phase 4: Session Management (auto-save & resume) ----
+
+  private readonly practiceSessions = new Map<string, PracticeSession>();
+  private readonly examSessions = new Map<string, ExamSession>();
+
+  startPracticeSession(userId: string, input: {
+    type: 'practice_set' | 'stage_assessment' | 'paper';
+    questionIds: string[];
+    resourceId?: string;
+  }) {
+    const id = `session-${randomUUID()}`;
+    const now = Date.now();
+    const session: PracticeSession = {
+      id,
+      userId,
+      type: input.type,
+      resourceId: input.resourceId,
+      questionIds: input.questionIds,
+      answers: {},
+      markedQuestions: [],
+      currentIndex: 0,
+      startedAt: new Date(now).toISOString(),
+      lastActiveAt: new Date(now).toISOString(),
+      totalActiveMs: 0,
+      lastResumeAt: now,
+      completed: false,
+    };
+    this.practiceSessions.set(id, session);
+    return this.sessionView(session);
+  }
+
+  savePracticeProgress(sessionId: string, userId: string, input: {
+    answers?: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+    currentIndex?: number;
+    markedQuestions?: string[];
+    idleSince?: number; // timestamp when user went idle, used to exclude idle time
+  }) {
+    const session = this.getOwnSession(sessionId, userId);
+    const now = Date.now();
+
+    // Calculate active time, excluding idle periods
+    let elapsedMs = now - session.lastResumeAt;
+    if (input.idleSince && input.idleSince > session.lastResumeAt) {
+      // User just returned from idle — only count time before idle
+      elapsedMs = Math.max(0, input.idleSince - session.lastResumeAt);
+    }
+    session.totalActiveMs += elapsedMs;
+    session.lastResumeAt = now;
+    session.lastActiveAt = new Date(now).toISOString();
+
+    if (input.answers) {
+      for (const [questionId, answer] of Object.entries(input.answers)) {
+        session.answers[questionId] = answer;
+      }
+    }
+    if (input.currentIndex !== undefined) {
+      session.currentIndex = input.currentIndex;
+    }
+    if (input.markedQuestions) {
+      session.markedQuestions = [...new Set(input.markedQuestions)];
+    }
+
+    this.practiceSessions.set(sessionId, session);
+    return this.sessionView(session);
+  }
+
+  getPracticeSession(sessionId: string, userId: string) {
+    return this.sessionView(this.getOwnSession(sessionId, userId));
+  }
+
+  listActiveSessions(userId: string) {
+    const sessions = [...this.practiceSessions.values()]
+      .filter((s) => s.userId === userId && !s.completed)
+      .map((s) => this.sessionView(s))
+      .sort((a, b) => b.lastActiveAt.localeCompare(a.lastActiveAt));
+
+    return { sessions, count: sessions.length };
+  }
+
+  async submitPracticeSession(sessionId: string, userId: string, input: {
+    answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+  }) {
+    const session = this.getOwnSession(sessionId, userId);
+    if (session.completed) {
+      throw new BadRequestException('Session has already been submitted');
+    }
+
+    // Save final progress
+    for (const answer of input.answers) {
+      session.answers[answer.questionId] = {
+        selectedAnswer: answer.selectedAnswer,
+        timeSpentSec: answer.timeSpentSec,
+      };
+    }
+
+    // Create practice records for all answers
+    const records = await Promise.all(
+      input.answers.map((answer) =>
+        this.createPracticeRecord({
+          userId,
+          questionId: answer.questionId,
+          knowledgePointId: '',
+          selectedAnswer: answer.selectedAnswer,
+          timeSpentSec: answer.timeSpentSec,
+        }),
+      ),
+    );
+
+    session.completed = true;
+    this.practiceSessions.set(sessionId, session);
+
+    const correctCount = records.filter((r) => r.correct).length;
+    return {
+      sessionId,
+      completed: true,
+      totalQuestions: records.length,
+      correctCount,
+      accuracyRate: Math.round((correctCount / records.length) * 100),
+      totalActiveMs: session.totalActiveMs,
+      records: records.map((r) => ({
+        questionId: r.questionId,
+        correct: r.correct,
+        mistakeReason: r.mistakeReason,
+      })),
+    };
+  }
+
+  private getOwnSession(sessionId: string, userId: string): PracticeSession {
+    const session = this.practiceSessions.get(sessionId);
+    if (!session) {
+      throw new BadRequestException(`Session ${sessionId} was not found`);
+    }
+    if (session.userId !== userId) {
+      throw new ForbiddenException('You can only access your own sessions');
+    }
+    return session;
+  }
+
+  private sessionView(s: PracticeSession) {
+    return {
+      id: s.id,
+      type: s.type,
+      resourceId: s.resourceId,
+      questionIds: s.questionIds,
+      answers: s.answers,
+      markedQuestions: s.markedQuestions,
+      currentIndex: s.currentIndex,
+      totalQuestions: s.questionIds.length,
+      answeredCount: Object.keys(s.answers).length,
+      startedAt: s.startedAt,
+      lastActiveAt: s.lastActiveAt,
+      totalActiveMs: s.totalActiveMs,
+      completed: s.completed,
+      progressRate: s.questionIds.length > 0
+        ? Math.round((Object.keys(s.answers).length / s.questionIds.length) * 100)
+        : 0,
+    };
+  }
 }
 
 function todayKey() {
@@ -2154,3 +2313,27 @@ export interface ReviewResource {
 }
 
 type MasteryStatus = 'weak' | 'review' | 'mastered';
+
+// Phase 4 session types
+interface PracticeSession {
+  id: string;
+  userId: string;
+  type: 'practice_set' | 'stage_assessment' | 'paper';
+  resourceId?: string;
+  questionIds: string[];
+  answers: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+  markedQuestions: string[];
+  currentIndex: number;
+  startedAt: string;
+  lastActiveAt: string;
+  totalActiveMs: number;
+  lastResumeAt: number;
+  completed: boolean;
+}
+
+interface ExamSession {
+  id: string;
+  practiceSessionId: string;
+  timeLimitSec: number;
+  overtime: boolean;
+}

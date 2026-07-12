@@ -7,3 +7,4 @@ export * from './endpoints/tutor';
 export * from './endpoints/teacher';
 export * from './endpoints/auth';
 export * from './endpoints/onboarding';
+export * from './endpoints/sessions';

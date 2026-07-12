@@ -245,6 +245,62 @@ export class StudyController {
 
   // ---- Phase 3: Onboarding & Today's Plan ----
 
+  // ---- Phase 4: Session Management (auto-save & resume) ----
+
+  @Post('sessions/practice/start')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  startPracticeSession(@CurrentUser() user: UserProfile, @Body() input: {
+    type: 'practice_set' | 'stage_assessment' | 'paper';
+    questionIds: string[];
+    resourceId?: string;
+  }) {
+    return this.studyService.startPracticeSession(user.id, input);
+  }
+
+  @Post('sessions/practice/:sessionId/save')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  savePracticeProgress(
+    @CurrentUser() user: UserProfile,
+    @Param('sessionId') sessionId: string,
+    @Body() input: {
+      answers?: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+      currentIndex?: number;
+      markedQuestions?: string[];
+      idleSince?: number;
+    },
+  ) {
+    return this.studyService.savePracticeProgress(sessionId, user.id, input);
+  }
+
+  @Get('sessions/practice/:sessionId')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getPracticeSession(@CurrentUser() user: UserProfile, @Param('sessionId') sessionId: string) {
+    return this.studyService.getPracticeSession(sessionId, user.id);
+  }
+
+  @Get('sessions/active')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  listActiveSessions(@CurrentUser() user: UserProfile) {
+    return this.studyService.listActiveSessions(user.id);
+  }
+
+  @Post('sessions/practice/:sessionId/submit')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  submitPracticeSession(
+    @CurrentUser() user: UserProfile,
+    @Param('sessionId') sessionId: string,
+    @Body() input: {
+      answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+    },
+  ) {
+    return this.studyService.submitPracticeSession(sessionId, user.id, input);
+  }
+
   @Get('onboarding/status')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
