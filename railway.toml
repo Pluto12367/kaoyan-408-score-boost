@@ -1,0 +1,10 @@
+[build]
+# Railway auto-detects Dockerfile, these are fallback settings
+builder = "nixpacks"
+
+[deploy]
+startCommand = "cd apps/api && npx prisma migrate deploy --schema ../../prisma/schema.prisma && node dist/main.js"
+healthcheckPath = "/health"
+
+[service]
+port = 3000
