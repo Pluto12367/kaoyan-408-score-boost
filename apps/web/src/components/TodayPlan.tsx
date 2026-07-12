@@ -1,6 +1,8 @@
-import { Clock, CheckCircle2, AlertCircle, BookOpen } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Clock, CheckCircle2, AlertCircle, BookOpen, RotateCcw } from 'lucide-react';
 import { completeStudyTask } from '../api/endpoints/practice';
 import { postponeTask, type TodayPlan as TodayPlanType } from '../api/endpoints/onboarding';
+import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
 
 interface Props {
   plan: TodayPlanType;
@@ -8,6 +10,13 @@ interface Props {
 }
 
 export function TodayPlan({ plan, onRefresh }: Props) {
+  const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
+
+  useEffect(() => {
+    fetchDueReviews()
+      .then((r) => setDueReviews(r.items))
+      .catch(() => { /* no reviews */ });
+  }, []);
   async function handleComplete(taskId: string) {
     try {
       await completeStudyTask({ taskId });
@@ -96,6 +105,25 @@ export function TodayPlan({ plan, onRefresh }: Props) {
           ))
         )}
       </div>
+
+      {/* Due reviews */}
+      {dueReviews.length > 0 ? (
+        <div className="due-reviews">
+          <h4><RotateCcw size={16} /> 到期复习 ({dueReviews.length})</h4>
+          {dueReviews.slice(0, 3).map((item) => (
+            <div key={item.questionId} className={`review-row stability-${item.stability}`}>
+              <div>
+                <strong>{item.knowledgePointTitle}</strong>
+                <span>{item.subject} · 已复习 {item.reviewCount} 次</span>
+                <p className="review-stem">{item.stem.slice(0, 40)}...</p>
+              </div>
+              <span className="stability-badge">
+                {item.stability === 'mastered' ? '已掌握' : item.stability === 'review' ? '巩固' : '学习'}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* Checkpoint reminder */}
       <div className="checkpoint-banner">

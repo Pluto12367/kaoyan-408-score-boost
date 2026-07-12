@@ -342,6 +342,40 @@ export class StudyController {
     return this.studyService.postponeTask(user.id, taskId);
   }
 
+  // ---- Phase 5: Spaced Repetition (wrong question review scheduling) ----
+
+  @Post('wrong-questions/:questionId/reason')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  reportWrongReason(
+    @CurrentUser() user: UserProfile,
+    @Param('questionId') questionId: string,
+    @Body() input: {
+      selfReportedReason: string;
+      redoCorrect: boolean;
+      timeSpentSec: number;
+    },
+  ) {
+    return this.studyService.reportWrongReason(questionId, user.id, input);
+  }
+
+  @Get('review/due')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getDueReviews(@CurrentUser() user: UserProfile) {
+    return this.studyService.getDueReviews(user.id);
+  }
+
+  @Get('wrong-questions/:questionId/detail')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getWrongQuestionDetail(
+    @CurrentUser() user: UserProfile,
+    @Param('questionId') questionId: string,
+  ) {
+    return this.studyService.getWrongQuestionDetail(questionId, user.id);
+  }
+
   @Post('feedback')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')

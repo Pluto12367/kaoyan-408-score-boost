@@ -1182,6 +1182,140 @@ export class StudyService implements OnModuleInit {
     };
   }
 
+  // ---- Phase 5: Spaced Repetition (wrong question review scheduling) ----
+
+  private readonly reviewSchedules = new Map<string, ReviewSchedule>();
+
+  reportWrongReason(questionId: string, userId: string, input: {
+    selfReportedReason: string;
+    redoCorrect: boolean;
+    timeSpentSec: number;
+  }) {
+    const key = `${userId}@${questionId}`;
+    const existing = this.reviewSchedules.get(key);
+    const now = new Date();
+
+    // Determine mastery: consecutive correct redos → advance interval
+    const consecutiveCorrect = input.redoCorrect
+      ? (existing?.consecutiveCorrect ?? 0) + 1
+      : 0;
+
+    const stability: ReviewSchedule['stability'] =
+      consecutiveCorrect >= 3 ? 'mastered'
+      : consecutiveCorrect >= 1 ? 'review'
+      : 'learning';
+
+    // Spaced repetition intervals
+    const intervals = [1, 3, 7, 14]; // days
+    const intervalIndex = Math.min(consecutiveCorrect, intervals.length - 1);
+    const nextIntervalDays = consecutiveCorrect === 0 ? 1 : intervals[intervalIndex];
+
+    const nextReviewAt = new Date(now);
+    nextReviewAt.setUTCDate(nextReviewAt.getUTCDate() + nextIntervalDays);
+
+    const schedule: ReviewSchedule = {
+      questionId,
+      userId,
+      selfReportedReason: input.selfReportedReason,
+      redoCorrect: input.redoCorrect,
+      timeSpentSec: input.timeSpentSec,
+      consecutiveCorrect,
+      stability,
+      nextReviewAt: nextReviewAt.toISOString(),
+      reviewCount: (existing?.reviewCount ?? 0) + 1,
+      lastReviewedAt: now.toISOString(),
+    };
+    this.reviewSchedules.set(key, schedule);
+
+    // Also mark as reviewed in the existing tracking
+    const reviewed = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
+    reviewed.set(questionId, now.toISOString());
+    this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
+
+    return {
+      ...schedule,
+      nextReviewInDays: nextIntervalDays,
+      message: stability === 'mastered'
+        ? '连续正确已达 3 次，标记为稳定掌握！'
+        : consecutiveCorrect > 0
+          ? `连续正确 ${consecutiveCorrect} 次，${nextIntervalDays} 天后复习。`
+          : '重做仍有错误，建议先复述考点再进入下一次。',
+    };
+  }
+
+  getDueReviews(userId: string) {
+    const now = new Date();
+    const due: Array<ReviewSchedule & { stem: string; knowledgePointTitle: string; subject: string }> = [];
+
+    for (const [, schedule] of this.reviewSchedules) {
+      if (schedule.userId !== userId) continue;
+      if (schedule.stability === 'mastered') continue;
+      if (new Date(schedule.nextReviewAt) > now) continue;
+
+      const question = this.questions.find((q) => q.id === schedule.questionId);
+      const point = this.knowledgePoints.find((k) => k.id === question?.knowledgePointIds[0]);
+      due.push({
+        ...schedule,
+        stem: question?.stem ?? schedule.questionId,
+        knowledgePointTitle: point?.title ?? '未知考点',
+        subject: point?.subject ?? '未分类',
+      });
+    }
+
+    return {
+      userId,
+      dueCount: due.length,
+      items: due.sort((a, b) => a.nextReviewAt.localeCompare(b.nextReviewAt)),
+      nextAction: due.length > 0
+        ? `今天有 ${due.length} 道错题需要复习，优先从最早到期的开始。`
+        : '暂无到期复习任务，可以开始新的练习。',
+    };
+  }
+
+  getWrongQuestionDetail(questionId: string, userId: string) {
+    const records = this.records
+      .filter((r) => r.userId === userId && r.questionId === questionId)
+      .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
+
+    const question = this.questions.find((q) => q.id === questionId);
+    const point = question?.knowledgePointIds[0]
+      ? this.knowledgePoints.find((k) => k.id === question.knowledgePointIds[0])
+      : undefined;
+
+    const schedule = this.reviewSchedules.get(`${userId}@${questionId}`);
+    const similar = this.findSimilarQuestions(questionId, point?.id ?? '');
+
+    return {
+      questionId,
+      stem: question?.stem ?? questionId,
+      answer: question?.answer,
+      analysis: question?.analysis,
+      knowledgePointTitle: point?.title ?? '未知考点',
+      subject: point?.subject ?? '未分类',
+      chapter: point?.chapter ?? '未分类',
+      attemptHistory: records.map((r) => ({
+        date: r.submittedAt,
+        selectedAnswer: r.selectedAnswer,
+        correct: r.correct,
+        mistakeReason: r.mistakeReason,
+        timeSpentSec: r.timeSpentSec,
+      })),
+      reviewSchedule: schedule ? {
+        stability: schedule.stability,
+        consecutiveCorrect: schedule.consecutiveCorrect,
+        nextReviewAt: schedule.nextReviewAt,
+        reviewCount: schedule.reviewCount,
+        selfReportedReason: schedule.selfReportedReason,
+      } : null,
+      similarQuestions: similar,
+      recommendation: schedule?.stability === 'mastered'
+        ? '已稳定掌握，保持定期限时训练。'
+        : schedule?.stability === 'review'
+          ? '在巩固阶段，继续按间隔复习并记录易错条件。'
+          : '仍在学习阶段，建议先重读概念再重做。',
+    };
+  }
+
   getWrongQuestionSummary(userId = this.student.id) {
     const wrongQuestions = this.listWrongQuestions(userId);
     const reviewedQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
@@ -2336,4 +2470,17 @@ interface ExamSession {
   practiceSessionId: string;
   timeLimitSec: number;
   overtime: boolean;
+}
+
+export interface ReviewSchedule {
+  questionId: string;
+  userId: string;
+  selfReportedReason: string;
+  redoCorrect: boolean;
+  timeSpentSec: number;
+  consecutiveCorrect: number;
+  stability: 'learning' | 'review' | 'mastered';
+  nextReviewAt: string;
+  reviewCount: number;
+  lastReviewedAt: string;
 }

@@ -8,3 +8,4 @@ export * from './endpoints/teacher';
 export * from './endpoints/auth';
 export * from './endpoints/onboarding';
 export * from './endpoints/sessions';
+export * from './endpoints/review';
