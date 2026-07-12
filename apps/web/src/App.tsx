@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target } from 'lucide-react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
+import { OnboardingWizard } from './components/OnboardingWizard';
+import { TodayPlan } from './components/TodayPlan';
 import { isMockAllowed } from './api/env';
+import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
   approveReviewItem,
   completeStudyTask,
@@ -114,6 +117,9 @@ export function App() {
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
   const [apiState, setApiState] = useState<ApiState>('connecting');
   const [lastSyncAt, setLastSyncAt] = useState<string | undefined>();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [todayPlan, setTodayPlan] = useState<TodayPlanType | null>(null);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
@@ -228,6 +234,47 @@ export function App() {
       active = false;
     };
   }, [sessionUser?.role]);
+
+  // Phase 3: Check onboarding status on mount
+  useEffect(() => {
+    if (isStaticDemoMode()) { setOnboardingChecked(true); return; }
+    fetchOnboardingStatus()
+      .then((status) => {
+        if (!status.completed) setShowOnboarding(true);
+        setOnboardingChecked(true);
+      })
+      .catch(() => setOnboardingChecked(true));
+  }, []);
+
+  // Phase 3: Load today plan when onboarding is done
+  useEffect(() => {
+    if (!onboardingChecked || showOnboarding) return;
+    if (isStaticDemoMode()) return;
+    fetchTodayPlan()
+      .then((plan) => setTodayPlan(plan))
+      .catch(() => { /* show plan from dashboard overview */ });
+  }, [onboardingChecked, showOnboarding]);
+
+  async function handleOnboardingComplete(result: Awaited<ReturnType<typeof import('./api/endpoints/onboarding').completeOnboarding>>) {
+    setShowOnboarding(false);
+    if (result.todayPlan) {
+      setTodayPlan(result.todayPlan as TodayPlanType);
+    }
+    // Reload dashboard to reflect new profile
+    try {
+      const data = await fetchDashboardOverview();
+      setOverview(data);
+      setApiState('connected');
+      setLastSyncAt(new Date().toISOString());
+    } catch { /* keep existing data */ }
+  }
+
+  async function refreshTodayPlan() {
+    try {
+      const plan = await fetchTodayPlan();
+      setTodayPlan(plan);
+    } catch { /* keep existing */ }
+  }
 
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const currentQuestion = questions[0];
@@ -997,6 +1044,16 @@ rating: 4,
             <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
           </div>
         </header>
+
+        {/* Phase 3: Onboarding wizard for new users */}
+        {showOnboarding ? (
+          <OnboardingWizard onComplete={handleOnboardingComplete} />
+        ) : null}
+
+        {/* Phase 3: Today's Learning Plan */}
+        {!showOnboarding && todayPlan ? (
+          <TodayPlan plan={todayPlan} onRefresh={refreshTodayPlan} />
+        ) : null}
 
         <section className="panel role-panel">
           <div className="panel-heading">
