@@ -142,20 +142,14 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchAdminMetrics(), fetchAdminUsers(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchRecommendedPracticeSet('u-001'), fetchReviewResourceRecommendations('u-001'), fetchLearningProfile('u-001'), fetchFeedbackList(), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
-      .then(([data, metrics, users, classAnalytics, queue, config, recommendedSet, resources, profile, feedback, trial, reminders, sprint, mastery, wrongSummary, history]) => {
+    Promise.all([fetchDashboardOverview(), fetchRecommendedPracticeSet('u-001'), fetchReviewResourceRecommendations('u-001'), fetchLearningProfile('u-001'), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
+      .then(([data, recommendedSet, resources, profile, trial, reminders, sprint, mastery, wrongSummary, history]) => {
         if (!active) return;
         setOverview(data);
-        setAdminMetrics(metrics);
-        setAdminUsers(users);
-        setTeacherClassAnalytics(classAnalytics);
-        setReviewQueue(queue);
-        setSystemConfig(config);
         setTeacherQuestionList(data.questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
         setPracticeSet(recommendedSet);
         setReviewResources(resources);
         setLearningProfile(profile);
-        setFeedbackList(feedback);
         setTrialProgress(trial);
         setStudyReminders(reminders);
         setSprintPlan(sprint);
@@ -168,15 +162,9 @@ export function App() {
       .catch(() => {
         if (!active) return;
         setOverview(createMockOverview());
-        setAdminMetrics(createMockAdminMetrics());
-        setAdminUsers(createMockAdminUserManagement());
-        setTeacherClassAnalytics(createMockTeacherClassAnalytics());
-        setReviewQueue(createMockReviewQueue());
-        setSystemConfig(createMockSystemConfig());
         setPracticeSet(createMockPracticeSet());
         setReviewResources(createMockReviewResourceRecommendations());
         setLearningProfile(createMockLearningProfile());
-        setFeedbackList(createMockFeedbackList());
         setTrialProgress(createMockTrialProgress());
         setStudyReminders(createMockStudyReminders());
         setSprintPlan(createMockSprintPlan());
@@ -190,6 +178,42 @@ export function App() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const role = sessionUser?.role;
+
+    if (role === 'teacher') {
+      fetchTeacherClassAnalytics()
+        .then((classAnalytics) => {
+          if (!active) return;
+          setTeacherClassAnalytics(classAnalytics);
+        })
+        .catch(() => {
+          if (active) setTeacherStatus('教师数据加载失败，请重新登录后重试。');
+        });
+    }
+
+    if (role === 'admin') {
+      Promise.all([fetchAdminMetrics(), fetchAdminUsers(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchFeedbackList()])
+        .then(([metrics, users, classAnalytics, queue, config, feedback]) => {
+          if (!active) return;
+          setAdminMetrics(metrics);
+          setAdminUsers(users);
+          setTeacherClassAnalytics(classAnalytics);
+          setReviewQueue(queue);
+          setSystemConfig(config);
+          setFeedbackList(feedback);
+        })
+        .catch(() => {
+          if (active) setReviewStatus('管理数据加载失败，请重新登录后重试。');
+        });
+    }
+
+    return () => {
+      active = false;
+    };
+  }, [sessionUser?.role]);
 
   useEffect(() => {
     const stored = loadStoredAuthSession();
@@ -406,9 +430,7 @@ export function App() {
         timeSpentSec: 135,
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
       setApiState('connected');
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
@@ -441,11 +463,9 @@ export function App() {
         })),
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
       const nextPracticeSet = await fetchRecommendedPracticeSet(student.id);
       const nextProfile = await fetchLearningProfile(student.id);
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
       setPracticeSet(nextPracticeSet);
       setLearningProfile(nextProfile);
       setPracticeSetResult(result);
@@ -516,10 +536,8 @@ export function App() {
         selfRating: 2,
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
       const nextProfile = await fetchLearningProfile(student.id);
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
       setLearningProfile(nextProfile);
       setApiState('connected');
       await refreshTrialProgress(student.id);
@@ -545,9 +563,7 @@ export function App() {
         questionId,
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);
@@ -593,10 +609,8 @@ export function App() {
         })),
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
       const nextProfile = await fetchLearningProfile(student.id);
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
       setStageResult(result);
       setLearningProfile(nextProfile);
       setApiState('connected');
@@ -622,10 +636,6 @@ export function App() {
         prompt: '请解释这道题的考点和易错点。',
       });
       setTutorReply(reply);
-      const nextQueue = await fetchReviewQueue();
-      const nextMetrics = await fetchAdminMetrics();
-      setReviewQueue(nextQueue);
-      setAdminMetrics(nextMetrics);
       setApiState('connected');
       setTutorStatus(`已生成 ${reply.knowledgePointTitle} 的答疑解析。`);
       document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -644,11 +654,7 @@ export function App() {
         questionId: currentQuestion.id,
         message,
       });
-      const nextQueue = await fetchReviewQueue();
-      const nextMetrics = await fetchAdminMetrics();
       setAiFollowUp(reply);
-      setReviewQueue(nextQueue);
-      setAdminMetrics(nextMetrics);
       setApiState('connected');
       setTutorStatus(`已生成 ${reply.reviewCards.length} 张复习卡片：${reply.relatedKnowledgePoint.title}`);
       document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -675,12 +681,8 @@ export function App() {
         expectedTimeSec: 90,
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
-      const nextQueue = await fetchReviewQueue();
       const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
-      setReviewQueue(nextQueue);
       setTeacherQuestionList(nextQuestions);
       setApiState('connected');
       setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
@@ -789,9 +791,7 @@ export function App() {
         prerequisites: ['进程地址空间'],
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
       setApiState('connected');
       setKnowledgeStatus(`已新增 ${point.title}，当前知识点共 ${nextOverview.knowledgePoints.length} 个。`);
     } catch {
@@ -901,11 +901,9 @@ export function App() {
         })),
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextMetrics = await fetchAdminMetrics();
       setPaperResult(result);
       setPaperSession(result.examSession);
       setOverview(nextOverview);
-      setAdminMetrics(nextMetrics);
       await refreshMasteryMap(student.id);
       await refreshWrongQuestionSummary(student.id);
       await refreshAssessmentHistory(student.id);
@@ -998,8 +996,6 @@ export function App() {
         message: '推荐题组和学习档案对备考路径有帮助，希望继续完善移动端体验。',
         surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
       });
-      const nextFeedbackList = await fetchFeedbackList();
-      setFeedbackList(nextFeedbackList);
       await refreshTrialProgress(student.id);
       await refreshStudyReminders(student.id);
       await refreshSprintPlan(student.id);

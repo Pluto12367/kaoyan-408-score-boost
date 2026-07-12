@@ -52,6 +52,7 @@ async function main() {
   }, studentHeaders, 'student session should not create teacher questions');
   const classAnalytics = await waitForJson(`${apiUrl}/teacher/class-analytics`, (data) =>
     data.overview?.studentCount >= 1 && Array.isArray(data.subjectWeakness),
+    teacherHeaders,
   );
   assert(classAnalytics.overview.averageAccuracyRate >= 0, 'class analytics should expose average accuracy');
   assert(classAnalytics.subjectWeakness.length >= 4, 'class analytics should include 408 subject weakness data');
@@ -266,7 +267,8 @@ async function main() {
   assert(calendar.today.completedTaskCount >= 1, 'learning calendar should include completed task count for today');
   assert(calendar.today.practiceCount >= 1, 'learning calendar should include practice count for today');
   assert(calendar.streakDays >= 1, 'learning calendar should include active streak days');
-  const systemConfig = await waitForJson(`${apiUrl}/admin/system-config`, (data) => data.recommendation?.stageAssessmentQuestionLimit >= 2);
+  await expectForbidden(`${apiUrl}/admin/metrics`, studentHeaders, 'student session should not access admin metrics');
+  const systemConfig = await waitForJson(`${apiUrl}/admin/system-config`, (data) => data.recommendation?.stageAssessmentQuestionLimit >= 2, adminHeaders);
   assert(systemConfig.recommendation.dailyTargetQuestionCount > 0, 'system config should include daily target question count');
   const updatedSystemConfig = await postJson(`${apiUrl}/admin/system-config`, {
     recommendation: {
@@ -321,6 +323,7 @@ async function main() {
   assert(followUpReply.reviewCards.every((card) => card.title && card.type && card.content && card.nextAction), 'AI follow-up review cards should include title, type, content and next action');
   const reviewQueue = await waitForJson(`${apiUrl}/admin/review-queue`, (data) =>
     Array.isArray(data?.items) && data.items.length >= 2,
+    adminHeaders,
   );
   assert(reviewQueue.pendingCount >= 2, 'review queue should include pending content');
   assert(reviewQueue.items.some((item) => item.contentType === 'question' && item.relatedId === createdTeacherQuestion.id), 'review queue should include teacher-created question');
@@ -340,6 +343,7 @@ async function main() {
   assert(approvedReviewItem.status === 'approved', 'review approval should mark the item as approved');
   const reviewQueueAfterApproval = await waitForJson(`${apiUrl}/admin/review-queue`, (data) =>
     Array.isArray(data?.items) && data.items.some((item) => item.id === approvedReviewItem.id && item.status === 'approved'),
+    adminHeaders,
   );
   assert(reviewQueueAfterApproval.pendingCount === reviewQueue.pendingCount - 2, 'review queue pending count should decrease after recheck and approval');
   assert(reviewQueueAfterApproval.items.some((item) => item.id === aiReviewItem.id && item.status === 'needs_recheck'), 'review queue should expose needs recheck status');
@@ -353,9 +357,10 @@ async function main() {
   assert(feedback.id && feedback.status === 'new', 'feedback submission should return a new feedback item');
   const feedbackList = await waitForJson(`${apiUrl}/admin/feedback`, (data) =>
     data.totalCount >= 1 && data.items?.some((item) => item.id === feedback.id),
+    adminHeaders,
   );
   assert(feedbackList.averageRating >= 4, 'feedback admin list should expose average rating');
-  const adminMetrics = await waitForJson(`${apiUrl}/admin/metrics`, (data) => data.questionCount >= overviewAfterTeacherQuestion.questions.length);
+  const adminMetrics = await waitForJson(`${apiUrl}/admin/metrics`, (data) => data.questionCount >= overviewAfterTeacherQuestion.questions.length, adminHeaders);
   assert(adminMetrics.activeStudentCount >= 1, 'admin metrics should include active student count');
   assert(adminMetrics.practiceRecordCount >= updatedOverview.practiceRecords.length, 'admin metrics should include practice record count');
   assert(adminMetrics.accuracyRate >= 0 && adminMetrics.accuracyRate <= 100, 'admin metrics should expose accuracy rate');
@@ -364,6 +369,7 @@ async function main() {
   assert(adminMetrics.pendingWrongQuestionCount >= 1, 'admin metrics should include pending wrong question count');
   const adminUsers = await waitForJson(`${apiUrl}/admin/users`, (data) =>
     data.summary?.totalUsers >= 3 && Array.isArray(data.users),
+    adminHeaders,
   );
   assert(adminUsers.users.some((user) => user.role === 'student'), 'admin users should include a student account');
   assert(adminUsers.users.some((user) => user.role === 'teacher'), 'admin users should include a teacher account');
@@ -374,6 +380,7 @@ async function main() {
   assert(updatedTrialUser.trialStatus === 'follow_up', 'admin user trial status update should persist');
   const adminUsersAfterTrialUpdate = await waitForJson(`${apiUrl}/admin/users`, (data) =>
     data.summary?.followUpCount >= 1,
+    adminHeaders,
   );
   assert(adminUsersAfterTrialUpdate.users.some((user) => user.id === 'u-001' && user.trialStatus === 'follow_up'), 'admin users should expose updated trial status');
   const deletedTeacherQuestion = await deleteJson(`${apiUrl}/questions/${createdTeacherQuestion.id}`, teacherHeaders);

@@ -1382,7 +1382,7 @@ export async function submitPracticeSet(input: {
 }
 
 export async function fetchAdminMetrics(): Promise<AdminMetrics> {
-  const response = await fetch(`${API_BASE_URL}/admin/metrics`);
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/metrics`);
   if (!response.ok) {
     throw new Error(`Admin metrics request failed with ${response.status}`);
   }
@@ -1391,7 +1391,7 @@ export async function fetchAdminMetrics(): Promise<AdminMetrics> {
 }
 
 export async function fetchTeacherClassAnalytics(): Promise<TeacherClassAnalytics> {
-  const response = await fetch(`${API_BASE_URL}/teacher/class-analytics`);
+  const response = await authenticatedFetch(`${API_BASE_URL}/teacher/class-analytics`);
   if (!response.ok) {
     throw new Error(`Teacher class analytics request failed with ${response.status}`);
   }
@@ -1400,7 +1400,7 @@ export async function fetchTeacherClassAnalytics(): Promise<TeacherClassAnalytic
 }
 
 export async function fetchAdminUsers(): Promise<AdminUserManagement> {
-  const response = await fetch(`${API_BASE_URL}/admin/users`);
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/users`);
   if (!response.ok) {
     throw new Error(`Admin users request failed with ${response.status}`);
   }
@@ -1428,7 +1428,7 @@ export async function updateAdminUserTrialStatus(input: {
 }
 
 export async function fetchReviewQueue(): Promise<ReviewQueue> {
-  const response = await fetch(`${API_BASE_URL}/admin/review-queue`);
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/review-queue`);
   if (!response.ok) {
     throw new Error(`Review queue request failed with ${response.status}`);
   }
@@ -1437,7 +1437,7 @@ export async function fetchReviewQueue(): Promise<ReviewQueue> {
 }
 
 export async function fetchFeedbackList(): Promise<FeedbackList> {
-  const response = await fetch(`${API_BASE_URL}/admin/feedback`);
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/feedback`);
   if (!response.ok) {
     throw new Error(`Feedback list request failed with ${response.status}`);
   }
@@ -1506,7 +1506,7 @@ export async function markReviewItemNeedsRecheck(input: {
 }
 
 export async function fetchSystemConfig(): Promise<SystemConfig> {
-  const response = await fetch(`${API_BASE_URL}/admin/system-config`);
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/system-config`);
   if (!response.ok) {
     throw new Error(`System config request failed with ${response.status}`);
   }

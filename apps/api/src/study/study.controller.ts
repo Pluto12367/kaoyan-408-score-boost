@@ -57,11 +57,15 @@ export class StudyController {
   }
 
   @Get('admin/metrics')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   getAdminMetrics() {
     return this.studyService.getAdminMetrics();
   }
 
   @Get('admin/users')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   getAdminUsers() {
     return this.studyService.getAdminUsers();
   }
@@ -74,11 +78,15 @@ export class StudyController {
   }
 
   @Get('admin/feedback')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   getFeedbackList() {
     return this.studyService.getFeedbackList();
   }
 
   @Get('admin/review-queue')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   getReviewQueue() {
     return this.studyService.getReviewQueue();
   }
@@ -98,11 +106,15 @@ export class StudyController {
   }
 
   @Get('admin/system-config')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   getSystemConfig() {
     return this.studyService.getSystemConfig();
   }
 
   @Get('teacher/class-analytics')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
   getTeacherClassAnalytics() {
     return this.studyService.getTeacherClassAnalytics();
   }
