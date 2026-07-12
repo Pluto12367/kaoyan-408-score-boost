@@ -8,11 +8,13 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "node --test",
+    "test": "npm run build:shared && node --test",
     "start": "node server.js",
+    "prestart": "npm run build:web",
+    "postinstall": "npm run build:shared",
     "verify:ui": "node scripts/verify-ui.mjs",
     "check:local": "node --test && node scripts/verify-ui.mjs",
-    "predeploy": "node --test",
+    "predeploy": "npm run build:shared && node --test",
     "build:shared": "npm run build -w packages/shared",
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run start:dev -w apps/api",

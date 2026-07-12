@@ -10,7 +10,7 @@ import {
   generateTutorReply,
   recommendPracticeSet,
   requireQuestionKnowledgePoint,
-} from '../src/appLogic.js';
+} from '../packages/shared/dist/learning.js';
 
 const knowledgePoints = [
   { id: 'ds-tree', subject: '数据结构', chapter: '树与二叉树', title: '树的遍历应用', importance: 5, frequency: 5 },
@@ -152,4 +152,80 @@ test('createTeacherQuestion adds a valid question with generated id', () => {
 
   assert.equal(question.id, 'q-005');
   assert.equal(question.knowledgePointIds[0], 'os-sync');
+});
+
+// ---- Additional tests for edge cases ----
+
+test('classifyMistake returns null for correct and fast answers', () => {
+  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'B', correctAnswer: 'B', timeSpentSec: 80, expectedTimeSec: 100 }), null);
+});
+
+test('classifyMistake returns 知识点混淆 for wrong answers at normal speed', () => {
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 95, expectedTimeSec: 100 }), '知识点混淆');
+});
+
+test('applyDiagnosticProfile sets 冲刺 stage when remainingDays <= 45 with adequate score', () => {
+  const profile = applyDiagnosticProfile({ targetScore: 120, currentScore: 85, remainingDays: 30, dailyHours: 4, weakestSubject: '计算机网络' });
+  assert.equal(profile.stage, '冲刺');
+  assert.match(profile.diagnosis, /真题.*错题.*限时/);
+});
+
+test('applyDiagnosticProfile sets 强化 stage when score >= 70 and days > 45', () => {
+  const profile = applyDiagnosticProfile({ targetScore: 110, currentScore: 75, remainingDays: 80, dailyHours: 3, weakestSubject: '计算机组成原理' });
+  assert.equal(profile.stage, '强化');
+  assert.match(profile.diagnosis, /专题突破/);
+});
+
+test('computeWeaknessReport returns 0 accuracyRate for empty records', () => {
+  const report = computeWeaknessReport({ knowledgePoints, records: [], targetScore: 100 });
+  assert.equal(report.accuracyRate, 0);
+  assert.equal(report.weakPoints.length, 0);
+  assert.equal(report.speedRisks.length, 0);
+});
+
+test('computeWeaknessReport calculates estimated gain', () => {
+  const report = computeWeaknessReport({ knowledgePoints, records, targetScore: 115 });
+  assert.ok(report.estimatedGain >= 8);
+  assert.ok(report.estimatedGain <= 50);
+});
+
+test('buildStudyPlan generates sprint phase with higher question count', () => {
+  const plan = buildStudyPlan({ targetScore: 115, remainingDays: 30, dailyHours: 4, stage: '冲刺', knowledgePoints, records });
+  assert.equal(plan.phase, '真题冲刺');
+  assert.equal(plan.dailyTasks[0].questionCount, 18);
+});
+
+test('buildStudyPlan sets shorter checkpoint for sprint', () => {
+  const plan = buildStudyPlan({ targetScore: 115, remainingDays: 30, dailyHours: 4, stage: '冲刺', knowledgePoints, records });
+  assert.match(plan.checkpoint, /每 3 天/);
+});
+
+test('recommendPracticeSet returns basic mode for low accuracy', () => {
+  const report = computeWeaknessReport({ knowledgePoints, records, targetScore: 100 });
+  const rec = recommendPracticeSet({ stage: '强化', report });
+  assert.equal(rec.title, '高频基础考点补强');
+  assert.equal(rec.questionCount, 16);
+});
+
+test('createTeacherQuestion rejects questions with fewer than 2 options', () => {
+  assert.throws(
+    () => createTeacherQuestion({ stem: 'Test', options: ['A'], answer: 'A', analysis: 'Test', knowledgePointIds: ['ds-tree'], difficulty: '易', type: '选择题', source: 'test', existingCount: 10 }),
+    /至少需要两个选项/,
+  );
+});
+
+test('createPracticeRecord uses current date when submittedAt is not provided', () => {
+  const question = { id: 'q-200', answer: 'C', knowledgePointIds: ['ds-tree'], expectedTimeSec: 90 };
+  const record = createPracticeRecord({ userId: 'u-001', question, selectedAnswer: 'C', timeSpentSec: 80 });
+  assert.match(record.submittedAt, /^\d{4}-\d{2}-\d{2}$/);
+});
+
+test('generateTutorReply works without matching knowledge point', () => {
+  const reply = generateTutorReply({
+    question: { stem: 'Test', analysis: 'Test analysis', answer: 'A', knowledgePointIds: ['unknown'] },
+    knowledgePoints: [],
+    selectedAnswer: undefined,
+  });
+  assert.match(reply, /408 高频考点/);
+  assert.match(reply, /正确答案是 A/);
 });

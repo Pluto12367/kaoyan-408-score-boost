@@ -244,3 +244,77 @@ function countStrings(items: string[]): Record<string, number> {
 function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
+
+export function recommendPracticeSet(input: {
+  stage: StudyStage;
+  report: WeaknessReport;
+}): { title: string; knowledgePointIds: string[]; questionCount: number; focus: string } {
+  if (input.stage === '冲刺') {
+    return {
+      title: '真题错题回炉训练',
+      knowledgePointIds: input.report.weakPoints.map((point) => point.knowledgePointId),
+      questionCount: 20,
+      focus: '近十年真题、错题重做、限时复盘',
+    };
+  }
+
+  return {
+    title: input.report.accuracyRate < 55 ? '高频基础考点补强' : '薄弱专题突破',
+    knowledgePointIds: input.report.weakPoints.map((point) => point.knowledgePointId),
+    questionCount: input.report.accuracyRate < 55 ? 16 : 12,
+    focus: input.report.accuracyRate < 55 ? '例题理解、概念复述、基础题组' : '相似考点辨析、变式题组',
+  };
+}
+
+export function createTeacherQuestion(input: {
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  knowledgePointIds: string[];
+  difficulty: string;
+  type: string;
+  source: string;
+  year?: number;
+  expectedTimeSec?: number;
+  existingCount?: number;
+}): Question {
+  const question = requireQuestionKnowledgePoint({
+    id: `q-${String((input.existingCount ?? 0) + 1).padStart(3, '0')}`,
+    stem: input.stem.trim(),
+    options: input.options.map((o) => o.trim()).filter(Boolean),
+    answer: input.answer,
+    analysis: input.analysis.trim(),
+    knowledgePointIds: input.knowledgePointIds,
+    difficulty: input.difficulty as Question['difficulty'],
+    type: input.type as Question['type'],
+    source: input.source,
+    year: input.year ? Number(input.year) : undefined,
+    expectedTimeSec: input.expectedTimeSec ?? 100,
+  });
+
+  if (question.options.length < 2) {
+    throw new Error('选择题至少需要两个选项');
+  }
+
+  return question;
+}
+
+export function generateTutorReply(input: {
+  question: Pick<Question, 'stem' | 'analysis' | 'answer' | 'knowledgePointIds'>;
+  knowledgePoints: KnowledgePoint[];
+  selectedAnswer?: string;
+}): string {
+  const point = input.knowledgePoints.find((k) => k.id === input.question.knowledgePointIds[0]);
+  const answerLine = input.selectedAnswer
+    ? `你选择的是 ${input.selectedAnswer}，正确答案是 ${input.question.answer}。`
+    : `正确答案是 ${input.question.answer}。`;
+
+  return [
+    `这道题对应考点是「${point?.title ?? '408 高频考点'}」。`,
+    answerLine,
+    `解析：${input.question.analysis}`,
+    `复习建议：先复述${point?.chapter ?? '本章'}的核心定义，再做 3 道相似题确认是否真正掌握。`,
+    '相似题：建议继续练习同章节的真题改编题，并记录错因。',
+  ].join('\n');
+}

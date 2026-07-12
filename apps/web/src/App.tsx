@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target } from 'lucide-react';
 import {
   approveReviewItem,
@@ -44,15 +44,6 @@ import {
   fetchTrialProgress,
   fetchWrongQuestionSummary,
   generatePaper,
-  loginAsRole,
-  loginAccount,
-  registerAccount,
-  refreshAuthSession,
-  logoutAccount,
-  loadStoredAuthSession,
-  storeAuthSession,
-  setActiveAuthSession,
-  clearStoredAuthSession,
   markReviewItemNeedsRecheck,
   requestAiFollowUp,
   requestTutorReply,
@@ -66,6 +57,7 @@ import {
   updateAdminUserTrialStatus,
   updateTeacherQuestion,
   updateSystemConfig,
+  isStaticDemoMode,
   type AdminMetrics,
   type AdminUserManagement,
   type AssessmentHistory,
@@ -89,12 +81,29 @@ import {
   type TutorReply,
   type TrialProgress,
   type WrongQuestionSummary,
-  type AuthSession,
 } from './api';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
+import { useAuth } from './hooks/useAuth';
+import {
+  riskLabel,
+  reviewStatusLabel,
+  priorityLabel,
+  masteryStatusLabel,
+  reviewCardTypeLabel,
+  reviewResourceTypeLabel,
+  roleLabel,
+  trialStatusLabel,
+  permissionHint,
+  createInitialPaperSession,
+} from './constants';
 
 export function App() {
-  const [authSession, setAuthSession] = useState<AuthSession | null>(() => loadStoredAuthSession());
+  const {
+    authSession, sessionUser, authMode, authStatus,
+    setAuthSession, setSessionUser, setAuthMode, setAuthStatus,
+    handleRoleSwitch, handleAccountSubmit, handleLogout,
+  } = useAuth();
+
   const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
   const [adminMetrics, setAdminMetrics] = useState<AdminMetrics>(() => createMockAdminMetrics());
   const [adminUsers, setAdminUsers] = useState<AdminUserManagement>(() => createMockAdminUserManagement());
@@ -102,9 +111,6 @@ export function App() {
   const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
   const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
-  const [sessionUser, setSessionUser] = useState<UserProfile | null>(() => loadStoredAuthSession()?.user ?? null);
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [authStatus, setAuthStatus] = useState('请登录后同步学习记录。');
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
@@ -215,46 +221,6 @@ export function App() {
     };
   }, [sessionUser?.role]);
 
-  useEffect(() => {
-    const stored = loadStoredAuthSession();
-    if (!stored?.refreshToken) return;
-    refreshAuthSession(stored.refreshToken)
-      .then((session) => applyAuthenticatedSession(session, '登录状态已恢复。'))
-      .catch(() => clearAccountSession('登录已过期，请重新登录。'));
-  }, []);
-
-  useEffect(() => {
-    if (!authSession?.refreshToken || !authSession.expiresIn) return;
-    const timeout = window.setTimeout(() => {
-      refreshAuthSession(authSession.refreshToken!)
-        .then((session) => applyAuthenticatedSession(session, '登录状态已自动续期。'))
-        .catch(() => clearAccountSession('登录已过期，请重新登录。'));
-    }, Math.max(30_000, (authSession.expiresIn - 60) * 1000));
-    return () => window.clearTimeout(timeout);
-  }, [authSession?.refreshToken, authSession?.expiresIn]);
-
-  useEffect(() => {
-    function handleSessionUpdated(event: Event) {
-      const session = (event as CustomEvent<AuthSession>).detail;
-      if (!session) return;
-      setAuthSession(session);
-      setSessionUser(session.user);
-    }
-
-    function handleSessionExpired() {
-      setAuthSession(null);
-      setSessionUser(null);
-      setAuthStatus('登录已过期，请重新登录。');
-    }
-
-    window.addEventListener('auth-session-updated', handleSessionUpdated);
-    window.addEventListener('auth-session-expired', handleSessionExpired);
-    return () => {
-      window.removeEventListener('auth-session-updated', handleSessionUpdated);
-      window.removeEventListener('auth-session-expired', handleSessionExpired);
-    };
-  }, []);
-
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const currentQuestion = questions[0];
 
@@ -330,65 +296,14 @@ export function App() {
     });
   }
 
-  async function handleRoleSwitch(role: UserRole) {
-    setAuthStatus('正在切换演示身份...');
-
-    try {
-      const session = await loginAsRole(role);
-      setActiveAuthSession(session);
-      setAuthSession(session);
-      setSessionUser(session.user);
-      setApiState('connected');
-      setAuthStatus(`已切换为${roleLabel[session.user.role]}：${session.user.name}。`);
-    } catch {
-      setAuthStatus('身份切换失败，当前仍使用本地演示身份。');
-      setApiState('mock');
-    }
+  async function onRoleSwitch(role: UserRole) {
+    const result = await handleRoleSwitch(role);
+    setApiState(result);
   }
 
-  function applyAuthenticatedSession(session: AuthSession, message: string) {
-    storeAuthSession(session);
-    setAuthSession(session);
-    setSessionUser(session.user);
-    setApiState('connected');
-    setAuthStatus(message);
-  }
-
-  function clearAccountSession(message: string) {
-    clearStoredAuthSession();
-    setActiveAuthSession(null);
-    setAuthSession(null);
-    setSessionUser(null);
-    setAuthStatus(message);
-  }
-
-  async function handleAccountSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    const email = String(form.get('email') ?? '');
-    const password = String(form.get('password') ?? '');
-    const name = String(form.get('name') ?? '');
-    setAuthStatus(authMode === 'register' ? '正在创建账号...' : '正在登录...');
-    try {
-      const session = authMode === 'register'
-        ? await registerAccount({ email, password, name })
-        : await loginAccount({ email, password });
-      applyAuthenticatedSession(session, `${roleLabel[session.user.role]} ${session.user.name} 已登录。`);
-      formElement.reset();
-    } catch (error) {
-      setAuthStatus(error instanceof Error ? error.message : '登录失败，请稍后重试。');
-    }
-  }
-
-  async function handleLogout() {
-    const refreshToken = authSession?.refreshToken;
-    clearAccountSession('已退出登录。');
-    try {
-      await logoutAccount(refreshToken);
-    } catch {
-      setAuthStatus('本地会话已清除。');
-    }
+  async function onLogout() {
+    await handleLogout();
+    setApiState('mock');
   }
 
   async function handleSubmitDiagnostic() {
@@ -1091,7 +1006,7 @@ export function App() {
               <h3>{sessionUser?.name ?? student.name}</h3>
             </div>
             {authSession?.refreshToken ? (
-              <button type="button" className="secondary-action" onClick={handleLogout}>退出登录</button>
+              <button type="button" className="secondary-action" onClick={onLogout}>退出登录</button>
             ) : null}
           </div>
           <p className="task-status">{authStatus} {permissionHint[sessionUser?.role ?? 'student']}</p>
@@ -1134,9 +1049,9 @@ export function App() {
             <div className="demo-role-actions">
               <span>演示身份</span>
               <div className="panel-actions">
-                <button type="button" className="secondary-action" onClick={() => handleRoleSwitch('student')}>学生</button>
-                <button type="button" className="secondary-action" onClick={() => handleRoleSwitch('teacher')}>教师</button>
-                <button type="button" className="secondary-action" onClick={() => handleRoleSwitch('admin')}>管理员</button>
+                <button type="button" className="secondary-action" onClick={() => onRoleSwitch('student')}>学生</button>
+                <button type="button" className="secondary-action" onClick={() => onRoleSwitch('teacher')}>教师</button>
+                <button type="button" className="secondary-action" onClick={() => onRoleSwitch('admin')}>管理员</button>
               </div>
             </div>
           ) : null}
@@ -2127,78 +2042,4 @@ function Metric({ title, value, caption }: { title: string; value: string; capti
       <p>{caption}</p>
     </article>
   );
-}
-
-const riskLabel = {
-  low: '低',
-  medium: '中',
-  high: '高',
-};
-
-const reviewStatusLabel = {
-  pending: '待审核',
-  approved: '已通过',
-  needs_recheck: '需复查',
-};
-
-const priorityLabel = {
-  high: '高优先级',
-  medium: '中优先级',
-  low: '低优先级',
-};
-
-const masteryStatusLabel = {
-  weak: '去补弱',
-  review: '去巩固',
-  mastered: '限时训练',
-};
-
-const reviewCardTypeLabel = {
-  concept: '概念卡',
-  rule: '规则卡',
-  confusion: '易混卡',
-};
-
-const reviewResourceTypeLabel = {
-  concept_card: '概念卡片',
-  mistake_checklist: '错因清单',
-  example_walkthrough: '例题拆解',
-  practice_set: '专项训练',
-};
-
-const roleLabel = {
-  student: '学生',
-  teacher: '教师',
-  admin: '管理员',
-};
-
-const trialStatusLabel = {
-  invited: '已邀请',
-  active: '试用中',
-  completed: '已完成',
-  follow_up: '待回访',
-};
-
-const permissionHint = {
-  student: '学生可使用诊断、计划、练习、错题和 AI 答疑。',
-  teacher: '教师可维护题库、知识点并生成试卷。',
-  admin: '管理员可查看运营指标、审核内容并调整推荐策略。',
-};
-
-function isStaticDemoMode() {
-  return typeof window !== 'undefined'
-    && window.location.hostname.endsWith('github.io')
-    && !import.meta.env.VITE_API_BASE_URL;
-}
-
-function createInitialPaperSession(paper: GeneratedPaper): PaperSubmitResult['examSession'] {
-  return {
-    answeredCount: 0,
-    unansweredCount: paper.questionCount,
-    totalQuestions: paper.questionCount,
-    elapsedSec: 0,
-    timeLimitSec: paper.estimatedMinutes * 60,
-    overtime: false,
-    progressRate: 0,
-  };
 }
