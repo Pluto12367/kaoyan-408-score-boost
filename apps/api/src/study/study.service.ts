@@ -2269,6 +2269,163 @@ export class StudyService implements OnModuleInit {
     return session;
   }
 
+  // ---- Phase 6: Mock Exam (exam session, report, post-exam review tasks) ----
+
+  getExamReport(sessionId: string, userId: string) {
+    const session = this.getOwnSession(sessionId, userId);
+    if (session.type !== 'paper') {
+      throw new BadRequestException('Only paper sessions have exam reports');
+    }
+
+    const records = this.records.filter(
+      (r) => Object.keys(session.answers).includes(r.questionId),
+    );
+
+    const correctCount = records.filter((r) => r.correct).length;
+    const totalQuestions = records.length;
+    const accuracyRate = totalQuestions ? Math.round((correctCount / totalQuestions) * 100) : 0;
+    const answeredCount = Object.keys(session.answers).length;
+    const unansweredCount = session.questionIds.length - answeredCount;
+    const totalTimeSec = session.totalActiveMs / 1000;
+
+    // Per-subject breakdown
+    const subjectStats = new Map<string, { total: number; correct: number; totalTimeSec: number }>();
+    for (const record of records) {
+      const question = this.questions.find((q) => q.id === record.questionId);
+      const point = question?.knowledgePointIds[0]
+        ? this.knowledgePoints.find((k) => k.id === question.knowledgePointIds[0])
+        : undefined;
+      const subject = point?.subject ?? '未分类';
+      const stat = subjectStats.get(subject) ?? { total: 0, correct: 0, totalTimeSec: 0 };
+      stat.total += 1;
+      if (record.correct) stat.correct += 1;
+      stat.totalTimeSec += record.timeSpentSec;
+      subjectStats.set(subject, stat);
+    }
+
+    // Knowledge point losses
+    const pointLosses = new Map<string, { title: string; subject: string; wrongCount: number }>();
+    for (const record of records.filter((r) => !r.correct)) {
+      const question = this.questions.find((q) => q.id === record.questionId);
+      const pointId = question?.knowledgePointIds[0];
+      if (!pointId) continue;
+      const point = this.knowledgePoints.find((k) => k.id === pointId);
+      const key = pointId;
+      const existing = pointLosses.get(key) ?? { title: point?.title ?? key, subject: point?.subject ?? '未分类', wrongCount: 0 };
+      existing.wrongCount += 1;
+      pointLosses.set(key, existing);
+    }
+
+    return {
+      sessionId,
+      userId,
+      generatedAt: new Date().toISOString(),
+      summary: {
+        totalQuestions,
+        answeredCount,
+        unansweredCount,
+        correctCount,
+        accuracyRate,
+        totalTimeSec: Math.round(totalTimeSec),
+        timeLimitSec: 180 * 60, // 180 minutes
+        overtime: totalTimeSec > 180 * 60,
+      },
+      subjectBreakdown: [...subjectStats.entries()].map(([subject, stats]) => ({
+        subject,
+        totalQuestions: stats.total,
+        correctCount: stats.correct,
+        accuracyRate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
+        avgTimeSec: stats.total ? Math.round(stats.totalTimeSec / stats.total) : 0,
+      })),
+      knowledgePointLosses: [...pointLosses.values()]
+        .sort((a, b) => b.wrongCount - a.wrongCount)
+        .slice(0, 10),
+      unansweredQuestions: session.questionIds
+        .filter((id) => !session.answers[id])
+        .map((id) => {
+          const q = this.questions.find((q2) => q2.id === id);
+          return { questionId: id, stem: q?.stem ?? id };
+        }),
+    };
+  }
+
+  generatePostExamReviewTasks(sessionId: string, userId: string) {
+    const report = this.getExamReport(sessionId, userId);
+    const today = new Date();
+
+    // Generate 3-day review plan focused on weak knowledge points
+    const days = Array.from({ length: 3 }, (_, index) => {
+      const date = new Date(today);
+      date.setUTCDate(today.getUTCDate() + index + 1);
+      const focus = report.knowledgePointLosses[index]
+        ?? report.knowledgePointLosses[0]
+        ?? { title: '408 高频考点', subject: '综合' };
+
+      return {
+        dayIndex: index + 1,
+        date: date.toISOString().slice(0, 10),
+        focus: focus.title,
+        subject: focus.subject,
+        questionCount: index === 0 ? 15 : index === 1 ? 12 : 8,
+        minutes: index === 0 ? 90 : index === 1 ? 60 : 45,
+        tasks: [
+          index === 0 ? `复盘 ${focus.title} 的错题，写出每道题的错因。` : '',
+          index <= 1 ? `完成 ${focus.title} 同考点专项训练。` : '',
+          `限时完成 ${index === 0 ? 15 : index === 1 ? 12 : 8} 题，目标正确率 ${70 + index * 5}% 以上。`,
+        ].filter(Boolean),
+      };
+    });
+
+    const weakPointTitles = report.knowledgePointLosses.slice(0, 3).map((p) => p.title);
+
+    return {
+      userId,
+      examSessionId: sessionId,
+      generatedAt: new Date().toISOString(),
+      examAccuracyRate: report.summary.accuracyRate,
+      weakPointTitles,
+      days,
+      recommendation: report.summary.accuracyRate >= 80
+        ? '本次考试表现较好，重点保持限时训练节奏，巩固已掌握考点。'
+        : report.summary.accuracyRate >= 60
+          ? '本次考试处于中间水平，优先复盘错题知识点，再做同考点专项训练。'
+          : '基础还存在明显短板，建议暂停新题，先回到高频考点的概念和例题。',
+    };
+  }
+
+  getExamScoreHistory(userId: string) {
+    const sessions = [...this.practiceSessions.values()]
+      .filter((s) => s.userId === userId && s.type === 'paper' && s.completed);
+
+    const history = sessions.map((s) => {
+      const records = this.records.filter(
+        (r) => Object.keys(s.answers).includes(r.questionId),
+      );
+      const correctCount = records.filter((r) => r.correct).length;
+      return {
+        sessionId: s.id,
+        date: s.lastActiveAt.slice(0, 10),
+        totalQuestions: s.questionIds.length,
+        correctCount,
+        accuracyRate: s.questionIds.length ? Math.round((correctCount / s.questionIds.length) * 100) : 0,
+        totalTimeMin: Math.round(s.totalActiveMs / 60000),
+      };
+    }).sort((a, b) => a.date.localeCompare(b.date));
+
+    const trend = history.length >= 2
+      ? history[history.length - 1].accuracyRate - history[history.length - 2].accuracyRate
+      : 0;
+
+    return {
+      userId,
+      totalExams: history.length,
+      latestAccuracyRate: history[history.length - 1]?.accuracyRate ?? 0,
+      trend,
+      trendLabel: trend > 0 ? `较上次提升 ${trend} 分` : trend < 0 ? `较上次下降 ${Math.abs(trend)} 分` : '与上次持平',
+      history,
+    };
+  }
+
   private sessionView(s: PracticeSession) {
     return {
       id: s.id,

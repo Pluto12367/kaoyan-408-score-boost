@@ -376,6 +376,29 @@ export class StudyController {
     return this.studyService.getWrongQuestionDetail(questionId, user.id);
   }
 
+  // ---- Phase 6: Mock Exam ----
+
+  @Get('exam/report/:sessionId')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getExamReport(@CurrentUser() user: UserProfile, @Param('sessionId') sessionId: string) {
+    return this.studyService.getExamReport(sessionId, user.id);
+  }
+
+  @Post('exam/review-tasks/:sessionId')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  generatePostExamReviewTasks(@CurrentUser() user: UserProfile, @Param('sessionId') sessionId: string) {
+    return this.studyService.generatePostExamReviewTasks(sessionId, user.id);
+  }
+
+  @Get('exam/score-history')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getExamScoreHistory(@CurrentUser() user: UserProfile) {
+    return this.studyService.getExamScoreHistory(user.id);
+  }
+
   @Post('feedback')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
