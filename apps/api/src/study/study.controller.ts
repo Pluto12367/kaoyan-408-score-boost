@@ -243,6 +243,49 @@ export class StudyController {
     return this.studyService.applyDiagnosticProfile(user.id, input);
   }
 
+  // ---- Phase 3: Onboarding & Today's Plan ----
+
+  @Get('onboarding/status')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getOnboardingStatus(@CurrentUser() user: UserProfile) {
+    return this.studyService.getOnboardingStatus(user.id);
+  }
+
+  @Post('onboarding/complete')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  completeOnboarding(
+    @CurrentUser() user: UserProfile,
+    @Body() input: {
+      examYear?: number;
+      targetScore: number;
+      currentScore: number;
+      remainingDays: number;
+      dailyHours: number;
+      weakestSubject: Subject;
+    },
+  ) {
+    return this.studyService.completeOnboarding(user.id, input);
+  }
+
+  @Get('today/plan')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getTodayPlan(@CurrentUser() user: UserProfile) {
+    return this.studyService.getTodayPlan(user.id);
+  }
+
+  @Post('tasks/:taskId/postpone')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  postponeTask(
+    @CurrentUser() user: UserProfile,
+    @Param('taskId') taskId: string,
+  ) {
+    return this.studyService.postponeTask(user.id, taskId);
+  }
+
   @Post('feedback')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')

@@ -561,6 +561,134 @@ export class StudyService implements OnModuleInit {
     }
   }
 
+  // ---- Phase 3: Onboarding & Today's Plan ----
+
+  private readonly onboardingCompletedByUser = new Set<string>();
+  private readonly onboardingProfiles = new Map<string, {
+    examYear?: number; targetScore: number; currentScore: number;
+    remainingDays: number; dailyHours: number; weakestSubject: Subject;
+    completedAt: string;
+  }>();
+  private readonly postponedTasks = new Map<string, { userId: string; postponeCount: number; nextAvailableAt: string }>();
+
+  getOnboardingStatus(userId: string) {
+    const profile = this.onboardingProfiles.get(userId);
+    return {
+      completed: this.onboardingCompletedByUser.has(userId),
+      profile: profile ?? null,
+      nextStep: !this.onboardingCompletedByUser.has(userId)
+        ? 'complete_onboarding'
+        : !this.diagnosticProfile
+          ? 'submit_diagnostic'
+          : 'start_training',
+    };
+  }
+
+  completeOnboarding(userId: string, input: {
+    examYear?: number;
+    targetScore: number;
+    currentScore: number;
+    remainingDays: number;
+    dailyHours: number;
+    weakestSubject: Subject;
+  }) {
+    const profile = {
+      examYear: input.examYear,
+      targetScore: Number(input.targetScore),
+      currentScore: Number(input.currentScore),
+      remainingDays: Number(input.remainingDays),
+      dailyHours: Number(input.dailyHours),
+      weakestSubject: input.weakestSubject,
+      completedAt: new Date().toISOString(),
+    };
+
+    this.onboardingProfiles.set(userId, profile);
+    this.onboardingCompletedByUser.add(userId);
+
+    // Update the student profile and generate initial plan
+    this.student.targetScore = profile.targetScore;
+    this.student.currentScore = profile.currentScore;
+    this.student.remainingDays = profile.remainingDays;
+    this.student.dailyHours = profile.dailyHours;
+    this.student.weakestSubject = profile.weakestSubject;
+    this.student.stage = profile.currentScore < 70 ? '基础' : profile.remainingDays <= 45 ? '冲刺' : '强化';
+
+    const initialPlan = this.generatePlan();
+
+    return {
+      ...profile,
+      stage: this.student.stage,
+      todayPlan: {
+        phase: initialPlan.phase,
+        tasks: initialPlan.dailyTasks.slice(0, 3).map((task) => ({
+          ...task,
+          priority: task.priority as '高' | '中' | '低',
+          reason: task.reason,
+          nextAction: task.nextAction,
+        })),
+        totalMinutes: initialPlan.dailyTasks.slice(0, 3).reduce((sum, t) => sum + t.minutes, 0),
+        checkpoint: initialPlan.checkpoint,
+      },
+    };
+  }
+
+  getTodayPlan(userId: string) {
+    const plan = this.generatePlan();
+    const report = this.getOverviewReport(userId);
+    const calendar = this.getLearningCalendar(userId);
+    const wrongQuestions = this.listWrongQuestions(userId);
+
+    // Filter out postponed tasks
+    const availableTasks = plan.dailyTasks.filter((task) => {
+      const key = `${userId}@${task.id}`;
+      const postponed = this.postponedTasks.get(key);
+      if (!postponed) return true;
+      return new Date(postponed.nextAvailableAt) <= new Date();
+    });
+
+    return {
+      userId,
+      phase: plan.phase,
+      generatedAt: new Date().toISOString(),
+      summary: {
+        completedTasks: plan.completedTaskCount ?? 0,
+        totalTasks: plan.totalTaskCount ?? availableTasks.length,
+        completionRate: plan.completionRate ?? 0,
+        todayAccuracyRate: report.accuracyRate,
+        streakDays: calendar.streakDays,
+      },
+      priorityTasks: availableTasks.slice(0, 3).map((task) => ({
+        ...task,
+        priority: task.priority as '高' | '中' | '低',
+        reason: task.reason,
+        nextAction: task.nextAction,
+      })),
+      reviewDue: wrongQuestions.filter((q) => q.reviewStatus === 'pending').length,
+      checkpoint: plan.checkpoint,
+    };
+  }
+
+  postponeTask(userId: string, taskId: string) {
+    const key = `${userId}@${taskId}`;
+    const existing = this.postponedTasks.get(key);
+    const postponeCount = (existing?.postponeCount ?? 0) + 1;
+
+    // Exponential backoff: 1st = 2h, 2nd = 4h, 3rd+ = tomorrow
+    const delayHours = postponeCount <= 1 ? 2 : postponeCount === 2 ? 4 : 24;
+    const nextAvailableAt = new Date(Date.now() + delayHours * 60 * 60 * 1000).toISOString();
+
+    this.postponedTasks.set(key, { userId, postponeCount, nextAvailableAt });
+
+    return {
+      taskId,
+      postponeCount,
+      nextAvailableAt,
+      message: postponeCount >= 3
+        ? '已多次延后，建议优先完成或标记为已完成。'
+        : `任务已延后，${delayHours} 小时后重新出现在今日计划。`,
+    };
+  }
+
   getAdminMetrics() {
     const report = this.getOverviewReport();
     const calendar = this.getLearningCalendar(this.student.id);
