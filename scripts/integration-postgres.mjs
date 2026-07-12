@@ -42,6 +42,33 @@ async function main() {
   assert(loggedIn.user.id === registered.user.id, 'password login should return the registered user');
   await expectPostStatus(`${apiUrl}/auth/login`, { email: credentials.email, password: 'wrong-password' }, 401);
   await expectGetStatus(`${apiUrl}/teacher/questions`, { Authorization: `Bearer ${loggedIn.accessToken}` }, 403);
+  await expectPostStatus(`${apiUrl}/questions`, {
+    stem: 'student should not create this question',
+    options: ['A', 'B', 'C', 'D'],
+    answer: 'A',
+    analysis: 'forbidden',
+    knowledgePointIds: ['co-cache'],
+    difficulty: '中等',
+    type: '选择题',
+    source: 'forbidden',
+  }, 403, { Authorization: `Bearer ${loggedIn.accessToken}` });
+  const teacherSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'teacher' });
+  const teacherQuestion = await postJson(`${apiUrl}/questions`, {
+    stem: 'integration teacher protected write question',
+    options: ['A', 'B', 'C', 'D'],
+    answer: 'A',
+    analysis: 'teacher can create questions',
+    knowledgePointIds: ['co-cache'],
+    difficulty: '中等',
+    type: '选择题',
+    source: 'integration',
+  }, { Authorization: `Bearer ${teacherSession.token}` });
+  assert(teacherQuestion.id, 'teacher role should create questions');
+  const adminSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'admin' });
+  const config = await postJson(`${apiUrl}/admin/system-config`, {
+    recommendation: { stageAssessmentQuestionLimit: 2 },
+  }, { Authorization: `Bearer ${adminSession.token}` });
+  assert(config.recommendation.stageAssessmentQuestionLimit === 2, 'admin role should update system configuration');
   const refreshed = await postJson(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken });
   assert(refreshed.refreshToken !== loggedIn.refreshToken, 'refresh should rotate the refresh token');
   await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken }, 401);
@@ -107,6 +134,7 @@ function startApi() {
       WEB_ORIGIN: 'http://127.0.0.1:5173',
       DATABASE_URL: databaseUrl,
       JWT_SECRET: 'integration-test-jwt-secret-with-more-than-32-characters',
+      ALLOW_DEMO_AUTH: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -137,20 +165,20 @@ async function waitForOverview(predicate = () => true) {
   throw new Error(`Timed out waiting for PostgreSQL API: ${lastError?.message ?? 'no matching response'}`);
 }
 
-async function postJson(url, body) {
+async function postJson(url, body, headers = {}) {
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`POST ${url} failed with ${response.status}: ${await response.text()}`);
   return response.json();
 }
 
-async function expectPostStatus(url, body, expectedStatus) {
+async function expectPostStatus(url, body, expectedStatus, headers = {}) {
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
   assert(response.status === expectedStatus, `POST ${url} should return ${expectedStatus}, received ${response.status}`);

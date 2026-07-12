@@ -27,14 +27,29 @@ async function main() {
     role: 'teacher',
   });
   assert(teacherSession.token && teacherSession.user.role === 'teacher', 'teacher login should return a teacher session');
+  const adminSession = await postJson(`${apiUrl}/auth/demo-login`, {
+    role: 'admin',
+  });
+  assert(adminSession.token && adminSession.user.role === 'admin', 'admin login should return an admin session');
+  const studentHeaders = { Authorization: `Bearer ${studentSession.token}` };
+  const teacherHeaders = { Authorization: `Bearer ${teacherSession.token}` };
+  const adminHeaders = { Authorization: `Bearer ${adminSession.token}` };
   const teacherOnlyQuestions = await waitForJson(`${apiUrl}/teacher/questions`, (data) =>
     Array.isArray(data) && data.length > 0,
-    { Authorization: `Bearer ${teacherSession.token}` },
+    teacherHeaders,
   );
   assert(teacherOnlyQuestions.every((question) => question.knowledgePointIds?.length > 0), 'teacher question management should return knowledge-bound questions');
-  await expectForbidden(`${apiUrl}/teacher/questions`, {
-    Authorization: `Bearer ${studentSession.token}`,
-  }, 'student session should not access teacher question management');
+  await expectForbidden(`${apiUrl}/teacher/questions`, studentHeaders, 'student session should not access teacher question management');
+  await expectForbiddenPost(`${apiUrl}/questions`, {
+    stem: 'student should not create this question',
+    options: ['A', 'B', 'C', 'D'],
+    answer: 'A',
+    analysis: 'forbidden',
+    knowledgePointIds: ['co-cache'],
+    difficulty: '中等',
+    type: '选择题',
+    source: 'forbidden',
+  }, studentHeaders, 'student session should not create teacher questions');
   const classAnalytics = await waitForJson(`${apiUrl}/teacher/class-analytics`, (data) =>
     data.overview?.studentCount >= 1 && Array.isArray(data.subjectWeakness),
   );
@@ -69,7 +84,7 @@ async function main() {
     importance: 5,
     frequency: 4,
     prerequisites: ['进程地址空间'],
-  });
+  }, teacherHeaders);
   assert(createdKnowledgePoint.id === 'os-memory', 'knowledge point creation should return the created point');
   const knowledgePointsAfterCreate = await waitForJson(`${apiUrl}/knowledge-points`, (data) =>
     Array.isArray(data) && data.some((point) => point.id === createdKnowledgePoint.id),
@@ -86,7 +101,7 @@ async function main() {
     source: '教研新增',
     year: 2026,
     expectedTimeSec: 95,
-  });
+  }, teacherHeaders);
   const osMemoryQuery = new URLSearchParams({
     subject: createdKnowledgePoint.subject,
     chapter: createdKnowledgePoint.chapter,
@@ -106,7 +121,7 @@ async function main() {
     source: '教师新增',
     year: 2026,
     expectedTimeSec: 90,
-  });
+  }, teacherHeaders);
   assert(createdTeacherQuestion.knowledgePointIds.includes('co-cache'), 'teacher question should keep knowledge point binding');
   const filteredQuestions = await waitForJson(`${apiUrl}/questions?knowledgePointId=co-cache`, (data) =>
     Array.isArray(data) && data.some((question) => question.id === createdTeacherQuestion.id),
@@ -120,7 +135,7 @@ async function main() {
     difficulty: '困难',
     analysis: '更新后的解析用于教师维护题目质量。',
     expectedTimeSec: 150,
-  });
+  }, teacherHeaders);
   assert(updatedTeacherQuestion.difficulty === '困难', 'teacher question edit should update difficulty');
   assert(updatedTeacherQuestion.analysis.includes('更新后的解析'), 'teacher question edit should update analysis');
   assert(updatedTeacherQuestion.expectedTimeSec === 150, 'teacher question edit should update expected time');
@@ -143,7 +158,7 @@ async function main() {
     knowledgePointIds: ['co-cache'],
     questionCount: 2,
     createdBy: 'teacher-001',
-  });
+  }, teacherHeaders);
   assert(generatedPaper.title === '存储系统专项卷', 'paper generation should return the requested title');
   assert(generatedPaper.questions.length > 0 && generatedPaper.questions.length <= 2, 'paper generation should select bounded questions');
   assert(generatedPaper.questions.every((question) => question.knowledgePointIds.includes('co-cache')), 'special paper should only include requested knowledge points');
@@ -259,7 +274,7 @@ async function main() {
       dailyTargetQuestionCount: 35,
       speedRiskMultiplier: 1.25,
     },
-  });
+  }, adminHeaders);
   assert(updatedSystemConfig.recommendation.stageAssessmentQuestionLimit === 2, 'system config should persist assessment question limit');
   assert(updatedSystemConfig.updatedBy === 'admin-001', 'system config should track updater');
   const stageAssessment = await waitForJson(`${apiUrl}/assessments/stage?userId=u-001`, (data) => data.questions?.length >= 2);
@@ -315,13 +330,13 @@ async function main() {
   assert(aiReviewItem.suggestedAction, 'AI review item should include a suggested action');
   const recheckReviewItem = await postJson(`${apiUrl}/admin/review-queue/${aiReviewItem.id}/recheck`, {
     reviewerId: 'admin-001',
-  });
+  }, adminHeaders);
   assert(recheckReviewItem.status === 'needs_recheck', 'AI review item should support needs recheck status');
   const approvalTarget = reviewQueue.items.find((item) => item.id !== aiReviewItem.id && item.status === 'pending');
   assert(approvalTarget, 'review queue should include another pending item to approve after recheck');
   const approvedReviewItem = await postJson(`${apiUrl}/admin/review-queue/${approvalTarget.id}/approve`, {
     reviewerId: 'admin-001',
-  });
+  }, adminHeaders);
   assert(approvedReviewItem.status === 'approved', 'review approval should mark the item as approved');
   const reviewQueueAfterApproval = await waitForJson(`${apiUrl}/admin/review-queue`, (data) =>
     Array.isArray(data?.items) && data.items.some((item) => item.id === approvedReviewItem.id && item.status === 'approved'),
@@ -355,13 +370,13 @@ async function main() {
   assert(adminUsers.users.some((user) => user.role === 'admin'), 'admin users should include an admin account');
   const updatedTrialUser = await postJson(`${apiUrl}/admin/users/u-001/trial-status`, {
     trialStatus: 'follow_up',
-  });
+  }, adminHeaders);
   assert(updatedTrialUser.trialStatus === 'follow_up', 'admin user trial status update should persist');
   const adminUsersAfterTrialUpdate = await waitForJson(`${apiUrl}/admin/users`, (data) =>
     data.summary?.followUpCount >= 1,
   );
   assert(adminUsersAfterTrialUpdate.users.some((user) => user.id === 'u-001' && user.trialStatus === 'follow_up'), 'admin users should expose updated trial status');
-  const deletedTeacherQuestion = await deleteJson(`${apiUrl}/questions/${createdTeacherQuestion.id}`);
+  const deletedTeacherQuestion = await deleteJson(`${apiUrl}/questions/${createdTeacherQuestion.id}`, teacherHeaders);
   assert(deletedTeacherQuestion.id === createdTeacherQuestion.id && deletedTeacherQuestion.deleted === true, 'teacher question delete should return deleted question id');
   const questionsAfterDelete = await waitForJson(`${apiUrl}/questions?knowledgePointId=co-cache`, (data) =>
     Array.isArray(data) && !data.some((question) => question.id === createdTeacherQuestion.id),
@@ -450,11 +465,12 @@ async function main() {
   }, null, 2));
 }
 
-async function postJson(url, body) {
+async function postJson(url, body, headers = {}) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      ...headers,
     },
     body: JSON.stringify(body),
   });
@@ -466,11 +482,12 @@ async function postJson(url, body) {
   return response.json();
 }
 
-async function patchJson(url, body) {
+async function patchJson(url, body, headers = {}) {
   const response = await fetch(url, {
     method: 'PATCH',
     headers: {
       'content-type': 'application/json',
+      ...headers,
     },
     body: JSON.stringify(body),
   });
@@ -482,9 +499,10 @@ async function patchJson(url, body) {
   return response.json();
 }
 
-async function deleteJson(url) {
+async function deleteJson(url, headers = {}) {
   const response = await fetch(url, {
     method: 'DELETE',
+    headers,
   });
 
   if (!response.ok) {
@@ -520,6 +538,18 @@ function start(name, command, args, options) {
 
 async function expectForbidden(url, headers, message) {
   const response = await fetch(url, { headers });
+  assert(response.status === 403, message);
+}
+
+async function expectForbiddenPost(url, body, headers, message) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify(body),
+  });
   assert(response.status === 403, message);
 }
 

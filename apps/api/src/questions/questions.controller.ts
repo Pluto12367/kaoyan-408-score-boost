@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { QuestionsService } from './questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
-import { AuthService } from '../auth/auth.service';
+import { RoleGuard } from '../auth/role.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller('questions')
 export class QuestionsController {
@@ -17,31 +18,35 @@ export class QuestionsController {
   }
 
   @Post()
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
   createQuestion(@Body() input: CreateQuestionDto) {
     return this.questionsService.createQuestion(input);
   }
 
   @Patch(':questionId')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
   updateQuestion(@Param('questionId') questionId: string, @Body() input: Partial<CreateQuestionDto>) {
     return this.questionsService.updateQuestion(questionId, input);
   }
 
   @Delete(':questionId')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
   deleteQuestion(@Param('questionId') questionId: string) {
     return this.questionsService.deleteQuestion(questionId);
   }
 }
 
 @Controller('teacher/questions')
+@UseGuards(RoleGuard)
+@Roles('teacher', 'admin')
 export class TeacherQuestionsController {
-  constructor(
-    private readonly questionsService: QuestionsService,
-    private readonly authService: AuthService,
-  ) {}
+  constructor(private readonly questionsService: QuestionsService) {}
 
   @Get()
-  listTeacherQuestions(@Headers('authorization') authorization?: string) {
-    this.authService.requireRole(authorization, ['teacher', 'admin']);
+  listTeacherQuestions() {
     return this.questionsService.listQuestions();
   }
 }

@@ -535,6 +535,7 @@ export interface AuthSession {
 }
 
 const AUTH_STORAGE_KEY = 'kaoyan408.auth.session';
+let activeAuthSession: AuthSession | null = null;
 
 export function loadStoredAuthSession(): AuthSession | null {
   if (typeof window === 'undefined') return null;
@@ -542,7 +543,9 @@ export function loadStoredAuthSession(): AuthSession | null {
     const value = window.localStorage.getItem(AUTH_STORAGE_KEY);
     if (!value) return null;
     const session = JSON.parse(value) as Partial<AuthSession>;
-    return isAuthSession(session) ? session : null;
+    if (!isAuthSession(session)) return null;
+    activeAuthSession = session;
+    return session;
   } catch {
     return null;
   }
@@ -557,10 +560,16 @@ function isAuthSession(value: Partial<AuthSession>): value is AuthSession {
 }
 
 export function storeAuthSession(session: AuthSession) {
+  activeAuthSession = session;
   if (typeof window !== 'undefined') window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(session));
 }
 
+export function setActiveAuthSession(session: AuthSession | null) {
+  activeAuthSession = session;
+}
+
 export function clearStoredAuthSession() {
+  activeAuthSession = null;
   if (typeof window !== 'undefined') window.localStorage.removeItem(AUTH_STORAGE_KEY);
 }
 
@@ -1403,7 +1412,7 @@ export async function updateAdminUserTrialStatus(input: {
   userId: string;
   trialStatus: TrialStatus;
 }): Promise<AdminManagedUser> {
-  const response = await fetch(`${API_BASE_URL}/admin/users/${input.userId}/trial-status`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/users/${input.userId}/trial-status`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -1462,7 +1471,7 @@ export async function approveReviewItem(input: {
   reviewItemId: string;
   reviewerId: string;
 }): Promise<ReviewItem> {
-  const response = await fetch(`${API_BASE_URL}/admin/review-queue/${input.reviewItemId}/approve`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/review-queue/${input.reviewItemId}/approve`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -1481,7 +1490,7 @@ export async function markReviewItemNeedsRecheck(input: {
   reviewItemId: string;
   reviewerId: string;
 }): Promise<ReviewItem> {
-  const response = await fetch(`${API_BASE_URL}/admin/review-queue/${input.reviewItemId}/recheck`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/review-queue/${input.reviewItemId}/recheck`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -1506,7 +1515,7 @@ export async function fetchSystemConfig(): Promise<SystemConfig> {
 }
 
 export async function updateSystemConfig(input: Partial<SystemConfig>): Promise<SystemConfig> {
-  const response = await fetch(`${API_BASE_URL}/admin/system-config`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/system-config`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -1695,7 +1704,7 @@ export async function requestAiFollowUp(input: {
 }
 
 export async function createTeacherQuestion(input: CreateTeacherQuestionInput): Promise<Question> {
-  const response = await fetch(`${API_BASE_URL}/questions`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/questions`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -1730,7 +1739,7 @@ export async function fetchQuestions(filters: {
 }
 
 export async function updateTeacherQuestion(questionId: string, input: Partial<CreateTeacherQuestionInput>): Promise<Question> {
-  const response = await fetch(`${API_BASE_URL}/questions/${questionId}`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/questions/${questionId}`, {
     method: 'PATCH',
     headers: {
       'content-type': 'application/json',
@@ -1746,7 +1755,7 @@ export async function updateTeacherQuestion(questionId: string, input: Partial<C
 }
 
 export async function deleteTeacherQuestion(questionId: string): Promise<{ id: string; deleted: boolean }> {
-  const response = await fetch(`${API_BASE_URL}/questions/${questionId}`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/questions/${questionId}`, {
     method: 'DELETE',
   });
 
@@ -1758,7 +1767,7 @@ export async function deleteTeacherQuestion(questionId: string): Promise<{ id: s
 }
 
 export async function createKnowledgePoint(input: CreateKnowledgePointInput): Promise<KnowledgePoint> {
-  const response = await fetch(`${API_BASE_URL}/knowledge-points`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/knowledge-points`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -1774,7 +1783,7 @@ export async function createKnowledgePoint(input: CreateKnowledgePointInput): Pr
 }
 
 export async function generatePaper(input: GeneratePaperInput): Promise<GeneratedPaper> {
-  const response = await fetch(`${API_BASE_URL}/papers/generate`, {
+  const response = await authenticatedFetch(`${API_BASE_URL}/papers/generate`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -1865,6 +1874,33 @@ async function requestAuthSession(path: string, body: object): Promise<AuthSessi
     throw new Error(payload?.message ?? `Authentication failed with ${response.status}`);
   }
   return response.json() as Promise<AuthSession>;
+}
+
+async function authenticatedFetch(url: string, init: RequestInit = {}) {
+  const response = await fetch(url, withAuthHeader(init, activeAuthSession));
+  if (response.status !== 401 || !activeAuthSession?.refreshToken) return response;
+
+  try {
+    const refreshed = await refreshAuthSession(activeAuthSession.refreshToken);
+    storeAuthSession(refreshed);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent<AuthSession>('auth-session-updated', { detail: refreshed }));
+    }
+    return fetch(url, withAuthHeader(init, refreshed));
+  } catch {
+    clearStoredAuthSession();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('auth-session-expired'));
+    }
+    return response;
+  }
+}
+
+function withAuthHeader(init: RequestInit, session: AuthSession | null): RequestInit {
+  const headers = new Headers(init.headers);
+  const token = session?.accessToken ?? session?.token;
+  if (token && !headers.has('authorization')) headers.set('authorization', `Bearer ${token}`);
+  return { ...init, headers };
 }
 
 export async function submitDiagnosticProfile(input: DiagnosticInput): Promise<DiagnosticProfile> {

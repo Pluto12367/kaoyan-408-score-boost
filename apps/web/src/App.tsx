@@ -51,6 +51,7 @@ import {
   logoutAccount,
   loadStoredAuthSession,
   storeAuthSession,
+  setActiveAuthSession,
   clearStoredAuthSession,
   markReviewItemNeedsRecheck,
   requestAiFollowUp,
@@ -208,6 +209,28 @@ export function App() {
     return () => window.clearTimeout(timeout);
   }, [authSession?.refreshToken, authSession?.expiresIn]);
 
+  useEffect(() => {
+    function handleSessionUpdated(event: Event) {
+      const session = (event as CustomEvent<AuthSession>).detail;
+      if (!session) return;
+      setAuthSession(session);
+      setSessionUser(session.user);
+    }
+
+    function handleSessionExpired() {
+      setAuthSession(null);
+      setSessionUser(null);
+      setAuthStatus('登录已过期，请重新登录。');
+    }
+
+    window.addEventListener('auth-session-updated', handleSessionUpdated);
+    window.addEventListener('auth-session-expired', handleSessionExpired);
+    return () => {
+      window.removeEventListener('auth-session-updated', handleSessionUpdated);
+      window.removeEventListener('auth-session-expired', handleSessionExpired);
+    };
+  }, []);
+
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const currentQuestion = questions[0];
 
@@ -288,6 +311,7 @@ export function App() {
 
     try {
       const session = await loginAsRole(role);
+      setActiveAuthSession(session);
       setAuthSession(session);
       setSessionUser(session.user);
       setApiState('connected');
@@ -308,6 +332,7 @@ export function App() {
 
   function clearAccountSession(message: string) {
     clearStoredAuthSession();
+    setActiveAuthSession(null);
     setAuthSession(null);
     setSessionUser(null);
     setAuthStatus(message);

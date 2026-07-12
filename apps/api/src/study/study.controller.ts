@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import type { KnowledgePoint, Subject } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
+import { RoleGuard } from '../auth/role.guard';
+import { Roles } from '../auth/roles.decorator';
 
 @Controller()
 export class StudyController {
@@ -13,6 +15,8 @@ export class StudyController {
   }
 
   @Post('knowledge-points')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
   createKnowledgePoint(@Body() input: Partial<KnowledgePoint>) {
     return this.studyService.createKnowledgePoint(input);
   }
@@ -63,6 +67,8 @@ export class StudyController {
   }
 
   @Post('admin/users/:userId/trial-status')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   updateAdminUserTrialStatus(@Param('userId') userId: string, @Body('trialStatus') trialStatus?: string) {
     return this.studyService.updateAdminUserTrialStatus(userId, trialStatus);
   }
@@ -78,11 +84,15 @@ export class StudyController {
   }
 
   @Post('admin/review-queue/:reviewItemId/approve')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   approveReviewItem(@Param('reviewItemId') reviewItemId: string, @Body('reviewerId') reviewerId?: string) {
     return this.studyService.approveReviewItem(reviewItemId, reviewerId);
   }
 
   @Post('admin/review-queue/:reviewItemId/recheck')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   markReviewItemNeedsRecheck(@Param('reviewItemId') reviewItemId: string, @Body('reviewerId') reviewerId?: string) {
     return this.studyService.markReviewItemNeedsRecheck(reviewItemId, reviewerId);
   }
@@ -98,6 +108,8 @@ export class StudyController {
   }
 
   @Post('admin/system-config')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
   updateSystemConfig(@Body() input: {
     recommendation?: Partial<{
       stageAssessmentQuestionLimit: number;
@@ -131,6 +143,8 @@ export class StudyController {
   }
 
   @Post('papers/generate')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
   generatePaper(@Body() input: {
     title?: string;
     paperType?: '模拟卷' | '阶段卷' | '专项卷';
