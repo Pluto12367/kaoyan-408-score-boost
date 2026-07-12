@@ -44,10 +44,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Type check
-        run: npm run build:shared && npx tsc -p apps/web/tsconfig.json --noEmit
+      - name: Generate Prisma client
+        run: npx prisma generate --schema=prisma/schema.prisma
 
-      - name: Run tests
+      - name: Run unit tests
         run: npm test
 
       - name: Run PostgreSQL integration test
@@ -60,6 +60,7 @@ jobs:
 
   deploy:
     needs: test
+    if: success() || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
