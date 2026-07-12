@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target } from 'lucide-react';
+import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
+import { isMockAllowed } from './api/env';
 import {
   approveReviewItem,
   completeStudyTask,
@@ -110,7 +112,8 @@ export function App() {
   const [teacherClassAnalytics, setTeacherClassAnalytics] = useState<TeacherClassAnalytics>(() => createMockTeacherClassAnalytics());
   const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
   const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
-  const [apiState, setApiState] = useState<'connecting' | 'connected' | 'mock'>('connecting');
+  const [apiState, setApiState] = useState<ApiState>('connecting');
+  const [lastSyncAt, setLastSyncAt] = useState<string | undefined>();
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
@@ -164,20 +167,25 @@ export function App() {
         setAssessmentHistory(history);
         setSessionUser((current) => current ?? data.student);
         setApiState('connected');
+        setLastSyncAt(new Date().toISOString());
       })
       .catch(() => {
         if (!active) return;
-        setOverview(createMockOverview());
-        setPracticeSet(createMockPracticeSet());
-        setReviewResources(createMockReviewResourceRecommendations());
-        setLearningProfile(createMockLearningProfile());
-        setTrialProgress(createMockTrialProgress());
-        setStudyReminders(createMockStudyReminders());
-        setSprintPlan(createMockSprintPlan());
-        setMasteryMap(createMockMasteryMap());
-        setWrongQuestionSummary(createMockWrongQuestionSummary());
-        setAssessmentHistory(createMockAssessmentHistory());
-        setApiState('mock');
+        if (isMockAllowed()) {
+          setOverview(createMockOverview());
+          setPracticeSet(createMockPracticeSet());
+          setReviewResources(createMockReviewResourceRecommendations());
+          setLearningProfile(createMockLearningProfile());
+          setTrialProgress(createMockTrialProgress());
+          setStudyReminders(createMockStudyReminders());
+          setSprintPlan(createMockSprintPlan());
+          setMasteryMap(createMockMasteryMap());
+          setWrongQuestionSummary(createMockWrongQuestionSummary());
+          setAssessmentHistory(createMockAssessmentHistory());
+          setApiState('mock');
+        } else {
+          setApiState('error');
+        }
       });
 
     return () => {
@@ -329,7 +337,7 @@ export function App() {
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -358,7 +366,7 @@ export function App() {
       }
     } catch {
       setPracticeStatus('提交失败，当前显示本地演示数据。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -390,7 +398,7 @@ practiceSetId: practiceSet.id,
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
     } catch {
       setPracticeStatus('推荐题组提交失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -461,7 +469,7 @@ taskId,
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
     } catch {
       setTaskStatus('任务完成状态记录失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -481,7 +489,7 @@ taskId,
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
       setWrongStatus('错题复盘记录失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -500,7 +508,7 @@ taskId,
       document.getElementById('assessment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
       setAssessmentStatus('阶段测评生成失败，当前显示本地演示数据。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -528,7 +536,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
     } catch {
       setAssessmentStatus('阶段测评提交失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -547,7 +555,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
       setTutorStatus('AI 答疑暂时不可用，请先查看标准解析。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -565,7 +573,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch {
       setTutorStatus('AI 追问暂时不可用，请先查看标准解析和错题复盘建议。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -593,7 +601,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
     } catch {
       setTeacherStatus('题目录入失败，请检查题干、选项、答案和知识点绑定。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -608,7 +616,7 @@ answers: stageAssessment.questions.map((question, index) => ({
     } catch {
       setTeacherQuestionList(questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
       setTeacherStatus('已使用静态演示数据筛选 Cache 相关题目。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -648,7 +656,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       setTeacherStatus(`已更新 ${updated.id}：难度 ${updated.difficulty}，预计 ${updated.expectedTimeSec} 秒。`);
     } catch {
       setTeacherStatus('题目编辑失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -678,7 +686,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       setTeacherStatus(`已删除 ${deleted.id}，筛选列表已刷新。`);
     } catch {
       setTeacherStatus('题目删除失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -701,7 +709,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       setKnowledgeStatus(`已新增 ${point.title}，当前知识点共 ${nextOverview.knowledgePoints.length} 个。`);
     } catch {
       setKnowledgeStatus('知识点新增失败，请检查 ID、科目、章节和标题。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -749,7 +757,7 @@ answers: stageAssessment.questions.map((question, index) => ({
       setPaperSession(createInitialPaperSession(mockPaper));
       setPaperResult(null);
       setPaperStatus(`已使用静态演示数据生成 ${mockPaper.title}，共 ${mockPaper.questionCount} 题，可继续提交查看报告。`);
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -821,7 +829,7 @@ paperId: paper.id,
       setPaperStatus(mockResult
         ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
         : '试卷提交失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -841,7 +849,7 @@ paperId: paper.id,
       setReviewStatus(`审核已通过，当前仍有 ${nextQueue.pendingCount} 项待处理。`);
     } catch {
       setReviewStatus('审核提交失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -859,7 +867,7 @@ paperId: paper.id,
       setReviewStatus(`已标记复查，当前仍有 ${nextQueue.pendingCount} 项待处理。`);
     } catch {
       setReviewStatus('复查标记失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -885,7 +893,7 @@ paperId: paper.id,
       setConfigStatus(`已应用冲刺策略：阶段测评 ${nextConfig.recommendation.stageAssessmentQuestionLimit} 题，每日 ${nextConfig.recommendation.dailyTargetQuestionCount} 题。`);
     } catch {
       setConfigStatus('系统配置更新失败，请稍后重试。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -906,7 +914,7 @@ rating: 4,
       setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
     } catch {
       setFeedbackStatus('反馈提交失败，请稍后重试或直接填写问卷。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -949,7 +957,7 @@ rating: 4,
       setUserStatus(`已将 ${updated.name} 标记为待回访，可邀请填写问卷。`);
     } catch {
       setUserStatus('试用状态更新失败，当前保留原名单。');
-      setApiState('mock');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
@@ -980,9 +988,12 @@ rating: 4,
           </div>
           <div className="topbar-actions">
             <span className="role-pill">{roleLabel[sessionUser?.role ?? 'student']}</span>
-            <span className={`api-pill ${apiState}`}>
-              {apiState === 'connected' ? 'API 已连接' : apiState === 'mock' ? 'Mock 数据' : '连接 API'}
-            </span>
+            <ApiStateIndicator
+              state={apiState}
+              lastSyncAt={lastSyncAt}
+              source={overview.source}
+              onRetry={() => window.location.reload()}
+            />
             <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
           </div>
         </header>
