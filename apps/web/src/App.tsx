@@ -101,6 +101,7 @@ import {
   permissionHint,
   createInitialPaperSession,
 } from './constants';
+import { DashboardProvider } from './hooks/useDashboard';
 
 export function App() {
   const {
@@ -1009,6 +1010,7 @@ rating: 4,
   }
 
   return (
+    <DashboardProvider sessionUserId={sessionUser?.id}>
     <main className="app-shell">
       <aside className="sidebar">
         <div>
@@ -2087,6 +2089,7 @@ rating: 4,
         </section>
       </section>
     </main>
+    </DashboardProvider>
   );
 }
 
