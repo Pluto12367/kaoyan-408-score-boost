@@ -1,4 +1,4 @@
-import { API_BASE_URL, authenticatedFetch } from '../client';
+import { API_BASE_URL, fetchWithAuth, authenticatedFetch } from '../client';
 import type {
   DashboardOverview,
   TrialProgress,
@@ -14,86 +14,86 @@ import type {
   WrongQuestion,
 } from '../types';
 
+// All student-facing endpoints use fetchWithAuth — Phase 1 requires auth on every endpoint.
+// userId is no longer passed; the backend extracts it from the JWT token.
+
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
-  const response = await fetch(`${API_BASE_URL}/dashboard/overview`);
-  if (!response.ok) throw new Error(`API request failed with ${response.status}`);
+  const response = await fetchWithAuth(`${API_BASE_URL}/dashboard/overview`);
+  if (!response.ok) throw new Error(`Dashboard request failed with ${response.status}`);
   return response.json() as Promise<DashboardOverview>;
 }
 
-export async function fetchTrialProgress(userId: string): Promise<TrialProgress> {
-  const response = await fetch(`${API_BASE_URL}/trial-progress?userId=${encodeURIComponent(userId)}`);
+export async function fetchTrialProgress(): Promise<TrialProgress> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/trial-progress`);
   if (!response.ok) throw new Error(`Trial progress request failed with ${response.status}`);
   return response.json() as Promise<TrialProgress>;
 }
 
-export async function fetchStudyReminders(userId: string): Promise<StudyReminders> {
-  const response = await fetch(`${API_BASE_URL}/study-reminders?userId=${encodeURIComponent(userId)}`);
+export async function fetchStudyReminders(): Promise<StudyReminders> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/study-reminders`);
   if (!response.ok) throw new Error(`Study reminders request failed with ${response.status}`);
   return response.json() as Promise<StudyReminders>;
 }
 
-export async function fetchSprintPlan(userId: string): Promise<SprintPlan> {
-  const response = await fetch(`${API_BASE_URL}/sprint-plan?userId=${encodeURIComponent(userId)}`);
+export async function fetchSprintPlan(): Promise<SprintPlan> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/sprint-plan`);
   if (!response.ok) throw new Error(`Sprint plan request failed with ${response.status}`);
   return response.json() as Promise<SprintPlan>;
 }
 
-export async function fetchMasteryMap(userId: string): Promise<MasteryMap> {
-  const response = await fetch(`${API_BASE_URL}/mastery-map?userId=${encodeURIComponent(userId)}`);
+export async function fetchMasteryMap(): Promise<MasteryMap> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/mastery-map`);
   if (!response.ok) throw new Error(`Mastery map request failed with ${response.status}`);
   return response.json() as Promise<MasteryMap>;
 }
 
 export async function fetchLearningProfile(userId: string): Promise<LearningProfile> {
-  const response = await fetch(`${API_BASE_URL}/students/${encodeURIComponent(userId)}/profile`);
+  const response = await fetchWithAuth(`${API_BASE_URL}/students/${encodeURIComponent(userId)}/profile`);
   if (!response.ok) throw new Error(`Learning profile request failed with ${response.status}`);
   return response.json() as Promise<LearningProfile>;
 }
 
-export async function fetchRecommendedPracticeSet(userId: string): Promise<PracticeSet> {
-  const response = await fetch(`${API_BASE_URL}/practice-sets/recommended?userId=${encodeURIComponent(userId)}`);
+export async function fetchRecommendedPracticeSet(): Promise<PracticeSet> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/practice-sets/recommended`);
   if (!response.ok) throw new Error(`Recommended practice set request failed with ${response.status}`);
   return response.json() as Promise<PracticeSet>;
 }
 
-export async function fetchReviewResourceRecommendations(userId: string): Promise<ReviewResourceRecommendation> {
-  const response = await fetch(`${API_BASE_URL}/review-resources/recommended?userId=${encodeURIComponent(userId)}`);
+export async function fetchReviewResourceRecommendations(): Promise<ReviewResourceRecommendation> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/review-resources/recommended`);
   if (!response.ok) throw new Error(`Review resources request failed with ${response.status}`);
   return response.json() as Promise<ReviewResourceRecommendation>;
 }
 
-export async function fetchAssessmentHistory(userId: string): Promise<AssessmentHistory> {
-  const response = await fetch(`${API_BASE_URL}/assessment-history?userId=${encodeURIComponent(userId)}`);
+export async function fetchAssessmentHistory(): Promise<AssessmentHistory> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/assessment-history`);
   if (!response.ok) throw new Error(`Assessment history request failed with ${response.status}`);
   return response.json() as Promise<AssessmentHistory>;
 }
 
-export async function fetchWrongQuestionSummary(userId: string): Promise<WrongQuestionSummary> {
-  const response = await fetch(`${API_BASE_URL}/wrong-questions/summary?userId=${encodeURIComponent(userId)}`);
+export async function fetchWrongQuestionSummary(): Promise<WrongQuestionSummary> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/summary`);
   if (!response.ok) throw new Error(`Wrong question summary request failed with ${response.status}`);
   return response.json() as Promise<WrongQuestionSummary>;
 }
 
-export async function fetchStageAssessment(userId: string): Promise<StageAssessment> {
-  const response = await fetch(`${API_BASE_URL}/assessments/stage?userId=${encodeURIComponent(userId)}`);
+export async function fetchStageAssessment(): Promise<StageAssessment> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/assessments/stage`);
   if (!response.ok) throw new Error(`Stage assessment request failed with ${response.status}`);
   return response.json() as Promise<StageAssessment>;
 }
 
-export async function reviewWrongQuestion(input: { userId: string; questionId: string }): Promise<WrongQuestion> {
-  const response = await fetch(`${API_BASE_URL}/wrong-questions/${input.questionId}/review`, {
+export async function reviewWrongQuestion(questionId: string): Promise<WrongQuestion> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/${questionId}/review`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ userId: input.userId }),
   });
   if (!response.ok) throw new Error(`Wrong question review failed with ${response.status}`);
   return response.json() as Promise<WrongQuestion>;
 }
 
-export async function submitFeedback(input: {
-  userId: string; rating: number; scene: string; message: string; surveyUrl?: string;
-}) {
-  const response = await fetch(`${API_BASE_URL}/feedback`, {
+export async function submitFeedback(input: { rating: number; scene: string; message: string; surveyUrl?: string }) {
+  const response = await fetchWithAuth(`${API_BASE_URL}/feedback`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
@@ -102,7 +102,7 @@ export async function submitFeedback(input: {
   return response.json();
 }
 
-// Admin-only (authenticated)
+// Admin-only endpoints (use authenticatedFetch for auto-refresh)
 export async function fetchAdminMetrics() {
   const response = await authenticatedFetch(`${API_BASE_URL}/admin/metrics`);
   if (!response.ok) throw new Error(`Admin metrics request failed with ${response.status}`);

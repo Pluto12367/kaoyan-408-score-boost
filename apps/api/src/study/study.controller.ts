@@ -1,15 +1,22 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
-import type { KnowledgePoint, Subject } from '@kaoyan408/shared';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import type { Subject } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { RoleGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorator';
+import { CurrentUser } from '../auth/current-user.decorator';
+import type { UserProfile } from '@kaoyan408/shared';
 
 @Controller()
 export class StudyController {
   constructor(private readonly studyService: StudyService) {}
 
+  // ---- Student endpoints (require student+ auth) ----
+  // All student-facing endpoints use @CurrentUser() — userId NEVER comes from the client
+
   @Get('knowledge-points')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
   listKnowledgePoints() {
     return this.studyService.listKnowledgePoints();
   }
@@ -17,44 +24,288 @@ export class StudyController {
   @Post('knowledge-points')
   @UseGuards(RoleGuard)
   @Roles('teacher', 'admin')
-  createKnowledgePoint(@Body() input: Partial<KnowledgePoint>) {
+  createKnowledgePoint(@Body() input: Record<string, unknown>) {
     return this.studyService.createKnowledgePoint(input);
   }
 
-  @Get('reports/overview')
-  getOverviewReport() {
-    return this.studyService.getOverviewReport();
-  }
-
   @Get('dashboard/overview')
-  getDashboardOverview() {
-    return this.studyService.getDashboardOverview();
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getDashboardOverview(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getDashboardOverview(resolveUserId(user, viewUserId));
   }
 
   @Get('trial-progress')
-  getTrialProgress(@Query('userId') userId?: string) {
-    return this.studyService.getTrialProgress(userId);
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getTrialProgress(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getTrialProgress(resolveUserId(user, viewUserId));
   }
 
   @Get('study-reminders')
-  getStudyReminders(@Query('userId') userId?: string) {
-    return this.studyService.getStudyReminders(userId);
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getStudyReminders(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getStudyReminders(resolveUserId(user, viewUserId));
   }
 
   @Get('sprint-plan')
-  getSprintPlan(@Query('userId') userId?: string) {
-    return this.studyService.getSprintPlan(userId);
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getSprintPlan(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getSprintPlan(resolveUserId(user, viewUserId));
   }
 
   @Get('mastery-map')
-  getMasteryMap(@Query('userId') userId?: string) {
-    return this.studyService.getMasteryMap(userId);
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getMasteryMap(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getMasteryMap(resolveUserId(user, viewUserId));
   }
 
   @Get('students/:userId/profile')
-  getStudentLearningProfile(@Param('userId') userId: string) {
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getStudentLearningProfile(
+    @CurrentUser() user: UserProfile,
+    @Param('userId') userId: string,
+  ) {
+    this.assertAccess(user, userId);
     return this.studyService.getStudentLearningProfile(userId);
   }
+
+  @Get('wrong-questions')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  listWrongQuestions(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.listWrongQuestions(resolveUserId(user, viewUserId));
+  }
+
+  @Get('wrong-questions/summary')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getWrongQuestionSummary(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getWrongQuestionSummary(resolveUserId(user, viewUserId));
+  }
+
+  @Post('wrong-questions/:questionId/review')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  reviewWrongQuestion(
+    @CurrentUser() user: UserProfile,
+    @Param('questionId') questionId: string,
+  ) {
+    return this.studyService.reviewWrongQuestion(questionId, user.id);
+  }
+
+  @Get('practice-sets/recommended')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getRecommendedPracticeSet(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getRecommendedPracticeSet(resolveUserId(user, viewUserId));
+  }
+
+  @Get('review-resources/recommended')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getRecommendedReviewResources(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getRecommendedReviewResources(resolveUserId(user, viewUserId));
+  }
+
+  @Post('practice-sets/:practiceSetId/submit')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  submitPracticeSet(
+    @CurrentUser() user: UserProfile,
+    @Param('practiceSetId') practiceSetId: string,
+    @Body() input: {
+      answers?: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+    },
+  ) {
+    return this.studyService.submitPracticeSet(practiceSetId, { ...input, userId: user.id });
+  }
+
+  @Get('learning-calendar')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getLearningCalendar(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getLearningCalendar(resolveUserId(user, viewUserId));
+  }
+
+  @Get('assessments/stage')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getStageAssessment(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getStageAssessment(resolveUserId(user, viewUserId));
+  }
+
+  @Post('assessments/stage/submit')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  submitStageAssessment(
+    @CurrentUser() user: UserProfile,
+    @Body() input: {
+      answers?: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+    },
+  ) {
+    return this.studyService.submitStageAssessment({ ...input, userId: user.id });
+  }
+
+  @Post('ai/tutor-reply')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  createTutorReply(
+    @CurrentUser() user: UserProfile,
+    @Body() input: { questionId: string; selectedAnswer?: string; prompt?: string },
+  ) {
+    return this.studyService.createTutorReply({ ...input, userId: user.id });
+  }
+
+  @Post('ai/follow-up')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  createAiFollowUp(
+    @CurrentUser() user: UserProfile,
+    @Body() input: { questionId: string; message?: string },
+  ) {
+    return this.studyService.createAiFollowUp({ ...input, userId: user.id });
+  }
+
+  @Post('practice-records')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  createPracticeRecord(
+    @CurrentUser() user: UserProfile,
+    @Body() input: CreatePracticeRecordDto,
+  ) {
+    return this.studyService.createPracticeRecord({ ...input, userId: user.id });
+  }
+
+  @Post('study-tasks/:taskId/complete')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  completeStudyTask(
+    @CurrentUser() user: UserProfile,
+    @Param('taskId') taskId: string,
+    @Body() input: {
+      completedQuestionCount?: number;
+      correctCount?: number;
+      minutesSpent?: number;
+      selfRating?: number;
+    },
+  ) {
+    return this.studyService.completeStudyTask(taskId, { ...input, userId: user.id });
+  }
+
+  @Post('diagnostics/profile')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  applyDiagnosticProfile(
+    @CurrentUser() user: UserProfile,
+    @Body() input: {
+      targetScore: number; currentScore: number; remainingDays: number;
+      dailyHours: number; weakestSubject: Subject;
+    },
+  ) {
+    return this.studyService.applyDiagnosticProfile(user.id, input);
+  }
+
+  @Post('feedback')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  submitFeedback(
+    @CurrentUser() user: UserProfile,
+    @Body() input: { rating?: number; scene?: string; message?: string; surveyUrl?: string },
+  ) {
+    return this.studyService.submitFeedback({ ...input, userId: user.id });
+  }
+
+  @Get('assessment-history')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getAssessmentHistory(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getAssessmentHistory(resolveUserId(user, viewUserId));
+  }
+
+  @Get('reports/overview')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getOverviewReport(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studyService.getOverviewReport(resolveUserId(user, viewUserId));
+  }
+
+  // ---- Paper endpoints ----
+
+  @Get('papers')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  listPapers() {
+    return this.studyService.listPapers();
+  }
+
+  @Post('papers/generate')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
+  generatePaper(@Body() input: {
+    title?: string; paperType?: '模拟卷' | '阶段卷' | '专项卷';
+    knowledgePointIds?: string[]; questionCount?: number; createdBy?: string;
+  }) {
+    return this.studyService.generatePaper(input);
+  }
+
+  @Post('papers/:paperId/submit')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  submitPaper(
+    @CurrentUser() user: UserProfile,
+    @Param('paperId') paperId: string,
+    @Body() input: {
+      answers?: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+    },
+  ) {
+    return this.studyService.submitPaper(paperId, { ...input, userId: user.id });
+  }
+
+  // ---- Admin endpoints (admin only, no student access) ----
 
   @Get('admin/metrics')
   @UseGuards(RoleGuard)
@@ -112,13 +363,6 @@ export class StudyController {
     return this.studyService.getSystemConfig();
   }
 
-  @Get('teacher/class-analytics')
-  @UseGuards(RoleGuard)
-  @Roles('teacher', 'admin')
-  getTeacherClassAnalytics() {
-    return this.studyService.getTeacherClassAnalytics();
-  }
-
   @Post('admin/system-config')
   @UseGuards(RoleGuard)
   @Roles('admin')
@@ -133,159 +377,31 @@ export class StudyController {
     return this.studyService.updateSystemConfig(input);
   }
 
-  @Post('feedback')
-  submitFeedback(@Body() input: {
-    userId?: string;
-    rating?: number;
-    scene?: string;
-    message?: string;
-    surveyUrl?: string;
-  }) {
-    return this.studyService.submitFeedback(input);
-  }
-
-  @Get('papers')
-  listPapers() {
-    return this.studyService.listPapers();
-  }
-
-  @Get('assessment-history')
-  getAssessmentHistory(@Query('userId') userId?: string) {
-    return this.studyService.getAssessmentHistory(userId);
-  }
-
-  @Post('papers/generate')
+  @Get('teacher/class-analytics')
   @UseGuards(RoleGuard)
   @Roles('teacher', 'admin')
-  generatePaper(@Body() input: {
-    title?: string;
-    paperType?: '模拟卷' | '阶段卷' | '专项卷';
-    knowledgePointIds?: string[];
-    questionCount?: number;
-    createdBy?: string;
-  }) {
-    return this.studyService.generatePaper(input);
+  getTeacherClassAnalytics() {
+    return this.studyService.getTeacherClassAnalytics();
   }
 
-  @Post('papers/:paperId/submit')
-  submitPaper(@Param('paperId') paperId: string, @Body() input: {
-    userId?: string;
-    answers?: Array<{
-      questionId: string;
-      selectedAnswer: string;
-      timeSpentSec: number;
-    }>;
-  }) {
-    return this.studyService.submitPaper(paperId, input);
-  }
+  // ---- Access control helpers ----
 
-  @Get('wrong-questions')
-  listWrongQuestions(@Query('userId') userId?: string) {
-    return this.studyService.listWrongQuestions(userId);
+  private assertAccess(user: UserProfile, targetUserId: string) {
+    if (user.role === 'admin') return;
+    if (user.role === 'teacher') {
+      this.studyService.assertTeacherAuthorizedForStudent(user.id, targetUserId);
+      return;
+    }
+    if (user.id !== targetUserId) {
+      throw new ForbiddenException('You can only access your own data');
+    }
   }
+}
 
-  @Get('wrong-questions/summary')
-  getWrongQuestionSummary(@Query('userId') userId?: string) {
-    return this.studyService.getWrongQuestionSummary(userId);
+/** Students always see their own data. Teachers/admins can optionally view another user. */
+function resolveUserId(user: UserProfile, viewUserId?: string): string {
+  if (viewUserId && (user.role === 'admin' || user.role === 'teacher')) {
+    return viewUserId;
   }
-
-  @Get('practice-sets/recommended')
-  getRecommendedPracticeSet(@Query('userId') userId?: string) {
-    return this.studyService.getRecommendedPracticeSet(userId);
-  }
-
-  @Get('review-resources/recommended')
-  getRecommendedReviewResources(@Query('userId') userId?: string) {
-    return this.studyService.getRecommendedReviewResources(userId);
-  }
-
-  @Post('practice-sets/:practiceSetId/submit')
-  submitPracticeSet(@Param('practiceSetId') practiceSetId: string, @Body() input: {
-    userId?: string;
-    answers?: Array<{
-      questionId: string;
-      selectedAnswer: string;
-      timeSpentSec: number;
-    }>;
-  }) {
-    return this.studyService.submitPracticeSet(practiceSetId, input);
-  }
-
-  @Post('wrong-questions/:questionId/review')
-  reviewWrongQuestion(@Param('questionId') questionId: string, @Body('userId') userId?: string) {
-    return this.studyService.reviewWrongQuestion(questionId, userId);
-  }
-
-  @Get('learning-calendar')
-  getLearningCalendar(@Query('userId') userId?: string) {
-    return this.studyService.getLearningCalendar(userId);
-  }
-
-  @Get('assessments/stage')
-  getStageAssessment(@Query('userId') userId?: string) {
-    return this.studyService.getStageAssessment(userId);
-  }
-
-  @Post('assessments/stage/submit')
-  submitStageAssessment(@Body() input: {
-    userId?: string;
-    answers?: Array<{
-      questionId: string;
-      selectedAnswer: string;
-      timeSpentSec: number;
-    }>;
-  }) {
-    return this.studyService.submitStageAssessment(input);
-  }
-
-  @Post('ai/tutor-reply')
-  createTutorReply(@Body() input: {
-    userId?: string;
-    questionId: string;
-    selectedAnswer?: string;
-    prompt?: string;
-  }) {
-    return this.studyService.createTutorReply(input);
-  }
-
-  @Post('ai/follow-up')
-  createAiFollowUp(@Body() input: {
-    userId?: string;
-    questionId: string;
-    message?: string;
-  }) {
-    return this.studyService.createAiFollowUp(input);
-  }
-
-  @Post('practice-records')
-  createPracticeRecord(@Body() input: CreatePracticeRecordDto) {
-    return this.studyService.createPracticeRecord(input);
-  }
-
-  @Post('study-tasks/:taskId/complete')
-  completeStudyTask(@Param('taskId') taskId: string, @Body() input: {
-    userId?: string;
-    completedQuestionCount?: number;
-    correctCount?: number;
-    minutesSpent?: number;
-    selfRating?: number;
-  }) {
-    return this.studyService.completeStudyTask(taskId, input);
-  }
-
-  @Post('diagnostics/plan')
-  generatePlan() {
-    return this.studyService.generatePlan();
-  }
-
-  @Post('diagnostics/profile')
-  applyDiagnosticProfile(@Body() input: {
-    targetScore: number;
-    currentScore: number;
-    remainingDays: number;
-    dailyHours: number;
-    weakestSubject: Subject;
-  }) {
-    return this.studyService.applyDiagnosticProfile(input);
-  }
+  return user.id;
 }

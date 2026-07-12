@@ -78,6 +78,15 @@ function withAuthHeader(init: RequestInit, session: AuthSession | null): Request
   return { ...init, headers };
 }
 
+/**
+ * Like fetch() but automatically adds the Authorization header.
+ * Use this for ALL student-facing API calls. Backend Phase 1 requires auth on every endpoint.
+ */
+export function fetchWithAuth(url: string, init: RequestInit = {}): Promise<Response> {
+  const session = getActiveAuthSession();
+  return fetch(url, withAuthHeader(init, session));
+}
+
 export function isStaticDemoMode(): boolean {
   return typeof window !== 'undefined'
     && window.location.hostname.endsWith('github.io')

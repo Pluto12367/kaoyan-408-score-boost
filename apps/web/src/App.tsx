@@ -148,7 +148,7 @@ export function App() {
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchRecommendedPracticeSet('u-001'), fetchReviewResourceRecommendations('u-001'), fetchLearningProfile('u-001'), fetchTrialProgress('u-001'), fetchStudyReminders('u-001'), fetchSprintPlan('u-001'), fetchMasteryMap('u-001'), fetchWrongQuestionSummary('u-001'), fetchAssessmentHistory('u-001')])
+    Promise.all([fetchDashboardOverview(), fetchRecommendedPracticeSet(), fetchReviewResourceRecommendations(), fetchLearningProfile(sessionUser?.id ?? 'u-001'), fetchTrialProgress(), fetchStudyReminders(), fetchSprintPlan(), fetchMasteryMap(), fetchWrongQuestionSummary(), fetchAssessmentHistory()])
       .then(([data, recommendedSet, resources, profile, trial, reminders, sprint, mastery, wrongSummary, history]) => {
         if (!active) return;
         setOverview(data);
@@ -224,33 +224,33 @@ export function App() {
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const currentQuestion = questions[0];
 
-  async function refreshTrialProgress(userId = student.id) {
-    const nextTrialProgress = await fetchTrialProgress(userId);
+  async function refreshTrialProgress() {
+    const nextTrialProgress = await fetchTrialProgress();
     setTrialProgress(nextTrialProgress);
   }
 
-  async function refreshStudyReminders(userId = student.id) {
-    const nextStudyReminders = await fetchStudyReminders(userId);
+  async function refreshStudyReminders() {
+    const nextStudyReminders = await fetchStudyReminders();
     setStudyReminders(nextStudyReminders);
   }
 
-  async function refreshSprintPlan(userId = student.id) {
-    const nextSprintPlan = await fetchSprintPlan(userId);
+  async function refreshSprintPlan() {
+    const nextSprintPlan = await fetchSprintPlan();
     setSprintPlan(nextSprintPlan);
   }
 
-  async function refreshMasteryMap(userId = student.id) {
-    const nextMasteryMap = await fetchMasteryMap(userId);
+  async function refreshMasteryMap() {
+    const nextMasteryMap = await fetchMasteryMap();
     setMasteryMap(nextMasteryMap);
   }
 
-  async function refreshWrongQuestionSummary(userId = student.id) {
-    const nextWrongQuestionSummary = await fetchWrongQuestionSummary(userId);
+  async function refreshWrongQuestionSummary() {
+    const nextWrongQuestionSummary = await fetchWrongQuestionSummary();
     setWrongQuestionSummary(nextWrongQuestionSummary);
   }
 
-  async function refreshAssessmentHistory(userId = student.id) {
-    const nextAssessmentHistory = await fetchAssessmentHistory(userId);
+  async function refreshAssessmentHistory() {
+    const nextAssessmentHistory = await fetchAssessmentHistory();
     setAssessmentHistory(nextAssessmentHistory);
   }
 
@@ -321,11 +321,11 @@ export function App() {
       setOverview(nextOverview);
       setSessionUser(nextOverview.student);
       setApiState('connected');
-      await refreshTrialProgress(nextOverview.student.id);
-      await refreshStudyReminders(nextOverview.student.id);
-      await refreshSprintPlan(nextOverview.student.id);
-      await refreshMasteryMap(nextOverview.student.id);
-      await refreshWrongQuestionSummary(nextOverview.student.id);
+      await refreshTrialProgress();
+      await refreshStudyReminders();
+      await refreshSprintPlan();
+      await refreshMasteryMap();
+      await refreshWrongQuestionSummary();
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
@@ -338,7 +338,6 @@ export function App() {
 
     try {
       const record = await submitPracticeAnswer({
-        userId: student.id,
         questionId: currentQuestion.id,
         knowledgePointId: currentQuestion.knowledgePointIds[0],
         selectedAnswer,
@@ -347,11 +346,10 @@ export function App() {
       const nextOverview = await fetchDashboardOverview();
       setOverview(nextOverview);
       setApiState('connected');
-      await refreshStudyReminders(student.id);
-      await refreshSprintPlan(student.id);
-      await refreshMasteryMap(student.id);
-      await refreshWrongQuestionSummary(student.id);
-      await refreshWrongQuestionSummary(student.id);
+      await refreshStudyReminders();
+      await refreshSprintPlan();
+      await refreshMasteryMap();
+      await refreshWrongQuestionSummary();
       if (record.correct && redoQuestionId === currentQuestion.id) {
         setRedoQuestionId(null);
         setPracticeStatus('回答正确，已从错题本移除。');
@@ -369,8 +367,7 @@ export function App() {
 
     try {
       const result = await submitPracticeSet({
-        userId: student.id,
-        practiceSetId: practiceSet.id,
+practiceSetId: practiceSet.id,
         answers: practiceSet.questions.slice(0, 3).map((question, index) => ({
           questionId: question.id,
           selectedAnswer: index === 0 ? question.answer : 'A',
@@ -378,18 +375,18 @@ export function App() {
         })),
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextPracticeSet = await fetchRecommendedPracticeSet(student.id);
-      const nextProfile = await fetchLearningProfile(student.id);
+      const nextPracticeSet = await fetchRecommendedPracticeSet();
+      const nextProfile = await fetchLearningProfile(sessionUser?.id ?? student.id);
       setOverview(nextOverview);
       setPracticeSet(nextPracticeSet);
       setLearningProfile(nextProfile);
       setPracticeSetResult(result);
       setApiState('connected');
-      await refreshTrialProgress(student.id);
-      await refreshStudyReminders(student.id);
-      await refreshSprintPlan(student.id);
-      await refreshMasteryMap(student.id);
-      await refreshWrongQuestionSummary(student.id);
+      await refreshTrialProgress();
+      await refreshStudyReminders();
+      await refreshSprintPlan();
+      await refreshMasteryMap();
+      await refreshWrongQuestionSummary();
       setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
     } catch {
       setPracticeStatus('推荐题组提交失败，请稍后重试。');
@@ -443,23 +440,22 @@ export function App() {
 
     try {
       const completedTask = await completeStudyTask({
-        userId: student.id,
-        taskId,
+taskId,
         completedQuestionCount,
         correctCount: Math.max(1, Math.round(completedQuestionCount * 0.58)),
         minutesSpent: (currentTask?.minutes ?? 45) + 12,
         selfRating: 2,
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextProfile = await fetchLearningProfile(student.id);
+      const nextProfile = await fetchLearningProfile(sessionUser?.id ?? student.id);
       setOverview(nextOverview);
       setLearningProfile(nextProfile);
       setApiState('connected');
-      await refreshTrialProgress(student.id);
-      await refreshStudyReminders(student.id);
-      await refreshSprintPlan(student.id);
-      await refreshMasteryMap(student.id);
-      await refreshWrongQuestionSummary(student.id);
+      await refreshTrialProgress();
+      await refreshStudyReminders();
+      await refreshSprintPlan();
+      await refreshMasteryMap();
+      await refreshWrongQuestionSummary();
       setTaskAdjustment(completedTask.adjustment);
       setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
       setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
@@ -473,17 +469,14 @@ export function App() {
     setWrongStatus('正在记录错题复盘...');
 
     try {
-      const reviewed = await reviewWrongQuestion({
-        userId: student.id,
-        questionId,
-      });
+      const reviewed = await reviewWrongQuestion(questionId);
       const nextOverview = await fetchDashboardOverview();
       setOverview(nextOverview);
-      await refreshTrialProgress(student.id);
-      await refreshStudyReminders(student.id);
-      await refreshSprintPlan(student.id);
-      await refreshMasteryMap(student.id);
-      await refreshWrongQuestionSummary(student.id);
+      await refreshTrialProgress();
+      await refreshStudyReminders();
+      await refreshSprintPlan();
+      await refreshMasteryMap();
+      await refreshWrongQuestionSummary();
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -496,7 +489,7 @@ export function App() {
     setAssessmentStatus('正在生成阶段测评...');
 
     try {
-      const assessment = await fetchStageAssessment(student.id);
+      const assessment = await fetchStageAssessment();
       setOverview((current) => ({
         ...current,
         stageAssessment: assessment,
@@ -516,22 +509,21 @@ export function App() {
 
     try {
       const result = await submitStageAssessment({
-        userId: student.id,
-        answers: stageAssessment.questions.map((question, index) => ({
+answers: stageAssessment.questions.map((question, index) => ({
           questionId: question.id,
           selectedAnswer: index === 0 ? question.answer : 'A',
           timeSpentSec: question.expectedTimeSec + 20,
         })),
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextProfile = await fetchLearningProfile(student.id);
+      const nextProfile = await fetchLearningProfile(sessionUser?.id ?? student.id);
       setOverview(nextOverview);
       setStageResult(result);
       setLearningProfile(nextProfile);
       setApiState('connected');
-      await refreshStudyReminders(student.id);
-      await refreshSprintPlan(student.id);
-      await refreshMasteryMap(student.id);
+      await refreshStudyReminders();
+      await refreshSprintPlan();
+      await refreshMasteryMap();
       setAssessmentStatus(`阶段测评完成：${result.score} 分，计划已调整为${result.adjustment.planPhase}。`);
       setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
     } catch {
@@ -545,7 +537,6 @@ export function App() {
 
     try {
       const reply = await requestTutorReply({
-        userId: student.id,
         questionId: currentQuestion.id,
         selectedAnswer: 'A',
         prompt: '请解释这道题的考点和易错点。',
@@ -565,7 +556,6 @@ export function App() {
 
     try {
       const reply = await requestAiFollowUp({
-        userId: student.id,
         questionId: currentQuestion.id,
         message,
       });
@@ -807,8 +797,7 @@ export function App() {
 
     try {
       const result = await submitPaper({
-        userId: student.id,
-        paperId: paper.id,
+paperId: paper.id,
         answers: paper.questions.map((question, index) => ({
           questionId: question.id,
           selectedAnswer: index === 0 ? (question.answer === 'A' ? 'B' : 'A') : question.answer,
@@ -819,9 +808,9 @@ export function App() {
       setPaperResult(result);
       setPaperSession(result.examSession);
       setOverview(nextOverview);
-      await refreshMasteryMap(student.id);
-      await refreshWrongQuestionSummary(student.id);
-      await refreshAssessmentHistory(student.id);
+      await refreshMasteryMap();
+      await refreshWrongQuestionSummary();
+      await refreshAssessmentHistory();
       setApiState('connected');
       setPaperStatus(`试卷已提交：${result.score} 分，正确率 ${result.accuracyRate}%，已同步 ${result.syncedPracticeRecordCount} 条练习记录。`);
     } catch {
@@ -886,7 +875,7 @@ export function App() {
           speedRiskMultiplier: 1.25,
         },
       });
-      const nextAssessment = await fetchStageAssessment(student.id);
+      const nextAssessment = await fetchStageAssessment();
       setSystemConfig(nextConfig);
       setOverview((current) => ({
         ...current,
@@ -905,15 +894,14 @@ export function App() {
 
     try {
       const feedback = await submitFeedback({
-        userId: student.id,
-        rating: 4,
+rating: 4,
         scene: '原型试用',
         message: '推荐题组和学习档案对备考路径有帮助，希望继续完善移动端体验。',
         surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
       });
-      await refreshTrialProgress(student.id);
-      await refreshStudyReminders(student.id);
-      await refreshSprintPlan(student.id);
+      await refreshTrialProgress();
+      await refreshStudyReminders();
+      await refreshSprintPlan();
       setApiState('connected');
       setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
     } catch {

@@ -1,10 +1,10 @@
-import { API_BASE_URL } from '../client';
+import { API_BASE_URL, fetchWithAuth } from '../client';
 import type { TutorReply, AiFollowUp } from '../types';
 
 export async function requestTutorReply(input: {
-  userId: string; questionId: string; selectedAnswer?: string; prompt?: string;
+  questionId: string; selectedAnswer?: string; prompt?: string;
 }): Promise<TutorReply> {
-  const response = await fetch(`${API_BASE_URL}/ai/tutor-reply`, {
+  const response = await fetchWithAuth(`${API_BASE_URL}/ai/tutor-reply`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
@@ -14,9 +14,9 @@ export async function requestTutorReply(input: {
 }
 
 export async function requestAiFollowUp(input: {
-  userId: string; questionId: string; message: string;
+  questionId: string; message: string;
 }): Promise<AiFollowUp> {
-  const response = await fetch(`${API_BASE_URL}/ai/follow-up`, {
+  const response = await fetchWithAuth(`${API_BASE_URL}/ai/follow-up`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),

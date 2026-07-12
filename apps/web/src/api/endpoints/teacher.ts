@@ -1,4 +1,4 @@
-import { API_BASE_URL, authenticatedFetch } from '../client';
+import { API_BASE_URL, fetchWithAuth, authenticatedFetch } from '../client';
 import type { Question, KnowledgePoint, GeneratedPaper, PaperSubmitResult, CreateTeacherQuestionInput, CreateKnowledgePointInput, GeneratePaperInput } from '../types';
 
 export async function fetchQuestions(filters: {
@@ -9,7 +9,7 @@ export async function fetchQuestions(filters: {
   if (filters.subject) params.set('subject', filters.subject);
   if (filters.chapter) params.set('chapter', filters.chapter);
   const query = params.toString();
-  const response = await fetch(`${API_BASE_URL}/questions${query ? `?${query}` : ''}`);
+  const response = await fetchWithAuth(`${API_BASE_URL}/questions${query ? `?${query}` : ''}`);
   if (!response.ok) throw new Error(`Question list request failed with ${response.status}`);
   return response.json() as Promise<Question[]>;
 }
@@ -61,13 +61,13 @@ export async function generatePaper(input: GeneratePaperInput): Promise<Generate
 }
 
 export async function submitPaper(input: {
-  userId: string; paperId: string;
+  paperId: string;
   answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
 }): Promise<PaperSubmitResult> {
-  const response = await fetch(`${API_BASE_URL}/papers/${input.paperId}/submit`, {
+  const response = await fetchWithAuth(`${API_BASE_URL}/papers/${input.paperId}/submit`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ userId: input.userId, answers: input.answers }),
+    body: JSON.stringify({ answers: input.answers }),
   });
   if (!response.ok) throw new Error(`Paper submission failed with ${response.status}`);
   return response.json() as Promise<PaperSubmitResult>;

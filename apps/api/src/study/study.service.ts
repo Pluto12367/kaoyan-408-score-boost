@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
 import {
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildStudyPlan,
@@ -156,25 +156,27 @@ export class StudyService implements OnModuleInit {
     return point;
   }
 
-  getOverviewReport() {
+  getOverviewReport(userId?: string) {
+    const uid = userId ?? this.student.id;
     return computeWeaknessReport({
       knowledgePoints: this.knowledgePoints,
-      records: this.records,
+      records: this.records.filter((r) => r.userId === uid),
       targetScore: this.student.targetScore ?? 115,
     });
   }
 
-  getDashboardOverview() {
+  getDashboardOverview(userId?: string) {
+    const uid = userId ?? this.student.id;
     return {
       source: this.dataSource,
-      student: this.student,
+      student: uid === this.student.id ? this.student : { ...this.student, id: uid },
       knowledgePoints: this.knowledgePoints,
       questions: this.questions,
-      practiceRecords: this.records,
-      wrongQuestions: this.listWrongQuestions(this.student.id),
-      learningCalendar: this.getLearningCalendar(this.student.id),
-      stageAssessment: this.getStageAssessment(this.student.id),
-      report: this.getOverviewReport(),
+      practiceRecords: this.records.filter((r) => r.userId === uid),
+      wrongQuestions: this.listWrongQuestions(uid),
+      learningCalendar: this.getLearningCalendar(uid),
+      stageAssessment: this.getStageAssessment(uid),
+      report: this.getOverviewReport(uid),
       plan: this.generatePlan(),
     };
   }
@@ -526,7 +528,7 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  applyDiagnosticProfile(input: {
+  applyDiagnosticProfile(userId: string, input: {
     targetScore: number;
     currentScore: number;
     remainingDays: number;
@@ -542,6 +544,21 @@ export class StudyService implements OnModuleInit {
     this.student.stage = profile.stage;
     this.diagnosticProfile = profile;
     return profile;
+  }
+
+  /**
+   * Phase 1: Teacher can only access students in their authorized class.
+   * For now, teacher-001 is authorized for u-001 (demo student).
+   */
+  assertTeacherAuthorizedForStudent(teacherId: string, studentId: string) {
+    const authorizedTeacherIds = ['teacher-001', 'admin-001'];
+    const authorizedStudentIds = ['u-001'];
+    if (!authorizedTeacherIds.includes(teacherId)) {
+      throw new ForbiddenException('Teacher is not authorized to view class data');
+    }
+    if (!authorizedStudentIds.includes(studentId)) {
+      throw new ForbiddenException(`Student ${studentId} is not in your class`);
+    }
   }
 
   getAdminMetrics() {
