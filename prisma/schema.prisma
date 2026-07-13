@@ -55,24 +55,27 @@ model User {
   refreshTokens        RefreshToken[]
   learningSessions     LearningSession[]
   reviewSchedules      ReviewSchedule[]
+  examReviewPlans      ExamReviewPlan[]
 }
 
 model LearningSession {
-  id              String    @id
+  id              String           @id
   userId          String
   type            String
   resourceId      String?
   questionIds     String[]
   answers         Json
   markedQuestions String[]
-  currentIndex    Int       @default(0)
-  startedAt       DateTime  @default(now())
-  lastActiveAt    DateTime  @default(now())
-  totalActiveMs   Int       @default(0)
-  lastResumeAt    DateTime  @default(now())
-  completed       Boolean   @default(false)
+  currentIndex    Int              @default(0)
+  startedAt       DateTime         @default(now())
+  lastActiveAt    DateTime         @default(now())
+  totalActiveMs   Int              @default(0)
+  lastResumeAt    DateTime         @default(now())
+  completed       Boolean          @default(false)
   submittedAt     DateTime?
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practiceRecords PracticeRecord[]
+  examReviewPlan  ExamReviewPlan?
 
   @@index([userId, completed, lastActiveAt])
   @@index([userId, type, resourceId])
@@ -133,7 +136,7 @@ model QuestionKnowledgePoint {
 }
 
 model PracticeRecord {
-  id               String         @id @default(cuid())
+  id               String           @id @default(cuid())
   userId           String
   questionId       String
   knowledgePointId String
@@ -142,13 +145,19 @@ model PracticeRecord {
   timeSpentSec     Int
   expectedTimeSec  Int
   mistakeReason    String?
-  submittedAt      DateTime       @default(now())
-  user             User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  question         Question       @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  knowledgePoint   KnowledgePoint @relation(fields: [knowledgePointId], references: [id])
+  submittedAt      DateTime         @default(now())
+  sessionId        String?
+  gradingMode      String           @default("objective")
+  selfScore        Int?
+  maxScore         Int?
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question         Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgePoint   KnowledgePoint   @relation(fields: [knowledgePointId], references: [id])
+  session          LearningSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([userId, submittedAt])
   @@index([knowledgePointId, correct])
+  @@index([sessionId, submittedAt])
 }
 
 model WrongQuestionReview {
@@ -256,4 +265,20 @@ model ReviewAttempt {
   schedule         ReviewSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
 
   @@index([scheduleId, reviewedAt])
+}
+
+model ExamReviewPlan {
+  id               String          @id @default(cuid())
+  sessionId        String          @unique
+  userId           String
+  days             Json
+  recommendation   String
+  examAccuracyRate Int
+  weakPointTitles  String[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  session          LearningSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }

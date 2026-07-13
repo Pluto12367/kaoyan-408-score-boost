@@ -58,6 +58,10 @@ export interface PracticeRecord {
   expectedTimeSec: number;
   mistakeReason: MistakeReason | null;
   submittedAt: string;
+  sessionId?: string;
+  gradingMode?: 'objective' | 'self_assessed';
+  selfScore?: number;
+  maxScore?: number;
 }
 
 export interface DailyTask {

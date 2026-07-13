@@ -4,6 +4,10 @@ import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { TodayPlan } from './components/TodayPlan';
 import { WrongQuestionDetailView } from './components/WrongQuestionDetail';
+import { ExamSession } from './components/ExamSession';
+import { ExamReportView } from './components/ExamReport';
+import { ResumeSessionBanner } from './components/ResumeSessionBanner';
+import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
@@ -141,6 +145,9 @@ export function App() {
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => createMockPaperSubmitResult());
   const [paperSession, setPaperSession] = useState<PaperSubmitResult['examSession'] | null>(null);
+  const [examOpen, setExamOpen] = useState(false);
+  const [examReportSessionId, setExamReportSessionId] = useState<string | null>(null);
+  const [resumedExamSession, setResumedExamSession] = useState<SessionView | null>(null);
   const [assessmentHistory, setAssessmentHistory] = useState<AssessmentHistory>(() => createMockAssessmentHistory());
   const [teacherQuestionList, setTeacherQuestionList] = useState(() => createMockOverview().questions);
   const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
@@ -280,6 +287,10 @@ export function App() {
   }
 
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
+  const examQuestions = latestPaper?.questions.length ? latestPaper.questions : questions;
+  const examResourceId = latestPaper?.id ?? `mock-exam-${examQuestions.map((question) => question.id).join('-')}`;
+  const activeExamQuestionIds = resumedExamSession?.questionIds ?? examQuestions.map((question) => question.id);
+  const activeExamQuestions = questions.filter((question) => activeExamQuestionIds.includes(question.id));
   const currentQuestion = questions[0];
 
   async function refreshTrialProgress() {
@@ -1064,6 +1075,42 @@ rating: 4,
               window.setTimeout(() => document.getElementById('wrong-question-detail')?.scrollIntoView({ behavior: 'smooth' }), 0);
             }}
           />
+        ) : null}
+
+        {!showOnboarding ? (
+          <ResumeSessionBanner
+            allowedTypes={['paper']}
+            onResume={(session) => {
+              setResumedExamSession(session);
+              setExamReportSessionId(null);
+              setExamOpen(true);
+            }}
+          />
+        ) : null}
+
+        {!showOnboarding ? (
+          <section className="panel exam-entry-panel">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">408 模拟考试</p>
+                <h3>{latestPaper?.title ?? '当前题库模拟卷'}</h3>
+              </div>
+              <span>{examQuestions.length} 题 · 180 分钟</span>
+            </div>
+            <p>支持答题卡、题目标记、自动保存、断点恢复和未答题检查。</p>
+            <button
+              type="button"
+              className="primary-action"
+              disabled={examQuestions.length === 0}
+              onClick={() => {
+                setResumedExamSession(null);
+                setExamReportSessionId(null);
+                setExamOpen(true);
+              }}
+            >
+              <ClipboardCheck size={18} /> 开始模拟考试
+            </button>
+          </section>
         ) : null}
 
         <section className="panel role-panel">
@@ -2111,6 +2158,26 @@ rating: 4,
           ) : null}
         </section>
       </section>
+      {examOpen ? (
+        <div className="exam-workspace-overlay">
+          <ExamSession
+            questionIds={activeExamQuestionIds}
+            questions={resumedExamSession ? activeExamQuestions : examQuestions}
+            resourceId={resumedExamSession?.resourceId ?? examResourceId}
+            timeLimitMin={180}
+            onExit={() => setExamOpen(false)}
+            onSubmit={(result) => {
+              setExamOpen(false);
+              setExamReportSessionId(result.sessionId);
+            }}
+          />
+        </div>
+      ) : null}
+      {examReportSessionId ? (
+        <div className="exam-workspace-overlay">
+          <ExamReportView sessionId={examReportSessionId} onClose={() => setExamReportSessionId(null)} />
+        </div>
+      ) : null}
     </main>
     </DashboardProvider>
   );

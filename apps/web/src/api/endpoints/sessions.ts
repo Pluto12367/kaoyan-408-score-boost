@@ -1,11 +1,18 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
 
+export interface SessionAnswer {
+  selectedAnswer: string;
+  timeSpentSec: number;
+  selfScore?: number;
+  maxScore?: number;
+}
+
 export interface SessionView {
   id: string;
   type: 'practice_set' | 'stage_assessment' | 'paper';
   resourceId?: string;
   questionIds: string[];
-  answers: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+  answers: Record<string, SessionAnswer>;
   markedQuestions: string[];
   currentIndex: number;
   totalQuestions: number;
@@ -29,7 +36,7 @@ export interface SessionSubmitResult {
   correctCount: number;
   accuracyRate: number;
   totalActiveMs: number;
-  records: Array<{ questionId: string; correct: boolean; mistakeReason: string | null }>;
+  records: Array<{ questionId: string; correct: boolean; mistakeReason: string | null; gradingMode?: string; selfScore?: number; maxScore?: number }>;
 }
 
 export async function startPracticeSession(input: {
@@ -47,7 +54,7 @@ export async function startPracticeSession(input: {
 }
 
 export async function savePracticeProgress(sessionId: string, input: {
-  answers?: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+  answers?: Record<string, SessionAnswer>;
   currentIndex?: number;
   markedQuestions?: string[];
   idleSince?: number;
@@ -74,7 +81,7 @@ export async function listActiveSessions(): Promise<ActiveSessionsResponse> {
 }
 
 export async function submitPracticeSession(sessionId: string, input: {
-  answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+  answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
 }): Promise<SessionSubmitResult> {
   const response = await fetchWithAuth(`${API_BASE_URL}/sessions/practice/${sessionId}/submit`, {
     method: 'POST',

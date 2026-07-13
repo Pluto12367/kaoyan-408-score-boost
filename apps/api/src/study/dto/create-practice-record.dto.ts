@@ -26,4 +26,18 @@ export class CreatePracticeRecordDto {
   @IsInt()
   @Min(1)
   expectedTimeSec?: number;
+
+  @IsOptional()
+  @IsString()
+  sessionId?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  selfScore?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  maxScore?: number;
 }

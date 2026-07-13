@@ -74,6 +74,17 @@ async function main() {
     source: 'integration',
   }, { Authorization: `Bearer ${teacherSession.token}` });
   assert(teacherQuestion.id, 'teacher role should create questions');
+  const subjectiveQuestion = await postJson(`${apiUrl}/questions`, {
+    stem: 'Explain the key steps of direct-mapped cache address decomposition.',
+    options: ['subjective response', 'self assessment'],
+    answer: 'Address is split into tag, line index, and block offset.',
+    analysis: 'Scoring points: identify tag, line index, block offset, and explain the mapping rule.',
+    knowledgePointIds: ['co-cache'],
+    difficulty: '中等',
+    type: '综合题',
+    source: 'integration subjective',
+  }, { Authorization: `Bearer ${teacherSession.token}` });
+  assert(subjectiveQuestion.type === '综合题', 'teacher should create a comprehensive question for self assessment');
   const generatedPaper = await postJson(`${apiUrl}/papers/generate`, {
     title: 'PostgreSQL restart paper',
     paperType: '专项卷',
@@ -166,17 +177,17 @@ async function main() {
   assert(postponedTask.taskId === postponeTaskId && postponedTask.nextAvailableAt, 'study-task postponement should be accepted');
 
   const startedSession = await postJson(`${apiUrl}/sessions/practice/start`, {
-    type: 'practice_set',
-    resourceId: 'integration-resume-set',
-    questionIds: ['q-001', 'q-002'],
+    type: 'paper',
+    resourceId: 'integration-traceable-exam',
+    questionIds: ['q-001', subjectiveQuestion.id],
   }, studentHeaders);
   const savedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
     answers: { 'q-001': { selectedAnswer: 'A', timeSpentSec: 73 } },
     currentIndex: 1,
-    markedQuestions: ['q-002'],
+    markedQuestions: [subjectiveQuestion.id],
     idleSince: Date.now() - 500,
   }, studentHeaders);
-  assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes('q-002'), 'session progress should be saved');
+  assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes(subjectiveQuestion.id), 'session progress should be saved');
   await expectGetStatus(`${apiUrl}/sessions/practice/${startedSession.id}`, { Authorization: `Bearer ${teacherSession.token}` }, 403);
 
   await stop(activeApi);
@@ -203,15 +214,33 @@ async function main() {
   const restoredSession = await getJson(`${apiUrl}/sessions/practice/${startedSession.id}`, studentHeaders);
   assert(restoredSession.answers['q-001']?.selectedAnswer === 'A', 'saved answer should survive an API restart');
   assert(restoredSession.currentIndex === 1, 'current question should survive an API restart');
-  assert(restoredSession.markedQuestions.includes('q-002'), 'marked question should survive an API restart');
+  assert(restoredSession.markedQuestions.includes(subjectiveQuestion.id), 'marked question should survive an API restart');
   assert(restoredSession.totalActiveMs >= 0, 'active time should survive an API restart');
+  await expectGetStatus(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders, 400);
+  await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
+    answers: [{ questionId: 'question-outside-session', selectedAnswer: 'A', timeSpentSec: 10 }],
+  }, 400, studentHeaders);
   const submittedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
-    answers: [{ questionId: 'q-001', selectedAnswer: 'A', timeSpentSec: 73 }],
+    answers: [
+      { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 },
+      { questionId: subjectiveQuestion.id, selectedAnswer: 'tag, line index, block offset', timeSpentSec: 240, selfScore: 7, maxScore: 10 },
+    ],
   }, studentHeaders);
   assert(submittedSession.completed === true, 'restored session should be submittable');
+  assert(submittedSession.records.some((record) => record.questionId === subjectiveQuestion.id && record.gradingMode === 'self_assessed'), 'comprehensive question should use self assessment');
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
-    answers: [{ questionId: 'q-001', selectedAnswer: 'A', timeSpentSec: 73 }],
+    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 }],
   }, 400, studentHeaders);
+  const examReport = await getJson(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders);
+  assert(examReport.summary.totalQuestions === 2 && examReport.summary.answeredCount === 2, 'exam report should use the submitted session question set');
+  assert(examReport.summary.objectiveQuestionCount === 1 && examReport.summary.objectiveCorrectCount === 1, 'objective question should be graded automatically');
+  assert(examReport.summary.subjectiveQuestionCount === 1 && examReport.summary.subjectiveEarnedScore === 7, 'subjective question should retain the student self score');
+  assert(examReport.summary.subjectiveMaxScore === 10, 'subjective report should retain the maximum score');
+  assert(examReport.subjectBreakdown.reduce((sum, item) => sum + item.totalQuestions, 0) === 2, 'old practice records must not contaminate the exam report');
+  const examReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
+  assert(examReviewPlan.days.length === 3, 'submitted exam should generate a three-day review plan');
+  const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
+  assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
   assert(restored.student.targetScore === 126, 'diagnostic profile should survive an API restart');
   assert(restored.student.weakestSubject === '计算机组成原理', 'diagnostic weakest subject should survive an API restart');
   assert(restored.questions.some((question) => question.id === teacherQuestion.id), 'teacher-created question should survive an API restart');
@@ -224,6 +253,14 @@ async function main() {
   const restoredFeedback = await getJson(`${apiUrl}/admin/feedback`, { Authorization: `Bearer ${adminSession.token}` });
   assert(restoredFeedback.items.some((item) => item.id === feedback.id), 'feedback should survive an API restart');
 
+  await stop(activeApi);
+  activeApi = startApi();
+  await waitForHealth();
+  const twiceRestoredExamReport = await getJson(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders);
+  assert(twiceRestoredExamReport.summary.subjectiveEarnedScore === 7, 'traceable exam report should survive a second API restart');
+  const twiceRestoredReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
+  assert(twiceRestoredReviewPlan.generatedAt === examReviewPlan.generatedAt, 'post-exam review plan should be restored instead of regenerated');
+
   console.log(JSON.stringify({
     ok: true,
     source: restored.source,
@@ -232,6 +269,8 @@ async function main() {
     completedTaskId: restoredTask.id,
     restoredSessionId: restoredSession.id,
     restoredReviewHistoryCount: restoredWrongDetail.reviewHistory.length,
+    traceableExamSessionId: startedSession.id,
+    persistedExamReviewDays: twiceRestoredReviewPlan.days.length,
     persistedDiagnosticTarget: restored.student.targetScore,
     persistedTeacherQuestionId: teacherQuestion.id,
     persistedPaperId: generatedPaper.id,

@@ -9,12 +9,13 @@ import { KnowledgePointRepository } from './knowledge-point.repository';
 import { RuntimeStateRepository } from './runtime-state.repository';
 import { LearningSessionRepository } from './learning-session.repository';
 import { ReviewScheduleRepository } from './review-schedule.repository';
+import { ExamReviewPlanRepository } from './exam-review-plan.repository';
 import { StudyController } from './study.controller';
 import { StudyService } from './study.service';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule],
   controllers: [StudyController],
-  providers: [StudyService, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository],
+  providers: [StudyService, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository],
 })
 export class StudyModule {}

@@ -125,20 +125,24 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     };
   }, []);
 
-  const updateAnswer = useCallback((questionId: string, selectedAnswer: string, timeSpentSec: number) => {
+  const updateAnswer = useCallback((questionId: string, selectedAnswer: string, timeSpentSec: number, selfScore?: number, maxScore?: number) => {
     setSession((prev) => {
       if (!prev) return prev;
-      return {
+      const next = {
         ...prev,
-        answers: { ...prev.answers, [questionId]: { selectedAnswer, timeSpentSec } },
+        answers: { ...prev.answers, [questionId]: { selectedAnswer, timeSpentSec, selfScore, maxScore } },
       };
+      sessionRef.current = next;
+      return next;
     });
   }, []);
 
   const setCurrentQuestion = useCallback((index: number) => {
     setSession((prev) => {
       if (!prev) return prev;
-      return { ...prev, currentIndex: index };
+      const next = { ...prev, currentIndex: index };
+      sessionRef.current = next;
+      return next;
     });
   }, []);
 
@@ -148,8 +152,28 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       const marked = prev.markedQuestions.includes(questionId)
         ? prev.markedQuestions.filter((id) => id !== questionId)
         : [...prev.markedQuestions, questionId];
-      return { ...prev, markedQuestions: marked };
+      const next = { ...prev, markedQuestions: marked };
+      sessionRef.current = next;
+      return next;
     });
+  }, []);
+
+  const saveNow = useCallback(async () => {
+    const current = sessionRef.current;
+    if (!current || current.completed) return current;
+    setSaving(true);
+    try {
+      const updated = await savePracticeProgress(current.id, {
+        answers: current.answers,
+        currentIndex: current.currentIndex,
+        markedQuestions: current.markedQuestions,
+        idleSince: idleSinceRef.current ?? undefined,
+      });
+      setSession(updated);
+      return updated;
+    } finally {
+      setSaving(false);
+    }
   }, []);
 
   const submitSession = useCallback(async (): Promise<SessionSubmitResult> => {
@@ -161,6 +185,8 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       questionId,
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
+      selfScore: answer.selfScore,
+      maxScore: answer.maxScore,
     }));
 
     const result = await submitPracticeSession(sessionRef.current.id, { answers });
@@ -188,6 +214,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     updateAnswer,
     setCurrentQuestion,
     toggleMark,
+    saveNow,
     submitSession,
   };
 }

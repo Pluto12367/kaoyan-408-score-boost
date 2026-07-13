@@ -4,9 +4,10 @@ import { listActiveSessions, type SessionView } from '../api/endpoints/sessions'
 
 interface Props {
   onResume: (session: SessionView) => void;
+  allowedTypes?: SessionView['type'][];
 }
 
-export function ResumeSessionBanner({ onResume }: Props) {
+export function ResumeSessionBanner({ onResume, allowedTypes }: Props) {
   const [activeSessions, setActiveSessions] = useState<SessionView[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
@@ -16,7 +17,9 @@ export function ResumeSessionBanner({ onResume }: Props) {
       .catch(() => { /* no sessions */ });
   }, []);
 
-  const visible = activeSessions.filter((s) => !dismissed.has(s.id));
+  const visible = activeSessions.filter((session) =>
+    !dismissed.has(session.id) && (!allowedTypes || allowedTypes.includes(session.type)),
+  );
 
   if (visible.length === 0) return null;
 

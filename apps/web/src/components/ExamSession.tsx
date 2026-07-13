@@ -5,21 +5,32 @@ import type { SessionView, SessionSubmitResult } from '../api/endpoints/sessions
 
 interface Props {
   questionIds: string[];
-  questions: Array<{ id: string; stem: string; options: string[]; knowledgePointIds: string[] }>;
+  questions: Array<{
+    id: string;
+    stem: string;
+    options: string[];
+    knowledgePointIds: string[];
+    type?: string;
+    analysis?: string;
+    answer?: string;
+  }>;
   timeLimitMin?: number;
+  resourceId?: string;
   onExit: () => void;
   onSubmit: (result: SessionSubmitResult) => void;
 }
 
-export function ExamSession({ questionIds, questions, timeLimitMin = 180, onExit, onSubmit }: Props) {
+export function ExamSession({ questionIds, questions, timeLimitMin = 180, resourceId, onExit, onSubmit }: Props) {
   const {
     session, saving, error,
-    updateAnswer, setCurrentQuestion, toggleMark, submitSession,
-  } = usePracticeSession({ type: 'paper', questionIds });
+    updateAnswer, setCurrentQuestion, toggleMark, saveNow, submitSession,
+  } = usePracticeSession({ type: 'paper', questionIds, resourceId });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const questionStartedAtRef = useRef(Date.now());
+  const restoredTimerRef = useRef(false);
   const totalTimeSec = timeLimitMin * 60;
 
   // Timer
@@ -40,6 +51,18 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, onExit
   const answeredCount = session ? Object.keys(session.answers).length : 0;
   const unansweredQuestions = questionIds.filter((id) => !session?.answers[id]);
   const markedCount = session?.markedQuestions.length ?? 0;
+  const subjectiveQuestions = questions.filter((question) => question.type === '综合题');
+  const missingSubjectiveScores = subjectiveQuestions.filter((question) => session?.answers[question.id]?.selfScore === undefined);
+
+  useEffect(() => {
+    if (!session || restoredTimerRef.current) return;
+    restoredTimerRef.current = true;
+    setElapsedSec(Math.round(session.totalActiveMs / 1000));
+  }, [session?.id]);
+
+  useEffect(() => {
+    questionStartedAtRef.current = Date.now();
+  }, [currentIndex]);
 
   const goToQuestion = useCallback((index: number) => {
     setCurrentQuestion(Math.max(0, Math.min(questionIds.length - 1, index)));
@@ -48,15 +71,59 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, onExit
   function handleSelectAnswer(optionIndex: number) {
     if (!currentQuestion || !session) return;
     const letter = String.fromCharCode(65 + optionIndex);
-    updateAnswer(currentQuestion.id, letter, 0);
+    const previousTime = session.answers[currentQuestion.id]?.timeSpentSec ?? 0;
+    const elapsed = Math.max(1, Math.round((Date.now() - questionStartedAtRef.current) / 1000));
+    updateAnswer(currentQuestion.id, letter, previousTime + elapsed);
+    questionStartedAtRef.current = Date.now();
+  }
+
+  function handleSubjectiveAnswer(value: string) {
+    if (!currentQuestion || !session) return;
+    const previous = session.answers[currentQuestion.id];
+    const elapsed = Math.max(1, Math.round((Date.now() - questionStartedAtRef.current) / 1000));
+    updateAnswer(currentQuestion.id, value, (previous?.timeSpentSec ?? 0) + elapsed, previous?.selfScore, 10);
+    questionStartedAtRef.current = Date.now();
+  }
+
+  function handleSelfScore(questionId: string, score: number) {
+    if (!session) return;
+    const previous = session.answers[questionId];
+    updateAnswer(questionId, previous?.selectedAnswer ?? '', previous?.timeSpentSec ?? 1, score, 10);
+  }
+
+  function flushCurrentQuestionTime() {
+    if (!currentQuestion || !session) return;
+    const previous = session.answers[currentQuestion.id];
+    if (!previous?.selectedAnswer) return;
+    const elapsed = Math.max(0, Math.round((Date.now() - questionStartedAtRef.current) / 1000));
+    updateAnswer(
+      currentQuestion.id,
+      previous.selectedAnswer,
+      previous.timeSpentSec + elapsed,
+      previous.selfScore,
+      previous.maxScore,
+    );
+    questionStartedAtRef.current = Date.now();
   }
 
   async function handleSubmit() {
+    if (missingSubjectiveScores.length > 0) return;
     try {
+      flushCurrentQuestionTime();
       const result = await submitSession();
       if (timerRef.current) clearInterval(timerRef.current);
       onSubmit(result);
     } catch { /* error */ }
+  }
+
+  async function handleExit() {
+    try {
+      flushCurrentQuestionTime();
+      await saveNow();
+      onExit();
+    } catch {
+      // Keep the exam open when the final save fails.
+    }
   }
 
   if (error) return <div className="panel"><p className="task-status">会话错误: {error}</p></div>;
@@ -78,6 +145,7 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, onExit
           {markedCount > 0 ? <span><Flag size={14} /> {markedCount} 标记</span> : null}
           {saving ? <span className="saving-indicator">保存中...</span> : <span className="saved-indicator">已保存</span>}
         </div>
+        <button type="button" className="secondary-action" onClick={handleExit}>保存并退出</button>
         <button type="button" className="primary-action" onClick={() => setShowSubmitConfirm(true)}>
           交卷
         </button>
@@ -101,24 +169,37 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, onExit
               <div className="question-stem">
                 <strong>{currentQuestion.stem}</strong>
               </div>
-              <div className="question-options">
-                {currentQuestion.options.map((option, i) => {
-                  const letter = String.fromCharCode(65 + i);
-                  const selected = session.answers[currentQuestion.id]?.selectedAnswer;
-                  return (
-                    <button
-                      key={letter}
-                      type="button"
-                      className={`option-btn ${selected === letter ? 'selected' : ''}`}
-                      onClick={() => handleSelectAnswer(i)}
-                    >
-                      <span className="option-letter">{letter}</span>
-                      <span>{option}</span>
-                      {selected === letter ? <CheckCircle size={16} /> : null}
-                    </button>
-                  );
-                })}
-              </div>
+              {currentQuestion.type === '综合题' ? (
+                <div className="subjective-answer">
+                  <label htmlFor={`subjective-${currentQuestion.id}`}>作答内容</label>
+                  <textarea
+                    id={`subjective-${currentQuestion.id}`}
+                    value={session.answers[currentQuestion.id]?.selectedAnswer ?? ''}
+                    placeholder="写出推导过程、关键步骤和最终结论"
+                    onChange={(event) => handleSubjectiveAnswer(event.target.value)}
+                  />
+                  <small>评分点将在确认交卷时展示，由你自行核对评分。</small>
+                </div>
+              ) : (
+                <div className="question-options">
+                  {currentQuestion.options.map((option, i) => {
+                    const letter = String.fromCharCode(65 + i);
+                    const selected = session.answers[currentQuestion.id]?.selectedAnswer;
+                    return (
+                      <button
+                        key={letter}
+                        type="button"
+                        className={`option-btn ${selected === letter ? 'selected' : ''}`}
+                        onClick={() => handleSelectAnswer(i)}
+                      >
+                        <span className="option-letter">{letter}</span>
+                        <span>{option}</span>
+                        {selected === letter ? <CheckCircle size={16} /> : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               <div className="question-nav">
                 <button type="button" className="secondary-action" disabled={currentIndex === 0}
                   onClick={() => goToQuestion(currentIndex - 1)}>
@@ -181,6 +262,31 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, onExit
             ) : (
               <p>所有题目已作答，确认提交？</p>
             )}
+            {subjectiveQuestions.length > 0 ? (
+              <div className="subjective-scoring">
+                <strong>综合题评分点自评</strong>
+                {subjectiveQuestions.map((question) => (
+                  <div key={question.id} className="subjective-score-row">
+                    <p>{question.stem}</p>
+                    <small>{question.analysis ?? question.answer ?? '请依据标准评分点核对关键步骤。'}</small>
+                    <label>
+                      自评分
+                      <input
+                        type="number"
+                        min="0"
+                        max="10"
+                        value={session.answers[question.id]?.selfScore ?? ''}
+                        onChange={(event) => handleSelfScore(question.id, Number(event.target.value))}
+                      />
+                      / 10
+                    </label>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {missingSubjectiveScores.length > 0 ? (
+              <p className="task-status">请先完成 {missingSubjectiveScores.length} 道综合题评分点自评。</p>
+            ) : null}
             <div className="confirm-actions">
               <button type="button" className="secondary-action" onClick={() => setShowSubmitConfirm(false)}>返回检查</button>
               <button type="button" className="primary-action" onClick={handleSubmit}>确认交卷</button>

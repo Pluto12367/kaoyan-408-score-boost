@@ -50,6 +50,10 @@ export function ExamReportView({ sessionId, onClose }: Props) {
           <div><Target size={16} /> 答对 {summary.correctCount}/{summary.totalQuestions} 题</div>
           <div><Clock size={16} /> 用时 {Math.round(summary.totalTimeSec / 60)} 分钟{summary.overtime ? ' (超时)' : ''}</div>
           <div><AlertTriangle size={16} /> 未答 {summary.unansweredCount} 题</div>
+          <div><Target size={16} /> 客观题 {summary.objectiveCorrectCount}/{summary.objectiveQuestionCount} · {summary.objectiveAccuracyRate}%</div>
+          {summary.subjectiveQuestionCount > 0 ? (
+            <div><BookOpen size={16} /> 综合题自评 {summary.subjectiveEarnedScore}/{summary.subjectiveMaxScore} · {summary.subjectiveScoreRate}%</div>
+          ) : null}
         </div>
         {scoreHistory ? (
           <div className="score-trend">

@@ -6,6 +6,8 @@ export interface ExamReport {
     totalQuestions: number; answeredCount: number; unansweredCount: number;
     correctCount: number; accuracyRate: number; totalTimeSec: number;
     timeLimitSec: number; overtime: boolean;
+    objectiveQuestionCount: number; objectiveCorrectCount: number; objectiveAccuracyRate: number;
+    subjectiveQuestionCount: number; subjectiveEarnedScore: number; subjectiveMaxScore: number; subjectiveScoreRate: number;
   };
   subjectBreakdown: Array<{
     subject: string; totalQuestions: number; correctCount: number;

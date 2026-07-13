@@ -21,6 +21,7 @@ import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { RuntimeStateRepository } from './runtime-state.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
+import { ExamReviewPlanRepository, type ExamReviewPlanState } from './exam-review-plan.repository';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -32,6 +33,7 @@ export class StudyService implements OnModuleInit {
     private readonly learningProfileRepository: LearningProfileRepository,
     private readonly runtimeStateRepository: RuntimeStateRepository,
     private readonly reviewScheduleRepository: ReviewScheduleRepository,
+    private readonly examReviewPlanRepository: ExamReviewPlanRepository,
   ) {}
 
   private readonly student: UserProfile = {
@@ -103,6 +105,9 @@ export class StudyService implements OnModuleInit {
     for (const record of latestRecordByQuestion.values()) {
       if (!record.correct) await this.ensureReviewSchedule(record);
     }
+    const examReviewPlans = await this.examReviewPlanRepository.loadAll();
+    this.examReviewPlans.clear();
+    for (const [sessionId, plan] of examReviewPlans) this.examReviewPlans.set(sessionId, plan);
   }
 
   private get dataSource(): 'memory-api' | 'postgresql' {
@@ -976,6 +981,8 @@ export class StudyService implements OnModuleInit {
       questionId: string;
       selectedAnswer: string;
       timeSpentSec: number;
+      selfScore?: number;
+      maxScore?: number;
     }>;
   }) {
     const paper = this.papers.find((item) => item.id === paperId);
@@ -995,6 +1002,8 @@ export class StudyService implements OnModuleInit {
       knowledgePointId: '',
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
+      selfScore: answer.selfScore,
+      maxScore: answer.maxScore,
     })));
     const correctCount = records.filter((record) => record.correct).length;
     const accuracyRate = Math.round((correctCount / records.length) * 100);
@@ -1642,7 +1651,13 @@ export class StudyService implements OnModuleInit {
     }
 
     const expectedTimeSec = input.expectedTimeSec ?? question.expectedTimeSec;
-    const correct = input.selectedAnswer === question.answer;
+    const isSubjective = question.type === '综合题';
+    if (isSubjective && (input.selfScore === undefined || input.maxScore === undefined || input.selfScore > input.maxScore)) {
+      throw new BadRequestException('Comprehensive questions require a valid self score and maximum score');
+    }
+    const correct = isSubjective
+      ? (input.selfScore ?? 0) / (input.maxScore ?? 1) >= 0.6
+      : input.selectedAnswer === question.answer;
     const mistakeReason = classifyMistake({
       correct,
       selectedAnswer: input.selectedAnswer,
@@ -1662,6 +1677,10 @@ export class StudyService implements OnModuleInit {
       expectedTimeSec,
       mistakeReason,
       submittedAt: new Date().toISOString().slice(0, 10),
+      sessionId: input.sessionId,
+      gradingMode: isSubjective ? 'self_assessed' : 'objective',
+      selfScore: input.selfScore,
+      maxScore: input.maxScore,
     };
     const savedRecord = await this.practiceRecordRepository.save(record);
     this.records.push(savedRecord);
@@ -2248,6 +2267,7 @@ export class StudyService implements OnModuleInit {
 
   private readonly practiceSessions = new Map<string, PracticeSession>();
   private readonly submittingSessionIds = new Set<string>();
+  private readonly examReviewPlans = new Map<string, ExamReviewPlanState>();
 
   async startPracticeSession(userId: string, input: {
     type: 'practice_set' | 'stage_assessment' | 'paper';
@@ -2326,11 +2346,15 @@ export class StudyService implements OnModuleInit {
   }
 
   async submitPracticeSession(sessionId: string, userId: string, input: {
-    answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+    answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
   }) {
     const session = this.getOwnSession(sessionId, userId);
     if (session.completed || this.submittingSessionIds.has(sessionId)) {
       throw new BadRequestException('Session has already been submitted');
+    }
+    const foreignAnswer = input.answers.find((answer) => !session.questionIds.includes(answer.questionId));
+    if (foreignAnswer) {
+      throw new BadRequestException(`Question ${foreignAnswer.questionId} does not belong to this session`);
     }
 
     this.submittingSessionIds.add(sessionId);
@@ -2340,6 +2364,8 @@ export class StudyService implements OnModuleInit {
       session.answers[answer.questionId] = {
         selectedAnswer: answer.selectedAnswer,
         timeSpentSec: answer.timeSpentSec,
+        selfScore: answer.selfScore,
+        maxScore: answer.maxScore,
       };
     }
 
@@ -2351,15 +2377,25 @@ export class StudyService implements OnModuleInit {
       throw new BadRequestException('Session has already been submitted');
     }
 
+    const finalAnswers = session.questionIds.flatMap((questionId) => {
+      const answer = session.answers[questionId];
+      return answer?.selectedAnswer
+        ? [{ questionId, ...answer }]
+        : [];
+    });
+
     try {
       const records = await Promise.all(
-        input.answers.map((answer) =>
+        finalAnswers.map((answer) =>
           this.createPracticeRecord({
             userId,
             questionId: answer.questionId,
             knowledgePointId: '',
             selectedAnswer: answer.selectedAnswer,
             timeSpentSec: answer.timeSpentSec,
+            sessionId,
+            selfScore: answer.selfScore,
+            maxScore: answer.maxScore,
           }),
         ),
       );
@@ -2381,6 +2417,9 @@ export class StudyService implements OnModuleInit {
           questionId: r.questionId,
           correct: r.correct,
           mistakeReason: r.mistakeReason,
+          gradingMode: r.gradingMode,
+          selfScore: r.selfScore,
+          maxScore: r.maxScore,
         })),
       };
     } catch (error) {
@@ -2410,14 +2449,20 @@ export class StudyService implements OnModuleInit {
     if (session.type !== 'paper') {
       throw new BadRequestException('Only paper sessions have exam reports');
     }
+    if (!session.completed) {
+      throw new BadRequestException('Exam report is available after submission');
+    }
 
-    const records = this.records.filter(
-      (r) => Object.keys(session.answers).includes(r.questionId),
-    );
+    const records = this.records.filter((record) => record.userId === userId && record.sessionId === sessionId);
 
     const correctCount = records.filter((r) => r.correct).length;
-    const totalQuestions = records.length;
-    const accuracyRate = totalQuestions ? Math.round((correctCount / totalQuestions) * 100) : 0;
+    const totalQuestions = session.questionIds.length;
+    const accuracyRate = records.length ? Math.round((correctCount / records.length) * 100) : 0;
+    const objectiveRecords = records.filter((record) => record.gradingMode !== 'self_assessed');
+    const subjectiveRecords = records.filter((record) => record.gradingMode === 'self_assessed');
+    const objectiveCorrectCount = objectiveRecords.filter((record) => record.correct).length;
+    const subjectiveEarnedScore = subjectiveRecords.reduce((sum, record) => sum + (record.selfScore ?? 0), 0);
+    const subjectiveMaxScore = subjectiveRecords.reduce((sum, record) => sum + (record.maxScore ?? 0), 0);
     const answeredCount = Object.keys(session.answers).length;
     const unansweredCount = session.questionIds.length - answeredCount;
     const totalTimeSec = session.totalActiveMs / 1000;
@@ -2460,6 +2505,13 @@ export class StudyService implements OnModuleInit {
         unansweredCount,
         correctCount,
         accuracyRate,
+        objectiveQuestionCount: objectiveRecords.length,
+        objectiveCorrectCount,
+        objectiveAccuracyRate: objectiveRecords.length ? Math.round((objectiveCorrectCount / objectiveRecords.length) * 100) : 0,
+        subjectiveQuestionCount: subjectiveRecords.length,
+        subjectiveEarnedScore,
+        subjectiveMaxScore,
+        subjectiveScoreRate: subjectiveMaxScore ? Math.round((subjectiveEarnedScore / subjectiveMaxScore) * 100) : 0,
         totalTimeSec: Math.round(totalTimeSec),
         timeLimitSec: 180 * 60, // 180 minutes
         overtime: totalTimeSec > 180 * 60,
@@ -2483,7 +2535,12 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  generatePostExamReviewTasks(sessionId: string, userId: string) {
+  async generatePostExamReviewTasks(sessionId: string, userId: string) {
+    const existingPlan = this.examReviewPlans.get(sessionId);
+    if (existingPlan) {
+      if (existingPlan.userId !== userId) throw new ForbiddenException('You can only access your own exam review plan');
+      return existingPlan;
+    }
     const report = this.getExamReport(sessionId, userId);
     const today = new Date();
 
@@ -2512,7 +2569,7 @@ export class StudyService implements OnModuleInit {
 
     const weakPointTitles = report.knowledgePointLosses.slice(0, 3).map((p) => p.title);
 
-    return {
+    const plan: ExamReviewPlanState = {
       userId,
       examSessionId: sessionId,
       generatedAt: new Date().toISOString(),
@@ -2525,6 +2582,9 @@ export class StudyService implements OnModuleInit {
           ? '本次考试处于中间水平，优先复盘错题知识点，再做同考点专项训练。'
           : '基础还存在明显短板，建议暂停新题，先回到高频考点的概念和例题。',
     };
+    this.examReviewPlans.set(sessionId, plan);
+    await this.examReviewPlanRepository.save(plan);
+    return plan;
   }
 
   getExamScoreHistory(userId: string) {
@@ -2532,9 +2592,7 @@ export class StudyService implements OnModuleInit {
       .filter((s) => s.userId === userId && s.type === 'paper' && s.completed);
 
     const history = sessions.map((s) => {
-      const records = this.records.filter(
-        (r) => Object.keys(s.answers).includes(r.questionId),
-      );
+      const records = this.records.filter((record) => record.userId === userId && record.sessionId === s.id);
       const correctCount = records.filter((r) => r.correct).length;
       return {
         sessionId: s.id,
@@ -2761,7 +2819,7 @@ interface PracticeSession {
   type: 'practice_set' | 'stage_assessment' | 'paper';
   resourceId?: string;
   questionIds: string[];
-  answers: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
   markedQuestions: string[];
   currentIndex: number;
   startedAt: string;

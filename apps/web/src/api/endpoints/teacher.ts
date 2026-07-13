@@ -62,7 +62,7 @@ export async function generatePaper(input: GeneratePaperInput): Promise<Generate
 
 export async function submitPaper(input: {
   paperId: string;
-  answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+  answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
 }): Promise<PaperSubmitResult> {
   const response = await fetchWithAuth(`${API_BASE_URL}/papers/${input.paperId}/submit`, {
     method: 'POST',

@@ -162,6 +162,10 @@ function toDomainRecord(record: {
   expectedTimeSec: number;
   mistakeReason: string | null;
   submittedAt: Date;
+  sessionId: string | null;
+  gradingMode: string;
+  selfScore: number | null;
+  maxScore: number | null;
 }): PracticeRecord {
   return {
       id: record.id,
@@ -174,6 +178,10 @@ function toDomainRecord(record: {
       expectedTimeSec: record.expectedTimeSec,
       mistakeReason: mapMistakeReason(record.mistakeReason),
       submittedAt: record.submittedAt.toISOString(),
+      sessionId: record.sessionId ?? undefined,
+      gradingMode: record.gradingMode === 'self_assessed' ? 'self_assessed' : 'objective',
+      selfScore: record.selfScore ?? undefined,
+      maxScore: record.maxScore ?? undefined,
     };
 }
 
@@ -189,6 +197,10 @@ function toPrismaRecord(record: PracticeRecord) {
     expectedTimeSec: record.expectedTimeSec,
     mistakeReason: record.mistakeReason,
     submittedAt: new Date(record.submittedAt),
+    sessionId: record.sessionId,
+    gradingMode: record.gradingMode ?? 'objective',
+    selfScore: record.selfScore,
+    maxScore: record.maxScore,
   };
 }
 

@@ -10,7 +10,7 @@ export interface PersistedLearningSession {
   type: SessionType;
   resourceId?: string;
   questionIds: string[];
-  answers: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
   markedQuestions: string[];
   currentIndex: number;
   startedAt: string;

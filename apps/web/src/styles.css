@@ -43,6 +43,63 @@
   font-size: 13px;
 }
 
+.exam-workspace-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: auto;
+  padding: 20px;
+  background: #f4f7f8;
+}
+
+.exam-entry-panel > p {
+  margin: 0 0 14px;
+  color: #52606d;
+}
+
+.subjective-answer,
+.subjective-scoring,
+.subjective-score-row {
+  display: grid;
+  gap: 10px;
+}
+
+.subjective-answer textarea {
+  min-height: 220px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 12px;
+  font: inherit;
+  line-height: 1.6;
+}
+
+.subjective-scoring {
+  max-height: 45vh;
+  overflow: auto;
+  margin: 14px 0;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.subjective-score-row {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.subjective-score-row input {
+  width: 72px;
+  margin: 0 8px;
+}
+
+@media (max-width: 720px) {
+  .exam-workspace-overlay {
+    padding: 0;
+  }
+}
+
 * {
   box-sizing: border-box;
 }

@@ -146,7 +146,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Param('practiceSetId') practiceSetId: string,
     @Body() input: {
-      answers?: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+      answers?: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
     },
   ) {
     return this.studyService.submitPracticeSet(practiceSetId, { ...input, userId: user.id });
@@ -266,7 +266,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Param('sessionId') sessionId: string,
     @Body() input: {
-      answers?: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+      answers?: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
       currentIndex?: number;
       markedQuestions?: string[];
       idleSince?: number;
@@ -296,7 +296,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Param('sessionId') sessionId: string,
     @Body() input: {
-      answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
+      answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
     },
   ) {
     return this.studyService.submitPracticeSession(sessionId, user.id, input);
