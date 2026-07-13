@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Brain, ClipboardCheck, ClipboardList, Target } from 'lucide-react';
+import { Brain, ClipboardCheck, Target } from 'lucide-react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { TodayPlan } from './components/TodayPlan';
@@ -7,8 +7,10 @@ import { WrongQuestionDetailView } from './components/WrongQuestionDetail';
 import { ExamSession } from './components/ExamSession';
 import { ExamReportView } from './components/ExamReport';
 import { ResumeSessionBanner } from './components/ResumeSessionBanner';
-import { RoleGate } from './components/RoleGate';
 import { RoleNavigation } from './layouts/RoleNavigation';
+import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
+import { AdminWorkspace } from './features/admin/AdminWorkspace';
+import { TeacherWorkspace } from './features/teacher/TeacherWorkspace';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -97,14 +99,11 @@ import {
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
 import { useAuth } from './hooks/useAuth';
 import {
-  riskLabel,
-  reviewStatusLabel,
   priorityLabel,
   masteryStatusLabel,
   reviewCardTypeLabel,
   reviewResourceTypeLabel,
   roleLabel,
-  trialStatusLabel,
   permissionHint,
   createInitialPaperSession,
 } from './constants';
@@ -1059,7 +1058,7 @@ rating: 4,
           </div>
         </header>
 
-        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
+        <StudentLayout role={sessionUser?.role}>
         <>
         {/* Phase 3: Onboarding wizard for new users */}
         {showOnboarding ? (
@@ -1114,7 +1113,7 @@ rating: 4,
           </section>
         ) : null}
         </>
-        </RoleGate>
+        </StudentLayout>
 
         <section className="panel role-panel">
           <div className="panel-heading">
@@ -1174,7 +1173,7 @@ rating: 4,
           ) : null}
         </section>
 
-        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
+        <StudentLayout role={sessionUser?.role}>
         <>
         <section id="trial" className="panel trial-panel">
           <div className="panel-heading">
@@ -1411,171 +1410,26 @@ rating: 4,
           </div>
         </section>
         </>
-        </RoleGate>
+        </StudentLayout>
 
-        <RoleGate role={sessionUser?.role} allow={['admin']}>
-        <>
-        <section id="admin" className="panel admin-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">管理端数据看板</p>
-              <h3>试用期核心运营指标</h3>
-            </div>
-            <span>更新于 {new Date(adminMetrics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <div className="admin-grid">
-            <article>
-              <strong>{adminMetrics.activeStudentCount}</strong>
-              <span>活跃学生</span>
-            </article>
-            <article>
-              <strong>{adminMetrics.questionCount}</strong>
-              <span>题库题目</span>
-            </article>
-            <article>
-              <strong>{adminMetrics.practiceRecordCount}</strong>
-              <span>练习记录</span>
-            </article>
-            <article>
-              <strong>{adminMetrics.accuracyRate}%</strong>
-              <span>整体正确率</span>
-            </article>
-            <article>
-              <strong>{adminMetrics.pendingReviewCount}</strong>
-              <span>待审核内容</span>
-            </article>
-            <article>
-              <strong>{adminMetrics.todayPracticeCount}</strong>
-              <span>今日练习</span>
-            </article>
-          </div>
-          <p className="task-status">
-            当前最弱考点：{adminMetrics.topWeakPoint ?? '暂无'} · 平均耗时 {adminMetrics.averagePracticeTimeSec} 秒 · 留存学习日 {adminMetrics.retentionDays} 天
-          </p>
-          <p className="task-status">
-            试用反馈：{feedbackList.totalCount} 条 · 平均评分 {feedbackList.averageRating} · {feedbackList.items[0]?.message ?? '暂无反馈'}
-          </p>
-        </section>
+        <AdminLayout role={sessionUser?.role}>
+          <AdminWorkspace
+            metrics={adminMetrics}
+            users={adminUsers}
+            feedback={feedbackList}
+            reviewQueue={reviewQueue}
+            systemConfig={systemConfig}
+            userStatus={userStatus}
+            reviewStatus={reviewStatus}
+            configStatus={configStatus}
+            onMarkTrialFollowUp={handleMarkTrialFollowUp}
+            onApproveReviewItem={handleApproveReviewItem}
+            onMarkReviewItemNeedsRecheck={handleMarkReviewItemNeedsRecheck}
+            onApplySprintConfig={handleApplySprintConfig}
+          />
+        </AdminLayout>
 
-        <section className="panel admin-users-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">用户管理</p>
-              <h3>试用名单与角色状态</h3>
-            </div>
-            <button type="button" className="secondary-action" onClick={handleMarkTrialFollowUp}>
-              标记学生待回访
-            </button>
-          </div>
-          <p className="task-status">{userStatus}</p>
-          <div className="admin-users-summary">
-            <article>
-              <strong>{adminUsers.summary.totalUsers}</strong>
-              <span>全部账号</span>
-            </article>
-            <article>
-              <strong>{adminUsers.summary.studentCount}</strong>
-              <span>学生账号</span>
-            </article>
-            <article>
-              <strong>{adminUsers.summary.activeTrialCount}</strong>
-              <span>试用中</span>
-            </article>
-            <article>
-              <strong>{adminUsers.summary.followUpCount}</strong>
-              <span>待回访</span>
-            </article>
-          </div>
-          <div className="admin-users-list">
-            {adminUsers.users.map((user) => (
-              <article key={user.id}>
-                <div>
-                  <strong>{user.name}</strong>
-                  <span>{roleLabel[user.role]} · {trialStatusLabel[user.trialStatus]}</span>
-                </div>
-                <div>
-                  <span>{user.stage ?? '账号管理'}{user.targetScore ? ` · 目标 ${user.targetScore} 分` : ''}</span>
-                  <small>{user.targetSchool ?? '平台演示账号'} · 最近活跃 {user.lastActiveAt}</small>
-                </div>
-                <p>{user.nextAction}</p>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="review" className="panel review-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">管理端内容审核</p>
-              <h3>待审核 {reviewQueue.pendingCount} 项 · 已通过 {reviewQueue.approvedCount} 项</h3>
-            </div>
-            <span>更新于 {new Date(reviewQueue.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <p className="task-status">{reviewStatus}</p>
-          <div className="review-list">
-            {reviewQueue.items.length ? reviewQueue.items.map((item) => (
-              <article key={item.id} className={`review-row ${item.status}`}>
-                <div>
-                  <strong>{item.contentType === 'question' ? '题目审核' : 'AI 答疑审核'} · {item.title}</strong>
-                  <p>{item.summary}</p>
-                  <div className="review-meta">
-                    <span>风险：{riskLabel[item.riskLevel]} · 状态：{reviewStatusLabel[item.status]}</span>
-                    <span>原因：{item.reviewReason ?? '需要管理员确认内容质量。'}</span>
-                    <span>建议：{item.suggestedAction ?? '确认无误后通过，存在疑问则标记复查。'}</span>
-                  </div>
-                </div>
-                <div className="review-actions">
-                  <button type="button" disabled={item.status === 'approved'} onClick={() => handleApproveReviewItem(item.id)}>
-                    {item.status === 'approved' ? '已通过' : '通过'}
-                  </button>
-                  <button type="button" disabled={item.status === 'approved' || item.status === 'needs_recheck'} onClick={() => handleMarkReviewItemNeedsRecheck(item.id)}>
-                    {item.status === 'needs_recheck' ? '已复查标记' : '标记复查'}
-                  </button>
-                </div>
-              </article>
-            )) : (
-              <article className="review-empty">
-                <strong>暂无待审核内容</strong>
-                <span>新增教师题目或生成 AI 答疑后会自动进入这里。</span>
-              </article>
-            )}
-          </div>
-        </section>
-
-        <section id="config" className="panel config-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">管理端系统配置</p>
-              <h3>推荐策略参数</h3>
-            </div>
-            <button type="button" className="secondary-action" onClick={handleApplySprintConfig}>
-              <ClipboardCheck size={18} /> 应用冲刺配置
-            </button>
-          </div>
-          <p className="task-status">{configStatus}</p>
-          <div className="config-grid">
-            <article>
-              <strong>{systemConfig.recommendation.stageAssessmentQuestionLimit}</strong>
-              <span>阶段测评题量上限</span>
-            </article>
-            <article>
-              <strong>{systemConfig.recommendation.dailyTargetQuestionCount}</strong>
-              <span>每日推荐题量</span>
-            </article>
-            <article>
-              <strong>{systemConfig.recommendation.speedRiskMultiplier.toFixed(2)}x</strong>
-              <span>速度风险阈值</span>
-            </article>
-            <article>
-              <strong>{systemConfig.updatedBy}</strong>
-              <span>最近更新人</span>
-            </article>
-          </div>
-        </section>
-        </>
-        </RoleGate>
-
-        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
+        <StudentLayout role={sessionUser?.role}>
         <>
         <section id="wrong-book" className="panel">
           <div className="panel-heading">
@@ -1895,189 +1749,32 @@ rating: 4,
           </div>
         </section>
         </>
-        </RoleGate>
+        </StudentLayout>
 
-        <RoleGate role={sessionUser?.role} allow={['teacher', 'admin']}>
-        <section id="teacher" className="panel teacher-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">教师题库管理</p>
-              <h3>新增题目后同步到学生训练</h3>
-            </div>
-            <div className="panel-actions">
-              <button type="button" className="secondary-action" onClick={handleCreateKnowledgePoint}>
-                <Target size={18} /> 新增演示考点
-              </button>
-              <button type="button" className="secondary-action" onClick={handleCreateTeacherQuestion}>
-                <ClipboardList size={18} /> 新增演示题
-              </button>
-              <button type="button" className="secondary-action" onClick={handleFilterTeacherQuestions}>
-                <ClipboardList size={18} /> 筛选 Cache 题
-              </button>
-              <button type="button" className="secondary-action" onClick={handleUpdateTeacherQuestion}>
-                <ClipboardList size={18} /> 编辑演示题
-              </button>
-              <button type="button" className="secondary-action" onClick={handleDeleteTeacherQuestion}>
-                <ClipboardList size={18} /> 删除演示题
-              </button>
-              <button type="button" className="secondary-action" onClick={handleGeneratePaper}>
-                <ClipboardCheck size={18} /> 生成专项卷
-              </button>
-              <button type="button" className="secondary-action" onClick={handleStartPaperSession}>
-                <ClipboardCheck size={18} /> 开始演示答卷
-              </button>
-              <button type="button" className="secondary-action" onClick={handleSubmitPaper}>
-                <ClipboardCheck size={18} /> 提交演示试卷
-              </button>
-            </div>
-          </div>
-          <p className="task-status">{knowledgeStatus} {teacherStatus} {paperStatus}</p>
-          <div className="teacher-grid">
-            <article>
-              <strong>{questions.length} 题</strong>
-              <span>当前学生端可见题目</span>
-            </article>
-            <article>
-              <strong>{overview.knowledgePoints.length} 个</strong>
-              <span>当前维护的 408 知识点</span>
-            </article>
-            <article>
-              <strong>{latestPaper ? `${latestPaper.questionCount} 题` : '试卷管理'}</strong>
-              <span>{latestPaper ? `${latestPaper.title} · ${latestPaper.estimatedMinutes} 分钟` : '可按知识点生成专项卷。'}</span>
-            </article>
-          </div>
-          <div className="class-analytics-panel">
-            <div className="class-analytics-heading">
-              <div>
-                <p className="eyebrow">班级学情分析</p>
-                <h3>{teacherClassAnalytics.className}</h3>
-              </div>
-              <span>更新于 {new Date(teacherClassAnalytics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div className="class-analytics-grid">
-              <article>
-                <strong>{teacherClassAnalytics.overview.studentCount}</strong>
-                <span>班级学生</span>
-              </article>
-              <article>
-                <strong>{teacherClassAnalytics.overview.averageAccuracyRate}%</strong>
-                <span>平均正确率</span>
-              </article>
-              <article>
-                <strong>{teacherClassAnalytics.overview.averageCompletionRate}%</strong>
-                <span>任务完成率</span>
-              </article>
-              <article>
-                <strong>{teacherClassAnalytics.overview.pendingWrongQuestionCount}</strong>
-                <span>待复盘错题</span>
-              </article>
-            </div>
-            <div className="class-analytics-columns">
-              <div>
-                <strong>四科薄弱分布</strong>
-                <div className="subject-weakness-list">
-                  {teacherClassAnalytics.subjectWeakness.map((item) => (
-                    <article key={item.subject}>
-                      <div>
-                        <span>{item.subject}</span>
-                        <small>掌握度 {item.averageMastery}% · 薄弱点 {item.weakPointCount}</small>
-                      </div>
-                      <p>{item.recommendation}</p>
-                    </article>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <strong>风险学生</strong>
-                <div className="risk-student-list">
-                  {teacherClassAnalytics.atRiskStudents.map((item) => (
-                    <article key={item.userId}>
-                      <span>{item.name} · {item.riskType}</span>
-                      <p>{item.reason}</p>
-                      <small>{item.nextAction}</small>
-                    </article>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="weak-point-teaching-list">
-              {teacherClassAnalytics.weakKnowledgePoints.slice(0, 3).map((item) => (
-                <article key={item.knowledgePointId}>
-                  <strong>{item.title}</strong>
-                  <span>{item.subject} · 正确率 {item.accuracyRate}% · 错题 {item.wrongCount}</span>
-                  <p>{item.recommendedAction}</p>
-                </article>
-              ))}
-            </div>
-            <div className="teaching-actions">
-              {teacherClassAnalytics.teachingActions.map((action) => (
-                <span key={action}>{action}</span>
-              ))}
-            </div>
-          </div>
-          <div className="teacher-question-list">
-            {teacherQuestionList.slice(0, 4).map((question) => (
-              <article key={question.id}>
-                <div>
-                  <strong>{question.id} · {question.difficulty}</strong>
-                  <span>{question.stem}</span>
-                </div>
-                <small>{question.source} · {question.expectedTimeSec} 秒 · {question.knowledgePointIds.join('、')}</small>
-              </article>
-            ))}
-          </div>
-          {latestPaper && paperSession ? (
-            <div className="paper-session-panel">
-              <div>
-                <strong>{latestPaper.title}</strong>
-                <span>{paperSession.answeredCount}/{paperSession.totalQuestions} 题 · 进度 {paperSession.progressRate}%</span>
-              </div>
-              <div className="paper-session-progress">
-                <span style={{ width: `${paperSession.progressRate}%` }} />
-              </div>
-              <p>
-                用时 {Math.round(paperSession.elapsedSec / 60)} / {Math.round(paperSession.timeLimitSec / 60)} 分钟
-                · {paperSession.overtime ? '已超时，需要压缩答题节奏' : '未超时，节奏正常'}
-                · 未答 {paperSession.unansweredCount} 题
-              </p>
-            </div>
-          ) : null}
-          {paperResult ? (
-            <div className="paper-result-panel">
-              <div className="paper-result-summary">
-                <article>
-                  <strong>{paperResult.score}</strong>
-                  <span>试卷得分</span>
-                </article>
-                <article>
-                  <strong>{paperResult.accuracyRate}%</strong>
-                  <span>正确率</span>
-                </article>
-                <article>
-                  <strong>{paperResult.reviewItems.length}</strong>
-                  <span>需复盘题</span>
-                </article>
-                <article>
-                  <strong>{paperResult.syncedPracticeRecordCount}</strong>
-                  <span>同步记录</span>
-                </article>
-              </div>
-              <div className="paper-breakdown">
-                {paperResult.subjectBreakdown.map((item) => (
-                  <span key={item.subject}>{item.subject} · {item.correctCount}/{item.totalQuestions} · {item.accuracyRate}%</span>
-                ))}
-              </div>
-              <div className="paper-actions">
-                {paperResult.nextActions.map((action) => (
-                  <p key={action}>{action}</p>
-                ))}
-              </div>
-            </div>
-          ) : null}
-        </section>
-        </RoleGate>
+        <TeacherLayout role={sessionUser?.role}>
+          <TeacherWorkspace
+            questionCount={questions.length}
+            knowledgePointCount={overview.knowledgePoints.length}
+            questionList={teacherQuestionList}
+            classAnalytics={teacherClassAnalytics}
+            latestPaper={latestPaper}
+            paperSession={paperSession}
+            paperResult={paperResult}
+            knowledgeStatus={knowledgeStatus}
+            teacherStatus={teacherStatus}
+            paperStatus={paperStatus}
+            onCreateKnowledgePoint={handleCreateKnowledgePoint}
+            onCreateQuestion={handleCreateTeacherQuestion}
+            onFilterQuestions={handleFilterTeacherQuestions}
+            onUpdateQuestion={handleUpdateTeacherQuestion}
+            onDeleteQuestion={handleDeleteTeacherQuestion}
+            onGeneratePaper={handleGeneratePaper}
+            onStartPaperSession={handleStartPaperSession}
+            onSubmitPaper={handleSubmitPaper}
+          />
+        </TeacherLayout>
 
-        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
+        <StudentLayout role={sessionUser?.role}>
         <section className="panel">
           <div className="panel-heading">
             <div>
@@ -2175,7 +1872,7 @@ rating: 4,
             />
           ) : null}
         </section>
-        </RoleGate>
+        </StudentLayout>
       </section>
       {examOpen ? (
         <div className="exam-workspace-overlay">

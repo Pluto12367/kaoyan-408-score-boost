@@ -164,6 +164,14 @@ button {
   padding: 28px;
 }
 
+.student-workspace,
+.teacher-workspace,
+.admin-workspace {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
 .topbar,
 .panel,
 .metric {
