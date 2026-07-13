@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Brain, ClipboardCheck } from 'lucide-react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
 import { ExamSession } from './components/ExamSession';
 import { ExamReportView } from './components/ExamReport';
@@ -13,6 +12,10 @@ import { StudyPlanOverview } from './features/plan/StudyPlanOverview';
 import { PracticePanel } from './features/practice/PracticePanel';
 import { WeaknessReportPanel } from './features/report/WeaknessReportPanel';
 import { MistakeWorkspace } from './features/mistakes/MistakeWorkspace';
+import { StageAssessmentPanel } from './features/assessment/StageAssessmentPanel';
+import { AssessmentHistoryPanel } from './features/assessment/AssessmentHistoryPanel';
+import { ReviewResourcesPanel } from './features/report/ReviewResourcesPanel';
+import { TutorPanel } from './features/tutor/TutorPanel';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -103,8 +106,6 @@ import { useAuth } from './hooks/useAuth';
 import {
   priorityLabel,
   masteryStatusLabel,
-  reviewCardTypeLabel,
-  reviewResourceTypeLabel,
   roleLabel,
   permissionHint,
   createInitialPaperSession,
@@ -1390,52 +1391,7 @@ rating: 4,
           </div>
         </section>
 
-        <section id="assessment" className="panel assessment-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">阶段测评</p>
-              <h3>{stageAssessment.title}</h3>
-            </div>
-            <span>{stageAssessment.questions.length} 题 · 预计 {stageAssessment.estimatedMinutes} 分钟</span>
-          </div>
-          <p className="task-status">{assessmentStatus}</p>
-          <div className="assessment-grid">
-            <article>
-              <strong>聚焦知识点</strong>
-              <div className="tag-list">
-                {stageAssessment.focusKnowledgePoints.map((point) => (
-                  <span key={point.id}>{point.title}</span>
-                ))}
-              </div>
-            </article>
-            <article>
-              <strong>测评说明</strong>
-              <p>{stageAssessment.description}</p>
-            </article>
-            <article>
-              <strong>提交后产出</strong>
-              <p>系统会同步练习记录、错题本和薄弱点报告，并给出下一步复习建议。</p>
-            </article>
-          </div>
-          <div className="assessment-actions">
-            <button type="button" onClick={handleSubmitAssessment}>
-              <ClipboardCheck size={18} /> 提交演示测评
-            </button>
-          </div>
-          {stageResult ? (
-            <div className="assessment-result">
-              <strong>本次得分 {stageResult.score} / 100</strong>
-              <p>{stageResult.adjustment.message}</p>
-              <p>下一阶段：{stageResult.adjustment.stage} / {stageResult.adjustment.planPhase}</p>
-              <p>答对 {stageResult.correctCount}/{stageResult.totalQuestions} 题，复盘项 {stageResult.reviewItems.length} 个。</p>
-              <ul>
-                {stageResult.nextActions.map((action) => (
-                  <li key={action}>{action}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </section>
+        <StageAssessmentPanel assessment={stageAssessment} result={stageResult} status={assessmentStatus} onSubmit={handleSubmitAssessment} />
 
         <StudyPlanOverview
           plan={plan}
@@ -1458,166 +1414,9 @@ rating: 4,
           <WeaknessReportPanel report={report} />
         </section>
 
-        <section id="review-resources" className="panel review-resources-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">复习资源推荐</p>
-              <h3>把薄弱点变成下一步复习动作</h3>
-            </div>
-            <span>{reviewResources.weakPointCount} 个薄弱点</span>
-          </div>
-          <p className="task-status">
-            更新时间 {new Date(reviewResources.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}，
-            优先处理当前报告和错题本里最容易提分的知识点。
-          </p>
-          <div className="review-resource-grid">
-            {reviewResources.items.map((item) => (
-              <article key={item.id} className={`review-resource-card resource-${item.resourceType}`}>
-                <div>
-                  <span>{reviewResourceTypeLabel[item.resourceType]}</span>
-                  <small>{item.subject} / {item.difficulty} / {item.estimatedMinutes} 分钟</small>
-                </div>
-                <strong>{item.title}</strong>
-                <p>{item.summary}</p>
-                <a href={item.actionAnchor}>{item.actionText}</a>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section id="assessment-history" className="panel assessment-history-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">测评历史</p>
-              <h3>最近测评与复盘建议</h3>
-            </div>
-            <span>{assessmentHistory.summary.improvementText}</span>
-          </div>
-          <div className="assessment-history-summary">
-            <article>
-              <strong>{assessmentHistory.summary.attemptCount}</strong>
-              <span>最近测评</span>
-            </article>
-            <article>
-              <strong>{assessmentHistory.summary.bestScore}</strong>
-              <span>最高得分</span>
-            </article>
-            <article>
-              <strong>{assessmentHistory.summary.latestAccuracyRate}%</strong>
-              <span>最近正确率</span>
-            </article>
-            <article>
-              <strong>{assessmentHistory.items[0]?.unansweredCount ?? 0}</strong>
-              <span>最近未答</span>
-            </article>
-          </div>
-          {assessmentHistory.items.length ? (
-            <div className="assessment-history-list">
-              {assessmentHistory.items.slice(0, 4).map((item, index) => (
-                <article key={item.id} className={index === 0 ? 'latest' : ''}>
-                  <div>
-                    <strong>{item.title}</strong>
-                    <span>{new Date(item.submittedAt).toLocaleDateString('zh-CN')} · 用时 {Math.round(item.elapsedSec / 60)} 分钟 · 未答 {item.unansweredCount} 题</span>
-                  </div>
-                  <div className="assessment-score">
-                    <strong>{item.score}/{item.totalScore}</strong>
-                    <span>正确率 {item.accuracyRate}%</span>
-                  </div>
-                  <p>薄弱点：{item.weakPointTitle}</p>
-                  <small>{item.reviewSuggestion}</small>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <p className="empty-state">完成一套模拟卷后，这里会沉淀得分、耗时、薄弱点和下一步复盘建议。</p>
-          )}
-        </section>
-
-        <section id="ai" className="panel tutor-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">AI 答疑</p>
-              <h3>基于标准解析的助教讲解</h3>
-            </div>
-            <button type="button" className="secondary-action" onClick={handleAskTutor}>
-              <Brain size={18} /> 讲解当前题
-            </button>
-          </div>
-          <p className="task-status">{tutorStatus}</p>
-          <p className="ai-safety-note">AI 解释仅作辅助，最终以标准答案、标准解析和教师审核内容为准。</p>
-          <div className="follow-up-actions">
-            <button type="button" onClick={() => handleAskFollowUp('为什么我选 A 不对？')}>
-              为什么选 A 不对
-            </button>
-            <button type="button" onClick={() => handleAskFollowUp('这个考点和相邻考点有什么区别？')}>
-              对比易混考点
-            </button>
-            <button type="button" onClick={() => handleAskFollowUp('帮我整理成复习卡片。')}>
-              生成复习卡片
-            </button>
-          </div>
-          {tutorReply ? (
-            <div className="tutor-result">
-              <article>
-                <strong>{tutorReply.knowledgePointTitle}</strong>
-                <p>{tutorReply.answerCheck}</p>
-              </article>
-              <article>
-                <strong>思路拆解</strong>
-                <ol>
-                  {tutorReply.explanationSteps.map((step) => (
-                    <li key={step}>{step}</li>
-                  ))}
-                </ol>
-              </article>
-              <article>
-                <strong>相似题推荐</strong>
-                <div className="similar-list">
-                  {tutorReply.similarQuestions.map((question) => (
-                    <span key={question.id}>{question.source} · {question.difficulty} · {question.stem}</span>
-                  ))}
-                </div>
-              </article>
-              <article>
-                <strong>下一步</strong>
-                <ul>
-                  {tutorReply.nextActions.map((action) => (
-                    <li key={action}>{action}</li>
-                  ))}
-                </ul>
-              </article>
-            </div>
-          ) : null}
-          <div className="follow-up-result">
-            <article>
-              <strong>{aiFollowUp.relatedKnowledgePoint.title}</strong>
-              <p>{aiFollowUp.message}</p>
-              <ol>
-                {aiFollowUp.replySteps.map((step) => (
-                  <li key={step}>{step}</li>
-                ))}
-              </ol>
-            </article>
-            <article>
-              <strong>易错点提醒</strong>
-              <ul>
-                {aiFollowUp.misconceptionTips.map((tip) => (
-                  <li key={tip}>{tip}</li>
-                ))}
-              </ul>
-            </article>
-            <div className="review-card-list">
-              {aiFollowUp.reviewCards.map((card) => (
-                <article key={card.id} className={`review-card card-${card.type}`}>
-                  <span>{reviewCardTypeLabel[card.type]}</span>
-                  <strong>{card.title}</strong>
-                  <p>{card.content}</p>
-                  <small>{card.nextAction}</small>
-                </article>
-              ))}
-            </div>
-          </div>
-        </section>
+        <ReviewResourcesPanel resources={reviewResources} />
+        <AssessmentHistoryPanel history={assessmentHistory} />
+        <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
         </>
         </StudentLayout>
 
