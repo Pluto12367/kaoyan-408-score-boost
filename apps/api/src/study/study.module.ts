@@ -4,12 +4,15 @@ import { QuestionsModule } from '../questions/questions.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PracticeRecordRepository } from './practice-record.repository';
 import { LearningProgressRepository } from './learning-progress.repository';
+import { LearningProfileRepository } from './learning-profile.repository';
+import { KnowledgePointRepository } from './knowledge-point.repository';
+import { RuntimeStateRepository } from './runtime-state.repository';
 import { StudyController } from './study.controller';
 import { StudyService } from './study.service';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule],
   controllers: [StudyController],
-  providers: [StudyService, PracticeRecordRepository, LearningProgressRepository],
+  providers: [StudyService, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, RuntimeStateRepository],
 })
 export class StudyModule {}

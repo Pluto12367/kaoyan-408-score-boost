@@ -1,9 +1,13 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
+import { Difficulty, QuestionType, type Prisma } from '@prisma/client';
 import { requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
 import { CreateQuestionDto } from './dto/create-question.dto';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
-export class QuestionsService {
+export class QuestionsService implements OnModuleInit {
+  constructor(private readonly prisma: PrismaService) {}
+
   private readonly knowledgePointIndex = new Map([
     ['ds-tree', { subject: '数据结构', chapter: '树与二叉树' }],
     ['co-cache', { subject: '计算机组成原理', chapter: '存储系统' }],
@@ -42,6 +46,34 @@ export class QuestionsService {
 
   private static readonly reviewItems: ReviewItem[] = [];
 
+  async onModuleInit() {
+    if (!this.persistenceEnabled) return;
+    const [rows, reviewState] = await Promise.all([
+      this.prisma.question.findMany({
+        include: { knowledgePoints: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.runtimeState.findUnique({ where: { key: 'questionReviewItems' } }),
+    ]);
+    if (Array.isArray(reviewState?.value)) {
+      this.reviewItems.splice(0, this.reviewItems.length, ...(reviewState.value as unknown as ReviewItem[]));
+    }
+    if (rows.length === 0) return;
+    this.questions.splice(0, this.questions.length, ...rows.map((row) => ({
+      id: row.id,
+      stem: row.stem,
+      options: row.options,
+      answer: row.answer,
+      analysis: row.analysis,
+      knowledgePointIds: row.knowledgePoints.map((item) => item.knowledgePointId),
+      difficulty: fromPrismaDifficulty(row.difficulty),
+      type: fromPrismaQuestionType(row.type),
+      source: row.source,
+      year: row.year ?? undefined,
+      expectedTimeSec: row.expectedTimeSec,
+    })));
+  }
+
   registerKnowledgePoint(point: { id: string; subject: string; chapter: string }) {
     this.knowledgePointIndex.set(point.id, {
       subject: point.subject,
@@ -77,9 +109,9 @@ export class QuestionsService {
     });
   }
 
-  createQuestion(input: CreateQuestionDto) {
+  async createQuestion(input: CreateQuestionDto) {
     const question = requireQuestionKnowledgePoint<Question>({
-      id: `q-${String(this.questions.length + 1).padStart(3, '0')}`,
+      id: nextQuestionId(this.questions),
       stem: input.stem.trim(),
       options: input.options.map((option) => option.trim()).filter(Boolean),
       answer: input.answer,
@@ -92,6 +124,25 @@ export class QuestionsService {
       expectedTimeSec: input.expectedTimeSec ?? 100,
     });
 
+    if (this.persistenceEnabled) {
+      await this.prisma.question.create({
+        data: {
+          id: question.id,
+          stem: question.stem,
+          options: question.options,
+          answer: question.answer,
+          analysis: question.analysis,
+          difficulty: toPrismaDifficulty(question.difficulty),
+          type: toPrismaQuestionType(question.type),
+          source: question.source,
+          year: question.year,
+          expectedTimeSec: question.expectedTimeSec,
+          knowledgePoints: {
+            create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
+          },
+        },
+      });
+    }
     this.questions.push(question);
     this.reviewItems.push({
       id: `review-question-${question.id}`,
@@ -105,10 +156,11 @@ export class QuestionsService {
       suggestedAction: '检查标准答案、解析步骤、难度和知识点绑定；确认无误后通过审核。',
       createdAt: new Date().toISOString(),
     });
+    await this.saveReviewItems();
     return question;
   }
 
-  updateQuestion(questionId: string, input: Partial<CreateQuestionDto>) {
+  async updateQuestion(questionId: string, input: Partial<CreateQuestionDto>) {
     const index = this.questions.findIndex((question) => question.id === questionId);
     if (index === -1) {
       throw new BadRequestException(`Question ${questionId} was not found`);
@@ -129,21 +181,47 @@ export class QuestionsService {
       expectedTimeSec: input.expectedTimeSec ?? current.expectedTimeSec,
     });
 
+    if (this.persistenceEnabled) {
+      await this.prisma.$transaction([
+        this.prisma.question.update({
+          where: { id: questionId },
+          data: {
+            stem: question.stem,
+            options: question.options,
+            answer: question.answer,
+            analysis: question.analysis,
+            difficulty: toPrismaDifficulty(question.difficulty),
+            type: toPrismaQuestionType(question.type),
+            source: question.source,
+            year: question.year,
+            expectedTimeSec: question.expectedTimeSec,
+          },
+        }),
+        this.prisma.questionKnowledgePoint.deleteMany({ where: { questionId } }),
+        this.prisma.questionKnowledgePoint.createMany({
+          data: question.knowledgePointIds.map((knowledgePointId) => ({ questionId, knowledgePointId })),
+        }),
+      ]);
+    }
     this.questions[index] = question;
     return question;
   }
 
-  deleteQuestion(questionId: string) {
+  async deleteQuestion(questionId: string) {
     const index = this.questions.findIndex((question) => question.id === questionId);
     if (index === -1) {
       throw new BadRequestException(`Question ${questionId} was not found`);
     }
 
+    if (this.persistenceEnabled) {
+      await this.prisma.question.delete({ where: { id: questionId } });
+    }
     this.questions.splice(index, 1);
     const reviewIndex = this.reviewItems.findIndex((item) => item.relatedId === questionId);
     if (reviewIndex !== -1) {
       this.reviewItems.splice(reviewIndex, 1);
     }
+    await this.saveReviewItems();
 
     return {
       id: questionId,
@@ -155,23 +233,25 @@ export class QuestionsService {
     return QuestionsService.reviewItems;
   }
 
-  approveReviewItem(reviewItemId: string, reviewerId: string) {
+  async approveReviewItem(reviewItemId: string, reviewerId: string) {
     const item = this.reviewItems.find((candidate) => candidate.id === reviewItemId);
     if (!item) return null;
 
     item.status = 'approved';
     item.reviewerId = reviewerId;
     item.reviewedAt = new Date().toISOString();
+    await this.saveReviewItems();
     return item;
   }
 
-  markReviewItemNeedsRecheck(reviewItemId: string, reviewerId: string) {
+  async markReviewItemNeedsRecheck(reviewItemId: string, reviewerId: string) {
     const item = this.reviewItems.find((candidate) => candidate.id === reviewItemId);
     if (!item) return null;
 
     item.status = 'needs_recheck';
     item.reviewerId = reviewerId;
     item.reviewedAt = new Date().toISOString();
+    await this.saveReviewItems();
     return item;
   }
 
@@ -182,6 +262,52 @@ export class QuestionsService {
   private get reviewItems() {
     return QuestionsService.reviewItems;
   }
+
+  private get persistenceEnabled() {
+    return Boolean(process.env.DATABASE_URL);
+  }
+
+  private async saveReviewItems() {
+    if (!this.persistenceEnabled) return;
+    const value = this.reviewItems as unknown as Prisma.InputJsonValue;
+    await this.prisma.runtimeState.upsert({
+      where: { key: 'questionReviewItems' },
+      create: { key: 'questionReviewItems', value },
+      update: { value },
+    });
+  }
+}
+
+function nextQuestionId(questions: Question[]) {
+  const next = questions.reduce((max, question) => {
+    const match = /^q-(\d+)$/.exec(question.id);
+    return Math.max(max, match ? Number(match[1]) : 0);
+  }, 0) + 1;
+  return `q-${String(next).padStart(3, '0')}`;
+}
+
+function toPrismaDifficulty(value: Question['difficulty']): Difficulty {
+  if (value === '基础') return Difficulty.BASIC;
+  if (value === '困难') return Difficulty.HARD;
+  return Difficulty.MEDIUM;
+}
+
+function fromPrismaDifficulty(value: Difficulty): Question['difficulty'] {
+  if (value === Difficulty.BASIC) return '基础';
+  if (value === Difficulty.HARD) return '困难';
+  return '中等';
+}
+
+function toPrismaQuestionType(value: Question['type']): QuestionType {
+  if (value === '综合题') return QuestionType.COMPREHENSIVE;
+  if (value === '判断题') return QuestionType.JUDGEMENT;
+  return QuestionType.SINGLE_CHOICE;
+}
+
+function fromPrismaQuestionType(value: QuestionType): Question['type'] {
+  if (value === QuestionType.COMPREHENSIVE) return '综合题';
+  if (value === QuestionType.JUDGEMENT) return '判断题';
+  return '选择题';
 }
 
 export interface ReviewItem {

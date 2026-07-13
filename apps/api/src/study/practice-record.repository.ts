@@ -117,7 +117,7 @@ export class PracticeRecordRepository {
       });
     }
 
-    return this.listByUser(input.user.id);
+    return this.listAll();
   }
 
   async save(record: PracticeRecord): Promise<PracticeRecord> {
@@ -138,7 +138,32 @@ export class PracticeRecordRepository {
       where: { userId },
       orderBy: { submittedAt: 'asc' },
     });
-    return records.map((record) => ({
+    return records.map(toDomainRecord);
+  }
+
+  async listAll(): Promise<PracticeRecord[]> {
+    if (!this.enabled) return [];
+
+    const records = await this.prisma.practiceRecord.findMany({
+      orderBy: { submittedAt: 'asc' },
+    });
+    return records.map(toDomainRecord);
+  }
+}
+
+function toDomainRecord(record: {
+  id: string;
+  userId: string;
+  questionId: string;
+  knowledgePointId: string;
+  selectedAnswer: string | null;
+  correct: boolean;
+  timeSpentSec: number;
+  expectedTimeSec: number;
+  mistakeReason: string | null;
+  submittedAt: Date;
+}): PracticeRecord {
+  return {
       id: record.id,
       userId: record.userId,
       questionId: record.questionId,
@@ -149,8 +174,7 @@ export class PracticeRecordRepository {
       expectedTimeSec: record.expectedTimeSec,
       mistakeReason: mapMistakeReason(record.mistakeReason),
       submittedAt: record.submittedAt.toISOString(),
-    }));
-  }
+    };
 }
 
 function toPrismaRecord(record: PracticeRecord) {

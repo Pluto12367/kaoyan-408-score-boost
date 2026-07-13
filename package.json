@@ -21,6 +21,7 @@
     "dev:migration": "npm run build:api && node scripts/dev-migration.mjs",
     "build:web": "npm run build:shared && npm run build -w apps/web",
     "build:api": "npm run build:shared && npm run build -w apps/api",
+    "db:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "smoke:migration": "npm run build:api && npm run build:web && node scripts/smoke-migration.mjs",
     "db:test:up": "docker compose -f compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f compose.test.yml down -v",

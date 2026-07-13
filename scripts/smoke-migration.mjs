@@ -5,6 +5,7 @@ const root = process.cwd();
 const apiUrl = 'http://127.0.0.1:3100';
 const webUrl = 'http://127.0.0.1:5174';
 const processes = [];
+let studentAuthHeaders = {};
 
 async function main() {
   const api = start('api', process.execPath, ['dist/main.js'], {
@@ -32,6 +33,7 @@ async function main() {
   });
   assert(adminSession.token && adminSession.user.role === 'admin', 'admin login should return an admin session');
   const studentHeaders = { Authorization: `Bearer ${studentSession.token}` };
+  studentAuthHeaders = studentHeaders;
   const teacherHeaders = { Authorization: `Bearer ${teacherSession.token}` };
   const adminHeaders = { Authorization: `Bearer ${adminSession.token}` };
   const teacherOnlyQuestions = await waitForJson(`${apiUrl}/teacher/questions`, (data) =>
@@ -50,6 +52,18 @@ async function main() {
     type: '选择题',
     source: 'forbidden',
   }, studentHeaders, 'student session should not create teacher questions');
+  await expectForbidden(
+    `${apiUrl}/wrong-questions?userId=u-002`,
+    studentHeaders,
+    'student session should not read another student wrong questions',
+  );
+  await expectForbiddenPost(`${apiUrl}/practice-records`, {
+    userId: 'u-002',
+    questionId: 'q-001',
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'B',
+    timeSpentSec: 90,
+  }, studentHeaders, 'student session should not create another student practice record');
   const classAnalytics = await waitForJson(`${apiUrl}/teacher/class-analytics`, (data) =>
     data.overview?.studentCount >= 1 && Array.isArray(data.subjectWeakness),
     teacherHeaders,
@@ -77,6 +91,26 @@ async function main() {
   );
   assert(overviewAfterDiagnostic.student.targetScore === 118, 'dashboard should reflect diagnostic target score');
   assert(overviewAfterDiagnostic.student.remainingDays === 120, 'dashboard should reflect diagnostic remaining days');
+  const adminDiagnosticProfile = await postJson(`${apiUrl}/diagnostics/profile`, {
+    targetScore: 130,
+    currentScore: 105,
+    remainingDays: 35,
+    dailyHours: 5,
+    weakestSubject: '计算机网络',
+  }, adminHeaders);
+  assert(adminDiagnosticProfile.stage === '冲刺', 'a second user should receive an independent sprint profile');
+  const adminOverview = await waitForJson(
+    `${apiUrl}/dashboard/overview`,
+    (data) => data.student?.targetScore === 130 && data.plan?.phase === '真题冲刺',
+    adminHeaders,
+  );
+  assert(adminOverview.student.id === adminSession.user.id, 'dashboard should use the authenticated user identity');
+  const isolatedStudentOverview = await waitForJson(
+    `${apiUrl}/dashboard/overview`,
+    (data) => data.student?.targetScore === 118 && data.plan?.phase === '基础补强',
+    studentHeaders,
+  );
+  assert(isolatedStudentOverview.student.id === studentSession.user.id, 'student profile should remain isolated after another user updates diagnostics');
   const createdKnowledgePoint = await postJson(`${apiUrl}/knowledge-points`, {
     id: 'os-memory',
     subject: '操作系统',
@@ -222,6 +256,20 @@ async function main() {
     return task?.completed === true && data.plan?.completedTaskCount === 1;
   });
   assert(overviewAfterTask.plan.completionRate > 0, 'study plan should expose today completion rate');
+  const deferTaskId = overviewAfterTask.plan.dailyTasks.find((task) => !task.completed)?.id;
+  assert(deferTaskId, 'study plan should keep at least one task available for deferral testing');
+  const deferredTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(deferTaskId)}/defer`, {
+    userId: 'u-001',
+    reason: 'smoke test reschedule',
+  });
+  assert(deferredTask.deferred === true, 'deferred task endpoint should mark the task as deferred');
+  assert(deferredTask.deferredUntil, 'deferred task endpoint should return the next scheduled date');
+  const overviewAfterDefer = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => {
+    const task = data.plan?.dailyTasks?.find((item) => item.id === deferTaskId);
+    return task?.deferred === true && task?.deferredUntil;
+  });
+  const deferredTaskInPlan = overviewAfterDefer.plan.dailyTasks.find((task) => task.id === deferTaskId);
+  assert(deferredTaskInPlan?.rescheduleReason, 'deferred task should include a reschedule reason in the plan');
 
   const previousRecordCount = overviewAfterTask.practiceRecords.length;
   const submitted = await postJson(`${apiUrl}/practice-records`, {
@@ -472,7 +520,7 @@ async function main() {
   }, null, 2));
 }
 
-async function postJson(url, body, headers = {}) {
+async function postJson(url, body, headers = studentAuthHeaders) {
   const response = await fetch(url, {
     method: 'POST',
     headers: {
@@ -560,7 +608,7 @@ async function expectForbiddenPost(url, body, headers, message) {
   assert(response.status === 403, message);
 }
 
-async function waitForJson(url, predicate, headers = {}) {
+async function waitForJson(url, predicate, headers = studentAuthHeaders) {
   const response = await waitForResponse(url, async (res) => {
     if (!res.ok) return null;
     const data = await res.json();
@@ -569,7 +617,7 @@ async function waitForJson(url, predicate, headers = {}) {
   return response;
 }
 
-async function waitForText(url, predicate, headers = {}) {
+async function waitForText(url, predicate, headers = studentAuthHeaders) {
   return waitForResponse(url, async (res) => {
     if (!res.ok) return null;
     const text = await res.text();
@@ -577,7 +625,7 @@ async function waitForText(url, predicate, headers = {}) {
   }, headers);
 }
 
-async function waitForResponse(url, mapper, headers = {}) {
+async function waitForResponse(url, mapper, headers = studentAuthHeaders) {
   const deadline = Date.now() + 30_000;
   let lastError;
 

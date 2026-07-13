@@ -73,6 +73,9 @@ export interface DailyTask {
   reason: string;
   nextAction: string;
   completed?: boolean;
+  deferred?: boolean;
+  deferredUntil?: string;
+  rescheduleReason?: string;
 }
 
 export interface StudyPlan {

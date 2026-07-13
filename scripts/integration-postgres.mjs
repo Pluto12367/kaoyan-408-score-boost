@@ -11,11 +11,10 @@ let activeApi;
 async function main() {
   const schemaResult = spawnSync(npx, [
     'prisma',
-    'db',
-    'push',
+    'migrate',
+    'deploy',
     '--schema',
     'prisma/schema.prisma',
-    '--skip-generate',
   ], {
     cwd: root,
     env: { ...process.env, DATABASE_URL: databaseUrl },
@@ -23,12 +22,11 @@ async function main() {
     shell: process.platform === 'win32',
   });
   if (schemaResult.status !== 0) {
-    throw new Error(`Prisma schema push failed: ${schemaResult.error?.message || schemaResult.stderr || schemaResult.stdout}`);
+    throw new Error(`Prisma migration deploy failed: ${schemaResult.error?.message || schemaResult.stderr || schemaResult.stdout}`);
   }
 
   activeApi = startApi();
-  const initial = await waitForOverview();
-  assert(initial.source === 'postgresql', 'API should report the real PostgreSQL data source');
+  await waitForHealth();
 
   const credentials = {
     email: 'integration.student@example.com',
@@ -40,6 +38,18 @@ async function main() {
   assert(registered.accessToken && registered.refreshToken, 'registration should issue access and refresh tokens');
   const loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(loggedIn.user.id === registered.user.id, 'password login should return the registered user');
+  const studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
+  const initial = await waitForOverview(studentHeaders);
+  assert(initial.source === 'postgresql', 'API should report the real PostgreSQL data source');
+  const diagnostic = await postJson(`${apiUrl}/diagnostics/profile`, {
+    targetScore: 126,
+    currentScore: 82,
+    remainingDays: 88,
+    dailyHours: 3,
+    weakestSubject: '计算机组成原理',
+  }, studentHeaders);
+  assert(diagnostic.targetScore === 126, 'diagnostic profile should be accepted for the authenticated student');
+  await expectGetStatus(`${apiUrl}/wrong-questions?userId=u-001`, studentHeaders, 403);
   await expectPostStatus(`${apiUrl}/auth/login`, { email: credentials.email, password: 'wrong-password' }, 401);
   await expectGetStatus(`${apiUrl}/teacher/questions`, { Authorization: `Bearer ${loggedIn.accessToken}` }, 403);
   await expectPostStatus(`${apiUrl}/questions`, {
@@ -64,6 +74,27 @@ async function main() {
     source: 'integration',
   }, { Authorization: `Bearer ${teacherSession.token}` });
   assert(teacherQuestion.id, 'teacher role should create questions');
+  const generatedPaper = await postJson(`${apiUrl}/papers/generate`, {
+    title: 'PostgreSQL restart paper',
+    paperType: '专项卷',
+    knowledgePointIds: ['co-cache'],
+    questionCount: 2,
+    createdBy: teacherSession.user.id,
+  }, { Authorization: `Bearer ${teacherSession.token}` });
+  const submittedPaper = await postJson(`${apiUrl}/papers/${generatedPaper.id}/submit`, {
+    answers: generatedPaper.questions.map((question) => ({
+      questionId: question.id,
+      selectedAnswer: question.answer,
+      timeSpentSec: question.expectedTimeSec,
+    })),
+  }, studentHeaders);
+  assert(submittedPaper.paperId === generatedPaper.id, 'generated paper should be submittable');
+  const feedback = await postJson(`${apiUrl}/feedback`, {
+    rating: 5,
+    scene: 'postgres integration',
+    message: 'verify feedback persistence across restart',
+  }, studentHeaders);
+  assert(feedback.id, 'student feedback should be accepted');
   const adminSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'admin' });
   const config = await postJson(`${apiUrl}/admin/system-config`, {
     recommendation: { stageAssessmentQuestionLimit: 2 },
@@ -76,34 +107,45 @@ async function main() {
   await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: refreshed.refreshToken }, 401);
 
   const created = await postJson(`${apiUrl}/practice-records`, {
-    userId: 'u-001',
+    userId: registered.user.id,
     questionId: 'q-001',
     knowledgePointId: 'co-cache',
     selectedAnswer: 'integration-test-wrong-answer',
     timeSpentSec: 137,
-  });
+  }, studentHeaders);
   assert(created.id && created.correct === false, 'practice submission should be persisted');
 
-  const reviewed = await postJson(`${apiUrl}/wrong-questions/q-001/review`, { userId: 'u-001' });
+  const reviewed = await postJson(`${apiUrl}/wrong-questions/q-001/review`, { userId: registered.user.id }, studentHeaders);
   assert(reviewed.reviewStatus === 'reviewed' && reviewed.reviewedAt, 'wrong-question review should be persisted');
 
   const taskId = initial.plan?.dailyTasks?.[0]?.id;
   assert(taskId, 'dashboard should expose a study task for completion testing');
   const completedTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(taskId)}/complete`, {
-    userId: 'u-001',
+    userId: registered.user.id,
     completedQuestionCount: 8,
     correctCount: 6,
     minutesSpent: 24,
     selfRating: 4,
-  });
+  }, studentHeaders);
   assert(completedTask.completed === true, 'study-task completion should be persisted');
+  const deferTaskId = initial.plan.dailyTasks.find((task) => task.id !== taskId)?.id;
+  assert(deferTaskId, 'dashboard should expose another task for deferral testing');
+  const deferredTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(deferTaskId)}/defer`, {
+    userId: registered.user.id,
+    reason: 'integration test reschedule',
+  }, studentHeaders);
+  assert(deferredTask.deferred === true && deferredTask.deferredUntil, 'study-task deferral should be accepted');
 
   await stop(activeApi);
   activeApi = startApi();
-  const restored = await waitForOverview((data) =>
+  await waitForHealth();
+  const restored = await waitForOverview(studentHeaders, (data) =>
     data.practiceRecords?.some((record) => record.id === created.id)
       && data.wrongQuestions?.some((item) => item.questionId === 'q-001' && item.reviewStatus === 'reviewed')
-      && data.plan?.dailyTasks?.some((task) => task.id === taskId && task.completed),
+      && data.plan?.dailyTasks?.some((task) => task.id === taskId && task.completed)
+      && data.plan?.dailyTasks?.some((task) => task.id === deferTaskId && task.deferred)
+      && data.student?.targetScore === 126
+      && data.questions?.some((question) => question.id === teacherQuestion.id),
   );
   const restoredRecord = restored.practiceRecords.find((record) => record.id === created.id);
   assert(restoredRecord.timeSpentSec === 137, 'record should survive an API restart');
@@ -111,6 +153,20 @@ async function main() {
   assert(restoredReview.reviewedAt === reviewed.reviewedAt, 'wrong-question review should survive an API restart');
   const restoredTask = restored.plan.dailyTasks.find((task) => task.id === taskId);
   assert(restoredTask.completed === true, 'study-task completion should survive an API restart');
+  const restoredDeferredTask = restored.plan.dailyTasks.find((task) => task.id === deferTaskId);
+  assert(restoredDeferredTask.deferred === true, 'study-task deferral should survive an API restart');
+  assert(restoredDeferredTask.deferredUntil === deferredTask.deferredUntil, 'deferred task should keep its rescheduled date');
+  assert(restored.student.targetScore === 126, 'diagnostic profile should survive an API restart');
+  assert(restored.student.weakestSubject === '计算机组成原理', 'diagnostic weakest subject should survive an API restart');
+  assert(restored.questions.some((question) => question.id === teacherQuestion.id), 'teacher-created question should survive an API restart');
+  const restoredPapers = await getJson(`${apiUrl}/papers`);
+  assert(restoredPapers.some((paper) => paper.id === generatedPaper.id), 'generated paper should survive an API restart');
+  const restoredHistory = await getJson(`${apiUrl}/assessment-history`, studentHeaders);
+  assert(restoredHistory.items.some((item) => item.paperId === generatedPaper.id), 'assessment history should survive an API restart');
+  const restoredConfig = await getJson(`${apiUrl}/admin/system-config`, { Authorization: `Bearer ${adminSession.token}` });
+  assert(restoredConfig.recommendation.stageAssessmentQuestionLimit === 2, 'system configuration should survive an API restart');
+  const restoredFeedback = await getJson(`${apiUrl}/admin/feedback`, { Authorization: `Bearer ${adminSession.token}` });
+  assert(restoredFeedback.items.some((item) => item.id === feedback.id), 'feedback should survive an API restart');
 
   console.log(JSON.stringify({
     ok: true,
@@ -118,6 +174,11 @@ async function main() {
     persistedRecordId: created.id,
     reviewedQuestionId: restoredReview.questionId,
     completedTaskId: restoredTask.id,
+    deferredTaskId: restoredDeferredTask.id,
+    persistedDiagnosticTarget: restored.student.targetScore,
+    persistedTeacherQuestionId: teacherQuestion.id,
+    persistedPaperId: generatedPaper.id,
+    persistedFeedbackId: feedback.id,
     practiceRecordCount: restored.practiceRecords.length,
   }, null, 2));
 
@@ -147,12 +208,24 @@ function startApi() {
   return child;
 }
 
-async function waitForOverview(predicate = () => true) {
+async function waitForHealth() {
+  const deadline = Date.now() + 30_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${apiUrl}/health`);
+      if (response.ok) return;
+    } catch {}
+    await delay(400);
+  }
+  throw new Error('Timed out waiting for PostgreSQL API health check');
+}
+
+async function waitForOverview(headers, predicate = () => true) {
   const deadline = Date.now() + 30_000;
   let lastError;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(`${apiUrl}/dashboard/overview`);
+      const response = await fetch(`${apiUrl}/dashboard/overview`, { headers });
       if (response.ok) {
         const data = await response.json();
         if (predicate(data)) return data;
@@ -172,6 +245,12 @@ async function postJson(url, body, headers = {}) {
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`POST ${url} failed with ${response.status}: ${await response.text()}`);
+  return response.json();
+}
+
+async function getJson(url, headers = {}) {
+  const response = await fetch(url, { headers });
+  if (!response.ok) throw new Error(`GET ${url} failed with ${response.status}: ${await response.text()}`);
   return response.json();
 }
 

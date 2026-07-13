@@ -43,6 +43,9 @@ model User {
   currentScore         Int?
   dailyHours           Float?
   remainingDays        Int?
+  studyStage           String?
+  weakestSubject       String?
+  diagnosis            String?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   practiceRecords      PracticeRecord[]
@@ -187,4 +190,10 @@ model AiTutorLog {
   response   String
   reviewed   Boolean  @default(false)
   createdAt  DateTime @default(now())
+}
+
+model RuntimeState {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
 }

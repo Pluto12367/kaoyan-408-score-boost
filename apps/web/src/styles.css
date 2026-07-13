@@ -336,7 +336,8 @@ button {
   font-weight: 700;
 }
 
-.account-form input {
+.account-form input,
+.account-form select {
   width: 100%;
   min-height: 42px;
   padding: 9px 11px;
@@ -347,7 +348,8 @@ button {
   font: inherit;
 }
 
-.account-form input:focus {
+.account-form input:focus,
+.account-form select:focus {
   border-color: #2563eb;
   outline: 2px solid #bfdbfe;
   outline-offset: 1px;
@@ -438,6 +440,15 @@ button {
 
 .task-row.completed strong {
   color: #166534;
+}
+
+.task-row.deferred {
+  border-style: dashed;
+  opacity: 0.82;
+}
+
+.task-row.deferred strong {
+  color: #64748b;
 }
 
 .assessment-grid {
