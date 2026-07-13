@@ -54,6 +54,7 @@ model User {
   taskCompletions      StudyTaskCompletion[]
   refreshTokens        RefreshToken[]
   learningSessions     LearningSession[]
+  reviewSchedules      ReviewSchedule[]
 }
 
 model LearningSession {
@@ -117,6 +118,7 @@ model Question {
   knowledgePoints      QuestionKnowledgePoint[]
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]
+  reviewSchedules      ReviewSchedule[]
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
 }
@@ -218,4 +220,40 @@ model RuntimeState {
   key       String   @id
   value     Json
   updatedAt DateTime @updatedAt
+}
+
+model ReviewSchedule {
+  id                 String          @id @default(cuid())
+  userId             String
+  questionId         String
+  inferredReason     String?
+  selfReportedReason String?
+  note               String?
+  consecutiveCorrect Int             @default(0)
+  stability          String          @default("learning")
+  nextReviewAt       DateTime
+  reviewCount        Int             @default(0)
+  lastReviewedAt     DateTime?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  user               User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question           Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  attempts           ReviewAttempt[]
+
+  @@unique([userId, questionId])
+  @@index([userId, stability, nextReviewAt])
+}
+
+model ReviewAttempt {
+  id               String         @id @default(cuid())
+  scheduleId       String
+  redoCorrect      Boolean
+  timeSpentSec     Int
+  reportedReason   String?
+  inferredReason   String?
+  nextIntervalDays Int
+  reviewedAt       DateTime       @default(now())
+  schedule         ReviewSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId, reviewedAt])
 }

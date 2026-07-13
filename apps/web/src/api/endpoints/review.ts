@@ -11,6 +11,8 @@ export interface ReviewSchedule {
   nextReviewAt: string;
   reviewCount: number;
   lastReviewedAt: string;
+  inferredReason?: string;
+  note?: string;
 }
 
 export interface DueReviewItem extends ReviewSchedule {
@@ -47,7 +49,17 @@ export interface WrongQuestionDetail {
     nextReviewAt: string;
     reviewCount: number;
     selfReportedReason: string;
+    inferredReason?: string;
   } | null;
+  note: string;
+  reviewHistory: Array<{
+    redoCorrect: boolean;
+    timeSpentSec: number;
+    reportedReason?: string;
+    inferredReason?: string;
+    nextIntervalDays: number;
+    reviewedAt: string;
+  }>;
   similarQuestions: Array<{ id: string; stem: string; difficulty: string; source: string }>;
   recommendation: string;
 }
@@ -76,4 +88,14 @@ export async function fetchWrongQuestionDetail(questionId: string): Promise<Wron
   const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/${questionId}/detail`);
   if (!response.ok) throw new Error(`Wrong question detail failed with ${response.status}`);
   return response.json();
+}
+
+export async function saveWrongQuestionNote(questionId: string, note: string) {
+  const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/${questionId}/note`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ note }),
+  });
+  if (!response.ok) throw new Error(`Wrong question note save failed with ${response.status}`);
+  return response.json() as Promise<{ questionId: string; note: string; updatedAt: string }>;
 }

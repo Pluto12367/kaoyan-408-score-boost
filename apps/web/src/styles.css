@@ -4,6 +4,45 @@
   font-family: Inter, "Microsoft YaHei", "PingFang SC", sans-serif;
 }
 
+.detail-note {
+  display: grid;
+  gap: 10px;
+  padding: 14px 0;
+}
+
+.detail-note strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.detail-note textarea {
+  width: 100%;
+  min-height: 104px;
+  resize: vertical;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #172033;
+  background: #fff;
+  font: inherit;
+  line-height: 1.55;
+}
+
+.detail-note textarea:focus {
+  outline: 2px solid #0f766e;
+  outline-offset: 1px;
+}
+
+.note-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
 * {
   box-sizing: border-box;
 }

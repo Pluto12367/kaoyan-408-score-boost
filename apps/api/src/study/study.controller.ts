@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import type { Subject } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
@@ -375,6 +375,17 @@ export class StudyController {
     @Param('questionId') questionId: string,
   ) {
     return this.studyService.getWrongQuestionDetail(questionId, user.id);
+  }
+
+  @Patch('wrong-questions/:questionId/note')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  updateWrongQuestionNote(
+    @CurrentUser() user: UserProfile,
+    @Param('questionId') questionId: string,
+    @Body('note') note?: string,
+  ) {
+    return this.studyService.updateWrongQuestionNote(questionId, user.id, note);
   }
 
   // ---- Phase 6: Mock Exam ----

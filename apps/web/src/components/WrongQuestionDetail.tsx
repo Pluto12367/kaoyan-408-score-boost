@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BookOpen, RotateCcw, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import { fetchWrongQuestionDetail, type WrongQuestionDetail as DetailType } from '../api/endpoints/review';
+import { fetchWrongQuestionDetail, saveWrongQuestionNote, type WrongQuestionDetail as DetailType } from '../api/endpoints/review';
 
 interface Props {
   questionId: string;
@@ -11,10 +11,15 @@ interface Props {
 export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) {
   const [detail, setDetail] = useState<DetailType | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const [noteStatus, setNoteStatus] = useState('');
 
   useEffect(() => {
     fetchWrongQuestionDetail(questionId)
-      .then(setDetail)
+      .then((value) => {
+        setDetail(value);
+        setNote(value.note ?? '');
+      })
       .catch((e) => setError(e instanceof Error ? e.message : '加载失败'));
   }, [questionId]);
 
@@ -23,8 +28,19 @@ export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) 
 
   const rs = detail.reviewSchedule;
 
+  async function handleSaveNote() {
+    setNoteStatus('保存中...');
+    try {
+      await saveWrongQuestionNote(questionId, note);
+      setDetail((current) => current ? { ...current, note } : current);
+      setNoteStatus('已保存');
+    } catch (saveError) {
+      setNoteStatus(saveError instanceof Error ? saveError.message : '保存失败');
+    }
+  }
+
   return (
-    <div className="wrong-detail-panel">
+    <div id="wrong-question-detail" className="wrong-detail-panel">
       <div className="panel-heading">
         <div>
           <p className="eyebrow">{detail.subject} · {detail.chapter}</p>
@@ -46,6 +62,23 @@ export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) 
         </div>
       ) : null}
 
+      <div className="detail-note">
+        <strong><BookOpen size={14} /> 我的错题笔记</strong>
+        <textarea
+          value={note}
+          maxLength={2000}
+          placeholder="记录易混条件、关键公式或下次重做时要注意的步骤"
+          onChange={(event) => {
+            setNote(event.target.value);
+            setNoteStatus('');
+          }}
+        />
+        <div className="note-actions">
+          <span>{note.length}/2000 {noteStatus}</span>
+          <button type="button" className="secondary-action" onClick={handleSaveNote}>保存笔记</button>
+        </div>
+      </div>
+
       {/* Review schedule status */}
       {rs ? (
         <div className={`review-status status-${rs.stability}`}>
@@ -56,6 +89,7 @@ export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) 
             </strong>
           </div>
           <div className="status-grid">
+            {rs.inferredReason ? <span>系统综合判断 <strong>{rs.inferredReason}</strong></span> : null}
             <span>连续正确 <strong>{rs.consecutiveCorrect}</strong> 次</span>
             <span>已复习 <strong>{rs.reviewCount}</strong> 次</span>
             <span>下次复习 <strong>{rs.nextReviewAt.slice(0, 10)}</strong></span>
@@ -76,6 +110,20 @@ export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) 
           </div>
         ))}
       </div>
+
+      {detail.reviewHistory.length > 0 ? (
+        <div className="attempt-history">
+          <strong><RotateCcw size={14} /> 复习轨迹</strong>
+          {detail.reviewHistory.map((item, index) => (
+            <div key={`${item.reviewedAt}-${index}`} className={`attempt-row ${item.redoCorrect ? 'correct' : 'wrong'}`}>
+              <span>{item.reviewedAt.slice(0, 10)}</span>
+              <span>{item.redoCorrect ? '重做正确' : '仍需巩固'}</span>
+              <span>{item.inferredReason ?? item.reportedReason ?? '待归因'}</span>
+              <span>{item.nextIntervalDays} 天后复习</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       {/* Similar questions */}
       {detail.similarQuestions.length > 0 ? (

@@ -118,6 +118,38 @@ async function main() {
   const reviewed = await postJson(`${apiUrl}/wrong-questions/q-001/review`, { userId: registered.user.id }, studentHeaders);
   assert(reviewed.reviewStatus === 'reviewed' && reviewed.reviewedAt, 'wrong-question review should be persisted');
 
+  const autoScheduledDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
+  assert(autoScheduledDetail.reviewSchedule?.stability === 'learning', 'first wrong answer should enter the review schedule automatically');
+  assert(autoScheduledDetail.reviewSchedule?.reviewCount === 0, 'automatic scheduling should not count as a completed review');
+  const savedNote = await patchJson(`${apiUrl}/wrong-questions/q-001/note`, {
+    note: 'Cache mapping: check block number modulo line count before choosing.',
+  }, studentHeaders);
+  assert(savedNote.note.includes('Cache mapping'), 'wrong-question note should be saved');
+  const failedRedo = await postJson(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: 'concept unclear',
+    redoCorrect: false,
+    timeSpentSec: 145,
+  }, studentHeaders);
+  assert(failedRedo.nextReviewInDays === 1 && failedRedo.stability === 'learning', 'failed redo should return to a one-day interval');
+  const firstCorrectRedo = await postJson(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: 'concept unclear',
+    redoCorrect: true,
+    timeSpentSec: 95,
+  }, studentHeaders);
+  assert(firstCorrectRedo.nextReviewInDays === 3 && firstCorrectRedo.consecutiveCorrect === 1, 'first correct redo should advance to three days');
+  const secondCorrectRedo = await postJson(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: 'concept unclear',
+    redoCorrect: true,
+    timeSpentSec: 82,
+  }, studentHeaders);
+  assert(secondCorrectRedo.nextReviewInDays === 7 && secondCorrectRedo.consecutiveCorrect === 2, 'second correct redo should advance to seven days');
+  const masteredRedo = await postJson(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: 'concept unclear',
+    redoCorrect: true,
+    timeSpentSec: 76,
+  }, studentHeaders);
+  assert(masteredRedo.nextReviewInDays === 14 && masteredRedo.stability === 'mastered', 'third correct redo should reach stable mastery with a fourteen-day interval');
+
   const taskId = initial.plan?.dailyTasks?.[0]?.id;
   assert(taskId, 'dashboard should expose a study task for completion testing');
   const completedTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(taskId)}/complete`, {
@@ -160,7 +192,12 @@ async function main() {
   const restoredRecord = restored.practiceRecords.find((record) => record.id === created.id);
   assert(restoredRecord.timeSpentSec === 137, 'record should survive an API restart');
   const restoredReview = restored.wrongQuestions.find((item) => item.questionId === 'q-001');
-  assert(restoredReview.reviewedAt === reviewed.reviewedAt, 'wrong-question review should survive an API restart');
+  assert(restoredReview.reviewedAt === masteredRedo.lastReviewedAt, 'latest wrong-question review timestamp should survive an API restart');
+  const restoredWrongDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
+  assert(restoredWrongDetail.note === savedNote.note, 'wrong-question note should survive an API restart');
+  assert(restoredWrongDetail.reviewSchedule?.stability === 'mastered', 'review mastery should survive an API restart');
+  assert(restoredWrongDetail.reviewHistory?.length === 4, 'complete review trajectory should survive an API restart');
+  assert(restoredWrongDetail.reviewHistory[0].nextIntervalDays === 1, 'review history should retain interval decisions');
   const restoredTask = restored.plan.dailyTasks.find((task) => task.id === taskId);
   assert(restoredTask.completed === true, 'study-task completion should survive an API restart');
   const restoredSession = await getJson(`${apiUrl}/sessions/practice/${startedSession.id}`, studentHeaders);
@@ -194,6 +231,7 @@ async function main() {
     reviewedQuestionId: restoredReview.questionId,
     completedTaskId: restoredTask.id,
     restoredSessionId: restoredSession.id,
+    restoredReviewHistoryCount: restoredWrongDetail.reviewHistory.length,
     persistedDiagnosticTarget: restored.student.targetScore,
     persistedTeacherQuestionId: teacherQuestion.id,
     persistedPaperId: generatedPaper.id,
@@ -270,6 +308,16 @@ async function postJson(url, body, headers = {}) {
 async function getJson(url, headers = {}) {
   const response = await fetch(url, { headers });
   if (!response.ok) throw new Error(`GET ${url} failed with ${response.status}: ${await response.text()}`);
+  return response.json();
+}
+
+async function patchJson(url, body, headers = {}) {
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json', ...headers },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`PATCH ${url} failed with ${response.status}: ${await response.text()}`);
   return response.json();
 }
 

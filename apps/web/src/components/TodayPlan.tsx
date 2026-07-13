@@ -7,15 +7,22 @@ import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
 interface Props {
   plan: TodayPlanType;
   onRefresh: () => void;
+  onOpenReview?: (questionId: string) => void;
 }
 
-export function TodayPlan({ plan, onRefresh }: Props) {
+export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
   const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
+  const [dueReviewError, setDueReviewError] = useState('');
 
-  useEffect(() => {
+  function loadDueReviews() {
+    setDueReviewError('');
     fetchDueReviews()
       .then((r) => setDueReviews(r.items))
-      .catch(() => { /* no reviews */ });
+      .catch(() => setDueReviewError('到期复习加载失败，请重试。'));
+  }
+
+  useEffect(() => {
+    loadDueReviews();
   }, []);
   async function handleComplete(taskId: string) {
     try {
@@ -120,8 +127,20 @@ export function TodayPlan({ plan, onRefresh }: Props) {
               <span className="stability-badge">
                 {item.stability === 'mastered' ? '已掌握' : item.stability === 'review' ? '巩固' : '学习'}
               </span>
+              {onOpenReview ? (
+                <button type="button" className="secondary-action" onClick={() => onOpenReview(item.questionId)}>
+                  开始复习
+                </button>
+              ) : null}
             </div>
           ))}
+        </div>
+      ) : null}
+
+      {dueReviewError ? (
+        <div className="module-error">
+          <span>{dueReviewError}</span>
+          <button type="button" className="secondary-action" onClick={loadDueReviews}>重新加载</button>
         </div>
       ) : null}
 

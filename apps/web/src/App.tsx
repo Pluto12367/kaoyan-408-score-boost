@@ -3,6 +3,7 @@ import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCh
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { TodayPlan } from './components/TodayPlan';
+import { WrongQuestionDetailView } from './components/WrongQuestionDetail';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
@@ -126,6 +127,7 @@ export function App() {
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
   const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
+  const [detailQuestionId, setDetailQuestionId] = useState<string | null>(null);
   const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
@@ -1054,7 +1056,14 @@ rating: 4,
 
         {/* Phase 3: Today's Learning Plan */}
         {!showOnboarding && todayPlan ? (
-          <TodayPlan plan={todayPlan} onRefresh={refreshTodayPlan} />
+          <TodayPlan
+            plan={todayPlan}
+            onRefresh={refreshTodayPlan}
+            onOpenReview={(questionId) => {
+              setDetailQuestionId(questionId);
+              window.setTimeout(() => document.getElementById('wrong-question-detail')?.scrollIntoView({ behavior: 'smooth' }), 0);
+            }}
+          />
         ) : null}
 
         <section className="panel role-panel">
@@ -2066,6 +2075,9 @@ rating: 4,
                   <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}</small>
                   <span>{item.stem}</span>
                 </div>
+                <button type="button" onClick={() => setDetailQuestionId(item.questionId)}>
+                  详情与笔记
+                </button>
                 <button
                   type="button"
                   disabled={item.reviewStatus === 'reviewed'}
@@ -2086,6 +2098,17 @@ rating: 4,
               </article>
             ))}
           </div>
+          {detailQuestionId ? (
+            <WrongQuestionDetailView
+              questionId={detailQuestionId}
+              onClose={() => setDetailQuestionId(null)}
+              onRedo={(questionId) => {
+                setRedoQuestionId(questionId);
+                setDetailQuestionId(null);
+                document.getElementById('question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              }}
+            />
+          ) : null}
         </section>
       </section>
     </main>
