@@ -13,6 +13,8 @@
     "prestart": "npm run build:web",
     "postinstall": "npm run build:shared",
     "verify:ui": "node scripts/verify-ui.mjs",
+    "validate:env": "node scripts/validate-environment.mjs",
+    "validate:env:development": "node scripts/validate-environment.mjs --file .env.development.example",
     "check:local": "node --test && node scripts/verify-ui.mjs",
     "predeploy": "npm run build:shared && node --test",
     "build:shared": "npm run build -w packages/shared",
@@ -25,6 +27,7 @@
     "smoke:migration": "npm run build:api && npm run build:web && node scripts/smoke-migration.mjs",
     "db:test:up": "docker compose -f compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f compose.test.yml down -v",
-    "test:integration:postgres": "npm run build:api && node scripts/integration-postgres.mjs"
+    "test:integration:postgres": "npm run build:api && node scripts/integration-postgres.mjs",
+    "check:release": "npm test && npm run build:api && npm run build:web && npm run smoke:migration"
   }
 }

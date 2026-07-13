@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target } from 'lucide-react';
+import { Brain, ClipboardCheck, ClipboardList, Target } from 'lucide-react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { TodayPlan } from './components/TodayPlan';
@@ -7,6 +7,8 @@ import { WrongQuestionDetailView } from './components/WrongQuestionDetail';
 import { ExamSession } from './components/ExamSession';
 import { ExamReportView } from './components/ExamReport';
 import { ResumeSessionBanner } from './components/ResumeSessionBanner';
+import { RoleGate } from './components/RoleGate';
+import { RoleNavigation } from './layouts/RoleNavigation';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -1030,23 +1032,18 @@ rating: 4,
           <p className="eyebrow">408 Score Boost</p>
           <h1>计算机考研 408 提分系统</h1>
         </div>
-        <nav>
-          <a className="active" href="#dashboard"><Activity size={18} /> 学习总览</a>
-          <a href="#plan"><ClipboardList size={18} /> 今日计划</a>
-          <a href="#question"><BookOpenCheck size={18} /> 题库训练</a>
-          <a href="#report"><Target size={18} /> 提分报告</a>
-          <a href="#admin"><Activity size={18} /> 数据看板</a>
-          <a href="#review"><ShieldCheck size={18} /> 内容审核</a>
-          <a href="#config"><ClipboardCheck size={18} /> 系统配置</a>
-          <a href="#ai"><Brain size={18} /> AI 答疑</a>
-        </nav>
+        <RoleNavigation role={sessionUser?.role} />
       </aside>
 
       <section className="workspace">
         <header className="topbar">
           <div>
-            <p className="eyebrow">学生端迁移版</p>
-            <h2>{student.name}，当前处于{student.stage}阶段</h2>
+            <p className="eyebrow">{roleLabel[sessionUser?.role ?? 'student']}工作区</p>
+            <h2>
+              {sessionUser?.role === 'student' || !sessionUser
+                ? `${student.name}，当前处于${student.stage}阶段`
+                : `${sessionUser.name}，欢迎回来`}
+            </h2>
           </div>
           <div className="topbar-actions">
             <span className="role-pill">{roleLabel[sessionUser?.role ?? 'student']}</span>
@@ -1056,10 +1053,14 @@ rating: 4,
               source={overview.source}
               onRetry={() => window.location.reload()}
             />
-            <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
+            {sessionUser?.role === 'student' || !sessionUser ? (
+              <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
+            ) : null}
           </div>
         </header>
 
+        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
+        <>
         {/* Phase 3: Onboarding wizard for new users */}
         {showOnboarding ? (
           <OnboardingWizard onComplete={handleOnboardingComplete} />
@@ -1112,6 +1113,8 @@ rating: 4,
             </button>
           </section>
         ) : null}
+        </>
+        </RoleGate>
 
         <section className="panel role-panel">
           <div className="panel-heading">
@@ -1171,6 +1174,8 @@ rating: 4,
           ) : null}
         </section>
 
+        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
+        <>
         <section id="trial" className="panel trial-panel">
           <div className="panel-heading">
             <div>
@@ -1405,7 +1410,11 @@ rating: 4,
             </article>
           </div>
         </section>
+        </>
+        </RoleGate>
 
+        <RoleGate role={sessionUser?.role} allow={['admin']}>
+        <>
         <section id="admin" className="panel admin-panel">
           <div className="panel-heading">
             <div>
@@ -1563,7 +1572,11 @@ rating: 4,
             </article>
           </div>
         </section>
+        </>
+        </RoleGate>
 
+        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
+        <>
         <section id="wrong-book" className="panel">
           <div className="panel-heading">
             <div>
@@ -1881,8 +1894,11 @@ rating: 4,
             </div>
           </div>
         </section>
+        </>
+        </RoleGate>
 
-        <section className="panel teacher-panel">
+        <RoleGate role={sessionUser?.role} allow={['teacher', 'admin']}>
+        <section id="teacher" className="panel teacher-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">教师题库管理</p>
@@ -2059,7 +2075,9 @@ rating: 4,
             </div>
           ) : null}
         </section>
+        </RoleGate>
 
+        <RoleGate role={sessionUser?.role ?? 'student'} allow={['student']}>
         <section className="panel">
           <div className="panel-heading">
             <div>
@@ -2157,6 +2175,7 @@ rating: 4,
             />
           ) : null}
         </section>
+        </RoleGate>
       </section>
       {examOpen ? (
         <div className="exam-workspace-overlay">

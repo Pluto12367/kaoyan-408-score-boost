@@ -6,8 +6,11 @@
 
 ## 发布前必须完成
 
-- [ ] 运行 `npm test`，确认核心提分逻辑通过。
-- [ ] 本地启动 `npm start`。
+- [ ] 使用 `.env.staging.example` 创建未提交的 `.env.staging`，替换所有占位值。
+- [ ] 运行 `npm run validate:env -- --file .env.staging`，确认环境门禁通过。
+- [ ] 运行 `npm run check:release`，确认单元测试、前后端构建和迁移冒烟测试通过。
+- [ ] 运行 `npm run test:integration:postgres`，确认注册、诊断、练习、错题、退出重登和会话恢复通过。
+- [ ] 本地启动前端与 API，并确认 `/health` 返回 `source: postgresql`。
 - [ ] 运行 `npm run check:local`，确认页面能渲染并生成桌面/移动截图。
 - [ ] 检查首页能访问，地址栏显示 HTTPS。
 - [ ] 检查移动端可正常浏览，无明显横向滚动。
@@ -18,6 +21,17 @@
 
 ## 推荐部署方式
 
+### 可靠内测环境（推荐）
+
+1. 前端部署至 Vercel 或 Cloudflare Pages，设置 `VITE_API_BASE_URL=https://<api-domain>`。
+2. NestJS API 部署至 Railway，配置 `DATABASE_URL`、`JWT_SECRET`、`WEB_ORIGIN`、`ALLOW_DEMO_AUTH=false`。
+3. Railway PostgreSQL 启用每日自动备份，并在首次邀请前执行一次恢复演练。
+4. 前端域名、API 域名只使用 HTTPS；`WEB_ORIGIN` 精确填写前端域名，不使用 `*`。
+5. 用真实学生账号完成“注册 → 诊断 → 今日任务 → 做题 → 错题笔记 → 退出重登 → 恢复记录”。
+6. 将 API `/health` 和前端首页加入可用性监控，请求失败时记录响应中的 `x-request-id`。
+
+GitHub Pages 保留为无真实数据的公开演示站，不作为可靠内测环境。
+
 ### GitHub Pages
 
 1. 确认代码已推送到 GitHub 的 `codex/deployment-ready` 分支。
@@ -27,6 +41,8 @@
 5. 打开 `Actions` 页面，查看 `Deploy GitHub Pages` 是否运行成功。
 6. 发布成功后访问 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
 7. 如果页面正常，将该链接填入 `docs/invitation-message.md`。当前体验地址为 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
+
+> GitHub Pages 只托管静态前端。未配置公网 API 时会进入明确标注的静态演示模式，不能用于验证 PostgreSQL 持久化。
 
 ### Netlify
 

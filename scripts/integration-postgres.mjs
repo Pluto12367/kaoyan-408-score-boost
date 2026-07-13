@@ -38,7 +38,7 @@ async function main() {
   assert(registered.accessToken && registered.refreshToken, 'registration should issue access and refresh tokens');
   const loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(loggedIn.user.id === registered.user.id, 'password login should return the registered user');
-  const studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
+  let studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
   const initial = await waitForOverview(studentHeaders);
   assert(initial.source === 'postgresql', 'API should report the real PostgreSQL data source');
   const diagnostic = await postJson(`${apiUrl}/diagnostics/profile`, {
@@ -193,6 +193,9 @@ async function main() {
   await stop(activeApi);
   activeApi = startApi();
   await waitForHealth();
+  const reloggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
+  assert(reloggedIn.user.id === registered.user.id, 'student should log in again after an API restart');
+  studentHeaders = { Authorization: `Bearer ${reloggedIn.accessToken}` };
   const restored = await waitForOverview(studentHeaders, (data) =>
     data.practiceRecords?.some((record) => record.id === created.id)
       && data.wrongQuestions?.some((item) => item.questionId === 'q-001' && item.reviewStatus === 'reviewed')

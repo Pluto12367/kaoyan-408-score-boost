@@ -55,6 +55,9 @@ jobs:
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/kaoyan408_test?schema=public
 
+      - name: Build API
+        run: npm run build:api
+
       - name: Build web app
         run: npm run build:web
         env:
@@ -62,7 +65,7 @@ jobs:
 
   deploy:
     needs: test
-    if: success() || github.event_name == 'workflow_dispatch'
+    if: success()
     runs-on: ubuntu-latest
     environment:
       name: github-pages
