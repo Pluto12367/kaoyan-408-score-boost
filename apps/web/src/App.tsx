@@ -20,6 +20,7 @@ import { StudentProgressOverview } from './features/dashboard/StudentProgressOve
 import { LearningProfilePanel } from './features/report/LearningProfilePanel';
 import { FeedbackPanel } from './features/feedback/FeedbackPanel';
 import { useStudentProgressData } from './hooks/useStudentProgressData';
+import { useStudentLearningData } from './hooks/useStudentLearningData';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -29,7 +30,6 @@ import {
   createKnowledgePoint,
   createTeacherQuestion,
   deleteTeacherQuestion,
-  createMockAssessmentHistory,
   createMockAdminUserManagement,
   createMockAdminMetrics,
   createMockAiFollowUp,
@@ -37,25 +37,18 @@ import {
   createMockGeneratedPaper,
   createMockOverview,
   createMockPaperSubmitResult,
-  createMockPracticeSet,
-  createMockReviewResourceRecommendations,
   createMockReviewQueue,
   createMockSystemConfig,
   createMockTeacherClassAnalytics,
-  createMockWrongQuestionSummary,
   fetchAdminMetrics,
   fetchAdminUsers,
-  fetchAssessmentHistory,
   fetchDashboardOverview,
   fetchFeedbackList,
   fetchQuestions,
-  fetchRecommendedPracticeSet,
-  fetchReviewResourceRecommendations,
   fetchReviewQueue,
   fetchStageAssessment,
   fetchSystemConfig,
   fetchTeacherClassAnalytics,
-  fetchWrongQuestionSummary,
   generatePaper,
   markReviewItemNeedsRecheck,
   requestAiFollowUp,
@@ -73,22 +66,18 @@ import {
   isStaticDemoMode,
   type AdminMetrics,
   type AdminUserManagement,
-  type AssessmentHistory,
   type AiFollowUp,
   type DashboardOverview,
   type GeneratedPaper,
   type FeedbackList,
   type PaperSubmitResult,
-  type PracticeSet,
   type PracticeSetResult,
-  type ReviewResourceRecommendation,
   type ReviewQueue,
   type StageAssessmentResult,
   type SystemConfig,
   type TaskCompletionAdjustment,
   type TeacherClassAnalytics,
   type TutorReply,
-  type WrongQuestionSummary,
 } from './api';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
 import { useAuth } from './hooks/useAuth';
@@ -133,21 +122,17 @@ export function App() {
   const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
   const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
-  const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => createMockPaperSubmitResult());
+  const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => isMockAllowed() ? createMockPaperSubmitResult() : null);
   const [paperSession, setPaperSession] = useState<PaperSubmitResult['examSession'] | null>(null);
   const [examOpen, setExamOpen] = useState(false);
   const [examReportSessionId, setExamReportSessionId] = useState<string | null>(null);
   const [resumedExamSession, setResumedExamSession] = useState<SessionView | null>(null);
-  const [assessmentHistory, setAssessmentHistory] = useState<AssessmentHistory>(() => createMockAssessmentHistory());
   const [teacherQuestionList, setTeacherQuestionList] = useState(() => createMockOverview().questions);
-  const [practiceSet, setPracticeSet] = useState<PracticeSet>(() => createMockPracticeSet());
-  const [reviewResources, setReviewResources] = useState<ReviewResourceRecommendation>(() => createMockReviewResourceRecommendations());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
   const [feedbackList, setFeedbackList] = useState<FeedbackList>(() => createMockFeedbackList());
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
   const [userStatus, setUserStatus] = useState('管理员可以跟踪试用名单状态，方便后续邀请填写问卷。');
-  const [wrongQuestionSummary, setWrongQuestionSummary] = useState<WrongQuestionSummary>(() => createMockWrongQuestionSummary());
   const studentProgress = useStudentProgressData(
     sessionUser?.id ?? overview.student.id,
     !sessionUser || sessionUser.role === 'student',
@@ -159,19 +144,23 @@ export function App() {
     refreshMasteryMap,
     refreshLearningProfile,
   } = studentProgress;
+  const studentLearning = useStudentLearningData(!sessionUser || sessionUser.role === 'student');
+  const {
+    refreshPracticeSet,
+    refreshReviewResources,
+    refreshWrongQuestionSummary,
+    refreshAssessmentHistory,
+    updateAssessmentHistory,
+  } = studentLearning;
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchRecommendedPracticeSet(), fetchReviewResourceRecommendations(), fetchWrongQuestionSummary(), fetchAssessmentHistory()])
-      .then(([data, recommendedSet, resources, wrongSummary, history]) => {
+    fetchDashboardOverview()
+      .then((data) => {
         if (!active) return;
         setOverview(data);
         setTeacherQuestionList(data.questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
-        setPracticeSet(recommendedSet);
-        setReviewResources(resources);
-        setWrongQuestionSummary(wrongSummary);
-        setAssessmentHistory(history);
         setSessionUser((current) => current ?? data.student);
         setApiState('connected');
         setLastSyncAt(new Date().toISOString());
@@ -180,10 +169,6 @@ export function App() {
         if (!active) return;
         if (isMockAllowed()) {
           setOverview(createMockOverview());
-          setPracticeSet(createMockPracticeSet());
-          setReviewResources(createMockReviewResourceRecommendations());
-          setWrongQuestionSummary(createMockWrongQuestionSummary());
-          setAssessmentHistory(createMockAssessmentHistory());
           setApiState('mock');
         } else {
           setApiState('error');
@@ -279,18 +264,8 @@ export function App() {
   const activeExamQuestions = questions.filter((question) => activeExamQuestionIds.includes(question.id));
   const currentQuestion = questions[0];
 
-  async function refreshWrongQuestionSummary() {
-    const nextWrongQuestionSummary = await fetchWrongQuestionSummary();
-    setWrongQuestionSummary(nextWrongQuestionSummary);
-  }
-
-  async function refreshAssessmentHistory() {
-    const nextAssessmentHistory = await fetchAssessmentHistory();
-    setAssessmentHistory(nextAssessmentHistory);
-  }
-
   function addMockPaperResultToHistory(result: PaperSubmitResult, paper: GeneratedPaper) {
-    setAssessmentHistory((current) => {
+    updateAssessmentHistory((current) => {
       const nextItem = {
         id: `assessment-history-static-${Date.now()}`,
         paperId: paper.id,
@@ -399,6 +374,11 @@ export function App() {
 
   async function handleSubmitPracticeSet() {
     setPracticeStatus('正在提交推荐题组...');
+    const practiceSet = studentLearning.practiceSet.data;
+    if (!practiceSet) {
+      setPracticeStatus('推荐题组尚未加载，请先重新加载本模块。');
+      return;
+    }
 
     try {
       const result = await submitPracticeSet({
@@ -410,9 +390,8 @@ practiceSetId: practiceSet.id,
         })),
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextPracticeSet = await fetchRecommendedPracticeSet();
       setOverview(nextOverview);
-      setPracticeSet(nextPracticeSet);
+      await refreshPracticeSet();
       await refreshLearningProfile();
       setPracticeSetResult(result);
       setApiState('connected');
@@ -770,6 +749,11 @@ answers: stageAssessment.questions.map((question, index) => ({
       setApiState('connected');
       setPaperStatus(`已生成 ${paper.title}，共 ${paper.questionCount} 题，预计 ${paper.estimatedMinutes} 分钟。`);
     } catch {
+      if (!isMockAllowed()) {
+        setPaperStatus('试卷生成失败，请检查 API 连接后重试。');
+        setApiState('error');
+        return;
+      }
       const mockPaper = createMockGeneratedPaper({
         title: '存储系统专项卷',
         paperType: '专项卷',
@@ -846,6 +830,11 @@ paperId: paper.id,
       setApiState('connected');
       setPaperStatus(`试卷已提交：${result.score} 分，正确率 ${result.accuracyRate}%，已同步 ${result.syncedPracticeRecordCount} 条练习记录。`);
     } catch {
+      if (!isMockAllowed()) {
+        setPaperStatus('试卷提交失败，未生成任何演示成绩，请稍后重试。');
+        setApiState('error');
+        return;
+      }
       const mockResult = createMockPaperSubmitResult(paper, student.id);
       setPaperResult(mockResult);
       setPaperSession(mockResult?.examSession ?? null);
@@ -1172,18 +1161,19 @@ rating: 4,
         <section className="two-column">
           <PracticePanel
             question={currentQuestion}
-            practiceSet={practiceSet}
+            practiceSet={studentLearning.practiceSet}
             practiceSetResult={practiceSetResult}
             redoQuestionId={redoQuestionId}
             status={practiceStatus}
             onSubmitAnswer={handleSubmitAnswer}
             onSubmitPracticeSet={handleSubmitPracticeSet}
+            onRetryPracticeSet={refreshPracticeSet}
           />
           <WeaknessReportPanel report={report} />
         </section>
 
-        <ReviewResourcesPanel resources={reviewResources} />
-        <AssessmentHistoryPanel history={assessmentHistory} />
+        <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} />
+        <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} />
         <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
         </>
         </StudentLayout>
@@ -1214,12 +1204,13 @@ rating: 4,
         <StudentLayout role={sessionUser?.role}>
           <MistakeWorkspace
             wrongQuestions={wrongQuestions}
-            summary={wrongQuestionSummary}
+            summary={studentLearning.wrongQuestionSummary}
             status={wrongStatus}
             detailQuestionId={detailQuestionId}
             onOpenDetail={setDetailQuestionId}
             onCloseDetail={() => setDetailQuestionId(null)}
             onReview={handleReviewWrongQuestion}
+            onRetrySummary={refreshWrongQuestionSummary}
             onRedo={(questionId, knowledgePointTitle) => {
               setRedoQuestionId(questionId);
               setDetailQuestionId(null);

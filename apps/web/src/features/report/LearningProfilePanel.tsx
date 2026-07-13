@@ -1,6 +1,6 @@
 import type { LearningProfile } from '../../api';
 import { ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
-import type { ModuleResource } from '../../hooks/useStudentProgressData';
+import type { ModuleResource } from '../../hooks/moduleResource';
 
 export function LearningProfilePanel({ profile, onRetry }: { profile: ModuleResource<LearningProfile>; onRetry: () => void }) {
   if (!profile.data) return <ModuleUnavailable title="学习档案" resource={profile} onRetry={onRetry} />;

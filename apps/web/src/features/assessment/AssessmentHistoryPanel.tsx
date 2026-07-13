@@ -1,21 +1,26 @@
 import type { AssessmentHistory } from '../../api';
+import { ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
+import type { ModuleResource } from '../../hooks/moduleResource';
 
-export function AssessmentHistoryPanel({ history }: { history: AssessmentHistory }) {
+export function AssessmentHistoryPanel({ history, onRetry }: { history: ModuleResource<AssessmentHistory>; onRetry: () => void }) {
+  if (!history.data) return <ModuleUnavailable id="assessment-history" title="测评历史" resource={history} onRetry={onRetry} />;
+  const data = history.data;
   return (
     <section id="assessment-history" className="panel assessment-history-panel">
       <div className="panel-heading">
         <div><p className="eyebrow">测评历史</p><h3>最近测评与复盘建议</h3></div>
-        <span>{history.summary.improvementText}</span>
+        <span>{data.summary.improvementText}</span>
       </div>
+      <ModuleResourceMeta resource={history} onRetry={onRetry} />
       <div className="assessment-history-summary">
-        <article><strong>{history.summary.attemptCount}</strong><span>最近测评</span></article>
-        <article><strong>{history.summary.bestScore}</strong><span>最高得分</span></article>
-        <article><strong>{history.summary.latestAccuracyRate}%</strong><span>最近正确率</span></article>
-        <article><strong>{history.items[0]?.unansweredCount ?? 0}</strong><span>最近未答</span></article>
+        <article><strong>{data.summary.attemptCount}</strong><span>最近测评</span></article>
+        <article><strong>{data.summary.bestScore}</strong><span>最高得分</span></article>
+        <article><strong>{data.summary.latestAccuracyRate}%</strong><span>最近正确率</span></article>
+        <article><strong>{data.items[0]?.unansweredCount ?? 0}</strong><span>最近未答</span></article>
       </div>
-      {history.items.length ? (
+      {data.items.length ? (
         <div className="assessment-history-list">
-          {history.items.slice(0, 4).map((item, index) => (
+          {data.items.slice(0, 4).map((item, index) => (
             <article key={item.id} className={index === 0 ? 'latest' : ''}>
               <div><strong>{item.title}</strong><span>{new Date(item.submittedAt).toLocaleDateString('zh-CN')} · 用时 {Math.round(item.elapsedSec / 60)} 分钟 · 未答 {item.unansweredCount} 题</span></div>
               <div className="assessment-score"><strong>{item.score}/{item.totalScore}</strong><span>正确率 {item.accuracyRate}%</span></div>

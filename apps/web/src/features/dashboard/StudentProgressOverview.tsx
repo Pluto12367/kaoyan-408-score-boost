@@ -2,7 +2,7 @@ import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { MasteryMap, SprintPlan, StudyReminders, TrialProgress } from '../../api';
 import { masteryStatusLabel, priorityLabel } from '../../constants';
 import { ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
-import type { ModuleResource } from '../../hooks/useStudentProgressData';
+import type { ModuleResource } from '../../hooks/moduleResource';
 
 interface StudentProgressOverviewProps {
   trialProgress: ModuleResource<TrialProgress>;

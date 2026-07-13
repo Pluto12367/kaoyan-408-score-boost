@@ -1,18 +1,22 @@
 import type { WrongQuestion, WrongQuestionSummary } from '../../api';
 import { WrongQuestionDetailView } from '../../components/WrongQuestionDetail';
+import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
+import type { ModuleResource } from '../../hooks/moduleResource';
 
 interface MistakeWorkspaceProps {
   wrongQuestions: WrongQuestion[];
-  summary: WrongQuestionSummary;
+  summary: ModuleResource<WrongQuestionSummary>;
   status: string;
   detailQuestionId: string | null;
   onOpenDetail: (questionId: string) => void;
   onCloseDetail: () => void;
   onReview: (questionId: string) => void;
   onRedo: (questionId: string, knowledgePointTitle?: string) => void;
+  onRetrySummary: () => void;
 }
 
-export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo }: MistakeWorkspaceProps) {
+export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onRetrySummary }: MistakeWorkspaceProps) {
+  const summaryData = summary.data;
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -20,22 +24,25 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
         <span>{wrongQuestions.length} 道待复盘</span>
       </div>
       <p className="task-status">{status}</p>
+      {summaryData ? <ModuleResourceMeta resource={summary} onRetry={onRetrySummary} /> : null}
+      {summaryData ? <>
       <div className="wrong-summary-grid">
-        <article><strong>{summary.pendingCount}</strong><span>待复盘</span></article>
-        <article><strong>{summary.reviewedCount}</strong><span>已复盘</span></article>
-        <article><strong>{summary.resolvedCount}</strong><span>重做解决</span></article>
-        <article><strong>{summary.totalWrongCount}</strong><span>当前错题</span></article>
+        <article><strong>{summaryData.pendingCount}</strong><span>待复盘</span></article>
+        <article><strong>{summaryData.reviewedCount}</strong><span>已复盘</span></article>
+        <article><strong>{summaryData.resolvedCount}</strong><span>重做解决</span></article>
+        <article><strong>{summaryData.totalWrongCount}</strong><span>当前错题</span></article>
       </div>
       <div className="wrong-loop-panel">
-        <article><strong>高频错因</strong><div className="mistake-stat-list">{summary.mistakeReasonStats.map((item) => <span key={item.reason}>{item.reason} · {item.count}</span>)}</div></article>
+        <article><strong>高频错因</strong><div className="mistake-stat-list">{summaryData.mistakeReasonStats.map((item) => <span key={item.reason}>{item.reason} · {item.count}</span>)}</div></article>
         <article>
           <strong>优先重做</strong>
-          {summary.priorityRedoItems[0]
-            ? <p>{summary.priorityRedoItems[0].knowledgePointTitle} · 错 {summary.priorityRedoItems[0].wrongCount} 次 · {summary.priorityRedoItems[0].nextAction}</p>
+          {summaryData.priorityRedoItems[0]
+            ? <p>{summaryData.priorityRedoItems[0].knowledgePointTitle} · 错 {summaryData.priorityRedoItems[0].wrongCount} 次 · {summaryData.priorityRedoItems[0].nextAction}</p>
             : <p>当前没有待重做错题，可以进入限时训练。</p>}
         </article>
-        <article><strong>闭环建议</strong><ul>{summary.nextReviewActions.map((action) => <li key={action}>{action}</li>)}</ul></article>
+        <article><strong>闭环建议</strong><ul>{summaryData.nextReviewActions.map((action) => <li key={action}>{action}</li>)}</ul></article>
       </div>
+      </> : <ModuleInlineUnavailable title="错题摘要" resource={summary} onRetry={onRetrySummary} />}
       <div className="wrong-list">
         {wrongQuestions.map((item) => (
           <article key={item.questionId} className="wrong-row">

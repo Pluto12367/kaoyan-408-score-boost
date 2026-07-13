@@ -17,15 +17,7 @@ import {
   type TrialProgress,
 } from '../api';
 import { isMockAllowed, isStaticDemoMode } from '../api/env';
-
-export type ModuleLoadState = 'loading' | 'ready' | 'mock' | 'error';
-
-export interface ModuleResource<T> {
-  data: T | null;
-  state: ModuleLoadState;
-  lastSyncAt?: string;
-  error?: string;
-}
+import type { ModuleResource } from './moduleResource';
 
 function initialResource<T>(mockFactory: () => T): ModuleResource<T> {
   if (isStaticDemoMode()) {

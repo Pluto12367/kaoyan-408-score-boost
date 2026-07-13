@@ -1,5 +1,5 @@
 import { AlertCircle, Database, LoaderCircle, RefreshCw, Wifi } from 'lucide-react';
-import type { ModuleResource } from '../hooks/useStudentProgressData';
+import type { ModuleResource } from '../hooks/moduleResource';
 
 export function ModuleResourceMeta<T>({ resource, onRetry }: { resource: ModuleResource<T>; onRetry: () => void }) {
   const syncedAt = resource.lastSyncAt
@@ -53,5 +53,31 @@ export function ModuleUnavailable<T>({
         </button>
       ) : null}
     </section>
+  );
+}
+
+export function ModuleInlineUnavailable<T>({
+  title,
+  resource,
+  onRetry,
+}: {
+  title: string;
+  resource: ModuleResource<T>;
+  onRetry: () => void;
+}) {
+  const loading = resource.state === 'loading';
+  return (
+    <div className="module-inline-unavailable">
+      {loading ? <LoaderCircle size={18} className="spin" /> : <AlertCircle size={18} />}
+      <div>
+        <strong>{loading ? `正在加载${title}` : `${title}暂时不可用`}</strong>
+        <p>{loading ? '不影响当前模块的其他功能。' : resource.error ?? '请稍后重新加载。'}</p>
+      </div>
+      {!loading ? (
+        <button type="button" className="icon-action" onClick={onRetry} title="重新加载" aria-label={`重新加载${title}`}>
+          <RefreshCw size={15} />
+        </button>
+      ) : null}
+    </div>
   );
 }
