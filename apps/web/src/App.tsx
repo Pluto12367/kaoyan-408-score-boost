@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Brain, ClipboardCheck, Target } from 'lucide-react';
+import { Brain, ClipboardCheck } from 'lucide-react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
-import { OnboardingWizard } from './components/OnboardingWizard';
-import { TodayPlan } from './components/TodayPlan';
 import { WrongQuestionDetailView } from './components/WrongQuestionDetail';
 import { ExamSession } from './components/ExamSession';
 import { ExamReportView } from './components/ExamReport';
-import { ResumeSessionBanner } from './components/ResumeSessionBanner';
 import { RoleNavigation } from './layouts/RoleNavigation';
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
 import { AdminWorkspace } from './features/admin/AdminWorkspace';
 import { TeacherWorkspace } from './features/teacher/TeacherWorkspace';
+import { StudentLaunchpad } from './features/onboarding/StudentLaunchpad';
+import { DiagnosticSummary } from './features/diagnostic/DiagnosticSummary';
+import { StudyPlanOverview } from './features/plan/StudyPlanOverview';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -1059,60 +1059,28 @@ rating: 4,
         </header>
 
         <StudentLayout role={sessionUser?.role}>
-        <>
-        {/* Phase 3: Onboarding wizard for new users */}
-        {showOnboarding ? (
-          <OnboardingWizard onComplete={handleOnboardingComplete} />
-        ) : null}
-
-        {/* Phase 3: Today's Learning Plan */}
-        {!showOnboarding && todayPlan ? (
-          <TodayPlan
-            plan={todayPlan}
-            onRefresh={refreshTodayPlan}
+          <StudentLaunchpad
+            showOnboarding={showOnboarding}
+            todayPlan={todayPlan}
+            latestPaper={latestPaper}
+            examQuestionCount={examQuestions.length}
+            onOnboardingComplete={handleOnboardingComplete}
+            onRefreshTodayPlan={refreshTodayPlan}
             onOpenReview={(questionId) => {
               setDetailQuestionId(questionId);
               window.setTimeout(() => document.getElementById('wrong-question-detail')?.scrollIntoView({ behavior: 'smooth' }), 0);
             }}
-          />
-        ) : null}
-
-        {!showOnboarding ? (
-          <ResumeSessionBanner
-            allowedTypes={['paper']}
-            onResume={(session) => {
+            onResumeExam={(session) => {
               setResumedExamSession(session);
               setExamReportSessionId(null);
               setExamOpen(true);
             }}
+            onStartExam={() => {
+              setResumedExamSession(null);
+              setExamReportSessionId(null);
+              setExamOpen(true);
+            }}
           />
-        ) : null}
-
-        {!showOnboarding ? (
-          <section className="panel exam-entry-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="eyebrow">408 模拟考试</p>
-                <h3>{latestPaper?.title ?? '当前题库模拟卷'}</h3>
-              </div>
-              <span>{examQuestions.length} 题 · 180 分钟</span>
-            </div>
-            <p>支持答题卡、题目标记、自动保存、断点恢复和未答题检查。</p>
-            <button
-              type="button"
-              className="primary-action"
-              disabled={examQuestions.length === 0}
-              onClick={() => {
-                setResumedExamSession(null);
-                setExamReportSessionId(null);
-                setExamOpen(true);
-              }}
-            >
-              <ClipboardCheck size={18} /> 开始模拟考试
-            </button>
-          </section>
-        ) : null}
-        </>
         </StudentLayout>
 
         <section className="panel role-panel">
@@ -1379,36 +1347,7 @@ rating: 4,
           {feedbackList.items[0] ? <p className="feedback-note">{feedbackList.items[0].message}</p> : null}
         </section>
 
-        <section className="panel diagnostic-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">入学诊断</p>
-              <h3>根据目标和基础生成阶段计划</h3>
-            </div>
-            <button type="button" className="secondary-action" onClick={handleSubmitDiagnostic}>
-              <Target size={18} /> 提交演示诊断
-            </button>
-          </div>
-          <p className="task-status">{diagnosticStatus}</p>
-          <div className="diagnostic-grid">
-            <article>
-              <strong>{student.currentScore ?? 0}</strong>
-              <span>当前估分</span>
-            </article>
-            <article>
-              <strong>{student.targetScore ?? 0}</strong>
-              <span>目标分</span>
-            </article>
-            <article>
-              <strong>{student.weakestSubject ?? '待诊断'}</strong>
-              <span>最弱科目</span>
-            </article>
-            <article>
-              <strong>{plan.phase}</strong>
-              <span>当前计划阶段</span>
-            </article>
-          </div>
-        </section>
+        <DiagnosticSummary student={student} plan={plan} status={diagnosticStatus} onSubmit={handleSubmitDiagnostic} />
         </>
         </StudentLayout>
 
@@ -1496,51 +1435,13 @@ rating: 4,
           ) : null}
         </section>
 
-        <section id="plan" className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">{plan.phase}</p>
-              <h3>今日推荐任务</h3>
-            </div>
-            <span>{plan.completedTaskCount ?? 0}/{plan.totalTaskCount ?? plan.dailyTasks.length} 已完成 · {plan.completionRate ?? 0}%</span>
-          </div>
-          <p className="task-status">{taskStatus} {assessmentStatus}</p>
-          {taskAdjustment ? (
-            <div className={`task-adjustment intensity-${taskAdjustment.intensity}`}>
-              <div>
-                <strong>{taskAdjustment.focusTitle}</strong>
-                <span>完成正确率 {taskAdjustment.accuracyRate}% · 明日 {taskAdjustment.tomorrowQuestionTarget} 题 · 复盘 {taskAdjustment.reviewTarget} 题</span>
-              </div>
-              <ul>
-                {taskAdjustment.reasons.map((reason) => (
-                  <li key={reason}>{reason}</li>
-                ))}
-              </ul>
-              <p>{taskAdjustment.nextActions.join(' ')}</p>
-            </div>
-          ) : null}
-          <div className="task-list">
-            {plan.dailyTasks.map((task) => (
-              <article key={task.id} className={`task-row ${task.completed ? 'completed' : ''}`}>
-                <div>
-                  <strong>{task.title}</strong>
-                  <p>{task.subject} / {task.chapter} / {task.mode}</p>
-                  <div className="task-reason">
-                    <span className={`priority priority-${task.priority}`}>{task.priority}优先级</span>
-                    <span>{task.reason}</span>
-                  </div>
-                  <small>{task.nextAction}</small>
-                </div>
-                <div className="task-actions">
-                  <span>{task.minutes} 分钟 · {task.questionCount} 题</span>
-                  <button type="button" disabled={task.completed} onClick={() => handleCompleteTask(task.id)}>
-                    {task.completed ? '已完成' : '完成'}
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+        <StudyPlanOverview
+          plan={plan}
+          taskAdjustment={taskAdjustment}
+          taskStatus={taskStatus}
+          assessmentStatus={assessmentStatus}
+          onCompleteTask={handleCompleteTask}
+        />
 
         <section className="two-column">
           <article id="question" className="panel">
