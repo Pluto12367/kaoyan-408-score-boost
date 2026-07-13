@@ -118,13 +118,19 @@ async function main() {
   await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: refreshed.refreshToken }, 401);
 
   const created = await postJson(`${apiUrl}/practice-records`, {
-    userId: registered.user.id,
     questionId: 'q-001',
     knowledgePointId: 'co-cache',
     selectedAnswer: 'integration-test-wrong-answer',
     timeSpentSec: 137,
   }, studentHeaders);
-  assert(created.id && created.correct === false, 'practice submission should be persisted');
+  assert(created.id && created.correct === false && created.userId === registered.user.id, 'practice submission without userId should use the authenticated student');
+  await expectPostStatus(`${apiUrl}/practice-records`, {
+    userId: 'u-001',
+    questionId: 'q-002',
+    knowledgePointId: 'net-tcp',
+    selectedAnswer: 'A',
+    timeSpentSec: 88,
+  }, 403, studentHeaders);
 
   const reviewed = await postJson(`${apiUrl}/wrong-questions/q-001/review`, { userId: registered.user.id }, studentHeaders);
   assert(reviewed.reviewStatus === 'reviewed' && reviewed.reviewedAt, 'wrong-question review should be persisted');

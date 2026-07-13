@@ -1,8 +1,9 @@
 import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreatePracticeRecordDto {
+  @IsOptional()
   @IsString()
-  userId!: string;
+  userId?: string;
 
   @IsString()
   questionId!: string;

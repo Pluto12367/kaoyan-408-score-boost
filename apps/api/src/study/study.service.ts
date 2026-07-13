@@ -1644,7 +1644,7 @@ export class StudyService implements OnModuleInit {
     return result;
   }
 
-  async createPracticeRecord(input: CreatePracticeRecordDto) {
+  async createPracticeRecord(input: CreatePracticeRecordDto & { userId: string }) {
     const question = this.questions.find((item) => item.id === input.questionId);
     if (!question) {
       throw new BadRequestException(`Question ${input.questionId} was not found`);

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Brain, ClipboardCheck } from 'lucide-react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
-import { WrongQuestionDetailView } from './components/WrongQuestionDetail';
 import { ExamSession } from './components/ExamSession';
 import { ExamReportView } from './components/ExamReport';
 import { RoleNavigation } from './layouts/RoleNavigation';
@@ -11,6 +10,9 @@ import { TeacherWorkspace } from './features/teacher/TeacherWorkspace';
 import { StudentLaunchpad } from './features/onboarding/StudentLaunchpad';
 import { DiagnosticSummary } from './features/diagnostic/DiagnosticSummary';
 import { StudyPlanOverview } from './features/plan/StudyPlanOverview';
+import { PracticePanel } from './features/practice/PracticePanel';
+import { WeaknessReportPanel } from './features/report/WeaknessReportPanel';
+import { MistakeWorkspace } from './features/mistakes/MistakeWorkspace';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -1444,49 +1446,16 @@ rating: 4,
         />
 
         <section className="two-column">
-          <article id="question" className="panel">
-            <p className="eyebrow">题库训练</p>
-            <h3>{currentQuestion.stem}</h3>
-            <div className="options">
-              {currentQuestion.options.map((option, index) => (
-                <button key={option} type="button" onClick={() => handleSubmitAnswer(String.fromCharCode(65 + index))}>
-                  {String.fromCharCode(65 + index)}. {option}
-                </button>
-              ))}
-            </div>
-            {redoQuestionId === currentQuestion.id ? <p className="redo-badge">错题重做模式</p> : null}
-            <p className="practice-status">{practiceStatus}</p>
-            <div className="practice-set">
-              <strong>{practiceSet.title}</strong>
-              <p>{practiceSet.focus} · 预计 {practiceSet.estimatedMinutes} 分钟</p>
-              <span>{practiceSet.reason}</span>
-              <ol>
-                {practiceSet.questions.slice(0, 3).map((question) => (
-                  <li key={question.id}>{question.stem}</li>
-                ))}
-              </ol>
-              <button type="button" className="secondary-action" onClick={handleSubmitPracticeSet}>
-                提交演示题组
-              </button>
-              {practiceSetResult ? (
-                <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p>
-              ) : null}
-            </div>
-            <p className="muted">答案解析会由标准解析优先提供，AI 只负责补充讲解和相似题推荐。</p>
-          </article>
-
-          <article id="report" className="panel">
-            <p className="eyebrow">提分报告</p>
-            <h3>{report.summary}</h3>
-            <div className="weak-list">
-              {report.weakPoints.map((point) => (
-                <div key={point.knowledgePointId}>
-                  <strong>{point.title}</strong>
-                  <span>{point.topReason ?? '待诊断'} · {point.suggestion}</span>
-                </div>
-              ))}
-            </div>
-          </article>
+          <PracticePanel
+            question={currentQuestion}
+            practiceSet={practiceSet}
+            practiceSetResult={practiceSetResult}
+            redoQuestionId={redoQuestionId}
+            status={practiceStatus}
+            onSubmitAnswer={handleSubmitAnswer}
+            onSubmitPracticeSet={handleSubmitPracticeSet}
+          />
+          <WeaknessReportPanel report={report} />
         </section>
 
         <section id="review-resources" className="panel review-resources-panel">
@@ -1676,103 +1645,21 @@ rating: 4,
         </TeacherLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">错题本</p>
-              <h3>自动收集需要回炉的题目</h3>
-            </div>
-            <span>{wrongQuestions.length} 道待复盘</span>
-          </div>
-          <p className="task-status">{wrongStatus}</p>
-          <div className="wrong-summary-grid">
-            <article>
-              <strong>{wrongQuestionSummary.pendingCount}</strong>
-              <span>待复盘</span>
-            </article>
-            <article>
-              <strong>{wrongQuestionSummary.reviewedCount}</strong>
-              <span>已复盘</span>
-            </article>
-            <article>
-              <strong>{wrongQuestionSummary.resolvedCount}</strong>
-              <span>重做解决</span>
-            </article>
-            <article>
-              <strong>{wrongQuestionSummary.totalWrongCount}</strong>
-              <span>当前错题</span>
-            </article>
-          </div>
-          <div className="wrong-loop-panel">
-            <article>
-              <strong>高频错因</strong>
-              <div className="mistake-stat-list">
-                {wrongQuestionSummary.mistakeReasonStats.map((item) => (
-                  <span key={item.reason}>{item.reason} · {item.count}</span>
-                ))}
-              </div>
-            </article>
-            <article>
-              <strong>优先重做</strong>
-              {wrongQuestionSummary.priorityRedoItems[0] ? (
-                <p>{wrongQuestionSummary.priorityRedoItems[0].knowledgePointTitle} · 错 {wrongQuestionSummary.priorityRedoItems[0].wrongCount} 次 · {wrongQuestionSummary.priorityRedoItems[0].nextAction}</p>
-              ) : (
-                <p>当前没有待重做错题，可以进入限时训练。</p>
-              )}
-            </article>
-            <article>
-              <strong>闭环建议</strong>
-              <ul>
-                {wrongQuestionSummary.nextReviewActions.map((action) => (
-                  <li key={action}>{action}</li>
-                ))}
-              </ul>
-            </article>
-          </div>
-          <div className="wrong-list">
-            {wrongQuestions.map((item) => (
-              <article key={item.questionId} className="wrong-row">
-                <div>
-                  <strong>{item.knowledgePointTitle}</strong>
-                  <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}</p>
-                  <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}</small>
-                  <span>{item.stem}</span>
-                </div>
-                <button type="button" onClick={() => setDetailQuestionId(item.questionId)}>
-                  详情与笔记
-                </button>
-                <button
-                  type="button"
-                  disabled={item.reviewStatus === 'reviewed'}
-                  onClick={() => handleReviewWrongQuestion(item.questionId)}
-                >
-                  {item.reviewStatus === 'reviewed' ? '已复盘' : '标记复盘'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRedoQuestionId(item.questionId);
-                    setPracticeStatus(`正在重做：${item.knowledgePointTitle}。请选择答案。`);
-                    document.getElementById('question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }}
-                >
-                  重做
-                </button>
-              </article>
-            ))}
-          </div>
-          {detailQuestionId ? (
-            <WrongQuestionDetailView
-              questionId={detailQuestionId}
-              onClose={() => setDetailQuestionId(null)}
-              onRedo={(questionId) => {
-                setRedoQuestionId(questionId);
-                setDetailQuestionId(null);
-                document.getElementById('question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }}
-            />
-          ) : null}
-        </section>
+          <MistakeWorkspace
+            wrongQuestions={wrongQuestions}
+            summary={wrongQuestionSummary}
+            status={wrongStatus}
+            detailQuestionId={detailQuestionId}
+            onOpenDetail={setDetailQuestionId}
+            onCloseDetail={() => setDetailQuestionId(null)}
+            onReview={handleReviewWrongQuestion}
+            onRedo={(questionId, knowledgePointTitle) => {
+              setRedoQuestionId(questionId);
+              setDetailQuestionId(null);
+              if (knowledgePointTitle) setPracticeStatus(`正在重做：${knowledgePointTitle}。请选择答案。`);
+              document.getElementById('question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }}
+          />
         </StudentLayout>
       </section>
       {examOpen ? (

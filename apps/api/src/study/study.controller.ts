@@ -211,8 +211,8 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Body() input: CreatePracticeRecordDto,
   ) {
-    this.assertAccess(user, input.userId);
-    return this.studyService.createPracticeRecord(input);
+    if (input.userId) this.assertAccess(user, input.userId);
+    return this.studyService.createPracticeRecord({ ...input, userId: user.id });
   }
 
   @Post('study-tasks/:taskId/complete')
