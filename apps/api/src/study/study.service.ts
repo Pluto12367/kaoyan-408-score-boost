@@ -17,6 +17,9 @@ import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
 import { PracticeRecordRepository } from './practice-record.repository';
 import { LearningProgressRepository } from './learning-progress.repository';
+import { LearningSessionRepository } from './learning-session.repository';
+import { LearningProfileRepository } from './learning-profile.repository';
+import { RuntimeStateRepository } from './runtime-state.repository';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -24,6 +27,9 @@ export class StudyService implements OnModuleInit {
     private readonly questionsService: QuestionsService,
     private readonly practiceRecordRepository: PracticeRecordRepository,
     private readonly learningProgressRepository: LearningProgressRepository,
+    private readonly learningSessionRepository: LearningSessionRepository,
+    private readonly learningProfileRepository: LearningProfileRepository,
+    private readonly runtimeStateRepository: RuntimeStateRepository,
   ) {}
 
   private readonly student: UserProfile = {
@@ -39,7 +45,7 @@ export class StudyService implements OnModuleInit {
     weakestSubject: '计算机组成原理',
   };
 
-  private diagnosticProfile: DiagnosticProfile | null = null;
+  private readonly diagnosticProfilesByUser = new Map<string, DiagnosticProfile>();
 
   private readonly knowledgePoints: KnowledgePoint[] = [
     { id: 'ds-tree', subject: '数据结构', chapter: '树与二叉树', title: '树的遍历应用', importance: 5, frequency: 5, prerequisites: ['线性表'] },
@@ -69,6 +75,20 @@ export class StudyService implements OnModuleInit {
     const progress = await this.learningProgressRepository.load();
     replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
     replaceNestedMap(this.wrongQuestionReviewDatesByUser, progress.wrongQuestionReviews);
+    const sessions = await this.learningSessionRepository.loadAll();
+    this.practiceSessions.clear();
+    for (const session of sessions) this.practiceSessions.set(session.id, session);
+    const profiles = await this.learningProfileRepository.load();
+    this.diagnosticProfilesByUser.clear();
+    for (const [userId, profile] of profiles) this.diagnosticProfilesByUser.set(userId, profile);
+    const runtimeState = await this.runtimeStateRepository.loadAll();
+    replaceArrayFromState(this.papers, runtimeState.get('papers'));
+    replaceArrayFromState(this.assessmentHistoryItems, runtimeState.get('assessmentHistoryItems'));
+    replaceArrayFromState(this.feedbackItems, runtimeState.get('feedbackItems'));
+    const savedSystemConfig = runtimeState.get('systemConfig');
+    if (savedSystemConfig && typeof savedSystemConfig === 'object') {
+      this.systemConfig = savedSystemConfig as typeof this.systemConfig;
+    }
   }
 
   private get dataSource(): 'memory-api' | 'postgresql' {
@@ -158,10 +178,11 @@ export class StudyService implements OnModuleInit {
 
   getOverviewReport(userId?: string) {
     const uid = userId ?? this.student.id;
+    const student = this.getStudent(uid);
     return computeWeaknessReport({
       knowledgePoints: this.knowledgePoints,
       records: this.records.filter((r) => r.userId === uid),
-      targetScore: this.student.targetScore ?? 115,
+      targetScore: student.targetScore ?? 115,
     });
   }
 
@@ -169,7 +190,7 @@ export class StudyService implements OnModuleInit {
     const uid = userId ?? this.student.id;
     return {
       source: this.dataSource,
-      student: uid === this.student.id ? this.student : { ...this.student, id: uid },
+      student: this.getStudent(uid),
       knowledgePoints: this.knowledgePoints,
       questions: this.questions,
       practiceRecords: this.records.filter((r) => r.userId === uid),
@@ -177,7 +198,7 @@ export class StudyService implements OnModuleInit {
       learningCalendar: this.getLearningCalendar(uid),
       stageAssessment: this.getStageAssessment(uid),
       report: this.getOverviewReport(uid),
-      plan: this.generatePlan(),
+      plan: this.generatePlan(uid),
     };
   }
 
@@ -191,7 +212,7 @@ export class StudyService implements OnModuleInit {
         id: 'diagnostic',
         title: '提交入学诊断',
         description: '生成目标分、当前阶段和第一版学习计划。',
-        completed: Boolean(this.diagnosticProfile),
+        completed: this.diagnosticProfilesByUser.has(userId),
         actionAnchor: '#dashboard',
       },
       {
@@ -473,12 +494,12 @@ export class StudyService implements OnModuleInit {
     const userPracticeSetResults = this.practiceSetResults.filter((item) => item.userId === userId);
     const userStageResults = this.stageAssessmentResults.filter((item) => item.userId === userId);
     const timeline = [
-      ...(this.diagnosticProfile ? [{
+      ...(this.diagnosticProfilesByUser.get(userId) ? [{
         id: 'timeline-diagnostic',
         type: 'diagnostic',
         title: '入学诊断完成',
         date: todayKey(),
-        summary: this.diagnosticProfile.diagnosis,
+        summary: this.diagnosticProfilesByUser.get(userId)!.diagnosis,
       }] : []),
       ...userPracticeSetResults.map((item) => ({
         id: `timeline-${item.id}`,
@@ -515,7 +536,7 @@ export class StudyService implements OnModuleInit {
         streakDays: calendar.streakDays,
       },
       loopStats: {
-        diagnosticCompleted: Boolean(this.diagnosticProfile),
+        diagnosticCompleted: this.diagnosticProfilesByUser.has(userId),
         practiceSetCount: userPracticeSetResults.length,
         stageAssessmentCount: userStageResults.length,
         reviewedWrongQuestionCount: reviewedWrongQuestions.size,
@@ -528,7 +549,7 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  applyDiagnosticProfile(userId: string, input: {
+  async applyDiagnosticProfile(userId: string, input: {
     targetScore: number;
     currentScore: number;
     remainingDays: number;
@@ -536,13 +557,8 @@ export class StudyService implements OnModuleInit {
     weakestSubject: Subject;
   }) {
     const profile = buildDiagnosticProfile(input);
-    this.student.targetScore = profile.targetScore;
-    this.student.currentScore = profile.currentScore;
-    this.student.remainingDays = profile.remainingDays;
-    this.student.dailyHours = profile.dailyHours;
-    this.student.weakestSubject = profile.weakestSubject;
-    this.student.stage = profile.stage;
-    this.diagnosticProfile = profile;
+    await this.learningProfileRepository.save(userId, profile);
+    this.diagnosticProfilesByUser.set(userId, profile);
     return profile;
   }
 
@@ -578,13 +594,13 @@ export class StudyService implements OnModuleInit {
       profile: profile ?? null,
       nextStep: !this.onboardingCompletedByUser.has(userId)
         ? 'complete_onboarding'
-        : !this.diagnosticProfile
+        : !this.diagnosticProfilesByUser.has(userId)
           ? 'submit_diagnostic'
           : 'start_training',
     };
   }
 
-  completeOnboarding(userId: string, input: {
+  async completeOnboarding(userId: string, input: {
     examYear?: number;
     targetScore: number;
     currentScore: number;
@@ -605,19 +621,12 @@ export class StudyService implements OnModuleInit {
     this.onboardingProfiles.set(userId, profile);
     this.onboardingCompletedByUser.add(userId);
 
-    // Update the student profile and generate initial plan
-    this.student.targetScore = profile.targetScore;
-    this.student.currentScore = profile.currentScore;
-    this.student.remainingDays = profile.remainingDays;
-    this.student.dailyHours = profile.dailyHours;
-    this.student.weakestSubject = profile.weakestSubject;
-    this.student.stage = profile.currentScore < 70 ? '基础' : profile.remainingDays <= 45 ? '冲刺' : '强化';
-
-    const initialPlan = this.generatePlan();
+    const diagnostic = await this.applyDiagnosticProfile(userId, profile);
+    const initialPlan = this.generatePlan(userId);
 
     return {
       ...profile,
-      stage: this.student.stage,
+      stage: diagnostic.stage,
       todayPlan: {
         phase: initialPlan.phase,
         tasks: initialPlan.dailyTasks.slice(0, 3).map((task) => ({
@@ -633,7 +642,7 @@ export class StudyService implements OnModuleInit {
   }
 
   getTodayPlan(userId: string) {
-    const plan = this.generatePlan();
+    const plan = this.generatePlan(userId);
     const report = this.getOverviewReport(userId);
     const calendar = this.getLearningCalendar(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
@@ -852,7 +861,7 @@ export class StudyService implements OnModuleInit {
     return { ...this.systemConfig, source: this.dataSource };
   }
 
-  submitFeedback(input: {
+  async submitFeedback(input: {
     userId?: string;
     rating?: number;
     scene?: string;
@@ -876,6 +885,7 @@ export class StudyService implements OnModuleInit {
     };
 
     this.feedbackItems.push(feedback);
+    await this.runtimeStateRepository.save('feedbackItems', this.feedbackItems);
     return feedback;
   }
 
@@ -909,7 +919,7 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  generatePaper(input: {
+  async generatePaper(input: {
     title?: string;
     paperType?: PaperType;
     knowledgePointIds?: string[];
@@ -942,6 +952,7 @@ export class StudyService implements OnModuleInit {
     };
 
     this.papers.push(paper);
+    await this.runtimeStateRepository.save('papers', this.papers);
     return paper;
   }
 
@@ -1063,11 +1074,12 @@ export class StudyService implements OnModuleInit {
       weakPointTitle: weakKnowledgePoints[0] ?? '限时整卷训练',
       reviewSuggestion: this.createAssessmentReviewSuggestion(result.accuracyRate, weakKnowledgePoints[0], result.examSession.overtime),
     });
+    await this.runtimeStateRepository.save('assessmentHistoryItems', this.assessmentHistoryItems);
 
     return result;
   }
 
-  updateSystemConfig(input: {
+  async updateSystemConfig(input: {
     recommendation?: Partial<{
       stageAssessmentQuestionLimit: number;
       dailyTargetQuestionCount: number;
@@ -1090,12 +1102,13 @@ export class StudyService implements OnModuleInit {
       updatedBy: input.updatedBy ?? 'admin-001',
       updatedAt: new Date().toISOString(),
     };
+    await this.runtimeStateRepository.save('systemConfig', this.systemConfig);
 
     return { ...this.systemConfig, source: this.dataSource };
   }
 
-  approveReviewItem(reviewItemId: string, reviewerId = 'admin-001') {
-    const questionReviewItem = this.questionsService.approveReviewItem(reviewItemId, reviewerId);
+  async approveReviewItem(reviewItemId: string, reviewerId = 'admin-001') {
+    const questionReviewItem = await this.questionsService.approveReviewItem(reviewItemId, reviewerId);
     if (questionReviewItem) return questionReviewItem;
 
     const aiReviewItem = this.aiReviewItems.find((item) => item.id === reviewItemId);
@@ -1109,8 +1122,8 @@ export class StudyService implements OnModuleInit {
     return aiReviewItem;
   }
 
-  markReviewItemNeedsRecheck(reviewItemId: string, reviewerId = 'admin-001') {
-    const questionReviewItem = this.questionsService.markReviewItemNeedsRecheck(reviewItemId, reviewerId);
+  async markReviewItemNeedsRecheck(reviewItemId: string, reviewerId = 'admin-001') {
+    const questionReviewItem = await this.questionsService.markReviewItemNeedsRecheck(reviewItemId, reviewerId);
     if (questionReviewItem) return questionReviewItem;
 
     const aiReviewItem = this.aiReviewItems.find((item) => item.id === reviewItemId);
@@ -1602,7 +1615,7 @@ export class StudyService implements OnModuleInit {
     selfRating?: number;
   } = {}) {
     const userId = input.userId ?? this.student.id;
-    const plan = this.generatePlan();
+    const plan = this.generatePlan(userId);
     const task = plan.dailyTasks.find((item) => item.id === taskId);
     if (!task) {
       throw new BadRequestException(`Study task ${taskId} was not found`);
@@ -2043,16 +2056,31 @@ export class StudyService implements OnModuleInit {
     ];
   }
 
-  generatePlan() {
+  private getStudent(userId: string): UserProfile {
+    const profile = this.diagnosticProfilesByUser.get(userId);
+    return {
+      ...this.student,
+      id: userId,
+      targetScore: profile?.targetScore ?? this.student.targetScore,
+      currentScore: profile?.currentScore ?? this.student.currentScore,
+      dailyHours: profile?.dailyHours ?? this.student.dailyHours,
+      remainingDays: profile?.remainingDays ?? this.student.remainingDays,
+      weakestSubject: profile?.weakestSubject ?? this.student.weakestSubject,
+      stage: profile?.stage ?? this.student.stage,
+    };
+  }
+
+  generatePlan(userId = this.student.id) {
+    const student = this.getStudent(userId);
     const plan = buildStudyPlan({
-      targetScore: this.student.targetScore ?? 115,
-      remainingDays: this.student.remainingDays ?? 96,
-      dailyHours: this.student.dailyHours ?? 3.5,
-      stage: this.student.stage ?? '强化',
+      targetScore: student.targetScore ?? 115,
+      remainingDays: student.remainingDays ?? 96,
+      dailyHours: student.dailyHours ?? 3.5,
+      stage: student.stage ?? '强化',
       knowledgePoints: this.knowledgePoints,
-      records: this.records,
+      records: this.records.filter((record) => record.userId === userId),
     });
-    const completedTaskDates = this.completedTaskDatesByUser.get(this.student.id) ?? new Map<string, string>();
+    const completedTaskDates = this.completedTaskDatesByUser.get(userId) ?? new Map<string, string>();
     const completedIds = new Set([...completedTaskDates.entries()]
       .filter(([, date]) => date === todayKey())
       .map(([taskKey]) => taskKey.split('@')[0]));
@@ -2134,9 +2162,9 @@ export class StudyService implements OnModuleInit {
   // ---- Phase 4: Session Management (auto-save & resume) ----
 
   private readonly practiceSessions = new Map<string, PracticeSession>();
-  private readonly examSessions = new Map<string, ExamSession>();
+  private readonly submittingSessionIds = new Set<string>();
 
-  startPracticeSession(userId: string, input: {
+  async startPracticeSession(userId: string, input: {
     type: 'practice_set' | 'stage_assessment' | 'paper';
     questionIds: string[];
     resourceId?: string;
@@ -2159,10 +2187,11 @@ export class StudyService implements OnModuleInit {
       completed: false,
     };
     this.practiceSessions.set(id, session);
+    await this.learningSessionRepository.save(session);
     return this.sessionView(session);
   }
 
-  savePracticeProgress(sessionId: string, userId: string, input: {
+  async savePracticeProgress(sessionId: string, userId: string, input: {
     answers?: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
     currentIndex?: number;
     markedQuestions?: string[];
@@ -2194,6 +2223,7 @@ export class StudyService implements OnModuleInit {
     }
 
     this.practiceSessions.set(sessionId, session);
+    await this.learningSessionRepository.save(session);
     return this.sessionView(session);
   }
 
@@ -2214,9 +2244,11 @@ export class StudyService implements OnModuleInit {
     answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number }>;
   }) {
     const session = this.getOwnSession(sessionId, userId);
-    if (session.completed) {
+    if (session.completed || this.submittingSessionIds.has(sessionId)) {
       throw new BadRequestException('Session has already been submitted');
     }
+
+    this.submittingSessionIds.add(sessionId);
 
     // Save final progress
     for (const answer of input.answers) {
@@ -2226,36 +2258,53 @@ export class StudyService implements OnModuleInit {
       };
     }
 
-    // Create practice records for all answers
-    const records = await Promise.all(
-      input.answers.map((answer) =>
-        this.createPracticeRecord({
-          userId,
-          questionId: answer.questionId,
-          knowledgePointId: '',
-          selectedAnswer: answer.selectedAnswer,
-          timeSpentSec: answer.timeSpentSec,
-        }),
-      ),
-    );
+    await this.learningSessionRepository.save(session);
+    const claimed = await this.learningSessionRepository.claimForSubmission(sessionId, userId);
+    if (!claimed) {
+      this.submittingSessionIds.delete(sessionId);
+      session.completed = true;
+      throw new BadRequestException('Session has already been submitted');
+    }
 
-    session.completed = true;
-    this.practiceSessions.set(sessionId, session);
+    try {
+      const records = await Promise.all(
+        input.answers.map((answer) =>
+          this.createPracticeRecord({
+            userId,
+            questionId: answer.questionId,
+            knowledgePointId: '',
+            selectedAnswer: answer.selectedAnswer,
+            timeSpentSec: answer.timeSpentSec,
+          }),
+        ),
+      );
 
-    const correctCount = records.filter((r) => r.correct).length;
-    return {
-      sessionId,
-      completed: true,
-      totalQuestions: records.length,
-      correctCount,
-      accuracyRate: Math.round((correctCount / records.length) * 100),
-      totalActiveMs: session.totalActiveMs,
-      records: records.map((r) => ({
-        questionId: r.questionId,
-        correct: r.correct,
-        mistakeReason: r.mistakeReason,
-      })),
-    };
+      session.completed = true;
+      session.lastActiveAt = new Date().toISOString();
+      this.practiceSessions.set(sessionId, session);
+      await this.learningSessionRepository.save(session);
+
+      const correctCount = records.filter((r) => r.correct).length;
+      return {
+        sessionId,
+        completed: true,
+        totalQuestions: records.length,
+        correctCount,
+        accuracyRate: records.length ? Math.round((correctCount / records.length) * 100) : 0,
+        totalActiveMs: session.totalActiveMs,
+        records: records.map((r) => ({
+          questionId: r.questionId,
+          correct: r.correct,
+          mistakeReason: r.mistakeReason,
+        })),
+      };
+    } catch (error) {
+      session.completed = false;
+      await this.learningSessionRepository.releaseSubmission(sessionId, userId);
+      throw error;
+    } finally {
+      this.submittingSessionIds.delete(sessionId);
+    }
   }
 
   private getOwnSession(sessionId: string, userId: string): PracticeSession {
@@ -2515,6 +2564,11 @@ function replaceNestedMap(
 
 function taskCompletionKey(taskId: string, completedDate: string) {
   return `${taskId}@${completedDate}`;
+}
+
+function replaceArrayFromState<T>(target: T[], value: unknown) {
+  if (!Array.isArray(value)) return;
+  target.splice(0, target.length, ...(value as T[]));
 }
 
 export type PaperType = '模拟卷' | '阶段卷' | '专项卷';

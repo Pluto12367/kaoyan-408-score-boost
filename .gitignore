@@ -5,3 +5,4 @@ dist/
 .env.*.local
 apps/*/dist/
 packages/*/dist/
+*-local.log

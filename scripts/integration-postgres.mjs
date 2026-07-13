@@ -128,13 +128,24 @@ async function main() {
     selfRating: 4,
   }, studentHeaders);
   assert(completedTask.completed === true, 'study-task completion should be persisted');
-  const deferTaskId = initial.plan.dailyTasks.find((task) => task.id !== taskId)?.id;
-  assert(deferTaskId, 'dashboard should expose another task for deferral testing');
-  const deferredTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(deferTaskId)}/defer`, {
-    userId: registered.user.id,
-    reason: 'integration test reschedule',
+  const postponeTaskId = initial.plan.dailyTasks.find((task) => task.id !== taskId)?.id;
+  assert(postponeTaskId, 'dashboard should expose another task for postponement testing');
+  const postponedTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(postponeTaskId)}/postpone`, {}, studentHeaders);
+  assert(postponedTask.taskId === postponeTaskId && postponedTask.nextAvailableAt, 'study-task postponement should be accepted');
+
+  const startedSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'practice_set',
+    resourceId: 'integration-resume-set',
+    questionIds: ['q-001', 'q-002'],
   }, studentHeaders);
-  assert(deferredTask.deferred === true && deferredTask.deferredUntil, 'study-task deferral should be accepted');
+  const savedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    answers: { 'q-001': { selectedAnswer: 'A', timeSpentSec: 73 } },
+    currentIndex: 1,
+    markedQuestions: ['q-002'],
+    idleSince: Date.now() - 500,
+  }, studentHeaders);
+  assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes('q-002'), 'session progress should be saved');
+  await expectGetStatus(`${apiUrl}/sessions/practice/${startedSession.id}`, { Authorization: `Bearer ${teacherSession.token}` }, 403);
 
   await stop(activeApi);
   activeApi = startApi();
@@ -143,7 +154,6 @@ async function main() {
     data.practiceRecords?.some((record) => record.id === created.id)
       && data.wrongQuestions?.some((item) => item.questionId === 'q-001' && item.reviewStatus === 'reviewed')
       && data.plan?.dailyTasks?.some((task) => task.id === taskId && task.completed)
-      && data.plan?.dailyTasks?.some((task) => task.id === deferTaskId && task.deferred)
       && data.student?.targetScore === 126
       && data.questions?.some((question) => question.id === teacherQuestion.id),
   );
@@ -153,13 +163,22 @@ async function main() {
   assert(restoredReview.reviewedAt === reviewed.reviewedAt, 'wrong-question review should survive an API restart');
   const restoredTask = restored.plan.dailyTasks.find((task) => task.id === taskId);
   assert(restoredTask.completed === true, 'study-task completion should survive an API restart');
-  const restoredDeferredTask = restored.plan.dailyTasks.find((task) => task.id === deferTaskId);
-  assert(restoredDeferredTask.deferred === true, 'study-task deferral should survive an API restart');
-  assert(restoredDeferredTask.deferredUntil === deferredTask.deferredUntil, 'deferred task should keep its rescheduled date');
+  const restoredSession = await getJson(`${apiUrl}/sessions/practice/${startedSession.id}`, studentHeaders);
+  assert(restoredSession.answers['q-001']?.selectedAnswer === 'A', 'saved answer should survive an API restart');
+  assert(restoredSession.currentIndex === 1, 'current question should survive an API restart');
+  assert(restoredSession.markedQuestions.includes('q-002'), 'marked question should survive an API restart');
+  assert(restoredSession.totalActiveMs >= 0, 'active time should survive an API restart');
+  const submittedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'A', timeSpentSec: 73 }],
+  }, studentHeaders);
+  assert(submittedSession.completed === true, 'restored session should be submittable');
+  await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'A', timeSpentSec: 73 }],
+  }, 400, studentHeaders);
   assert(restored.student.targetScore === 126, 'diagnostic profile should survive an API restart');
   assert(restored.student.weakestSubject === '计算机组成原理', 'diagnostic weakest subject should survive an API restart');
   assert(restored.questions.some((question) => question.id === teacherQuestion.id), 'teacher-created question should survive an API restart');
-  const restoredPapers = await getJson(`${apiUrl}/papers`);
+  const restoredPapers = await getJson(`${apiUrl}/papers`, { Authorization: `Bearer ${teacherSession.token}` });
   assert(restoredPapers.some((paper) => paper.id === generatedPaper.id), 'generated paper should survive an API restart');
   const restoredHistory = await getJson(`${apiUrl}/assessment-history`, studentHeaders);
   assert(restoredHistory.items.some((item) => item.paperId === generatedPaper.id), 'assessment history should survive an API restart');
@@ -174,7 +193,7 @@ async function main() {
     persistedRecordId: created.id,
     reviewedQuestionId: restoredReview.questionId,
     completedTaskId: restoredTask.id,
-    deferredTaskId: restoredDeferredTask.id,
+    restoredSessionId: restoredSession.id,
     persistedDiagnosticTarget: restored.student.targetScore,
     persistedTeacherQuestionId: teacherQuestion.id,
     persistedPaperId: generatedPaper.id,

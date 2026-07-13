@@ -2,20 +2,22 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
 const root = process.cwd();
-const apiUrl = 'http://127.0.0.1:3100';
+const apiUrl = 'http://127.0.0.1:3110';
 const webUrl = 'http://127.0.0.1:5174';
 const processes = [];
 let studentAuthHeaders = {};
 
 async function main() {
+  const memoryApiEnv = { ...process.env };
+  delete memoryApiEnv.DATABASE_URL;
   const api = start('api', process.execPath, ['dist/main.js'], {
     cwd: `${root}/apps/api`,
     env: {
-      ...process.env,
-      PORT: '3100',
+      ...memoryApiEnv,
+      PORT: '3110',
       WEB_ORIGIN: webUrl,
-      DATABASE_URL: '',
       ALLOW_DEMO_AUTH: 'true',
+      JWT_SECRET: 'smoke-test-jwt-secret-with-more-than-32-characters',
     },
   });
 
@@ -256,20 +258,15 @@ async function main() {
     return task?.completed === true && data.plan?.completedTaskCount === 1;
   });
   assert(overviewAfterTask.plan.completionRate > 0, 'study plan should expose today completion rate');
-  const deferTaskId = overviewAfterTask.plan.dailyTasks.find((task) => !task.completed)?.id;
-  assert(deferTaskId, 'study plan should keep at least one task available for deferral testing');
-  const deferredTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(deferTaskId)}/defer`, {
-    userId: 'u-001',
-    reason: 'smoke test reschedule',
-  });
-  assert(deferredTask.deferred === true, 'deferred task endpoint should mark the task as deferred');
-  assert(deferredTask.deferredUntil, 'deferred task endpoint should return the next scheduled date');
-  const overviewAfterDefer = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => {
-    const task = data.plan?.dailyTasks?.find((item) => item.id === deferTaskId);
-    return task?.deferred === true && task?.deferredUntil;
-  });
-  const deferredTaskInPlan = overviewAfterDefer.plan.dailyTasks.find((task) => task.id === deferTaskId);
-  assert(deferredTaskInPlan?.rescheduleReason, 'deferred task should include a reschedule reason in the plan');
+  const postponeTaskId = overviewAfterTask.plan.dailyTasks.find((task) => !task.completed)?.id;
+  assert(postponeTaskId, 'study plan should keep at least one task available for postponement testing');
+  const postponedTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(postponeTaskId)}/postpone`, {});
+  assert(postponedTask.taskId === postponeTaskId, 'postponed task endpoint should return the selected task');
+  assert(postponedTask.nextAvailableAt, 'postponed task endpoint should return its next available time');
+  const todayPlanAfterPostpone = await waitForJson(`${apiUrl}/today/plan`, (data) =>
+    Array.isArray(data.priorityTasks) && !data.priorityTasks.some((task) => task.id === postponeTaskId),
+  );
+  assert(todayPlanAfterPostpone.priorityTasks.every((task) => task.id !== postponeTaskId), 'postponed task should leave the current priority list');
 
   const previousRecordCount = overviewAfterTask.practiceRecords.length;
   const submitted = await postJson(`${apiUrl}/practice-records`, {

@@ -35,7 +35,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getDashboardOverview(resolveUserId(user, viewUserId));
+    return this.studyService.getDashboardOverview(this.resolveUserId(user, viewUserId));
   }
 
   @Get('trial-progress')
@@ -45,7 +45,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getTrialProgress(resolveUserId(user, viewUserId));
+    return this.studyService.getTrialProgress(this.resolveUserId(user, viewUserId));
   }
 
   @Get('study-reminders')
@@ -55,7 +55,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getStudyReminders(resolveUserId(user, viewUserId));
+    return this.studyService.getStudyReminders(this.resolveUserId(user, viewUserId));
   }
 
   @Get('sprint-plan')
@@ -65,7 +65,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getSprintPlan(resolveUserId(user, viewUserId));
+    return this.studyService.getSprintPlan(this.resolveUserId(user, viewUserId));
   }
 
   @Get('mastery-map')
@@ -75,7 +75,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getMasteryMap(resolveUserId(user, viewUserId));
+    return this.studyService.getMasteryMap(this.resolveUserId(user, viewUserId));
   }
 
   @Get('students/:userId/profile')
@@ -96,7 +96,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.listWrongQuestions(resolveUserId(user, viewUserId));
+    return this.studyService.listWrongQuestions(this.resolveUserId(user, viewUserId));
   }
 
   @Get('wrong-questions/summary')
@@ -106,7 +106,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getWrongQuestionSummary(resolveUserId(user, viewUserId));
+    return this.studyService.getWrongQuestionSummary(this.resolveUserId(user, viewUserId));
   }
 
   @Post('wrong-questions/:questionId/review')
@@ -126,7 +126,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getRecommendedPracticeSet(resolveUserId(user, viewUserId));
+    return this.studyService.getRecommendedPracticeSet(this.resolveUserId(user, viewUserId));
   }
 
   @Get('review-resources/recommended')
@@ -136,7 +136,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getRecommendedReviewResources(resolveUserId(user, viewUserId));
+    return this.studyService.getRecommendedReviewResources(this.resolveUserId(user, viewUserId));
   }
 
   @Post('practice-sets/:practiceSetId/submit')
@@ -159,7 +159,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getLearningCalendar(resolveUserId(user, viewUserId));
+    return this.studyService.getLearningCalendar(this.resolveUserId(user, viewUserId));
   }
 
   @Get('assessments/stage')
@@ -169,7 +169,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getStageAssessment(resolveUserId(user, viewUserId));
+    return this.studyService.getStageAssessment(this.resolveUserId(user, viewUserId));
   }
 
   @Post('assessments/stage/submit')
@@ -211,7 +211,8 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Body() input: CreatePracticeRecordDto,
   ) {
-    return this.studyService.createPracticeRecord({ ...input, userId: user.id });
+    this.assertAccess(user, input.userId);
+    return this.studyService.createPracticeRecord(input);
   }
 
   @Post('study-tasks/:taskId/complete')
@@ -416,7 +417,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getAssessmentHistory(resolveUserId(user, viewUserId));
+    return this.studyService.getAssessmentHistory(this.resolveUserId(user, viewUserId));
   }
 
   @Get('reports/overview')
@@ -426,7 +427,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getOverviewReport(resolveUserId(user, viewUserId));
+    return this.studyService.getOverviewReport(this.resolveUserId(user, viewUserId));
   }
 
   // ---- Paper endpoints ----
@@ -542,6 +543,16 @@ export class StudyController {
 
   // ---- Access control helpers ----
 
+  private resolveUserId(user: UserProfile, viewUserId?: string) {
+    if (!viewUserId || viewUserId === user.id) return user.id;
+    if (user.role === 'admin') return viewUserId;
+    if (user.role === 'teacher') {
+      this.studyService.assertTeacherAuthorizedForStudent(user.id, viewUserId);
+      return viewUserId;
+    }
+    throw new ForbiddenException('You can only access your own data');
+  }
+
   private assertAccess(user: UserProfile, targetUserId: string) {
     if (user.role === 'admin') return;
     if (user.role === 'teacher') {
@@ -552,12 +563,4 @@ export class StudyController {
       throw new ForbiddenException('You can only access your own data');
     }
   }
-}
-
-/** Students always see their own data. Teachers/admins can optionally view another user. */
-function resolveUserId(user: UserProfile, viewUserId?: string): string {
-  if (viewUserId && (user.role === 'admin' || user.role === 'teacher')) {
-    return viewUserId;
-  }
-  return user.id;
 }
