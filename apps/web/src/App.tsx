@@ -19,6 +19,7 @@ import { TutorPanel } from './features/tutor/TutorPanel';
 import { StudentProgressOverview } from './features/dashboard/StudentProgressOverview';
 import { LearningProfilePanel } from './features/report/LearningProfilePanel';
 import { FeedbackPanel } from './features/feedback/FeedbackPanel';
+import { useStudentProgressData } from './hooks/useStudentProgressData';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -34,15 +35,10 @@ import {
   createMockAiFollowUp,
   createMockFeedbackList,
   createMockGeneratedPaper,
-  createMockMasteryMap,
   createMockOverview,
   createMockPaperSubmitResult,
-  createMockLearningProfile,
   createMockPracticeSet,
   createMockReviewResourceRecommendations,
-  createMockStudyReminders,
-  createMockSprintPlan,
-  createMockTrialProgress,
   createMockReviewQueue,
   createMockSystemConfig,
   createMockTeacherClassAnalytics,
@@ -52,18 +48,13 @@ import {
   fetchAssessmentHistory,
   fetchDashboardOverview,
   fetchFeedbackList,
-  fetchLearningProfile,
-  fetchMasteryMap,
   fetchQuestions,
   fetchRecommendedPracticeSet,
   fetchReviewResourceRecommendations,
   fetchReviewQueue,
   fetchStageAssessment,
-  fetchStudyReminders,
-  fetchSprintPlan,
   fetchSystemConfig,
   fetchTeacherClassAnalytics,
-  fetchTrialProgress,
   fetchWrongQuestionSummary,
   generatePaper,
   markReviewItemNeedsRecheck,
@@ -87,21 +78,16 @@ import {
   type DashboardOverview,
   type GeneratedPaper,
   type FeedbackList,
-  type LearningProfile,
-  type MasteryMap,
   type PaperSubmitResult,
   type PracticeSet,
   type PracticeSetResult,
   type ReviewResourceRecommendation,
   type ReviewQueue,
   type StageAssessmentResult,
-  type StudyReminders,
-  type SprintPlan,
   type SystemConfig,
   type TaskCompletionAdjustment,
   type TeacherClassAnalytics,
   type TutorReply,
-  type TrialProgress,
   type WrongQuestionSummary,
 } from './api';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
@@ -111,7 +97,6 @@ import {
   permissionHint,
   createInitialPaperSession,
 } from './constants';
-import { DashboardProvider } from './hooks/useDashboard';
 
 export function App() {
   const {
@@ -159,31 +144,32 @@ export function App() {
   const [reviewResources, setReviewResources] = useState<ReviewResourceRecommendation>(() => createMockReviewResourceRecommendations());
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
-  const [learningProfile, setLearningProfile] = useState<LearningProfile>(() => createMockLearningProfile());
   const [feedbackList, setFeedbackList] = useState<FeedbackList>(() => createMockFeedbackList());
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
   const [userStatus, setUserStatus] = useState('管理员可以跟踪试用名单状态，方便后续邀请填写问卷。');
-  const [trialProgress, setTrialProgress] = useState<TrialProgress>(() => createMockTrialProgress());
-  const [studyReminders, setStudyReminders] = useState<StudyReminders>(() => createMockStudyReminders());
-  const [sprintPlan, setSprintPlan] = useState<SprintPlan>(() => createMockSprintPlan());
-  const [masteryMap, setMasteryMap] = useState<MasteryMap>(() => createMockMasteryMap());
   const [wrongQuestionSummary, setWrongQuestionSummary] = useState<WrongQuestionSummary>(() => createMockWrongQuestionSummary());
+  const studentProgress = useStudentProgressData(
+    sessionUser?.id ?? overview.student.id,
+    !sessionUser || sessionUser.role === 'student',
+  );
+  const {
+    refreshTrialProgress,
+    refreshStudyReminders,
+    refreshSprintPlan,
+    refreshMasteryMap,
+    refreshLearningProfile,
+  } = studentProgress;
 
   useEffect(() => {
     let active = true;
 
-    Promise.all([fetchDashboardOverview(), fetchRecommendedPracticeSet(), fetchReviewResourceRecommendations(), fetchLearningProfile(sessionUser?.id ?? 'u-001'), fetchTrialProgress(), fetchStudyReminders(), fetchSprintPlan(), fetchMasteryMap(), fetchWrongQuestionSummary(), fetchAssessmentHistory()])
-      .then(([data, recommendedSet, resources, profile, trial, reminders, sprint, mastery, wrongSummary, history]) => {
+    Promise.all([fetchDashboardOverview(), fetchRecommendedPracticeSet(), fetchReviewResourceRecommendations(), fetchWrongQuestionSummary(), fetchAssessmentHistory()])
+      .then(([data, recommendedSet, resources, wrongSummary, history]) => {
         if (!active) return;
         setOverview(data);
         setTeacherQuestionList(data.questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
         setPracticeSet(recommendedSet);
         setReviewResources(resources);
-        setLearningProfile(profile);
-        setTrialProgress(trial);
-        setStudyReminders(reminders);
-        setSprintPlan(sprint);
-        setMasteryMap(mastery);
         setWrongQuestionSummary(wrongSummary);
         setAssessmentHistory(history);
         setSessionUser((current) => current ?? data.student);
@@ -196,11 +182,6 @@ export function App() {
           setOverview(createMockOverview());
           setPracticeSet(createMockPracticeSet());
           setReviewResources(createMockReviewResourceRecommendations());
-          setLearningProfile(createMockLearningProfile());
-          setTrialProgress(createMockTrialProgress());
-          setStudyReminders(createMockStudyReminders());
-          setSprintPlan(createMockSprintPlan());
-          setMasteryMap(createMockMasteryMap());
           setWrongQuestionSummary(createMockWrongQuestionSummary());
           setAssessmentHistory(createMockAssessmentHistory());
           setApiState('mock');
@@ -297,26 +278,6 @@ export function App() {
   const activeExamQuestionIds = resumedExamSession?.questionIds ?? examQuestions.map((question) => question.id);
   const activeExamQuestions = questions.filter((question) => activeExamQuestionIds.includes(question.id));
   const currentQuestion = questions[0];
-
-  async function refreshTrialProgress() {
-    const nextTrialProgress = await fetchTrialProgress();
-    setTrialProgress(nextTrialProgress);
-  }
-
-  async function refreshStudyReminders() {
-    const nextStudyReminders = await fetchStudyReminders();
-    setStudyReminders(nextStudyReminders);
-  }
-
-  async function refreshSprintPlan() {
-    const nextSprintPlan = await fetchSprintPlan();
-    setSprintPlan(nextSprintPlan);
-  }
-
-  async function refreshMasteryMap() {
-    const nextMasteryMap = await fetchMasteryMap();
-    setMasteryMap(nextMasteryMap);
-  }
 
   async function refreshWrongQuestionSummary() {
     const nextWrongQuestionSummary = await fetchWrongQuestionSummary();
@@ -450,10 +411,9 @@ practiceSetId: practiceSet.id,
       });
       const nextOverview = await fetchDashboardOverview();
       const nextPracticeSet = await fetchRecommendedPracticeSet();
-      const nextProfile = await fetchLearningProfile(sessionUser?.id ?? student.id);
       setOverview(nextOverview);
       setPracticeSet(nextPracticeSet);
-      setLearningProfile(nextProfile);
+      await refreshLearningProfile();
       setPracticeSetResult(result);
       setApiState('connected');
       await refreshTrialProgress();
@@ -521,9 +481,8 @@ taskId,
         selfRating: 2,
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextProfile = await fetchLearningProfile(sessionUser?.id ?? student.id);
       setOverview(nextOverview);
-      setLearningProfile(nextProfile);
+      await refreshLearningProfile();
       setApiState('connected');
       await refreshTrialProgress();
       await refreshStudyReminders();
@@ -590,10 +549,9 @@ answers: stageAssessment.questions.map((question, index) => ({
         })),
       });
       const nextOverview = await fetchDashboardOverview();
-      const nextProfile = await fetchLearningProfile(sessionUser?.id ?? student.id);
       setOverview(nextOverview);
       setStageResult(result);
-      setLearningProfile(nextProfile);
+      await refreshLearningProfile();
       setApiState('connected');
       await refreshStudyReminders();
       await refreshSprintPlan();
@@ -1028,7 +986,6 @@ rating: 4,
   }
 
   return (
-    <DashboardProvider sessionUserId={sessionUser?.id}>
     <main className="app-shell">
       <aside className="sidebar">
         <div>
@@ -1148,14 +1105,18 @@ rating: 4,
         <StudentLayout role={sessionUser?.role}>
         <>
         <StudentProgressOverview
-          trialProgress={trialProgress}
-          studyReminders={studyReminders}
-          sprintPlan={sprintPlan}
-          masteryMap={masteryMap}
+          trialProgress={studentProgress.trialProgress}
+          studyReminders={studentProgress.studyReminders}
+          sprintPlan={studentProgress.sprintPlan}
+          masteryMap={studentProgress.masteryMap}
           student={student}
           report={report}
+          onRetryTrial={refreshTrialProgress}
+          onRetryReminders={refreshStudyReminders}
+          onRetrySprint={refreshSprintPlan}
+          onRetryMastery={refreshMasteryMap}
         />
-        <LearningProfilePanel profile={learningProfile} />
+        <LearningProfilePanel profile={studentProgress.learningProfile} onRetry={refreshLearningProfile} />
         <FeedbackPanel feedback={feedbackList} status={feedbackStatus} onSubmit={handleSubmitFeedback} />
         <DiagnosticSummary student={student} plan={plan} status={diagnosticStatus} onSubmit={handleSubmitDiagnostic} />
         </>
@@ -1289,6 +1250,5 @@ rating: 4,
         </div>
       ) : null}
     </main>
-    </DashboardProvider>
   );
 }
