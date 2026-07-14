@@ -31,7 +31,7 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
 
   useEffect(() => {
     loadDueReviews();
-  }, []);
+  }, [plan.generatedAt]);
   async function handleComplete(taskId: string) {
     const task = plan.priorityTasks.find((item) => item.id === taskId);
     if (!task) return;

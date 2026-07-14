@@ -6,6 +6,7 @@ interface Props {
   questionId: string;
   correct: boolean;
   timeSpentSec: number;
+  isReview: boolean;
   onReported: (result: Awaited<ReturnType<typeof reportWrongReason>>) => void;
   onClose: () => void;
 }
@@ -18,22 +19,27 @@ const REASONS = [
   { value: '速度偏慢', label: '速度/超时', hint: '能做对但花的时间太长' },
 ];
 
-export function ErrorReasonSelector({ questionId, correct, timeSpentSec, onReported, onClose }: Props) {
+export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isReview, onReported, onClose }: Props) {
   const [reason, setReason] = useState('');
   const [status, setStatus] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit() {
     if (!reason) return;
     setStatus('提交中...');
+    setSubmitting(true);
     try {
       const result = await reportWrongReason(questionId, {
         selfReportedReason: reason,
         redoCorrect: correct,
         timeSpentSec,
+        isReview,
       });
       onReported(result);
     } catch (err) {
       setStatus(err instanceof Error ? err.message : '提交失败');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -74,13 +80,13 @@ export function ErrorReasonSelector({ questionId, correct, timeSpentSec, onRepor
         {status ? <p className="task-status">{status}</p> : null}
 
         <div className="onboarding-actions">
-          <button type="button" className="primary-action" disabled={!reason || !!status} onClick={handleSubmit}>
-            <AlertTriangle size={16} /> {status || '提交错因并加入复习计划'}
+          <button type="button" className="primary-action" disabled={!reason || submitting} onClick={handleSubmit}>
+            <AlertTriangle size={16} /> {submitting ? '提交中...' : isReview ? '提交重做结果' : '提交错因并加入复习计划'}
           </button>
         </div>
 
         <div className="review-hint">
-          <p>连续正确 3 次→7 天后复习→14 天后复习→标记为稳定掌握</p>
+          <p>首次答错次日复习，连续重做正确后依次延长到 3、7、14 天。</p>
         </div>
       </div>
     </div>

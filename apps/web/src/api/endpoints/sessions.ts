@@ -38,7 +38,7 @@ export interface SessionSubmitResult {
   accuracyRate: number;
   totalActiveMs: number;
   workflowResult?: PracticeSetResult | StageAssessmentResult;
-  records: Array<{ questionId: string; correct: boolean; mistakeReason: string | null; gradingMode?: string; selfScore?: number; maxScore?: number }>;
+  records: Array<{ questionId: string; correct: boolean; mistakeReason: string | null; timeSpentSec: number; gradingMode?: string; selfScore?: number; maxScore?: number }>;
 }
 
 export async function startPracticeSession(input: {

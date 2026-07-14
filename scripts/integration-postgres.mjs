@@ -143,6 +143,22 @@ async function main() {
   const autoScheduledDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
   assert(autoScheduledDetail.reviewSchedule?.stability === 'learning', 'first wrong answer should enter the review schedule automatically');
   assert(autoScheduledDetail.reviewSchedule?.reviewCount === 0, 'automatic scheduling should not count as a completed review');
+  await expectPostStatus(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: ' ', redoCorrect: false, timeSpentSec: 137, isReview: false,
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: 'concept unclear', redoCorrect: false, timeSpentSec: -1, isReview: false,
+  }, 400, studentHeaders);
+  const initialReason = await postJson(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: 'concept unclear',
+    redoCorrect: false,
+    timeSpentSec: 137,
+    isReview: false,
+  }, studentHeaders);
+  assert(initialReason.reviewCount === 0 && initialReason.nextReviewInDays === 1, 'initial mistake classification should keep the next-day schedule without counting a review');
+  const detailAfterInitialReason = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
+  assert(detailAfterInitialReason.reviewHistory.length === 0, 'initial mistake classification should not create a redo history item');
+  assert(detailAfterInitialReason.reviewSchedule.selfReportedReason === 'concept unclear', 'initial self-reported reason should be retained');
   const savedNote = await patchJson(`${apiUrl}/wrong-questions/q-001/note`, {
     note: 'Cache mapping: check block number modulo line count before choosing.',
   }, studentHeaders);

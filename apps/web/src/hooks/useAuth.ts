@@ -94,7 +94,8 @@ export function useAuth() {
 
   const handleAccountSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const email = String(form.get('email') ?? '');
     const password = String(form.get('password') ?? '');
     const name = String(form.get('name') ?? '');
@@ -104,7 +105,7 @@ export function useAuth() {
         ? await registerAccount({ email, password, name })
         : await loginAccount({ email, password });
       applyAuthenticatedSession(session, `${roleLabel[session.user.role]} ${session.user.name} 已登录。`);
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (error) {
       setAuthStatus(error instanceof Error ? error.message : '登录失败，请稍后重试。');
     }

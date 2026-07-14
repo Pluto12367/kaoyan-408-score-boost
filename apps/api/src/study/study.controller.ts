@@ -355,6 +355,7 @@ export class StudyController {
       selfReportedReason: string;
       redoCorrect: boolean;
       timeSpentSec: number;
+      isReview?: boolean;
     },
   ) {
     return this.studyService.reportWrongReason(questionId, user.id, input);

@@ -68,6 +68,7 @@ export async function reportWrongReason(questionId: string, input: {
   selfReportedReason: string;
   redoCorrect: boolean;
   timeSpentSec: number;
+  isReview?: boolean;
 }): Promise<ReviewSchedule & { nextReviewInDays: number; message: string }> {
   const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/${questionId}/reason`, {
     method: 'POST',

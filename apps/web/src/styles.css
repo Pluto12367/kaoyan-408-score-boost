@@ -10,6 +10,83 @@
   padding: 14px 0;
 }
 
+.error-reason-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 20px;
+  background: rgb(15 23 42 / 58%);
+}
+
+.error-reason-panel {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 18%);
+}
+
+.step-description,
+.review-hint p {
+  color: #526176;
+  line-height: 1.6;
+}
+
+.reason-list {
+  display: grid;
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.reason-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reason-option.selected {
+  border-color: #0f766e;
+  background: #f0fdfa;
+}
+
+.reason-option > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.reason-option span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.error-reason-panel .onboarding-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.review-hint {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.review-hint p {
+  margin: 0;
+  font-size: 13px;
+}
+
 .detail-note strong {
   display: flex;
   align-items: center;

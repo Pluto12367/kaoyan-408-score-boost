@@ -1314,7 +1314,18 @@ export class StudyService implements OnModuleInit {
     selfReportedReason: string;
     redoCorrect: boolean;
     timeSpentSec: number;
+    isReview?: boolean;
   }) {
+    const selfReportedReason = input.selfReportedReason?.trim();
+    if (!selfReportedReason || selfReportedReason.length > 100) {
+      throw new BadRequestException('Self-reported reason must contain 1 to 100 characters');
+    }
+    if (typeof input.redoCorrect !== 'boolean') {
+      throw new BadRequestException('Redo result must be a boolean');
+    }
+    if (!Number.isFinite(input.timeSpentSec) || input.timeSpentSec < 0 || input.timeSpentSec > 86_400) {
+      throw new BadRequestException('Review time must be between 0 and 86400 seconds');
+    }
     const key = scheduleKey(userId, questionId);
     const existing = this.reviewSchedules.get(key);
     const now = new Date();
@@ -1322,7 +1333,32 @@ export class StudyService implements OnModuleInit {
     if (questionRecords.length === 0) {
       throw new BadRequestException(`Question ${questionId} has no practice history for this user`);
     }
-    const inferredReason = inferReviewReason(input.selfReportedReason, questionRecords);
+    const inferredReason = inferReviewReason(selfReportedReason, questionRecords);
+
+    if (input.isReview === false) {
+      const nextReviewAt = existing?.nextReviewAt ?? new Date(now.getTime() + 86_400_000).toISOString();
+      const schedule: ReviewSchedule = {
+        questionId,
+        userId,
+        inferredReason,
+        selfReportedReason,
+        note: existing?.note,
+        redoCorrect: false,
+        timeSpentSec: input.timeSpentSec,
+        consecutiveCorrect: existing?.consecutiveCorrect ?? 0,
+        stability: existing?.stability ?? 'learning',
+        nextReviewAt,
+        reviewCount: existing?.reviewCount ?? 0,
+        lastReviewedAt: existing?.lastReviewedAt,
+      };
+      this.reviewSchedules.set(key, schedule);
+      await this.reviewScheduleRepository.saveSchedule(schedule);
+      return {
+        ...schedule,
+        nextReviewInDays: Math.max(1, Math.ceil((new Date(nextReviewAt).getTime() - now.getTime()) / 86_400_000)),
+        message: '已记录本次错因，并安排到次日复习。',
+      };
+    }
 
     // Determine mastery: consecutive correct redos → advance interval
     const consecutiveCorrect = input.redoCorrect
@@ -1346,7 +1382,7 @@ export class StudyService implements OnModuleInit {
       questionId,
       userId,
       inferredReason,
-      selfReportedReason: input.selfReportedReason,
+      selfReportedReason,
       note: existing?.note,
       redoCorrect: input.redoCorrect,
       timeSpentSec: input.timeSpentSec,
@@ -1360,7 +1396,7 @@ export class StudyService implements OnModuleInit {
     const attempt: ReviewAttemptState = {
       redoCorrect: input.redoCorrect,
       timeSpentSec: input.timeSpentSec,
-      reportedReason: input.selfReportedReason,
+      reportedReason: selfReportedReason,
       inferredReason,
       nextIntervalDays,
       reviewedAt: now.toISOString(),
@@ -2645,6 +2681,7 @@ export class StudyService implements OnModuleInit {
           questionId: r.questionId,
           correct: r.correct,
           mistakeReason: r.mistakeReason,
+          timeSpentSec: r.timeSpentSec,
           gradingMode: r.gradingMode,
           selfScore: r.selfScore,
           maxScore: r.maxScore,

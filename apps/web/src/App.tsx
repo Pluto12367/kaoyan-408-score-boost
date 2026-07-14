@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
 import { ExamSession } from './components/ExamSession';
+import { ErrorReasonSelector } from './components/ErrorReasonSelector';
 import { ExamReportView } from './components/ExamReport';
 import { RoleNavigation } from './layouts/RoleNavigation';
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
@@ -113,6 +114,16 @@ export function App() {
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
+  const [reasonQueue, setReasonQueue] = useState<Array<{
+    questionId: string;
+    correct: boolean;
+    timeSpentSec: number;
+    isReview: boolean;
+  }>>([]);
+  const reasonPrompt = reasonQueue[0] ?? null;
+  const practiceTimerRef = useRef<{ questionId: string; activeMs: number; startedAt: number | null }>({
+    questionId: '', activeMs: 0, startedAt: null,
+  });
   const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
   const [detailQuestionId, setDetailQuestionId] = useState<string | null>(null);
@@ -266,7 +277,44 @@ export function App() {
     : learningSessionType === 'stage_assessment'
       ? stageAssessment.estimatedMinutes
       : 180;
-  const currentQuestion = questions[0];
+  const currentQuestion = (redoQuestionId ? questions.find((question) => question.id === redoQuestionId) : undefined) ?? questions[0];
+
+  useEffect(() => {
+    practiceTimerRef.current = {
+      questionId: currentQuestion.id,
+      activeMs: 0,
+      startedAt: document.hidden ? null : performance.now(),
+    };
+  }, [currentQuestion.id]);
+
+  useEffect(() => {
+    function handlePracticeVisibility() {
+      const timer = practiceTimerRef.current;
+      if (document.hidden) {
+        if (timer.startedAt !== null) timer.activeMs += Math.max(0, performance.now() - timer.startedAt);
+        timer.startedAt = null;
+      } else if (timer.startedAt === null) {
+        timer.startedAt = performance.now();
+      }
+    }
+    document.addEventListener('visibilitychange', handlePracticeVisibility);
+    return () => document.removeEventListener('visibilitychange', handlePracticeVisibility);
+  }, []);
+
+  function readPracticeElapsedSec() {
+    const timer = practiceTimerRef.current;
+    const now = performance.now();
+    if (timer.startedAt !== null) timer.activeMs += Math.max(0, now - timer.startedAt);
+    const elapsedSec = Math.max(1, Math.round(timer.activeMs / 1000));
+    timer.activeMs = 0;
+    timer.startedAt = null;
+    return elapsedSec;
+  }
+
+  function restartPracticeTimer() {
+    practiceTimerRef.current.activeMs = 0;
+    practiceTimerRef.current.startedAt = document.hidden ? null : performance.now();
+  }
 
   function addMockPaperResultToHistory(result: PaperSubmitResult, paper: GeneratedPaper) {
     updateAssessmentHistory((current) => {
@@ -349,13 +397,14 @@ export function App() {
 
   async function handleSubmitAnswer(selectedAnswer: string) {
     setPracticeStatus('正在提交答案...');
+    const timeSpentSec = readPracticeElapsedSec();
 
     try {
       const record = await submitPracticeAnswer({
         questionId: currentQuestion.id,
         knowledgePointId: currentQuestion.knowledgePointIds[0],
         selectedAnswer,
-        timeSpentSec: 135,
+        timeSpentSec,
       });
       const nextOverview = await fetchDashboardOverview();
       setOverview(nextOverview);
@@ -364,11 +413,13 @@ export function App() {
       await refreshSprintPlan();
       await refreshMasteryMap();
       await refreshWrongQuestionSummary();
-      if (record.correct && redoQuestionId === currentQuestion.id) {
-        setRedoQuestionId(null);
-        setPracticeStatus('回答正确，已从错题本移除。');
+      const isReview = redoQuestionId === currentQuestion.id;
+      if (!record.correct || isReview) {
+        setReasonQueue([{ questionId: currentQuestion.id, correct: record.correct, timeSpentSec, isReview }]);
+        setPracticeStatus(record.correct ? '重做正确，请确认本次错因以调整复习间隔。' : '回答错误，请选择最符合本次情况的错因。');
       } else {
-        setPracticeStatus(record.correct ? '回答正确，已记录本次练习。' : `回答错误，错因：${record.mistakeReason ?? '待复盘'}。`);
+        setPracticeStatus('回答正确，已记录本次练习。');
+        restartPracticeTimer();
       }
     } catch {
       setPracticeStatus('提交失败，当前显示本地演示数据。');
@@ -1253,6 +1304,16 @@ rating: 4,
                 setStageResult(assessmentResult);
                 setAssessmentStatus(`阶段测评完成：${assessmentResult.score} 分，需复盘 ${assessmentResult.reviewItems.length} 处。`);
               }
+              if (completedType !== 'paper') {
+                setReasonQueue(result.records
+                  .filter((record) => !record.correct)
+                  .map((record) => ({
+                    questionId: record.questionId,
+                    correct: false,
+                    timeSpentSec: record.timeSpentSec,
+                    isReview: false,
+                  })));
+              }
               void Promise.allSettled([
                 refreshOverview(),
                 refreshPracticeSet(),
@@ -1272,6 +1333,33 @@ rating: 4,
         <div className="exam-workspace-overlay">
           <ExamReportView sessionId={examReportSessionId} onClose={() => setExamReportSessionId(null)} />
         </div>
+      ) : null}
+      {reasonPrompt ? (
+        <ErrorReasonSelector
+          questionId={reasonPrompt.questionId}
+          correct={reasonPrompt.correct}
+          timeSpentSec={reasonPrompt.timeSpentSec}
+          isReview={reasonPrompt.isReview}
+          onClose={() => {
+            if (reasonPrompt.correct && reasonPrompt.isReview) setRedoQuestionId(null);
+            setReasonQueue((current) => current.slice(1));
+            if (reasonQueue.length === 1) restartPracticeTimer();
+            setPracticeStatus('已跳过错因自评，系统仍会保留本次练习记录。');
+          }}
+          onReported={(result) => {
+            if (reasonPrompt.correct && reasonPrompt.isReview) setRedoQuestionId(null);
+            setReasonQueue((current) => current.slice(1));
+            if (reasonQueue.length === 1) restartPracticeTimer();
+            setPracticeStatus(result.message);
+            void Promise.allSettled([
+              refreshOverview(),
+              refreshTodayPlan(),
+              refreshStudyReminders(),
+              refreshMasteryMap(),
+              refreshWrongQuestionSummary(),
+            ]);
+          }}
+        />
       ) : null}
     </main>
   );
