@@ -1062,6 +1062,40 @@ export class StudyService implements OnModuleInit {
     return paper;
   }
 
+  async prepareExamPaper(userId: string, input: {
+    paperType?: '模拟卷' | '专项卷';
+    subject?: Subject;
+    questionCount?: number;
+  }) {
+    const paperType = input.paperType ?? '模拟卷';
+    if (paperType !== '模拟卷' && paperType !== '专项卷') {
+      throw new BadRequestException('试卷类型无效，请选择完整模拟卷或科目专项卷');
+    }
+    const requestedQuestionCount = input.questionCount ?? (paperType === '模拟卷' ? 40 : 15);
+    if (!Number.isInteger(requestedQuestionCount) || requestedQuestionCount < 1 || requestedQuestionCount > 50) {
+      throw new BadRequestException('题目数量必须是 1 至 50 之间的整数');
+    }
+    const questionCount = requestedQuestionCount;
+    if (paperType === '专项卷' && !input.subject) {
+      throw new BadRequestException('生成科目专项卷前请选择训练科目');
+    }
+
+    const knowledgePointIds = paperType === '专项卷'
+      ? this.knowledgePoints.filter((point) => point.subject === input.subject).map((point) => point.id)
+      : [];
+    if (paperType === '专项卷' && knowledgePointIds.length === 0) {
+      throw new BadRequestException(`暂未配置${input.subject}的知识点，无法生成专项卷`);
+    }
+
+    return this.generatePaper({
+      title: paperType === '专项卷' ? `${input.subject}专项卷` : `408 模拟卷-${todayKey()}`,
+      paperType,
+      knowledgePointIds,
+      questionCount,
+      createdBy: userId,
+    });
+  }
+
   async submitPaper(paperId: string, input: {
     userId?: string;
     answers?: Array<{
@@ -2636,7 +2670,7 @@ export class StudyService implements OnModuleInit {
 
     const finalAnswers = session.questionIds.flatMap((questionId) => {
       const answer = session.answers[questionId];
-      return answer?.selectedAnswer
+      return isAnswered(answer)
         ? [{ questionId, ...answer }]
         : [];
     });
@@ -2669,12 +2703,13 @@ export class StudyService implements OnModuleInit {
       await this.learningSessionRepository.save(session);
 
       const correctCount = records.filter((r) => r.correct).length;
+      const reportedTotalQuestions = session.type === 'paper' ? session.questionIds.length : records.length;
       return {
         sessionId,
         completed: true,
-        totalQuestions: records.length,
+        totalQuestions: reportedTotalQuestions,
         correctCount,
-        accuracyRate: records.length ? Math.round((correctCount / records.length) * 100) : 0,
+        accuracyRate: reportedTotalQuestions ? Math.round((correctCount / reportedTotalQuestions) * 100) : 0,
         totalActiveMs: session.totalActiveMs,
         workflowResult,
         records: records.map((r) => ({
@@ -2782,26 +2817,43 @@ export class StudyService implements OnModuleInit {
 
     const correctCount = records.filter((r) => r.correct).length;
     const totalQuestions = session.questionIds.length;
-    const accuracyRate = records.length ? Math.round((correctCount / records.length) * 100) : 0;
-    const objectiveRecords = records.filter((record) => record.gradingMode !== 'self_assessed');
-    const subjectiveRecords = records.filter((record) => record.gradingMode === 'self_assessed');
+    const accuracyRate = totalQuestions ? Math.round((correctCount / totalQuestions) * 100) : 0;
+    const objectiveQuestionIds = session.questionIds.filter((questionId) =>
+      this.questions.find((question) => question.id === questionId)?.type !== '综合题',
+    );
+    const subjectiveQuestionIds = session.questionIds.filter((questionId) =>
+      this.questions.find((question) => question.id === questionId)?.type === '综合题',
+    );
+    const objectiveRecords = records.filter((record) => objectiveQuestionIds.includes(record.questionId));
+    const subjectiveRecords = records.filter((record) => subjectiveQuestionIds.includes(record.questionId));
     const objectiveCorrectCount = objectiveRecords.filter((record) => record.correct).length;
     const subjectiveEarnedScore = subjectiveRecords.reduce((sum, record) => sum + (record.selfScore ?? 0), 0);
     const subjectiveMaxScore = subjectiveRecords.reduce((sum, record) => sum + (record.maxScore ?? 0), 0);
-    const answeredCount = Object.keys(session.answers).length;
+    const answeredQuestionIds = session.questionIds.filter((questionId) => isAnswered(session.answers[questionId]));
+    const answeredCount = answeredQuestionIds.length;
     const unansweredCount = session.questionIds.length - answeredCount;
     const totalTimeSec = session.totalActiveMs / 1000;
 
     // Per-subject breakdown
-    const subjectStats = new Map<string, { total: number; correct: number; totalTimeSec: number }>();
+    const subjectStats = new Map<string, { total: number; answered: number; correct: number; totalTimeSec: number }>();
+    for (const questionId of session.questionIds) {
+      const question = this.questions.find((item) => item.id === questionId);
+      const point = question?.knowledgePointIds[0]
+        ? this.knowledgePoints.find((item) => item.id === question.knowledgePointIds[0])
+        : undefined;
+      const subject = point?.subject ?? '未分类';
+      const stat = subjectStats.get(subject) ?? { total: 0, answered: 0, correct: 0, totalTimeSec: 0 };
+      stat.total += 1;
+      subjectStats.set(subject, stat);
+    }
     for (const record of records) {
       const question = this.questions.find((q) => q.id === record.questionId);
       const point = question?.knowledgePointIds[0]
         ? this.knowledgePoints.find((k) => k.id === question.knowledgePointIds[0])
         : undefined;
       const subject = point?.subject ?? '未分类';
-      const stat = subjectStats.get(subject) ?? { total: 0, correct: 0, totalTimeSec: 0 };
-      stat.total += 1;
+      const stat = subjectStats.get(subject) ?? { total: 0, answered: 0, correct: 0, totalTimeSec: 0 };
+      stat.answered += 1;
       if (record.correct) stat.correct += 1;
       stat.totalTimeSec += record.timeSpentSec;
       subjectStats.set(subject, stat);
@@ -2809,8 +2861,12 @@ export class StudyService implements OnModuleInit {
 
     // Knowledge point losses
     const pointLosses = new Map<string, { title: string; subject: string; wrongCount: number }>();
-    for (const record of records.filter((r) => !r.correct)) {
-      const question = this.questions.find((q) => q.id === record.questionId);
+    const lostQuestionIds = [
+      ...records.filter((record) => !record.correct).map((record) => record.questionId),
+      ...session.questionIds.filter((questionId) => !isAnswered(session.answers[questionId])),
+    ];
+    for (const questionId of lostQuestionIds) {
+      const question = this.questions.find((q) => q.id === questionId);
       const pointId = question?.knowledgePointIds[0];
       if (!pointId) continue;
       const point = this.knowledgePoints.find((k) => k.id === pointId);
@@ -2830,10 +2886,10 @@ export class StudyService implements OnModuleInit {
         unansweredCount,
         correctCount,
         accuracyRate,
-        objectiveQuestionCount: objectiveRecords.length,
+        objectiveQuestionCount: objectiveQuestionIds.length,
         objectiveCorrectCount,
-        objectiveAccuracyRate: objectiveRecords.length ? Math.round((objectiveCorrectCount / objectiveRecords.length) * 100) : 0,
-        subjectiveQuestionCount: subjectiveRecords.length,
+        objectiveAccuracyRate: objectiveQuestionIds.length ? Math.round((objectiveCorrectCount / objectiveQuestionIds.length) * 100) : 0,
+        subjectiveQuestionCount: subjectiveQuestionIds.length,
         subjectiveEarnedScore,
         subjectiveMaxScore,
         subjectiveScoreRate: subjectiveMaxScore ? Math.round((subjectiveEarnedScore / subjectiveMaxScore) * 100) : 0,
@@ -2846,13 +2902,13 @@ export class StudyService implements OnModuleInit {
         totalQuestions: stats.total,
         correctCount: stats.correct,
         accuracyRate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
-        avgTimeSec: stats.total ? Math.round(stats.totalTimeSec / stats.total) : 0,
+        avgTimeSec: stats.answered ? Math.round(stats.totalTimeSec / stats.answered) : 0,
       })),
       knowledgePointLosses: [...pointLosses.values()]
         .sort((a, b) => b.wrongCount - a.wrongCount)
         .slice(0, 10),
       unansweredQuestions: session.questionIds
-        .filter((id) => !session.answers[id])
+        .filter((id) => !isAnswered(session.answers[id]))
         .map((id) => {
           const q = this.questions.find((q2) => q2.id === id);
           return { questionId: id, stem: q?.stem ?? id };
@@ -2867,12 +2923,12 @@ export class StudyService implements OnModuleInit {
       return existingPlan;
     }
     const report = this.getExamReport(sessionId, userId);
-    const today = new Date();
+    const localToday = new Date(`${todayKey()}T00:00:00.000Z`);
 
     // Generate 3-day review plan focused on weak knowledge points
     const days = Array.from({ length: 3 }, (_, index) => {
-      const date = new Date(today);
-      date.setUTCDate(today.getUTCDate() + index + 1);
+      const date = new Date(localToday);
+      date.setUTCDate(localToday.getUTCDate() + index + 1);
       const focus = report.knowledgePointLosses[index]
         ?? report.knowledgePointLosses[0]
         ?? { title: '408 高频考点', subject: '综合' };
@@ -2944,6 +3000,7 @@ export class StudyService implements OnModuleInit {
   }
 
   private sessionView(s: PracticeSession) {
+    const answeredCount = s.questionIds.filter((questionId) => isAnswered(s.answers[questionId])).length;
     return {
       id: s.id,
       type: s.type,
@@ -2953,16 +3010,20 @@ export class StudyService implements OnModuleInit {
       markedQuestions: s.markedQuestions,
       currentIndex: s.currentIndex,
       totalQuestions: s.questionIds.length,
-      answeredCount: Object.keys(s.answers).length,
+      answeredCount,
       startedAt: s.startedAt,
       lastActiveAt: s.lastActiveAt,
       totalActiveMs: s.totalActiveMs,
       completed: s.completed,
       progressRate: s.questionIds.length > 0
-        ? Math.round((Object.keys(s.answers).length / s.questionIds.length) * 100)
+        ? Math.round((answeredCount / s.questionIds.length) * 100)
         : 0,
     };
   }
+}
+
+function isAnswered(answer?: { selectedAnswer: string }) {
+  return Boolean(answer?.selectedAnswer.trim());
 }
 
 function todayKey() {

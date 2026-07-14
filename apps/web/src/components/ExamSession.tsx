@@ -50,11 +50,14 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
 
   const currentIndex = session?.currentIndex ?? 0;
   const currentQuestion = questions.find((q) => q.id === questionIds[currentIndex]);
-  const answeredCount = session ? Object.keys(session.answers).length : 0;
-  const unansweredQuestions = questionIds.filter((id) => !session?.answers[id]);
+  const isAnswered = (questionId: string) => Boolean(session?.answers[questionId]?.selectedAnswer.trim());
+  const answeredCount = questionIds.filter(isAnswered).length;
+  const unansweredQuestions = questionIds.filter((id) => !isAnswered(id));
   const markedCount = session?.markedQuestions.length ?? 0;
   const subjectiveQuestions = questions.filter((question) => question.type === '综合题');
-  const missingSubjectiveScores = subjectiveQuestions.filter((question) => session?.answers[question.id]?.selfScore === undefined);
+  const missingSubjectiveScores = subjectiveQuestions.filter((question) =>
+    isAnswered(question.id) && session?.answers[question.id]?.selfScore === undefined,
+  );
 
   useEffect(() => {
     if (!session) return;
@@ -239,7 +242,7 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
           <h4>答题卡</h4>
           <div className="answer-grid">
             {questionIds.map((qid, i) => {
-              const answered = !!session.answers[qid];
+              const answered = isAnswered(qid);
               const marked = session.markedQuestions.includes(qid);
               return (
                 <button
@@ -287,17 +290,19 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
                   <div key={question.id} className="subjective-score-row">
                     <p>{question.stem}</p>
                     <small>{question.analysis ?? question.answer ?? '请依据标准评分点核对关键步骤。'}</small>
-                    <label>
-                      自评分
-                      <input
-                        type="number"
-                        min="0"
-                        max="10"
-                        value={session.answers[question.id]?.selfScore ?? ''}
-                        onChange={(event) => handleSelfScore(question.id, Number(event.target.value))}
-                      />
-                      / 10
-                    </label>
+                    {isAnswered(question.id) ? (
+                      <label>
+                        自评分
+                        <input
+                          type="number"
+                          min="0"
+                          max="10"
+                          value={session.answers[question.id]?.selfScore ?? ''}
+                          onChange={(event) => handleSelfScore(question.id, Number(event.target.value))}
+                        />
+                        / 10
+                      </label>
+                    ) : <span className="task-status">未作答，不计入自评分。</span>}
                   </div>
                 ))}
               </div>

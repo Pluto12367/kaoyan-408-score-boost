@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { Target, Clock, AlertTriangle, TrendingUp, BookOpen } from 'lucide-react';
 import { fetchExamReport, generatePostExamReviewTasks, fetchScoreHistory, type ExamReport as ReportType, type PostExamReviewTasks, type ScoreHistory } from '../api/endpoints/exam';
 
@@ -11,21 +11,52 @@ export function ExamReportView({ sessionId, onClose }: Props) {
   const [report, setReport] = useState<ReportType | null>(null);
   const [reviewTasks, setReviewTasks] = useState<PostExamReviewTasks | null>(null);
   const [scoreHistory, setScoreHistory] = useState<ScoreHistory | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
 
-  useEffect(() => {
-    Promise.all([
-      fetchExamReport(sessionId),
-      generatePostExamReviewTasks(sessionId),
-      fetchScoreHistory(),
-    ]).then(([r, t, h]) => {
-      setReport(r);
-      setReviewTasks(t);
-      setScoreHistory(h);
-    }).catch((e) => setError(e instanceof Error ? e.message : '加载失败'));
+  const loadReport = useCallback(async () => {
+    setReportError(null);
+    try {
+      setReport(await fetchExamReport(sessionId));
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : '考试报告加载失败');
+    }
   }, [sessionId]);
 
-  if (error) return <div className="panel"><p className="task-status">加载失败: {error}</p></div>;
+  const loadReviewTasks = useCallback(async () => {
+    setReviewError(null);
+    try {
+      setReviewTasks(await generatePostExamReviewTasks(sessionId));
+    } catch (error) {
+      setReviewError(error instanceof Error ? error.message : '复习计划加载失败');
+    }
+  }, [sessionId]);
+
+  const loadScoreHistory = useCallback(async () => {
+    setHistoryError(null);
+    try {
+      setScoreHistory(await fetchScoreHistory());
+    } catch (error) {
+      setHistoryError(error instanceof Error ? error.message : '成绩趋势加载失败');
+    }
+  }, []);
+
+  useEffect(() => {
+    setReport(null);
+    setReviewTasks(null);
+    setScoreHistory(null);
+    void loadReport();
+    void loadReviewTasks();
+    void loadScoreHistory();
+  }, [loadReport, loadReviewTasks, loadScoreHistory]);
+
+  if (reportError) return (
+    <div className="panel module-inline-error">
+      <p className="task-status">考试报告加载失败：{reportError}</p>
+      <button type="button" className="secondary-action" onClick={() => void loadReport()}>重新加载</button>
+    </div>
+  );
   if (!report) return <div className="panel"><p className="task-status">加载考试报告...</p></div>;
 
   const { summary } = report;
@@ -52,7 +83,9 @@ export function ExamReportView({ sessionId, onClose }: Props) {
           <div><AlertTriangle size={16} /> 未答 {summary.unansweredCount} 题</div>
           <div><Target size={16} /> 客观题 {summary.objectiveCorrectCount}/{summary.objectiveQuestionCount} · {summary.objectiveAccuracyRate}%</div>
           {summary.subjectiveQuestionCount > 0 ? (
-            <div><BookOpen size={16} /> 综合题自评 {summary.subjectiveEarnedScore}/{summary.subjectiveMaxScore} · {summary.subjectiveScoreRate}%</div>
+            <div><BookOpen size={16} /> {summary.subjectiveMaxScore > 0
+              ? `综合题自评 ${summary.subjectiveEarnedScore}/${summary.subjectiveMaxScore} · ${summary.subjectiveScoreRate}%`
+              : `综合题 ${summary.subjectiveQuestionCount} 题未作答或未自评`}</div>
           ) : null}
         </div>
         {scoreHistory ? (
@@ -133,7 +166,12 @@ export function ExamReportView({ sessionId, onClose }: Props) {
             ))}
           </div>
         </div>
-      ) : null}
+      ) : reviewError ? (
+        <div className="report-section module-inline-error">
+          <p className="task-status">考后复习计划暂不可用：{reviewError}</p>
+          <button type="button" className="secondary-action" onClick={() => void loadReviewTasks()}>重试复习计划</button>
+        </div>
+      ) : <div className="report-section"><p className="task-status">正在生成考后复习计划...</p></div>}
 
       {/* Score history */}
       {scoreHistory && scoreHistory.history.length > 0 ? (
@@ -148,7 +186,12 @@ export function ExamReportView({ sessionId, onClose }: Props) {
             ))}
           </div>
         </div>
-      ) : null}
+      ) : historyError ? (
+        <div className="report-section module-inline-error">
+          <p className="task-status">历史成绩暂不可用：{historyError}</p>
+          <button type="button" className="secondary-action" onClick={() => void loadScoreHistory()}>重试成绩趋势</button>
+        </div>
+      ) : !scoreHistory ? <div className="report-section"><p className="task-status">正在加载历史成绩...</p></div> : null}
     </div>
   );
 }

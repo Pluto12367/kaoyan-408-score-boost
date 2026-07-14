@@ -412,6 +412,20 @@ export class StudyController {
     return this.studyService.getExamScoreHistory(user.id);
   }
 
+  @Post('exam/papers/prepare')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  prepareExamPaper(
+    @CurrentUser() user: UserProfile,
+    @Body() input: {
+      paperType?: '模拟卷' | '专项卷';
+      subject?: Subject;
+      questionCount?: number;
+    },
+  ) {
+    return this.studyService.prepareExamPaper(user.id, input);
+  }
+
   @Post('feedback')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')

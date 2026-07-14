@@ -134,6 +134,70 @@
   color: #52606d;
 }
 
+.exam-config-grid {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.exam-config-grid label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.exam-config-grid select,
+.exam-config-grid input {
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 7px 10px;
+  background: #fff;
+  color: #172033;
+  font: inherit;
+}
+
+.exam-config-grid input {
+  width: 92px;
+}
+
+.segmented-control {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.segmented-control button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 0;
+  padding: 8px 12px;
+  background: #fff;
+  color: #475569;
+}
+
+.segmented-control button + button {
+  border-left: 1px solid #cbd5e1;
+}
+
+.segmented-control button.active {
+  background: #0f766e;
+  color: #fff;
+}
+
+.module-inline-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .subjective-answer,
 .subjective-scoring,
 .subjective-score-row {

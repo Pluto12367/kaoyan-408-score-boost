@@ -90,6 +90,31 @@ async function main() {
     source: 'integration subjective',
   }, { Authorization: `Bearer ${teacherSession.token}` });
   assert(subjectiveQuestion.type === '综合题', 'teacher should create a comprehensive question for self assessment');
+  const preparedMockPaper = await postJson(`${apiUrl}/exam/papers/prepare`, {
+    paperType: '模拟卷',
+    questionCount: 4,
+    createdBy: 'forged-owner',
+  }, studentHeaders);
+  assert(preparedMockPaper.paperType === '模拟卷' && preparedMockPaper.questionCount > 0, 'student should prepare a full mock paper from the available bank');
+  assert(preparedMockPaper.createdBy === registered.user.id, 'prepared exam must use the authenticated student as its owner');
+  const preparedSpecialPaper = await postJson(`${apiUrl}/exam/papers/prepare`, {
+    paperType: '专项卷',
+    subject: '计算机组成原理',
+    questionCount: 10,
+  }, studentHeaders);
+  assert(preparedSpecialPaper.paperType === '专项卷' && preparedSpecialPaper.title.includes('计算机组成原理'), 'student should prepare a subject-specific paper');
+  await expectPostStatus(`${apiUrl}/exam/papers/prepare`, {
+    paperType: '专项卷',
+    questionCount: 10,
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/exam/papers/prepare`, {
+    paperType: '伪造试卷类型',
+    questionCount: 10,
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/exam/papers/prepare`, {
+    paperType: '模拟卷',
+    questionCount: 2.5,
+  }, 400, studentHeaders);
   const generatedPaper = await postJson(`${apiUrl}/papers/generate`, {
     title: 'PostgreSQL restart paper',
     paperType: '专项卷',
@@ -249,6 +274,33 @@ async function main() {
   }, studentHeaders);
   assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes(subjectiveQuestion.id), 'session progress should be saved');
 
+  const partialExamSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-partial-exam',
+    questionIds: ['q-001', subjectiveQuestion.id],
+  }, studentHeaders);
+  const partialSavedSession = await postJson(`${apiUrl}/sessions/practice/${partialExamSession.id}/save`, {
+    answers: {
+      'q-001': { selectedAnswer: 'B', timeSpentSec: 60 },
+      [subjectiveQuestion.id]: { selectedAnswer: '', timeSpentSec: 20 },
+    },
+    currentIndex: 1,
+    totalActiveMs: 80_000,
+  }, studentHeaders);
+  assert(partialSavedSession.answeredCount === 1 && partialSavedSession.progressRate === 50, 'blank comprehensive answers must remain unanswered');
+  await postJson(`${apiUrl}/sessions/practice/${partialExamSession.id}/submit`, {
+    answers: [
+      { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 },
+      { questionId: subjectiveQuestion.id, selectedAnswer: '', timeSpentSec: 20 },
+    ],
+    totalActiveMs: 80_000,
+  }, studentHeaders);
+  const partialExamReport = await getJson(`${apiUrl}/exam/report/${partialExamSession.id}`, studentHeaders);
+  assert(partialExamReport.summary.answeredCount === 1 && partialExamReport.summary.unansweredCount === 1, 'blank comprehensive answer should be traceable as unanswered');
+  assert(partialExamReport.summary.subjectiveQuestionCount === 1, 'report should count unanswered comprehensive questions in the paper structure');
+  assert(partialExamReport.subjectBreakdown.reduce((sum, item) => sum + item.totalQuestions, 0) === 2, 'subject breakdown should cover the whole paper including unanswered questions');
+  assert(partialExamReport.knowledgePointLosses.some((item) => item.title), 'unanswered questions should contribute to knowledge-point losses');
+
   const recommendedPracticeSet = await getJson(`${apiUrl}/practice-sets/recommended`, studentHeaders);
   const practiceSessionQuestions = recommendedPracticeSet.questions.slice(0, Math.min(2, recommendedPracticeSet.questions.length));
   assert(practiceSessionQuestions.length > 0, 'recommended practice set should contain resumable questions');
@@ -291,20 +343,18 @@ async function main() {
   studentHeaders = { Authorization: `Bearer ${reloggedIn.accessToken}` };
   const restored = await waitForOverview(studentHeaders, (data) =>
     data.practiceRecords?.some((record) => record.id === created.id)
-      && data.wrongQuestions?.some((item) => item.questionId === 'q-001' && item.reviewStatus === 'reviewed')
       && data.plan?.dailyTasks?.some((task) => task.id === taskId && task.completed)
       && data.student?.targetScore === 126
       && data.questions?.some((question) => question.id === teacherQuestion.id),
   );
   const restoredRecord = restored.practiceRecords.find((record) => record.id === created.id);
   assert(restoredRecord.timeSpentSec === 137, 'record should survive an API restart');
-  const restoredReview = restored.wrongQuestions.find((item) => item.questionId === 'q-001');
-  assert(restoredReview.reviewedAt === masteredRedo.lastReviewedAt, 'latest wrong-question review timestamp should survive an API restart');
   const restoredWrongDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
   assert(restoredWrongDetail.note === savedNote.note, 'wrong-question note should survive an API restart');
   assert(restoredWrongDetail.reviewSchedule?.stability === 'mastered', 'review mastery should survive an API restart');
   assert(restoredWrongDetail.reviewHistory?.length === 4, 'complete review trajectory should survive an API restart');
   assert(restoredWrongDetail.reviewHistory[0].nextIntervalDays === 1, 'review history should retain interval decisions');
+  assert(restoredWrongDetail.reviewHistory.at(-1)?.reviewedAt === masteredRedo.lastReviewedAt, 'latest wrong-question review timestamp should survive an API restart');
   const restoredTask = restored.plan.dailyTasks.find((task) => task.id === taskId);
   assert(restoredTask.completed === true, 'study-task completion should survive an API restart');
   const restoredOnboarding = await getJson(`${apiUrl}/onboarding/status`, studentHeaders);
@@ -381,6 +431,8 @@ async function main() {
   assert(overviewAfterSessionSubmissions.practiceRecords.filter((record) => record.sessionId === stageSession.id).length === stageSessionQuestions.length, 'stage-assessment duplicate submission must not create duplicate records');
   const examReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
   assert(examReviewPlan.days.length === 3, 'submitted exam should generate a three-day review plan');
+  const localToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  assert(examReviewPlan.days[0].date > localToday, 'post-exam review plan should start on the next local calendar day');
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
   assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
   assert(restored.student.targetScore === 126, 'diagnostic profile should survive an API restart');
@@ -407,7 +459,7 @@ async function main() {
     ok: true,
     source: restored.source,
     persistedRecordId: created.id,
-    reviewedQuestionId: restoredReview.questionId,
+    reviewedQuestionId: restoredWrongDetail.questionId,
     completedTaskId: restoredTask.id,
     restoredSessionId: restoredSession.id,
     restoredReviewHistoryCount: restoredWrongDetail.reviewHistory.length,

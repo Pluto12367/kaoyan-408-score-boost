@@ -45,6 +45,7 @@ import {
   fetchReviewQueue,
   fetchStageAssessment,
   generatePaper,
+  prepareExamPaper,
   markReviewItemNeedsRecheck,
   requestAiFollowUp,
   requestTutorReply,
@@ -61,6 +62,7 @@ import {
   type FeedbackList,
   type GeneratedPaper,
   type PaperSubmitResult,
+  type PrepareExamPaperInput,
   type PracticeSetResult,
   type StageAssessmentResult,
   type TaskCompletionAdjustment,
@@ -989,6 +991,23 @@ rating: 4,
     }
   }
 
+  async function handlePrepareStudentExam(input: PrepareExamPaperInput) {
+    const paper = isStaticDemoMode()
+      ? createMockGeneratedPaper({
+          title: input.paperType === '专项卷' ? `${input.subject}专项卷` : '408 模拟卷',
+          paperType: input.paperType,
+          questionCount: input.questionCount,
+          createdBy: student.id,
+        })
+      : await prepareExamPaper(input);
+    setLatestPaper(paper);
+    setPaperResult(null);
+    setResumedLearningSession(null);
+    setExamReportSessionId(null);
+    setLearningSessionType('paper');
+    setApiState(isStaticDemoMode() ? 'mock' : 'connected');
+  }
+
   function handleRetryActiveWorkspace() {
     if (sessionUser?.role === 'teacher') {
       void Promise.allSettled([roleWorkspace.refreshQuestions(), roleWorkspace.refreshClassAnalytics()]);
@@ -1071,11 +1090,7 @@ rating: 4,
               setExamReportSessionId(null);
               setLearningSessionType(session.type);
             }}
-            onStartExam={() => {
-              setResumedLearningSession(null);
-              setExamReportSessionId(null);
-              setLearningSessionType('paper');
-            }}
+            onStartExam={handlePrepareStudentExam}
           />
           ) : null}
         </StudentLayout>
