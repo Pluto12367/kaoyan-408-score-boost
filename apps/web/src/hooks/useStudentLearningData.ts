@@ -26,7 +26,7 @@ function errorMessage(error: unknown, label: string) {
   return error instanceof Error ? `${label}加载失败：${error.message}` : `${label}加载失败，请稍后重试。`;
 }
 
-export function useStudentLearningData(enabled: boolean) {
+export function useStudentLearningData(enabled: boolean, authKey?: string) {
   const [practiceSet, setPracticeSet] = useState(() => initialResource(createMockPracticeSet));
   const [reviewResources, setReviewResources] = useState(() => initialResource(createMockReviewResourceRecommendations));
   const [wrongQuestionSummary, setWrongQuestionSummary] = useState(() => initialResource(createMockWrongQuestionSummary));
@@ -81,11 +81,26 @@ export function useStudentLearningData(enabled: boolean) {
       refreshWrongQuestionSummary(),
       refreshAssessmentHistory(),
     ]);
-  }, [enabled, refreshAssessmentHistory, refreshPracticeSet, refreshReviewResources, refreshWrongQuestionSummary]);
+  }, [authKey, enabled, refreshAssessmentHistory, refreshPracticeSet, refreshReviewResources, refreshWrongQuestionSummary]);
 
   useEffect(() => {
+    if (!enabled) {
+      if (!isMockAllowed()) {
+        setPracticeSet({ data: null, state: 'loading' });
+        setReviewResources({ data: null, state: 'loading' });
+        setWrongQuestionSummary({ data: null, state: 'loading' });
+        setAssessmentHistory({ data: null, state: 'loading' });
+      }
+      return;
+    }
+    if (!isMockAllowed()) {
+      setPracticeSet({ data: null, state: 'loading' });
+      setReviewResources({ data: null, state: 'loading' });
+      setWrongQuestionSummary({ data: null, state: 'loading' });
+      setAssessmentHistory({ data: null, state: 'loading' });
+    }
     void refreshAll();
-  }, [refreshAll]);
+  }, [authKey, enabled, refreshAll]);
 
   const updateAssessmentHistory = useCallback((updater: (history: AssessmentHistory) => AssessmentHistory) => {
     setAssessmentHistory((current) => current.data

@@ -36,6 +36,7 @@ export function validateEnvironment(values) {
       if (placeholders.test(values[key] ?? '')) errors.push(`${key} still contains a placeholder value.`);
     }
     if (values.ALLOW_DEMO_AUTH !== 'false') errors.push('ALLOW_DEMO_AUTH must be false outside development.');
+    if (values.VITE_ALLOW_MOCK === 'true') errors.push('VITE_ALLOW_MOCK cannot be enabled outside development.');
     for (const key of ['WEB_ORIGIN', 'VITE_API_BASE_URL']) {
       const urls = (values[key] ?? '').split(',').map((value) => value.trim()).filter(Boolean);
       if (urls.some((url) => !url.startsWith('https://'))) errors.push(`${key} must use HTTPS outside development.`);

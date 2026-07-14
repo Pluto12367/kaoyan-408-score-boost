@@ -21,6 +21,9 @@ import { LearningProfilePanel } from './features/report/LearningProfilePanel';
 import { FeedbackPanel } from './features/feedback/FeedbackPanel';
 import { useStudentProgressData } from './hooks/useStudentProgressData';
 import { useStudentLearningData } from './hooks/useStudentLearningData';
+import { useDashboardOverviewData } from './hooks/useDashboardOverviewData';
+import { useRoleWorkspaceData } from './hooks/useRoleWorkspaceData';
+import { ModuleUnavailable } from './components/ModuleResourceState';
 import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -30,25 +33,16 @@ import {
   createKnowledgePoint,
   createTeacherQuestion,
   deleteTeacherQuestion,
-  createMockAdminUserManagement,
-  createMockAdminMetrics,
   createMockAiFollowUp,
-  createMockFeedbackList,
   createMockGeneratedPaper,
   createMockOverview,
   createMockPaperSubmitResult,
-  createMockReviewQueue,
-  createMockSystemConfig,
-  createMockTeacherClassAnalytics,
   fetchAdminMetrics,
   fetchAdminUsers,
   fetchDashboardOverview,
-  fetchFeedbackList,
   fetchQuestions,
   fetchReviewQueue,
   fetchStageAssessment,
-  fetchSystemConfig,
-  fetchTeacherClassAnalytics,
   generatePaper,
   markReviewItemNeedsRecheck,
   requestAiFollowUp,
@@ -64,19 +58,13 @@ import {
   updateTeacherQuestion,
   updateSystemConfig,
   isStaticDemoMode,
-  type AdminMetrics,
-  type AdminUserManagement,
   type AiFollowUp,
-  type DashboardOverview,
-  type GeneratedPaper,
   type FeedbackList,
+  type GeneratedPaper,
   type PaperSubmitResult,
   type PracticeSetResult,
-  type ReviewQueue,
   type StageAssessmentResult,
-  type SystemConfig,
   type TaskCompletionAdjustment,
-  type TeacherClassAnalytics,
   type TutorReply,
 } from './api';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
@@ -87,6 +75,13 @@ import {
   createInitialPaperSession,
 } from './constants';
 
+const STUDENT_FEEDBACK: FeedbackList = {
+  totalCount: 0,
+  averageRating: 0,
+  surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
+  items: [],
+};
+
 export function App() {
   const {
     authSession, sessionUser, authMode, authStatus,
@@ -94,12 +89,22 @@ export function App() {
     handleRoleSwitch, handleAccountSubmit, handleLogout,
   } = useAuth();
 
-  const [overview, setOverview] = useState<DashboardOverview>(() => createMockOverview());
-  const [adminMetrics, setAdminMetrics] = useState<AdminMetrics>(() => createMockAdminMetrics());
-  const [adminUsers, setAdminUsers] = useState<AdminUserManagement>(() => createMockAdminUserManagement());
-  const [teacherClassAnalytics, setTeacherClassAnalytics] = useState<TeacherClassAnalytics>(() => createMockTeacherClassAnalytics());
-  const [reviewQueue, setReviewQueue] = useState<ReviewQueue>(() => createMockReviewQueue());
-  const [systemConfig, setSystemConfig] = useState<SystemConfig>(() => createMockSystemConfig());
+  const authKey = authSession?.accessToken ?? authSession?.token;
+  const studentDataEnabled = isStaticDemoMode() || sessionUser?.role === 'student';
+  const dashboardOverview = useDashboardOverviewData(studentDataEnabled, authKey);
+  const { setOverview, refreshOverview } = dashboardOverview;
+  const overview = dashboardOverview.overview.data ?? createMockOverview();
+  const studentOverviewReady = dashboardOverview.overview.data !== null;
+  const roleWorkspace = useRoleWorkspaceData(sessionUser?.role, authKey);
+  const adminUsers = roleWorkspace.adminUsers.data;
+  const teacherQuestionList = roleWorkspace.questions.data ?? [];
+  const {
+    setAdminMetrics,
+    setAdminUsers,
+    setReviewQueue,
+    setSystemConfig,
+    setQuestions: setTeacherQuestionList,
+  } = roleWorkspace;
   const [apiState, setApiState] = useState<ApiState>('connecting');
   const [lastSyncAt, setLastSyncAt] = useState<string | undefined>();
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -114,7 +119,7 @@ export function App() {
   const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
-  const [aiFollowUp, setAiFollowUp] = useState<AiFollowUp>(() => createMockAiFollowUp());
+  const [aiFollowUp, setAiFollowUp] = useState<AiFollowUp | null>(() => isMockAllowed() ? createMockAiFollowUp() : null);
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
   const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
   const [reviewStatus, setReviewStatus] = useState('教师题目和 AI 生成内容会进入审核队列。');
@@ -127,15 +132,14 @@ export function App() {
   const [examOpen, setExamOpen] = useState(false);
   const [examReportSessionId, setExamReportSessionId] = useState<string | null>(null);
   const [resumedExamSession, setResumedExamSession] = useState<SessionView | null>(null);
-  const [teacherQuestionList, setTeacherQuestionList] = useState(() => createMockOverview().questions);
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
-  const [feedbackList, setFeedbackList] = useState<FeedbackList>(() => createMockFeedbackList());
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
   const [userStatus, setUserStatus] = useState('管理员可以跟踪试用名单状态，方便后续邀请填写问卷。');
   const studentProgress = useStudentProgressData(
     sessionUser?.id ?? overview.student.id,
-    !sessionUser || sessionUser.role === 'student',
+    studentDataEnabled,
+    authKey,
   );
   const {
     refreshTrialProgress,
@@ -144,7 +148,7 @@ export function App() {
     refreshMasteryMap,
     refreshLearningProfile,
   } = studentProgress;
-  const studentLearning = useStudentLearningData(!sessionUser || sessionUser.role === 'student');
+  const studentLearning = useStudentLearningData(studentDataEnabled, authKey);
   const {
     refreshPracticeSet,
     refreshReviewResources,
@@ -154,87 +158,51 @@ export function App() {
   } = studentLearning;
 
   useEffect(() => {
-    let active = true;
-
-    fetchDashboardOverview()
-      .then((data) => {
-        if (!active) return;
-        setOverview(data);
-        setTeacherQuestionList(data.questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
-        setSessionUser((current) => current ?? data.student);
-        setApiState('connected');
-        setLastSyncAt(new Date().toISOString());
-      })
-      .catch(() => {
-        if (!active) return;
-        if (isMockAllowed()) {
-          setOverview(createMockOverview());
-          setApiState('mock');
-        } else {
-          setApiState('error');
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    const role = sessionUser?.role;
-
-    if (role === 'teacher') {
-      fetchTeacherClassAnalytics()
-        .then((classAnalytics) => {
-          if (!active) return;
-          setTeacherClassAnalytics(classAnalytics);
-        })
-        .catch(() => {
-          if (active) setTeacherStatus('教师数据加载失败，请重新登录后重试。');
-        });
+    const resource = dashboardOverview.overview;
+    if (resource.data) {
+      setSessionUser((current) => current ?? resource.data?.student ?? null);
     }
-
-    if (role === 'admin') {
-      Promise.all([fetchAdminMetrics(), fetchAdminUsers(), fetchTeacherClassAnalytics(), fetchReviewQueue(), fetchSystemConfig(), fetchFeedbackList()])
-        .then(([metrics, users, classAnalytics, queue, config, feedback]) => {
-          if (!active) return;
-          setAdminMetrics(metrics);
-          setAdminUsers(users);
-          setTeacherClassAnalytics(classAnalytics);
-          setReviewQueue(queue);
-          setSystemConfig(config);
-          setFeedbackList(feedback);
-        })
-        .catch(() => {
-          if (active) setReviewStatus('管理数据加载失败，请重新登录后重试。');
-        });
+    if (sessionUser?.role === 'teacher') {
+      const resources = [roleWorkspace.questions, roleWorkspace.classAnalytics];
+      setApiState(resources.some((item) => item.state === 'error') ? 'error' : resources.every((item) => item.state === 'ready') ? 'connected' : resources.some((item) => item.state === 'mock') ? 'mock' : 'connecting');
+      setLastSyncAt(resources.map((item) => item.lastSyncAt).filter(Boolean).sort().at(-1));
+      return;
     }
-
-    return () => {
-      active = false;
-    };
-  }, [sessionUser?.role]);
+    if (sessionUser?.role === 'admin') {
+      const resources = [roleWorkspace.adminMetrics, roleWorkspace.adminUsers, roleWorkspace.reviewQueue, roleWorkspace.systemConfig, roleWorkspace.feedback];
+      setApiState(resources.some((item) => item.state === 'error') ? 'error' : resources.every((item) => item.state === 'ready') ? 'connected' : resources.some((item) => item.state === 'mock') ? 'mock' : 'connecting');
+      setLastSyncAt(resources.map((item) => item.lastSyncAt).filter(Boolean).sort().at(-1));
+      return;
+    }
+    setApiState(resource.state === 'ready' ? 'connected' : resource.state === 'loading' ? 'connecting' : resource.state);
+    setLastSyncAt(resource.lastSyncAt);
+  }, [dashboardOverview.overview, roleWorkspace.adminMetrics, roleWorkspace.adminUsers, roleWorkspace.classAnalytics, roleWorkspace.feedback, roleWorkspace.questions, roleWorkspace.reviewQueue, roleWorkspace.systemConfig, sessionUser?.role, setSessionUser]);
 
   // Phase 3: Check onboarding status on mount
   useEffect(() => {
     if (isStaticDemoMode()) { setOnboardingChecked(true); return; }
+    if (!studentDataEnabled || !authKey) {
+      setOnboardingChecked(false);
+      setShowOnboarding(false);
+      setTodayPlan(null);
+      return;
+    }
     fetchOnboardingStatus()
       .then((status) => {
         if (!status.completed) setShowOnboarding(true);
         setOnboardingChecked(true);
       })
       .catch(() => setOnboardingChecked(true));
-  }, []);
+  }, [authKey, studentDataEnabled]);
 
   // Phase 3: Load today plan when onboarding is done
   useEffect(() => {
-    if (!onboardingChecked || showOnboarding) return;
+    if (!studentDataEnabled || !authKey || !onboardingChecked || showOnboarding) return;
     if (isStaticDemoMode()) return;
     fetchTodayPlan()
       .then((plan) => setTodayPlan(plan))
       .catch(() => { /* show plan from dashboard overview */ });
-  }, [onboardingChecked, showOnboarding]);
+  }, [authKey, onboardingChecked, showOnboarding, studentDataEnabled]);
 
   async function handleOnboardingComplete(result: Awaited<ReturnType<typeof import('./api/endpoints/onboarding').completeOnboarding>>) {
     setShowOnboarding(false);
@@ -313,7 +281,7 @@ export function App() {
 
   async function onLogout() {
     await handleLogout();
-    setApiState('mock');
+    setApiState(isMockAllowed() ? 'mock' : 'connecting');
   }
 
   async function handleSubmitDiagnostic() {
@@ -596,12 +564,10 @@ answers: stageAssessment.questions.map((question, index) => ({
         year: 2026,
         expectedTimeSec: 90,
       });
-      const nextOverview = await fetchDashboardOverview();
-      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
-      setOverview(nextOverview);
+      const nextQuestions = await fetchQuestions();
       setTeacherQuestionList(nextQuestions);
       setApiState('connected');
-      setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextOverview.questions.length} 题。`);
+      setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextQuestions.length} 题。`);
     } catch {
       setTeacherStatus('题目录入失败，请检查题干、选项、答案和知识点绑定。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
@@ -617,9 +583,14 @@ answers: stageAssessment.questions.map((question, index) => ({
       setApiState('connected');
       setTeacherStatus(`已筛选出 ${nextQuestions.length} 道 Cache 映射与替换相关题目。`);
     } catch {
-      setTeacherQuestionList(questions.filter((question) => question.knowledgePointIds.includes('co-cache')));
-      setTeacherStatus('已使用静态演示数据筛选 Cache 相关题目。');
-      setApiState(isMockAllowed() ? 'mock' : 'error');
+      if (isMockAllowed()) {
+        setTeacherQuestionList(teacherQuestionList.filter((question) => question.knowledgePointIds.includes('co-cache')));
+        setTeacherStatus('已使用本地演示题库筛选 Cache 相关题目。');
+        setApiState('mock');
+      } else {
+        setTeacherStatus('题目筛选失败，当前列表保持不变，请稍后重试。');
+        setApiState('error');
+      }
     }
   }
 
@@ -651,9 +622,7 @@ answers: stageAssessment.questions.map((question, index) => ({
         analysis: '更新后的解析用于教师维护题目质量。',
         expectedTimeSec: 150,
       });
-      const nextOverview = await fetchDashboardOverview();
-      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
-      setOverview(nextOverview);
+      const nextQuestions = await fetchQuestions();
       setTeacherQuestionList(nextQuestions);
       setApiState('connected');
       setTeacherStatus(`已更新 ${updated.id}：难度 ${updated.difficulty}，预计 ${updated.expectedTimeSec} 秒。`);
@@ -681,9 +650,7 @@ answers: stageAssessment.questions.map((question, index) => ({
 
     try {
       const deleted = await deleteTeacherQuestion(target.id);
-      const nextOverview = await fetchDashboardOverview();
-      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
-      setOverview(nextOverview);
+      const nextQuestions = await fetchQuestions();
       setTeacherQuestionList(nextQuestions);
       setApiState('connected');
       setTeacherStatus(`已删除 ${deleted.id}，筛选列表已刷新。`);
@@ -706,10 +673,8 @@ answers: stageAssessment.questions.map((question, index) => ({
         frequency: 4,
         prerequisites: ['进程地址空间'],
       });
-      const nextOverview = await fetchDashboardOverview();
-      setOverview(nextOverview);
       setApiState('connected');
-      setKnowledgeStatus(`已新增 ${point.title}，当前知识点共 ${nextOverview.knowledgePoints.length} 个。`);
+      setKnowledgeStatus(`已新增知识点：${point.title}。`);
     } catch {
       setKnowledgeStatus('知识点新增失败，请检查 ID、科目、章节和标题。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
@@ -932,6 +897,10 @@ rating: 4,
   }
 
   async function handleMarkTrialFollowUp() {
+    if (!adminUsers) {
+      setUserStatus('用户名单尚未加载，请重试用户管理模块。');
+      return;
+    }
     const studentUser = adminUsers.users.find((user) => user.role === 'student');
     if (!studentUser) {
       setUserStatus('暂无可标记的学生账号。');
@@ -974,6 +943,30 @@ rating: 4,
     }
   }
 
+  function handleRetryActiveWorkspace() {
+    if (sessionUser?.role === 'teacher') {
+      void Promise.allSettled([roleWorkspace.refreshQuestions(), roleWorkspace.refreshClassAnalytics()]);
+      return;
+    }
+    if (sessionUser?.role === 'admin') {
+      void Promise.allSettled([
+        roleWorkspace.refreshAdminMetrics(),
+        roleWorkspace.refreshAdminUsers(),
+        roleWorkspace.refreshReviewQueue(),
+        roleWorkspace.refreshSystemConfig(),
+        roleWorkspace.refreshFeedback(),
+      ]);
+      return;
+    }
+    void refreshOverview();
+  }
+
+  const activeDataSource = sessionUser?.role === 'teacher'
+    ? roleWorkspace.classAnalytics.data?.source
+    : sessionUser?.role === 'admin'
+      ? roleWorkspace.adminMetrics.data?.source
+      : dashboardOverview.overview.data?.source;
+
   return (
     <main className="app-shell">
       <aside className="sidebar">
@@ -990,7 +983,11 @@ rating: 4,
             <p className="eyebrow">{roleLabel[sessionUser?.role ?? 'student']}工作区</p>
             <h2>
               {sessionUser?.role === 'student' || !sessionUser
-                ? `${student.name}，当前处于${student.stage}阶段`
+                ? studentOverviewReady
+                  ? `${student.name}，当前处于${student.stage}阶段`
+                  : sessionUser
+                    ? `${sessionUser.name}，学习数据待同步`
+                    : '登录后载入个人学习数据'
                 : `${sessionUser.name}，欢迎回来`}
             </h2>
           </div>
@@ -999,16 +996,17 @@ rating: 4,
             <ApiStateIndicator
               state={apiState}
               lastSyncAt={lastSyncAt}
-              source={overview.source}
-              onRetry={() => window.location.reload()}
+              source={activeDataSource}
+              onRetry={handleRetryActiveWorkspace}
             />
-            {sessionUser?.role === 'student' || !sessionUser ? (
+            {(sessionUser?.role === 'student' || !sessionUser) && studentOverviewReady ? (
               <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
             ) : null}
           </div>
         </header>
 
         <StudentLayout role={sessionUser?.role}>
+          {studentOverviewReady ? (
           <StudentLaunchpad
             showOnboarding={showOnboarding}
             todayPlan={todayPlan}
@@ -1031,13 +1029,14 @@ rating: 4,
               setExamOpen(true);
             }}
           />
+          ) : null}
         </StudentLayout>
 
         <section className="panel role-panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">账号与角色权限</p>
-              <h3>{sessionUser?.name ?? student.name}</h3>
+              <h3>{sessionUser?.name ?? (studentOverviewReady ? student.name : '未登录')}</h3>
             </div>
             {authSession?.refreshToken ? (
               <button type="button" className="secondary-action" onClick={onLogout}>退出登录</button>
@@ -1092,7 +1091,13 @@ rating: 4,
         </section>
 
         <StudentLayout role={sessionUser?.role}>
-        <>
+          {!studentOverviewReady ? (
+            <ModuleUnavailable title="学习概览" resource={dashboardOverview.overview} onRetry={refreshOverview} />
+          ) : null}
+        </StudentLayout>
+
+        <StudentLayout role={sessionUser?.role}>
+        {studentOverviewReady ? <>
         <StudentProgressOverview
           trialProgress={studentProgress.trialProgress}
           studyReminders={studentProgress.studyReminders}
@@ -1106,21 +1111,26 @@ rating: 4,
           onRetryMastery={refreshMasteryMap}
         />
         <LearningProfilePanel profile={studentProgress.learningProfile} onRetry={refreshLearningProfile} />
-        <FeedbackPanel feedback={feedbackList} status={feedbackStatus} onSubmit={handleSubmitFeedback} />
+        <FeedbackPanel feedback={STUDENT_FEEDBACK} status={feedbackStatus} onSubmit={handleSubmitFeedback} />
         <DiagnosticSummary student={student} plan={plan} status={diagnosticStatus} onSubmit={handleSubmitDiagnostic} />
-        </>
+        </> : null}
         </StudentLayout>
 
         <AdminLayout role={sessionUser?.role}>
           <AdminWorkspace
-            metrics={adminMetrics}
-            users={adminUsers}
-            feedback={feedbackList}
-            reviewQueue={reviewQueue}
-            systemConfig={systemConfig}
+            metrics={roleWorkspace.adminMetrics}
+            users={roleWorkspace.adminUsers}
+            feedback={roleWorkspace.feedback}
+            reviewQueue={roleWorkspace.reviewQueue}
+            systemConfig={roleWorkspace.systemConfig}
             userStatus={userStatus}
             reviewStatus={reviewStatus}
             configStatus={configStatus}
+            onRetryMetrics={roleWorkspace.refreshAdminMetrics}
+            onRetryUsers={roleWorkspace.refreshAdminUsers}
+            onRetryFeedback={roleWorkspace.refreshFeedback}
+            onRetryReviewQueue={roleWorkspace.refreshReviewQueue}
+            onRetrySystemConfig={roleWorkspace.refreshSystemConfig}
             onMarkTrialFollowUp={handleMarkTrialFollowUp}
             onApproveReviewItem={handleApproveReviewItem}
             onMarkReviewItemNeedsRecheck={handleMarkReviewItemNeedsRecheck}
@@ -1129,7 +1139,7 @@ rating: 4,
         </AdminLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        <>
+        {studentOverviewReady ? <>
         <section id="wrong-book" className="panel">
           <div className="panel-heading">
             <div>
@@ -1175,21 +1185,21 @@ rating: 4,
         <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} />
         <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} />
         <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
-        </>
+        </> : null}
         </StudentLayout>
 
         <TeacherLayout role={sessionUser?.role}>
           <TeacherWorkspace
-            questionCount={questions.length}
-            knowledgePointCount={overview.knowledgePoints.length}
-            questionList={teacherQuestionList}
-            classAnalytics={teacherClassAnalytics}
+            questions={roleWorkspace.questions}
+            classAnalytics={roleWorkspace.classAnalytics}
             latestPaper={latestPaper}
             paperSession={paperSession}
             paperResult={paperResult}
             knowledgeStatus={knowledgeStatus}
             teacherStatus={teacherStatus}
             paperStatus={paperStatus}
+            onRetryQuestions={roleWorkspace.refreshQuestions}
+            onRetryClassAnalytics={roleWorkspace.refreshClassAnalytics}
             onCreateKnowledgePoint={handleCreateKnowledgePoint}
             onCreateQuestion={handleCreateTeacherQuestion}
             onFilterQuestions={handleFilterTeacherQuestions}
@@ -1202,6 +1212,7 @@ rating: 4,
         </TeacherLayout>
 
         <StudentLayout role={sessionUser?.role}>
+          {studentOverviewReady ? (
           <MistakeWorkspace
             wrongQuestions={wrongQuestions}
             summary={studentLearning.wrongQuestionSummary}
@@ -1218,6 +1229,7 @@ rating: 4,
               document.getElementById('question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }}
           />
+          ) : null}
         </StudentLayout>
       </section>
       {examOpen ? (

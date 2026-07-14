@@ -21,8 +21,10 @@ test('rejects unsafe production placeholders and demo auth', () => {
     DATABASE_URL: 'postgresql://user:password@example.com:5432/app',
     WEB_ORIGIN: 'http://example.com',
     ALLOW_DEMO_AUTH: 'true',
+    VITE_ALLOW_MOCK: 'true',
   });
   assert.ok(errors.some((error) => error.includes('DATABASE_URL')));
   assert.ok(errors.some((error) => error.includes('ALLOW_DEMO_AUTH')));
   assert.ok(errors.some((error) => error.includes('WEB_ORIGIN must use HTTPS')));
+  assert.ok(errors.some((error) => error.includes('VITE_ALLOW_MOCK')));
 });

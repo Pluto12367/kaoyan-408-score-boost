@@ -51,24 +51,58 @@ export function getActiveAuthSession(): AuthSession | null {
 
 export async function authenticatedFetch(url: string, init: RequestInit = {}): Promise<Response> {
   const session = getActiveAuthSession();
-  const response = await fetch(url, withAuthHeader(init, session));
-  if (response.status !== 401 || !session?.refreshToken) return response;
+  let response: Response;
+  try {
+    response = await fetch(url, withAuthHeader(init, session));
+  } catch (error) {
+    reportNetworkError(url, init, error);
+    throw error;
+  }
+  if (response.status !== 401 || !session?.refreshToken) return reportFailedResponse(url, init, response);
 
+  let refreshed: AuthSession;
   try {
     const { refreshAuthSession } = await import('./endpoints/auth');
-    const refreshed = await refreshAuthSession(session.refreshToken);
+    refreshed = await refreshAuthSession(session.refreshToken);
     storeAuthSession(refreshed);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent<AuthSession>('auth-session-updated', { detail: refreshed }));
     }
-    return fetch(url, withAuthHeader(init, refreshed));
   } catch {
     clearStoredAuthSession();
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('auth-session-expired'));
     }
-    return response;
+    return reportFailedResponse(url, init, response);
   }
+
+  try {
+    const retried = await fetch(url, withAuthHeader(init, refreshed));
+    return reportFailedResponse(url, init, retried);
+  } catch (error) {
+    reportNetworkError(url, init, error);
+    throw error;
+  }
+}
+
+function reportFailedResponse(url: string, init: RequestInit, response: Response) {
+  if (!response.ok) {
+    console.error('[API request failed]', {
+      method: init.method ?? 'GET',
+      url,
+      status: response.status,
+      requestId: response.headers.get('x-request-id'),
+    });
+  }
+  return response;
+}
+
+function reportNetworkError(url: string, init: RequestInit, error: unknown) {
+  console.error('[API network error]', {
+    method: init.method ?? 'GET',
+    url,
+    message: error instanceof Error ? error.message : String(error),
+  });
 }
 
 function withAuthHeader(init: RequestInit, session: AuthSession | null): RequestInit {
@@ -83,8 +117,7 @@ function withAuthHeader(init: RequestInit, session: AuthSession | null): Request
  * Use this for ALL student-facing API calls. Backend Phase 1 requires auth on every endpoint.
  */
 export function fetchWithAuth(url: string, init: RequestInit = {}): Promise<Response> {
-  const session = getActiveAuthSession();
-  return fetch(url, withAuthHeader(init, session));
+  return authenticatedFetch(url, init);
 }
 
 export function isStaticDemoMode(): boolean {

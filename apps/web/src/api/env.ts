@@ -13,9 +13,6 @@ export function isMockAllowed(): boolean {
   // Local development — mock is convenient
   if (import.meta.env.DEV) return true;
 
-  // Explicit staging flag
-  if (import.meta.env.VITE_ALLOW_MOCK === 'true') return true;
-
   // Production — NEVER use mock data
   return false;
 }
@@ -27,5 +24,5 @@ export function isStaticDemoMode(): boolean {
 }
 
 export function isProduction(): boolean {
-  return import.meta.env.PROD && !isStaticDemoMode() && import.meta.env.VITE_ALLOW_MOCK !== 'true';
+  return import.meta.env.PROD && !isStaticDemoMode();
 }

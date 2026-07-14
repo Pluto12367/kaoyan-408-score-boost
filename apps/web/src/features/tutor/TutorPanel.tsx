@@ -4,7 +4,7 @@ import { reviewCardTypeLabel } from '../../constants';
 
 interface TutorPanelProps {
   reply: TutorReply | null;
-  followUp: AiFollowUp;
+  followUp: AiFollowUp | null;
   status: string;
   onAskTutor: () => void;
   onAskFollowUp: (message: string) => void;
@@ -32,7 +32,7 @@ export function TutorPanel({ reply, followUp, status, onAskTutor, onAskFollowUp 
           <article><strong>下一步</strong><ul>{reply.nextActions.map((action) => <li key={action}>{action}</li>)}</ul></article>
         </div>
       ) : null}
-      <div className="follow-up-result">
+      {followUp ? <div className="follow-up-result">
         <article><strong>{followUp.relatedKnowledgePoint.title}</strong><p>{followUp.message}</p><ol>{followUp.replySteps.map((step) => <li key={step}>{step}</li>)}</ol></article>
         <article><strong>易错点提醒</strong><ul>{followUp.misconceptionTips.map((tip) => <li key={tip}>{tip}</li>)}</ul></article>
         <div className="review-card-list">
@@ -40,7 +40,7 @@ export function TutorPanel({ reply, followUp, status, onAskTutor, onAskFollowUp 
             <article key={card.id} className={`review-card card-${card.type}`}><span>{reviewCardTypeLabel[card.type]}</span><strong>{card.title}</strong><p>{card.content}</p><small>{card.nextAction}</small></article>
           ))}
         </div>
-      </div>
+      </div> : null}
     </section>
   );
 }

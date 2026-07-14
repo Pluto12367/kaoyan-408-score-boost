@@ -30,7 +30,7 @@ function errorMessage(error: unknown, label: string) {
   return error instanceof Error ? `${label}加载失败：${error.message}` : `${label}加载失败，请稍后重试。`;
 }
 
-export function useStudentProgressData(userId: string, enabled: boolean) {
+export function useStudentProgressData(userId: string, enabled: boolean, authKey?: string) {
   const [trialProgress, setTrialProgress] = useState(() => initialResource(createMockTrialProgress));
   const [studyReminders, setStudyReminders] = useState(() => initialResource(createMockStudyReminders));
   const [sprintPlan, setSprintPlan] = useState(() => initialResource(createMockSprintPlan));
@@ -91,11 +91,28 @@ export function useStudentProgressData(userId: string, enabled: boolean) {
       refreshMasteryMap(),
       refreshLearningProfile(),
     ]);
-  }, [enabled, refreshLearningProfile, refreshMasteryMap, refreshSprintPlan, refreshStudyReminders, refreshTrialProgress]);
+  }, [authKey, enabled, refreshLearningProfile, refreshMasteryMap, refreshSprintPlan, refreshStudyReminders, refreshTrialProgress]);
 
   useEffect(() => {
+    if (!enabled) {
+      if (!isMockAllowed()) {
+        setTrialProgress({ data: null, state: 'loading' });
+        setStudyReminders({ data: null, state: 'loading' });
+        setSprintPlan({ data: null, state: 'loading' });
+        setMasteryMap({ data: null, state: 'loading' });
+        setLearningProfile({ data: null, state: 'loading' });
+      }
+      return;
+    }
+    if (!isMockAllowed()) {
+      setTrialProgress({ data: null, state: 'loading' });
+      setStudyReminders({ data: null, state: 'loading' });
+      setSprintPlan({ data: null, state: 'loading' });
+      setMasteryMap({ data: null, state: 'loading' });
+      setLearningProfile({ data: null, state: 'loading' });
+    }
     void refreshAll();
-  }, [refreshAll]);
+  }, [authKey, enabled, refreshAll]);
 
   return {
     trialProgress,
