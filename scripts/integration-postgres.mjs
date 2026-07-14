@@ -26,10 +26,10 @@ async function main() {
   }
 
   activeApi = startApi();
-  await waitForHealth();
+  await waitForHealth(activeApi);
 
   const credentials = {
-    email: 'integration.student@example.com',
+    email: `integration.student.${Date.now()}@example.com`,
     password: 'ReliableTestPassword!408',
     name: '集成测试学生',
   };
@@ -39,16 +39,21 @@ async function main() {
   const loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(loggedIn.user.id === registered.user.id, 'password login should return the registered user');
   let studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
-  const initial = await waitForOverview(studentHeaders);
+  let initial = await waitForOverview(studentHeaders);
   assert(initial.source === 'postgresql', 'API should report the real PostgreSQL data source');
-  const diagnostic = await postJson(`${apiUrl}/diagnostics/profile`, {
+  const onboardingBefore = await getJson(`${apiUrl}/onboarding/status`, studentHeaders);
+  assert(onboardingBefore.completed === false, 'new student should require onboarding');
+  const onboarding = await postJson(`${apiUrl}/onboarding/complete`, {
+    examYear: new Date().getUTCFullYear() + 1,
     targetScore: 126,
     currentScore: 82,
     remainingDays: 88,
     dailyHours: 3,
     weakestSubject: '计算机组成原理',
   }, studentHeaders);
-  assert(diagnostic.targetScore === 126, 'diagnostic profile should be accepted for the authenticated student');
+  assert(onboarding.sevenDayPlan.days.length === 7, 'onboarding should create a seven-day plan');
+  assert(onboarding.todayPlan.priorityTasks.length === 3, 'onboarding should return three actionable tasks for today');
+  initial = await waitForOverview(studentHeaders, (data) => data.student?.targetScore === 126 && data.plan?.dailyTasks?.length === 3);
   await expectGetStatus(`${apiUrl}/wrong-questions?userId=u-001`, studentHeaders, 403);
   await expectPostStatus(`${apiUrl}/auth/login`, { email: credentials.email, password: 'wrong-password' }, 401);
   await expectGetStatus(`${apiUrl}/teacher/questions`, { Authorization: `Bearer ${loggedIn.accessToken}` }, 403);
@@ -167,8 +172,21 @@ async function main() {
   }, studentHeaders);
   assert(masteredRedo.nextReviewInDays === 14 && masteredRedo.stability === 'mastered', 'third correct redo should reach stable mastery with a fourteen-day interval');
 
-  const taskId = initial.plan?.dailyTasks?.[0]?.id;
+  const todayPlanBeforeTask = await getJson(`${apiUrl}/today/plan`, studentHeaders);
+  const taskId = todayPlanBeforeTask.priorityTasks?.[0]?.id;
   assert(taskId, 'dashboard should expose a study task for completion testing');
+  const taskKnowledgePointId = todayPlanBeforeTask.priorityTasks[0].knowledgePointId;
+  const masteryBeforeTask = await getJson(`${apiUrl}/mastery-map`, studentHeaders);
+  const masteryPointBefore = masteryBeforeTask.subjects.flatMap((subject) => subject.points).find((point) => point.knowledgePointId === taskKnowledgePointId);
+  const startedTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(taskId)}/start`, {}, studentHeaders);
+  assert(startedTask.status === 'in_progress' && startedTask.startedAt, 'today task should enter an in-progress state');
+  await expectPostStatus(`${apiUrl}/study-tasks/${encodeURIComponent(taskId)}/complete`, {}, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/study-tasks/${encodeURIComponent(taskId)}/complete`, {
+    completedQuestionCount: 5,
+    correctCount: 6,
+    minutesSpent: 24,
+    selfRating: 4,
+  }, 400, studentHeaders);
   const completedTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(taskId)}/complete`, {
     userId: registered.user.id,
     completedQuestionCount: 8,
@@ -177,28 +195,48 @@ async function main() {
     selfRating: 4,
   }, studentHeaders);
   assert(completedTask.completed === true, 'study-task completion should be persisted');
-  const postponeTaskId = initial.plan.dailyTasks.find((task) => task.id !== taskId)?.id;
+  assert(completedTask.nextDayAdjustment?.scheduledDate, 'task completion should adjust the next matching task');
+  const masteryAfterTask = await getJson(`${apiUrl}/mastery-map`, studentHeaders);
+  const masteryPointAfter = masteryAfterTask.subjects.flatMap((subject) => subject.points).find((point) => point.knowledgePointId === taskKnowledgePointId);
+  assert(masteryPointAfter.practiceCount > masteryPointBefore.practiceCount, 'task quality should update mastery evidence');
+  const postponeTaskId = todayPlanBeforeTask.priorityTasks.find((task) => task.id !== taskId)?.id;
   assert(postponeTaskId, 'dashboard should expose another task for postponement testing');
   const postponedTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(postponeTaskId)}/postpone`, {}, studentHeaders);
-  assert(postponedTask.taskId === postponeTaskId && postponedTask.nextAvailableAt, 'study-task postponement should be accepted');
+  assert(postponedTask.taskId === postponeTaskId && postponedTask.rescheduledDate, 'study-task postponement should automatically reschedule the task');
+  const todayPlanAfterPostpone = await getJson(`${apiUrl}/today/plan`, studentHeaders);
+  assert(!todayPlanAfterPostpone.priorityTasks.some((task) => task.id === postponeTaskId), 'rescheduled task should leave today plan');
 
-  const startedSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+  await expectPostStatus(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-invalid-exam',
+    questionIds: ['question-outside-bank'],
+  }, 400, studentHeaders);
+  const sessionInput = {
     type: 'paper',
     resourceId: 'integration-traceable-exam',
     questionIds: ['q-001', subjectiveQuestion.id],
-  }, studentHeaders);
+  };
+  const startedSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
+  const idempotentSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
+  assert(idempotentSession.id === startedSession.id, 'starting the same active resource should be idempotent');
+  await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    answers: { 'question-outside-session': { selectedAnswer: 'A', timeSpentSec: 10 } },
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    currentIndex: 9,
+  }, 400, studentHeaders);
   const savedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
     answers: { 'q-001': { selectedAnswer: 'A', timeSpentSec: 73 } },
     currentIndex: 1,
     markedQuestions: [subjectiveQuestion.id],
-    idleSince: Date.now() - 500,
+    totalActiveMs: 1250,
   }, studentHeaders);
   assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes(subjectiveQuestion.id), 'session progress should be saved');
   await expectGetStatus(`${apiUrl}/sessions/practice/${startedSession.id}`, { Authorization: `Bearer ${teacherSession.token}` }, 403);
 
   await stop(activeApi);
   activeApi = startApi();
-  await waitForHealth();
+  await waitForHealth(activeApi);
   const reloggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(reloggedIn.user.id === registered.user.id, 'student should log in again after an API restart');
   studentHeaders = { Authorization: `Bearer ${reloggedIn.accessToken}` };
@@ -220,11 +258,16 @@ async function main() {
   assert(restoredWrongDetail.reviewHistory[0].nextIntervalDays === 1, 'review history should retain interval decisions');
   const restoredTask = restored.plan.dailyTasks.find((task) => task.id === taskId);
   assert(restoredTask.completed === true, 'study-task completion should survive an API restart');
+  const restoredOnboarding = await getJson(`${apiUrl}/onboarding/status`, studentHeaders);
+  assert(restoredOnboarding.completed === true && restoredOnboarding.profile.examYear, 'onboarding profile should survive an API restart');
+  const restoredTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
+  assert(restoredTodayPlan.weekProgress.length === 7, 'seven-day plan should survive an API restart');
+  assert(!restoredTodayPlan.priorityTasks.some((task) => task.id === postponeTaskId), 'task rescheduling should survive an API restart');
   const restoredSession = await getJson(`${apiUrl}/sessions/practice/${startedSession.id}`, studentHeaders);
   assert(restoredSession.answers['q-001']?.selectedAnswer === 'A', 'saved answer should survive an API restart');
   assert(restoredSession.currentIndex === 1, 'current question should survive an API restart');
   assert(restoredSession.markedQuestions.includes(subjectiveQuestion.id), 'marked question should survive an API restart');
-  assert(restoredSession.totalActiveMs >= 0, 'active time should survive an API restart');
+  assert(restoredSession.totalActiveMs === 1250, 'foreground active time should survive an API restart without adding downtime');
   await expectGetStatus(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders, 400);
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
     answers: [{ questionId: 'question-outside-session', selectedAnswer: 'A', timeSpentSec: 10 }],
@@ -234,11 +277,16 @@ async function main() {
       { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 },
       { questionId: subjectiveQuestion.id, selectedAnswer: 'tag, line index, block offset', timeSpentSec: 240, selfScore: 7, maxScore: 10 },
     ],
+    totalActiveMs: 2500,
   }, studentHeaders);
   assert(submittedSession.completed === true, 'restored session should be submittable');
   assert(submittedSession.records.some((record) => record.questionId === subjectiveQuestion.id && record.gradingMode === 'self_assessed'), 'comprehensive question should use self assessment');
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
     answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 }],
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    currentIndex: 0,
+    totalActiveMs: 3000,
   }, 400, studentHeaders);
   const examReport = await getJson(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders);
   assert(examReport.summary.totalQuestions === 2 && examReport.summary.answeredCount === 2, 'exam report should use the submitted session question set');
@@ -264,7 +312,7 @@ async function main() {
 
   await stop(activeApi);
   activeApi = startApi();
-  await waitForHealth();
+  await waitForHealth(activeApi);
   const twiceRestoredExamReport = await getJson(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders);
   assert(twiceRestoredExamReport.summary.subjectiveEarnedScore === 7, 'traceable exam report should survive a second API restart');
   const twiceRestoredReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
@@ -307,18 +355,25 @@ function startApi() {
   let output = '';
   child.stdout.on('data', (chunk) => { output += chunk.toString(); });
   child.stderr.on('data', (chunk) => { output += chunk.toString(); });
+  child.getOutput = () => output;
   child.once('exit', (code) => {
     if (code !== 0 && code !== null) console.error(output.trim());
   });
   return child;
 }
 
-async function waitForHealth() {
+async function waitForHealth(child) {
   const deadline = Date.now() + 30_000;
   while (Date.now() < deadline) {
+    if (child.exitCode != null) {
+      throw new Error(`PostgreSQL API exited with ${child.exitCode}: ${child.getOutput?.().trim() ?? ''}`);
+    }
     try {
       const response = await fetch(`${apiUrl}/health`);
-      if (response.ok) return;
+      if (response.ok) {
+        const health = await response.json();
+        if (health.dataSource === 'postgresql' && child.exitCode == null) return;
+      }
     } catch {}
     await delay(400);
   }

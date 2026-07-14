@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Clock, CheckCircle2, AlertCircle, BookOpen, RotateCcw } from 'lucide-react';
 import { completeStudyTask } from '../api/endpoints/practice';
-import { postponeTask, type TodayPlan as TodayPlanType } from '../api/endpoints/onboarding';
+import { postponeTask, startTask, type TodayPlan as TodayPlanType } from '../api/endpoints/onboarding';
 import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
 
 interface Props {
@@ -13,6 +13,14 @@ interface Props {
 export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
   const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
   const [dueReviewError, setDueReviewError] = useState('');
+  const [actionError, setActionError] = useState('');
+  const [activeActionTaskId, setActiveActionTaskId] = useState<string | null>(null);
+  const [completionDrafts, setCompletionDrafts] = useState<Record<string, {
+    completedQuestionCount: number;
+    correctCount: number;
+    minutesSpent: number;
+    selfRating: number;
+  }>>({});
 
   function loadDueReviews() {
     setDueReviewError('');
@@ -25,17 +33,65 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
     loadDueReviews();
   }, []);
   async function handleComplete(taskId: string) {
+    const task = plan.priorityTasks.find((item) => item.id === taskId);
+    if (!task) return;
+    const draft = completionDrafts[taskId] ?? {
+      completedQuestionCount: task.questionCount,
+      correctCount: Math.round(task.questionCount * 0.75),
+      minutesSpent: task.minutes,
+      selfRating: 3,
+    };
+    setActionError('');
+    setActiveActionTaskId(taskId);
     try {
-      await completeStudyTask({ taskId });
+      await completeStudyTask({ taskId, ...draft });
       onRefresh();
-    } catch { /* error shown in parent */ }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '任务完成状态保存失败，请重试。');
+    } finally {
+      setActiveActionTaskId(null);
+    }
+  }
+
+  async function handleStart(taskId: string) {
+    setActionError('');
+    setActiveActionTaskId(taskId);
+    try {
+      await startTask(taskId);
+      onRefresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '任务开始失败，请重试。');
+    } finally {
+      setActiveActionTaskId(null);
+    }
   }
 
   async function handlePostpone(taskId: string) {
+    setActionError('');
+    setActiveActionTaskId(taskId);
     try {
       await postponeTask(taskId);
       onRefresh();
-    } catch { /* error shown in parent */ }
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '任务延期失败，请重试。');
+    } finally {
+      setActiveActionTaskId(null);
+    }
+  }
+
+  function updateCompletionDraft(taskId: string, field: 'completedQuestionCount' | 'correctCount' | 'minutesSpent' | 'selfRating', value: number) {
+    const task = plan.priorityTasks.find((item) => item.id === taskId);
+    if (!task) return;
+    setCompletionDrafts((current) => ({
+      ...current,
+      [taskId]: {
+        completedQuestionCount: current[taskId]?.completedQuestionCount ?? task.questionCount,
+        correctCount: current[taskId]?.correctCount ?? Math.round(task.questionCount * 0.75),
+        minutesSpent: current[taskId]?.minutesSpent ?? task.minutes,
+        selfRating: current[taskId]?.selfRating ?? 3,
+        [field]: value,
+      },
+    }));
   }
 
   const { summary, priorityTasks } = plan;
@@ -52,6 +108,18 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
         </div>
         <span>{summary.completedTasks}/{summary.totalTasks} 已完成</span>
       </div>
+
+      {plan.weekProgress.length ? (
+        <div className="week-plan-strip" aria-label="七天计划进度">
+          {plan.weekProgress.map((day, index) => (
+            <article key={day.date} className={index === 0 ? 'active' : ''}>
+              <strong>第 {index + 1} 天</strong>
+              <span>{day.date.slice(5)} · {day.completedTasks}/{day.taskCount} 项</span>
+              <small>{day.totalMinutes} 分钟</small>
+            </article>
+          ))}
+        </div>
+      ) : null}
 
       {/* Progress bar */}
       <div className="today-progress">
@@ -90,18 +158,24 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
                 <p className="task-reason">{task.reason}</p>
               </div>
               <div className="task-actions">
-                <button
-                  type="button"
-                  className="primary-action"
-                  disabled={task.completed}
-                  onClick={() => handleComplete(task.id)}
-                >
-                  {task.completed ? '已完成' : '完成'}
-                </button>
+                {task.status === 'in_progress' ? (
+                  <div className="task-completion-fields">
+                    <label><span>完成题数</span><input type="number" min={0} max={200} value={completionDrafts[task.id]?.completedQuestionCount ?? task.questionCount} onChange={(event) => updateCompletionDraft(task.id, 'completedQuestionCount', Number(event.target.value))} /></label>
+                    <label><span>正确题数</span><input type="number" min={0} max={completionDrafts[task.id]?.completedQuestionCount ?? task.questionCount} value={completionDrafts[task.id]?.correctCount ?? Math.round(task.questionCount * 0.75)} onChange={(event) => updateCompletionDraft(task.id, 'correctCount', Number(event.target.value))} /></label>
+                    <label><span>实际分钟</span><input type="number" min={1} max={600} value={completionDrafts[task.id]?.minutesSpent ?? task.minutes} onChange={(event) => updateCompletionDraft(task.id, 'minutesSpent', Number(event.target.value))} /></label>
+                    <label><span>掌握自评</span><select value={completionDrafts[task.id]?.selfRating ?? 3} onChange={(event) => updateCompletionDraft(task.id, 'selfRating', Number(event.target.value))}><option value={1}>1 · 不会</option><option value={2}>2 · 较弱</option><option value={3}>3 · 一般</option><option value={4}>4 · 熟练</option><option value={5}>5 · 掌握</option></select></label>
+                    <button type="button" className="primary-action" disabled={activeActionTaskId === task.id} onClick={() => handleComplete(task.id)}>{activeActionTaskId === task.id ? '保存中' : '完成并调整计划'}</button>
+                  </div>
+                ) : task.completed || task.status === 'completed' ? (
+                  <button type="button" className="primary-action" disabled>已完成</button>
+                ) : (
+                  <button type="button" className="primary-action" disabled={activeActionTaskId === task.id} onClick={() => handleStart(task.id)}>{activeActionTaskId === task.id ? '启动中' : '开始'}</button>
+                )}
                 {!task.completed ? (
                   <button
                     type="button"
                     className="secondary-action"
+                    disabled={activeActionTaskId === task.id}
                     onClick={() => handlePostpone(task.id)}
                   >
                     延后
@@ -112,6 +186,8 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
           ))
         )}
       </div>
+
+      {actionError ? <div className="module-error"><span>{actionError}</span></div> : null}
 
       {/* Due reviews */}
       {dueReviews.length > 0 ? (

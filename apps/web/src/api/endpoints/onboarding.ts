@@ -38,7 +38,18 @@ export interface TodayPlan {
     priority: '高' | '中' | '低';
     reason: string;
     nextAction: string;
+    scheduledDate: string;
+    status: 'pending' | 'in_progress' | 'postponed' | 'completed';
+    postponeCount: number;
+    startedAt?: string;
+    nextAvailableAt?: string;
     completed?: boolean;
+  }>;
+  weekProgress: Array<{
+    date: string;
+    taskCount: number;
+    completedTasks: number;
+    totalMinutes: number;
   }>;
   reviewDue: number;
   checkpoint: string;
@@ -77,6 +88,17 @@ export async function postponeTask(taskId: string) {
   const response = await fetchWithAuth(`${API_BASE_URL}/tasks/${taskId}/postpone`, { method: 'POST' });
   if (!response.ok) throw new Error(`Task postpone failed with ${response.status}`);
   return response.json() as Promise<{
-    taskId: string; postponeCount: number; nextAvailableAt: string; message: string;
+    taskId: string; postponeCount: number; nextAvailableAt: string; rescheduledDate?: string; message: string;
+  }>;
+}
+
+export async function startTask(taskId: string) {
+  const response = await fetchWithAuth(`${API_BASE_URL}/tasks/${taskId}/start`, { method: 'POST' });
+  if (!response.ok) throw new Error(`Task start failed with ${response.status}`);
+  return response.json() as Promise<{
+    taskId: string;
+    status: 'in_progress';
+    startedAt: string;
+    message: string;
   }>;
 }

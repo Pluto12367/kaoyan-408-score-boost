@@ -10,17 +10,35 @@ interface Props {
 export function ResumeSessionBanner({ onResume, allowedTypes }: Props) {
   const [activeSessions, setActiveSessions] = useState<SessionView[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  function loadSessions() {
+    setLoading(true);
+    setError('');
     listActiveSessions()
       .then((result) => setActiveSessions(result.sessions))
-      .catch(() => { /* no sessions */ });
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '恢复进度加载失败。'))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(() => {
+    loadSessions();
   }, []);
 
   const visible = activeSessions.filter((session) =>
     !dismissed.has(session.id) && (!allowedTypes || allowedTypes.includes(session.type)),
   );
 
+  if (loading) return <section className="resume-banner"><p className="task-status">正在检查可恢复的学习进度...</p></section>;
+  if (error) {
+    return (
+      <section className="resume-banner">
+        <p className="task-status">{error}</p>
+        <button type="button" className="secondary-action" onClick={loadSessions}>重新检查</button>
+      </section>
+    );
+  }
   if (visible.length === 0) return null;
 
   return (

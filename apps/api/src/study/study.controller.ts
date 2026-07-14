@@ -2,6 +2,12 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, 
 import type { Subject } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
+import { CompleteStudyTaskDto } from './dto/complete-study-task.dto';
+import {
+  SaveLearningSessionDto,
+  StartLearningSessionDto,
+  SubmitLearningSessionDto,
+} from './dto/learning-session.dto';
 import { RoleGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
@@ -221,12 +227,7 @@ export class StudyController {
   completeStudyTask(
     @CurrentUser() user: UserProfile,
     @Param('taskId') taskId: string,
-    @Body() input: {
-      completedQuestionCount?: number;
-      correctCount?: number;
-      minutesSpent?: number;
-      selfRating?: number;
-    },
+    @Body() input: CompleteStudyTaskDto,
   ) {
     return this.studyService.completeStudyTask(taskId, { ...input, userId: user.id });
   }
@@ -251,11 +252,7 @@ export class StudyController {
   @Post('sessions/practice/start')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
-  startPracticeSession(@CurrentUser() user: UserProfile, @Body() input: {
-    type: 'practice_set' | 'stage_assessment' | 'paper';
-    questionIds: string[];
-    resourceId?: string;
-  }) {
+  startPracticeSession(@CurrentUser() user: UserProfile, @Body() input: StartLearningSessionDto) {
     return this.studyService.startPracticeSession(user.id, input);
   }
 
@@ -265,12 +262,7 @@ export class StudyController {
   savePracticeProgress(
     @CurrentUser() user: UserProfile,
     @Param('sessionId') sessionId: string,
-    @Body() input: {
-      answers?: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
-      currentIndex?: number;
-      markedQuestions?: string[];
-      idleSince?: number;
-    },
+    @Body() input: SaveLearningSessionDto,
   ) {
     return this.studyService.savePracticeProgress(sessionId, user.id, input);
   }
@@ -295,9 +287,7 @@ export class StudyController {
   submitPracticeSession(
     @CurrentUser() user: UserProfile,
     @Param('sessionId') sessionId: string,
-    @Body() input: {
-      answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
-    },
+    @Body() input: SubmitLearningSessionDto,
   ) {
     return this.studyService.submitPracticeSession(sessionId, user.id, input);
   }
@@ -341,6 +331,16 @@ export class StudyController {
     @Param('taskId') taskId: string,
   ) {
     return this.studyService.postponeTask(user.id, taskId);
+  }
+
+  @Post('tasks/:taskId/start')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  startTask(
+    @CurrentUser() user: UserProfile,
+    @Param('taskId') taskId: string,
+  ) {
+    return this.studyService.startTask(user.id, taskId);
   }
 
   // ---- Phase 5: Spaced Repetition (wrong question review scheduling) ----

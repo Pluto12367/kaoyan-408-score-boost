@@ -46,6 +46,8 @@ model User {
   studyStage           String?
   weakestSubject       String?
   diagnosis            String?
+  examYear             Int?
+  onboardingCompletedAt DateTime?
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   practiceRecords      PracticeRecord[]
@@ -207,12 +209,25 @@ model StudyTask {
   id               String    @id @default(cuid())
   planId           String
   knowledgePointId String
+  subject          String    @default("")
+  chapter          String    @default("")
   title            String
   mode             String
   minutes          Int
   questionCount    Int
+  scheduledDate    String    @default("")
+  priority         String    @default("低")
+  reason           String    @default("")
+  nextAction       String    @default("")
+  status           String    @default("pending")
+  postponeCount    Int       @default(0)
+  startedAt        DateTime?
+  nextAvailableAt  DateTime?
+  completedAt      DateTime?
   completed        Boolean   @default(false)
   plan             StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, scheduledDate, status])
 }
 
 model AiTutorLog {

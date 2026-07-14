@@ -1,8 +1,16 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { startPracticeSession, savePracticeProgress, getPracticeSession, listActiveSessions, submitPracticeSession, type SessionView, type SessionSubmitResult } from '../api/endpoints/sessions';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  getPracticeSession,
+  listActiveSessions,
+  savePracticeProgress,
+  startPracticeSession,
+  submitPracticeSession,
+  type SessionSubmitResult,
+  type SessionView,
+} from '../api/endpoints/sessions';
 
-const SAVE_INTERVAL_MS = 8000; // Auto-save every 8 seconds
-const IDLE_THRESHOLD_MS = 30_000; // 30 seconds of inactivity = idle
+const SAVE_INTERVAL_MS = 8_000;
+const SAVE_DEBOUNCE_MS = 600;
 const SESSION_STORAGE_KEY = 'kaoyan408.current_session';
 
 interface UsePracticeSessionOptions {
@@ -12,176 +20,251 @@ interface UsePracticeSessionOptions {
   onSubmitted?: (result: SessionSubmitResult) => void;
 }
 
+interface SaveOptions {
+  keepalive?: boolean;
+  pauseClock?: boolean;
+}
+
 export function usePracticeSession(opts: UsePracticeSessionOptions) {
   const [session, setSession] = useState<SessionView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const sessionRef = useRef(session);
-  const idleSinceRef = useRef<number | null>(null);
-  const lastActivityRef = useRef(Date.now());
+  const [submitting, setSubmitting] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+
+  const sessionRef = useRef<SessionView | null>(null);
+  const revisionRef = useRef(0);
+  const mountedRef = useRef(true);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveInFlightRef = useRef<Promise<SessionView | null> | null>(null);
+  const saveQueuedRef = useRef(false);
+  const submittingRef = useRef(false);
+  const clockSessionIdRef = useRef<string | null>(null);
+  const activeBaseMsRef = useRef(0);
+  const activeSegmentStartedAtRef = useRef<number | null>(null);
+  const questionKey = opts.questionIds.join('\u0001');
 
-  sessionRef.current = session;
+  const currentActiveMs = useCallback(() => {
+    const segmentStartedAt = activeSegmentStartedAtRef.current;
+    const segmentMs = segmentStartedAt == null ? 0 : Math.max(0, monotonicNow() - segmentStartedAt);
+    return Math.round(activeBaseMsRef.current + segmentMs);
+  }, []);
 
-  // Start or restore a session
+  const rollActiveClock = useCallback((pause: boolean) => {
+    activeBaseMsRef.current = currentActiveMs();
+    activeSegmentStartedAtRef.current = pause || !pageIsVisible() ? null : monotonicNow();
+    return activeBaseMsRef.current;
+  }, [currentActiveMs]);
+
+  const adoptSession = useCallback((next: SessionView) => {
+    if (clockSessionIdRef.current !== next.id) {
+      clockSessionIdRef.current = next.id;
+      activeBaseMsRef.current = next.totalActiveMs;
+      activeSegmentStartedAtRef.current = pageIsVisible() ? monotonicNow() : null;
+    } else {
+      activeBaseMsRef.current = Math.max(activeBaseMsRef.current, next.totalActiveMs);
+    }
+    sessionRef.current = next;
+    if (mountedRef.current) setSession(next);
+    if (typeof window !== 'undefined' && !next.completed) {
+      window.localStorage.setItem(SESSION_STORAGE_KEY, next.id);
+    }
+  }, []);
+
+  const performSave = useCallback(async (options: SaveOptions = {}): Promise<SessionView | null> => {
+    const current = sessionRef.current;
+    if (!current || current.completed || submittingRef.current) return current;
+    if (saveInFlightRef.current) {
+      saveQueuedRef.current = true;
+      return saveInFlightRef.current;
+    }
+
+    const revisionAtStart = revisionRef.current;
+    const payload = {
+      answers: { ...current.answers },
+      currentIndex: current.currentIndex,
+      markedQuestions: [...current.markedQuestions],
+      totalActiveMs: rollActiveClock(Boolean(options.pauseClock)),
+    };
+    if (mountedRef.current) setSaving(true);
+
+    const request = savePracticeProgress(current.id, payload, { keepalive: options.keepalive })
+      .then((updated) => {
+        const latest = sessionRef.current;
+        const merged = latest && latest.id === updated.id && revisionRef.current !== revisionAtStart
+          ? {
+              ...updated,
+              answers: latest.answers,
+              currentIndex: latest.currentIndex,
+              markedQuestions: latest.markedQuestions,
+            }
+          : updated;
+        activeBaseMsRef.current = Math.max(activeBaseMsRef.current, updated.totalActiveMs);
+        sessionRef.current = merged;
+        if (mountedRef.current) {
+          setSession(merged);
+          setSaveError(null);
+          setLastSavedAt(new Date().toISOString());
+        }
+        return merged;
+      })
+      .catch((saveFailure: unknown) => {
+        if (mountedRef.current) {
+          setSaveError(saveFailure instanceof Error ? saveFailure.message : '学习进度保存失败，请重试。');
+        }
+        throw saveFailure;
+      })
+      .finally(() => {
+        saveInFlightRef.current = null;
+        if (mountedRef.current) setSaving(false);
+        if (saveQueuedRef.current && !submittingRef.current) {
+          saveQueuedRef.current = false;
+          queueMicrotask(() => { void performSave().catch(() => undefined); });
+        }
+      });
+
+    saveInFlightRef.current = request;
+    return request;
+  }, [rollActiveClock]);
+
+  const scheduleSave = useCallback(() => {
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      void performSave().catch(() => undefined);
+    }, SAVE_DEBOUNCE_MS);
+  }, [performSave]);
+
   useEffect(() => {
+    mountedRef.current = true;
     let active = true;
-    (async () => {
+
+    async function initialize() {
+      setError(null);
+      const storedId = typeof window === 'undefined' ? null : window.localStorage.getItem(SESSION_STORAGE_KEY);
+      if (storedId) {
+        try {
+          const stored = await getPracticeSession(storedId);
+          if (active && !stored.completed && sessionMatches(stored, opts.type, opts.resourceId, opts.questionIds)) {
+            adoptSession(stored);
+            return;
+          }
+        } catch {
+          if (typeof window !== 'undefined') window.localStorage.removeItem(SESSION_STORAGE_KEY);
+        }
+      }
+
       try {
-        // Check for active sessions first
         const activeList = await listActiveSessions();
-        const matching = activeList.sessions.find(
-          (s) => s.type === opts.type && s.resourceId === opts.resourceId,
+        const matching = activeList.sessions.find((candidate) =>
+          sessionMatches(candidate, opts.type, opts.resourceId, opts.questionIds),
         );
+        if (!active) return;
         if (matching) {
-          if (active) setSession(matching);
+          adoptSession(matching);
           return;
         }
-
-        // Start a new session
-        const newSession = await startPracticeSession({
+        const created = await startPracticeSession({
           type: opts.type,
           questionIds: opts.questionIds,
           resourceId: opts.resourceId,
         });
-        if (active) setSession(newSession);
-        if (typeof window !== 'undefined') {
-          window.localStorage.setItem(SESSION_STORAGE_KEY, newSession.id);
+        if (active) adoptSession(created);
+      } catch (initializationFailure) {
+        if (active) {
+          setError(initializationFailure instanceof Error ? initializationFailure.message : '学习会话加载失败，请重试。');
         }
-      } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : 'Failed to start session');
       }
-    })();
-    return () => { active = false; };
-  }, [opts.type, opts.resourceId]);
-
-  // Auto-save on interval
-  useEffect(() => {
-    if (!session) return;
-    saveTimerRef.current = setInterval(async () => {
-      const current = sessionRef.current;
-      if (!current || current.completed) return;
-      setSaving(true);
-      try {
-        const updated = await savePracticeProgress(current.id, {
-          answers: current.answers,
-          currentIndex: current.currentIndex,
-          markedQuestions: current.markedQuestions,
-          idleSince: idleSinceRef.current ?? undefined,
-        });
-        setSession(updated);
-        idleSinceRef.current = null;
-      } catch { /* silent save failure */ }
-      setSaving(false);
-    }, SAVE_INTERVAL_MS);
-
-    return () => { if (saveTimerRef.current) clearInterval(saveTimerRef.current); };
-  }, [session?.id]);
-
-  // Idle detection: track user activity
-  useEffect(() => {
-    function onActivity() {
-      lastActivityRef.current = Date.now();
-      idleSinceRef.current = null;
     }
+
+    void initialize();
+    return () => { active = false; };
+  }, [adoptSession, opts.resourceId, opts.type, questionKey]);
+
+  useEffect(() => {
+    if (!session?.id || session.completed) return;
+    saveTimerRef.current = setInterval(() => {
+      void performSave().catch(() => undefined);
+    }, SAVE_INTERVAL_MS);
+    return () => {
+      if (saveTimerRef.current) clearInterval(saveTimerRef.current);
+      saveTimerRef.current = null;
+    };
+  }, [performSave, session?.completed, session?.id]);
+
+  useEffect(() => {
     function onVisibilityChange() {
       if (document.hidden) {
-        idleSinceRef.current = Date.now();
-        // Force save when going idle
-        if (saveTimerRef.current) {
-          clearInterval(saveTimerRef.current);
-          saveTimerRef.current = null;
-        }
-      } else {
-        // User returned — restart auto-save
-        onActivity();
-        if (!saveTimerRef.current && sessionRef.current) {
-          saveTimerRef.current = setInterval(async () => {
-            const current = sessionRef.current;
-            if (!current || current.completed) return;
-            try {
-              const updated = await savePracticeProgress(current.id, {
-                answers: current.answers,
-                currentIndex: current.currentIndex,
-                markedQuestions: current.markedQuestions,
-              });
-              setSession(updated);
-            } catch { /* silent */ }
-          }, SAVE_INTERVAL_MS);
-        }
+        void performSave({ keepalive: true, pauseClock: true }).catch(() => undefined);
+      } else if (activeSegmentStartedAtRef.current == null && !sessionRef.current?.completed) {
+        activeSegmentStartedAtRef.current = monotonicNow();
       }
     }
+    function onPageHide() {
+      void performSave({ keepalive: true, pauseClock: true }).catch(() => undefined);
+    }
 
-    window.addEventListener('mousemove', onActivity, { passive: true });
-    window.addEventListener('keydown', onActivity, { passive: true });
-    window.addEventListener('touchstart', onActivity, { passive: true });
     document.addEventListener('visibilitychange', onVisibilityChange);
-
+    window.addEventListener('pagehide', onPageHide);
     return () => {
-      window.removeEventListener('mousemove', onActivity);
-      window.removeEventListener('keydown', onActivity);
-      window.removeEventListener('touchstart', onActivity);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('pagehide', onPageHide);
     };
+  }, [performSave]);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (saveTimerRef.current) clearInterval(saveTimerRef.current);
   }, []);
 
   const updateAnswer = useCallback((questionId: string, selectedAnswer: string, timeSpentSec: number, selfScore?: number, maxScore?: number) => {
-    setSession((prev) => {
-      if (!prev) return prev;
-      const next = {
-        ...prev,
-        answers: { ...prev.answers, [questionId]: { selectedAnswer, timeSpentSec, selfScore, maxScore } },
-      };
-      sessionRef.current = next;
-      return next;
-    });
-  }, []);
+    const current = sessionRef.current;
+    if (!current || current.completed) return;
+    const next = {
+      ...current,
+      answers: { ...current.answers, [questionId]: { selectedAnswer, timeSpentSec, selfScore, maxScore } },
+    };
+    revisionRef.current += 1;
+    sessionRef.current = next;
+    setSession(next);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const setCurrentQuestion = useCallback((index: number) => {
-    setSession((prev) => {
-      if (!prev) return prev;
-      const next = { ...prev, currentIndex: index };
-      sessionRef.current = next;
-      return next;
-    });
-  }, []);
+    const current = sessionRef.current;
+    if (!current || current.completed) return;
+    const next = { ...current, currentIndex: index };
+    revisionRef.current += 1;
+    sessionRef.current = next;
+    setSession(next);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const toggleMark = useCallback((questionId: string) => {
-    setSession((prev) => {
-      if (!prev) return prev;
-      const marked = prev.markedQuestions.includes(questionId)
-        ? prev.markedQuestions.filter((id) => id !== questionId)
-        : [...prev.markedQuestions, questionId];
-      const next = { ...prev, markedQuestions: marked };
-      sessionRef.current = next;
-      return next;
-    });
-  }, []);
-
-  const saveNow = useCallback(async () => {
     const current = sessionRef.current;
-    if (!current || current.completed) return current;
-    setSaving(true);
-    try {
-      const updated = await savePracticeProgress(current.id, {
-        answers: current.answers,
-        currentIndex: current.currentIndex,
-        markedQuestions: current.markedQuestions,
-        idleSince: idleSinceRef.current ?? undefined,
-      });
-      setSession(updated);
-      return updated;
-    } finally {
-      setSaving(false);
-    }
-  }, []);
+    if (!current || current.completed) return;
+    const markedQuestions = current.markedQuestions.includes(questionId)
+      ? current.markedQuestions.filter((id) => id !== questionId)
+      : [...current.markedQuestions, questionId];
+    const next = { ...current, markedQuestions };
+    revisionRef.current += 1;
+    sessionRef.current = next;
+    setSession(next);
+    scheduleSave();
+  }, [scheduleSave]);
 
   const submitSession = useCallback(async (): Promise<SessionSubmitResult> => {
-    if (!sessionRef.current) throw new Error('No active session');
-    // Stop auto-save
-    if (saveTimerRef.current) { clearInterval(saveTimerRef.current); saveTimerRef.current = null; }
+    const current = sessionRef.current;
+    if (!current) throw new Error('No active session');
+    if (submittingRef.current) throw new Error('Session submission is already in progress');
+    submittingRef.current = true;
+    setSubmitting(true);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
-    const answers = Object.entries(sessionRef.current.answers).map(([questionId, answer]) => ({
+    const answers = Object.entries(current.answers).map(([questionId, answer]) => ({
       questionId,
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
@@ -189,32 +272,60 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       maxScore: answer.maxScore,
     }));
 
-    const result = await submitPracticeSession(sessionRef.current.id, { answers });
-    setSession((prev) => prev ? { ...prev, completed: true } : prev);
-    if (typeof window !== 'undefined') {
-      window.localStorage.removeItem(SESSION_STORAGE_KEY);
+    try {
+      const result = await submitPracticeSession(current.id, {
+        answers,
+        totalActiveMs: rollActiveClock(true),
+      });
+      const completed = { ...current, completed: true, totalActiveMs: result.totalActiveMs };
+      sessionRef.current = completed;
+      setSession(completed);
+      setSaveError(null);
+      if (typeof window !== 'undefined') window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      opts.onSubmitted?.(result);
+      return result;
+    } catch (submissionFailure) {
+      if (pageIsVisible()) activeSegmentStartedAtRef.current = monotonicNow();
+      setSaveError(submissionFailure instanceof Error ? submissionFailure.message : '提交失败，请重试。');
+      throw submissionFailure;
+    } finally {
+      submittingRef.current = false;
+      setSubmitting(false);
     }
-    return result;
-  }, []);
-
-  // Restore session on page load (after browser close)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const storedId = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!storedId || session) return;
-    getPracticeSession(storedId)
-      .then((s) => { if (!s.completed) setSession(s); })
-      .catch(() => { window.localStorage.removeItem(SESSION_STORAGE_KEY); });
-  }, []);
+  }, [opts.onSubmitted, rollActiveClock]);
 
   return {
     session,
     error,
+    saveError,
     saving,
+    submitting,
+    lastSavedAt,
     updateAnswer,
     setCurrentQuestion,
     toggleMark,
-    saveNow,
+    saveNow: performSave,
     submitSession,
+    getActiveElapsedMs: currentActiveMs,
   };
+}
+
+function sessionMatches(
+  session: SessionView,
+  type: SessionView['type'],
+  resourceId: string | undefined,
+  questionIds: string[],
+) {
+  return session.type === type
+    && session.resourceId === resourceId
+    && session.questionIds.length === questionIds.length
+    && session.questionIds.every((questionId, index) => questionId === questionIds[index]);
+}
+
+function pageIsVisible() {
+  return typeof document === 'undefined' || !document.hidden;
+}
+
+function monotonicNow() {
+  return typeof performance === 'undefined' ? Date.now() : performance.now();
 }

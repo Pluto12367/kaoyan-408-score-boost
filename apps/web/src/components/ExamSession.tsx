@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Clock, Flag, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle } from 'lucide-react';
 import { usePracticeSession } from '../hooks/usePracticeSession';
 import type { SessionView, SessionSubmitResult } from '../api/endpoints/sessions';
@@ -22,24 +22,24 @@ interface Props {
 
 export function ExamSession({ questionIds, questions, timeLimitMin = 180, resourceId, onExit, onSubmit }: Props) {
   const {
-    session, saving, error,
-    updateAnswer, setCurrentQuestion, toggleMark, saveNow, submitSession,
+    session, saving, submitting, error, saveError, lastSavedAt,
+    updateAnswer, setCurrentQuestion, toggleMark, saveNow, submitSession, getActiveElapsedMs,
   } = usePracticeSession({ type: 'paper', questionIds, resourceId });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const questionStartedAtRef = useRef(Date.now());
-  const restoredTimerRef = useRef(false);
+  const questionStartedAtRef = useRef(0);
+  const questionTimeCarryMsRef = useRef(0);
   const totalTimeSec = timeLimitMin * 60;
 
   // Timer
   useEffect(() => {
     timerRef.current = setInterval(() => {
-      setElapsedSec((prev) => prev + 1);
+      setElapsedSec(Math.round(getActiveElapsedMs() / 1000));
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, []);
+  }, [getActiveElapsedMs]);
 
   const remainingSec = Math.max(0, totalTimeSec - elapsedSec);
   const remainingMin = Math.floor(remainingSec / 60);
@@ -55,34 +55,43 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
   const missingSubjectiveScores = subjectiveQuestions.filter((question) => session?.answers[question.id]?.selfScore === undefined);
 
   useEffect(() => {
-    if (!session || restoredTimerRef.current) return;
-    restoredTimerRef.current = true;
+    if (!session) return;
     setElapsedSec(Math.round(session.totalActiveMs / 1000));
+    questionStartedAtRef.current = getActiveElapsedMs();
   }, [session?.id]);
 
   useEffect(() => {
-    questionStartedAtRef.current = Date.now();
-  }, [currentIndex]);
+    questionStartedAtRef.current = getActiveElapsedMs();
+    questionTimeCarryMsRef.current = 0;
+  }, [currentIndex, getActiveElapsedMs]);
 
-  const goToQuestion = useCallback((index: number) => {
+  function goToQuestion(index: number) {
+    flushCurrentQuestionTime();
     setCurrentQuestion(Math.max(0, Math.min(questionIds.length - 1, index)));
-  }, [questionIds.length, setCurrentQuestion]);
+  }
+
+  function consumeQuestionTime(finalize = false) {
+    const now = getActiveElapsedMs();
+    const totalMs = questionTimeCarryMsRef.current + Math.max(0, now - questionStartedAtRef.current);
+    const elapsedSec = finalize ? Math.round(totalMs / 1000) : Math.floor(totalMs / 1000);
+    questionTimeCarryMsRef.current = finalize ? 0 : totalMs - elapsedSec * 1000;
+    questionStartedAtRef.current = now;
+    return elapsedSec;
+  }
 
   function handleSelectAnswer(optionIndex: number) {
     if (!currentQuestion || !session) return;
     const letter = String.fromCharCode(65 + optionIndex);
     const previousTime = session.answers[currentQuestion.id]?.timeSpentSec ?? 0;
-    const elapsed = Math.max(1, Math.round((Date.now() - questionStartedAtRef.current) / 1000));
+    const elapsed = consumeQuestionTime();
     updateAnswer(currentQuestion.id, letter, previousTime + elapsed);
-    questionStartedAtRef.current = Date.now();
   }
 
   function handleSubjectiveAnswer(value: string) {
     if (!currentQuestion || !session) return;
     const previous = session.answers[currentQuestion.id];
-    const elapsed = Math.max(1, Math.round((Date.now() - questionStartedAtRef.current) / 1000));
+    const elapsed = consumeQuestionTime();
     updateAnswer(currentQuestion.id, value, (previous?.timeSpentSec ?? 0) + elapsed, previous?.selfScore, 10);
-    questionStartedAtRef.current = Date.now();
   }
 
   function handleSelfScore(questionId: string, score: number) {
@@ -95,7 +104,7 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
     if (!currentQuestion || !session) return;
     const previous = session.answers[currentQuestion.id];
     if (!previous?.selectedAnswer) return;
-    const elapsed = Math.max(0, Math.round((Date.now() - questionStartedAtRef.current) / 1000));
+    const elapsed = consumeQuestionTime(true);
     updateAnswer(
       currentQuestion.id,
       previous.selectedAnswer,
@@ -103,7 +112,6 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
       previous.selfScore,
       previous.maxScore,
     );
-    questionStartedAtRef.current = Date.now();
   }
 
   async function handleSubmit() {
@@ -143,10 +151,18 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
         <div className="exam-stats">
           <span>{answeredCount}/{questionIds.length} 已答</span>
           {markedCount > 0 ? <span><Flag size={14} /> {markedCount} 标记</span> : null}
-          {saving ? <span className="saving-indicator">保存中...</span> : <span className="saved-indicator">已保存</span>}
+          {saving ? (
+            <span className="saving-indicator">保存中...</span>
+          ) : saveError ? (
+            <button type="button" className="save-retry" onClick={() => { void saveNow().catch(() => undefined); }}>
+              保存失败，重试
+            </button>
+          ) : (
+            <span className="saved-indicator">{lastSavedAt ? '已自动保存' : '等待首次保存'}</span>
+          )}
         </div>
         <button type="button" className="secondary-action" onClick={handleExit}>保存并退出</button>
-        <button type="button" className="primary-action" onClick={() => setShowSubmitConfirm(true)}>
+        <button type="button" className="primary-action" disabled={submitting} onClick={() => setShowSubmitConfirm(true)}>
           交卷
         </button>
       </header>
@@ -289,7 +305,9 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
             ) : null}
             <div className="confirm-actions">
               <button type="button" className="secondary-action" onClick={() => setShowSubmitConfirm(false)}>返回检查</button>
-              <button type="button" className="primary-action" onClick={handleSubmit}>确认交卷</button>
+              <button type="button" className="primary-action" disabled={submitting || missingSubjectiveScores.length > 0} onClick={handleSubmit}>
+                {submitting ? '提交中...' : '确认交卷'}
+              </button>
             </div>
           </div>
         </div>

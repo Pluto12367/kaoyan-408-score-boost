@@ -109,6 +109,8 @@ export function App() {
   const [lastSyncAt, setLastSyncAt] = useState<string | undefined>();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [todayPlan, setTodayPlan] = useState<TodayPlanType | null>(null);
+  const [todayPlanLoading, setTodayPlanLoading] = useState(false);
+  const [todayPlanError, setTodayPlanError] = useState('');
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
@@ -185,6 +187,8 @@ export function App() {
       setOnboardingChecked(false);
       setShowOnboarding(false);
       setTodayPlan(null);
+      setTodayPlanError('');
+      setTodayPlanLoading(false);
       return;
     }
     fetchOnboardingStatus()
@@ -199,13 +203,17 @@ export function App() {
   useEffect(() => {
     if (!studentDataEnabled || !authKey || !onboardingChecked || showOnboarding) return;
     if (isStaticDemoMode()) return;
+    setTodayPlanLoading(true);
+    setTodayPlanError('');
     fetchTodayPlan()
       .then((plan) => setTodayPlan(plan))
-      .catch(() => { /* show plan from dashboard overview */ });
+      .catch((error) => setTodayPlanError(error instanceof Error ? error.message : '今日计划加载失败，请重试。'))
+      .finally(() => setTodayPlanLoading(false));
   }, [authKey, onboardingChecked, showOnboarding, studentDataEnabled]);
 
   async function handleOnboardingComplete(result: Awaited<ReturnType<typeof import('./api/endpoints/onboarding').completeOnboarding>>) {
     setShowOnboarding(false);
+    setTodayPlanError('');
     if (result.todayPlan) {
       setTodayPlan(result.todayPlan as TodayPlanType);
     }
@@ -219,10 +227,17 @@ export function App() {
   }
 
   async function refreshTodayPlan() {
+    setTodayPlanLoading(true);
+    setTodayPlanError('');
     try {
       const plan = await fetchTodayPlan();
       setTodayPlan(plan);
-    } catch { /* keep existing */ }
+      await Promise.allSettled([refreshOverview(), refreshMasteryMap(), refreshLearningProfile(), refreshStudyReminders()]);
+    } catch (error) {
+      setTodayPlanError(error instanceof Error ? error.message : '今日计划更新失败，请重试。');
+    } finally {
+      setTodayPlanLoading(false);
+    }
   }
 
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
@@ -1010,6 +1025,8 @@ rating: 4,
           <StudentLaunchpad
             showOnboarding={showOnboarding}
             todayPlan={todayPlan}
+            todayPlanLoading={todayPlanLoading}
+            todayPlanError={todayPlanError}
             latestPaper={latestPaper}
             examQuestionCount={examQuestions.length}
             onOnboardingComplete={handleOnboardingComplete}

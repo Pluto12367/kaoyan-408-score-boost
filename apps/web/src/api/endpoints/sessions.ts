@@ -57,12 +57,13 @@ export async function savePracticeProgress(sessionId: string, input: {
   answers?: Record<string, SessionAnswer>;
   currentIndex?: number;
   markedQuestions?: string[];
-  idleSince?: number;
-}): Promise<SessionView> {
+  totalActiveMs?: number;
+}, options: { keepalive?: boolean } = {}): Promise<SessionView> {
   const response = await fetchWithAuth(`${API_BASE_URL}/sessions/practice/${sessionId}/save`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
+    keepalive: options.keepalive,
   });
   if (!response.ok) throw new Error(`Session save failed with ${response.status}`);
   return response.json() as Promise<SessionView>;
@@ -82,6 +83,7 @@ export async function listActiveSessions(): Promise<ActiveSessionsResponse> {
 
 export async function submitPracticeSession(sessionId: string, input: {
   answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
+  totalActiveMs?: number;
 }): Promise<SessionSubmitResult> {
   const response = await fetchWithAuth(`${API_BASE_URL}/sessions/practice/${sessionId}/submit`, {
     method: 'POST',

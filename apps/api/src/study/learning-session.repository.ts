@@ -38,21 +38,7 @@ export class LearningSessionRepository {
 
   async save(session: PersistedLearningSession): Promise<void> {
     if (!this.enabled) return;
-    const data = {
-      userId: session.userId,
-      type: session.type,
-      resourceId: session.resourceId,
-      questionIds: session.questionIds,
-      answers: session.answers as Prisma.InputJsonValue,
-      markedQuestions: session.markedQuestions,
-      currentIndex: session.currentIndex,
-      startedAt: new Date(session.startedAt),
-      lastActiveAt: new Date(session.lastActiveAt),
-      totalActiveMs: session.totalActiveMs,
-      lastResumeAt: new Date(session.lastResumeAt),
-      completed: session.completed,
-      submittedAt: session.completed ? new Date(session.lastActiveAt) : null,
-    };
+    const data = toPersistenceData(session);
     await this.prisma.learningSession.upsert({
       where: { id: session.id },
       create: { id: session.id, ...data },
@@ -60,11 +46,15 @@ export class LearningSessionRepository {
     });
   }
 
-  async claimForSubmission(sessionId: string, userId: string): Promise<boolean> {
+  async claimForSubmission(session: PersistedLearningSession): Promise<boolean> {
     if (!this.enabled) return true;
     const result = await this.prisma.learningSession.updateMany({
-      where: { id: sessionId, userId, completed: false },
-      data: { completed: true, submittedAt: new Date(), lastActiveAt: new Date() },
+      where: { id: session.id, userId: session.userId, completed: false },
+      data: {
+        ...toPersistenceData(session),
+        completed: true,
+        submittedAt: new Date(),
+      },
     });
     return result.count === 1;
   }
@@ -76,6 +66,24 @@ export class LearningSessionRepository {
       data: { completed: false, submittedAt: null },
     });
   }
+}
+
+function toPersistenceData(session: PersistedLearningSession) {
+  return {
+    userId: session.userId,
+    type: session.type,
+    resourceId: session.resourceId,
+    questionIds: session.questionIds,
+    answers: session.answers as Prisma.InputJsonValue,
+    markedQuestions: session.markedQuestions,
+    currentIndex: session.currentIndex,
+    startedAt: new Date(session.startedAt),
+    lastActiveAt: new Date(session.lastActiveAt),
+    totalActiveMs: session.totalActiveMs,
+    lastResumeAt: new Date(session.lastResumeAt),
+    completed: session.completed,
+    submittedAt: session.completed ? new Date(session.lastActiveAt) : null,
+  };
 }
 
 function toDomainSession(row: {

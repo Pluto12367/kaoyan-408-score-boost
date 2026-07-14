@@ -16,12 +16,18 @@ import {
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
 import { PracticeRecordRepository } from './practice-record.repository';
-import { LearningProgressRepository } from './learning-progress.repository';
+import { LearningProgressRepository, type TaskCompletionMetric } from './learning-progress.repository';
 import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { RuntimeStateRepository } from './runtime-state.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
 import { ExamReviewPlanRepository, type ExamReviewPlanState } from './exam-review-plan.repository';
+import {
+  OnboardingPlanRepository,
+  type OnboardingProfileState,
+  type ScheduledStudyTaskState,
+  type SevenDayPlanState,
+} from './onboarding-plan.repository';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -34,6 +40,7 @@ export class StudyService implements OnModuleInit {
     private readonly runtimeStateRepository: RuntimeStateRepository,
     private readonly reviewScheduleRepository: ReviewScheduleRepository,
     private readonly examReviewPlanRepository: ExamReviewPlanRepository,
+    private readonly onboardingPlanRepository: OnboardingPlanRepository,
   ) {}
 
   private readonly student: UserProfile = {
@@ -78,6 +85,7 @@ export class StudyService implements OnModuleInit {
     this.records.splice(0, this.records.length, ...records);
     const progress = await this.learningProgressRepository.load();
     replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
+    replaceNestedMap(this.taskCompletionMetricsByUser, progress.taskCompletionMetrics);
     replaceNestedMap(this.wrongQuestionReviewDatesByUser, progress.wrongQuestionReviews);
     const sessions = await this.learningSessionRepository.loadAll();
     this.practiceSessions.clear();
@@ -85,6 +93,11 @@ export class StudyService implements OnModuleInit {
     const profiles = await this.learningProfileRepository.load();
     this.diagnosticProfilesByUser.clear();
     for (const [userId, profile] of profiles) this.diagnosticProfilesByUser.set(userId, profile);
+    const onboarding = await this.onboardingPlanRepository.load();
+    this.onboardingProfiles.clear();
+    this.sevenDayPlansByUser.clear();
+    for (const [userId, profile] of onboarding.profiles) this.onboardingProfiles.set(userId, profile);
+    for (const [userId, plan] of onboarding.plans) this.sevenDayPlansByUser.set(userId, plan);
     const runtimeState = await this.runtimeStateRepository.loadAll();
     replaceArrayFromState(this.papers, runtimeState.get('papers'));
     replaceArrayFromState(this.assessmentHistoryItems, runtimeState.get('assessmentHistoryItems'));
@@ -115,6 +128,8 @@ export class StudyService implements OnModuleInit {
   }
 
   private readonly completedTaskDatesByUser = new Map<string, Map<string, string>>();
+
+  private readonly taskCompletionMetricsByUser = new Map<string, Map<string, TaskCompletionMetric>>();
 
   private readonly wrongQuestionReviewDatesByUser = new Map<string, Map<string, string>>();
 
@@ -447,9 +462,17 @@ export class StudyService implements OnModuleInit {
         .filter((point) => point.subject === subject)
         .map((point) => {
           const records = this.records.filter((record) => record.userId === userId && record.knowledgePointId === point.id);
-          const correctCount = records.filter((record) => record.correct).length;
-          const practiceCount = records.length;
-          const wrongCount = records.filter((record) => !record.correct).length + (wrongByPoint.get(point.id) ?? 0);
+          const taskIds = new Set(this.sevenDayPlansByUser.get(userId)?.tasks
+            .filter((task) => task.knowledgePointId === point.id)
+            .map((task) => task.id) ?? []);
+          const taskMetrics = [...(this.taskCompletionMetricsByUser.get(userId)?.entries() ?? [])]
+            .filter(([taskId]) => taskIds.has(taskId))
+            .map(([, metric]) => metric);
+          const taskQuestionCount = taskMetrics.reduce((sum, metric) => sum + metric.completedQuestionCount, 0);
+          const taskCorrectCount = taskMetrics.reduce((sum, metric) => sum + metric.correctCount, 0);
+          const correctCount = records.filter((record) => record.correct).length + taskCorrectCount;
+          const practiceCount = records.length + taskQuestionCount;
+          const wrongCount = records.filter((record) => !record.correct).length + Math.max(0, taskQuestionCount - taskCorrectCount) + (wrongByPoint.get(point.id) ?? 0);
           const accuracyRate = practiceCount ? Math.round((correctCount / practiceCount) * 100) : 0;
           const practiceCoverage = Math.min(100, practiceCount * 25);
           const masteryRate = practiceCount
@@ -598,20 +621,17 @@ export class StudyService implements OnModuleInit {
 
   // ---- Phase 3: Onboarding & Today's Plan ----
 
-  private readonly onboardingCompletedByUser = new Set<string>();
-  private readonly onboardingProfiles = new Map<string, {
-    examYear?: number; targetScore: number; currentScore: number;
-    remainingDays: number; dailyHours: number; weakestSubject: Subject;
-    completedAt: string;
-  }>();
+  private readonly onboardingProfiles = new Map<string, OnboardingProfileState>();
+  private readonly sevenDayPlansByUser = new Map<string, SevenDayPlanState>();
   private readonly postponedTasks = new Map<string, { userId: string; postponeCount: number; nextAvailableAt: string }>();
+  private readonly startedTasks = new Set<string>();
 
   getOnboardingStatus(userId: string) {
     const profile = this.onboardingProfiles.get(userId);
     return {
-      completed: this.onboardingCompletedByUser.has(userId),
+      completed: Boolean(profile),
       profile: profile ?? null,
-      nextStep: !this.onboardingCompletedByUser.has(userId)
+      nextStep: !profile
         ? 'complete_onboarding'
         : !this.diagnosticProfilesByUser.has(userId)
           ? 'submit_diagnostic'
@@ -627,6 +647,7 @@ export class StudyService implements OnModuleInit {
     dailyHours: number;
     weakestSubject: Subject;
   }) {
+    validateOnboardingInput(input);
     const profile = {
       examYear: input.examYear,
       targetScore: Number(input.targetScore),
@@ -636,35 +657,53 @@ export class StudyService implements OnModuleInit {
       weakestSubject: input.weakestSubject,
       completedAt: new Date().toISOString(),
     };
-
-    this.onboardingProfiles.set(userId, profile);
-    this.onboardingCompletedByUser.add(userId);
-
     const diagnostic = await this.applyDiagnosticProfile(userId, profile);
-    const initialPlan = this.generatePlan(userId);
+    const initialPlan = this.buildSevenDayPlan(userId);
+    await this.onboardingPlanRepository.saveOnboarding(userId, profile, initialPlan);
+    this.onboardingProfiles.set(userId, profile);
+    this.sevenDayPlansByUser.set(userId, initialPlan);
 
     return {
       ...profile,
       stage: diagnostic.stage,
-      todayPlan: {
-        phase: initialPlan.phase,
-        tasks: initialPlan.dailyTasks.slice(0, 3).map((task) => ({
-          ...task,
-          priority: task.priority as '高' | '中' | '低',
-          reason: task.reason,
-          nextAction: task.nextAction,
-        })),
-        totalMinutes: initialPlan.dailyTasks.slice(0, 3).reduce((sum, t) => sum + t.minutes, 0),
-        checkpoint: initialPlan.checkpoint,
-      },
+      sevenDayPlan: this.getSevenDayPlanSummary(initialPlan),
+      todayPlan: this.getTodayPlan(userId),
     };
   }
 
   getTodayPlan(userId: string) {
+    const scheduledPlan = this.sevenDayPlansByUser.get(userId);
     const plan = this.generatePlan(userId);
     const report = this.getOverviewReport(userId);
     const calendar = this.getLearningCalendar(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
+    const today = todayKey();
+
+    if (scheduledPlan) {
+      const dayTasks = scheduledPlan.tasks.filter((task) => task.scheduledDate === today);
+      const completedTasks = dayTasks.filter((task) => task.status === 'completed').length;
+      const priorityTasks = dayTasks.map((task) => ({
+        ...task,
+        completed: task.status === 'completed',
+      }));
+
+      return {
+        userId,
+        phase: scheduledPlan.phase,
+        generatedAt: new Date().toISOString(),
+        summary: {
+          completedTasks,
+          totalTasks: dayTasks.length,
+          completionRate: dayTasks.length ? Math.round((completedTasks / dayTasks.length) * 100) : 0,
+          todayAccuracyRate: report.accuracyRate,
+          streakDays: calendar.streakDays,
+        },
+        priorityTasks,
+        weekProgress: this.getSevenDayPlanSummary(scheduledPlan).days,
+        reviewDue: wrongQuestions.filter((q) => q.reviewStatus === 'pending').length,
+        checkpoint: scheduledPlan.checkpoint,
+      };
+    }
 
     // Filter out postponed tasks
     const availableTasks = plan.dailyTasks.filter((task) => {
@@ -687,16 +726,62 @@ export class StudyService implements OnModuleInit {
       },
       priorityTasks: availableTasks.slice(0, 3).map((task) => ({
         ...task,
+        status: task.completed
+          ? 'completed' as const
+          : this.startedTasks.has(`${userId}@${task.id}`)
+            ? 'in_progress' as const
+            : 'pending' as const,
+        postponeCount: 0,
+        scheduledDate: today,
         priority: task.priority as '高' | '中' | '低',
         reason: task.reason,
         nextAction: task.nextAction,
       })),
       reviewDue: wrongQuestions.filter((q) => q.reviewStatus === 'pending').length,
       checkpoint: plan.checkpoint,
+      weekProgress: [],
     };
   }
 
-  postponeTask(userId: string, taskId: string) {
+  async startTask(userId: string, taskId: string) {
+    const scheduled = this.findScheduledTask(userId, taskId);
+    if (!scheduled) {
+      const fallback = this.generatePlan(userId).dailyTasks.find((task) => task.id === taskId);
+      if (!fallback) throw new BadRequestException(`Study task ${taskId} was not found`);
+      this.startedTasks.add(`${userId}@${taskId}`);
+      return { taskId, status: 'in_progress', startedAt: new Date().toISOString(), message: `已开始 ${fallback.title}。` };
+    }
+    if (scheduled.status === 'completed') throw new BadRequestException('Completed task cannot be started again');
+    scheduled.status = 'in_progress';
+    scheduled.startedAt = scheduled.startedAt ?? new Date().toISOString();
+    scheduled.nextAvailableAt = undefined;
+    await this.onboardingPlanRepository.saveTask(userId, scheduled);
+    return { taskId, status: scheduled.status, startedAt: scheduled.startedAt, message: `已开始 ${scheduled.title}。` };
+  }
+
+  async postponeTask(userId: string, taskId: string) {
+    const scheduled = this.findScheduledTask(userId, taskId);
+    if (scheduled) {
+      if (scheduled.status === 'completed') throw new BadRequestException('Completed task cannot be postponed');
+      const plan = this.sevenDayPlansByUser.get(userId)!;
+      const dates = [...new Set(plan.tasks.map((task) => task.scheduledDate))].sort();
+      const currentIndex = Math.max(0, dates.indexOf(scheduled.scheduledDate));
+      let targetDate = dates.slice(currentIndex + 1).find((date) => plan.tasks.filter((task) => task.scheduledDate === date).length < 4);
+      if (!targetDate) targetDate = dateKeyFromOffset(Math.max(1, dates.length));
+      scheduled.postponeCount += 1;
+      scheduled.status = 'postponed';
+      scheduled.scheduledDate = targetDate;
+      scheduled.nextAvailableAt = `${targetDate}T00:00:00.000Z`;
+      await this.onboardingPlanRepository.saveTask(userId, scheduled);
+      return {
+        taskId,
+        postponeCount: scheduled.postponeCount,
+        nextAvailableAt: scheduled.nextAvailableAt,
+        rescheduledDate: targetDate,
+        message: `任务已重新安排到 ${targetDate}，今日计划已自动重排。`,
+      };
+    }
+
     const key = `${userId}@${taskId}`;
     const existing = this.postponedTasks.get(key);
     const postponeCount = (existing?.postponeCount ?? 0) + 1;
@@ -1676,7 +1761,7 @@ export class StudyService implements OnModuleInit {
       timeSpentSec: input.timeSpentSec,
       expectedTimeSec,
       mistakeReason,
-      submittedAt: new Date().toISOString().slice(0, 10),
+      submittedAt: todayKey(),
       sessionId: input.sessionId,
       gradingMode: isSubjective ? 'self_assessed' : 'objective',
       selfScore: input.selfScore,
@@ -1720,34 +1805,82 @@ export class StudyService implements OnModuleInit {
   } = {}) {
     const userId = input.userId ?? this.student.id;
     const plan = this.generatePlan(userId);
-    const task = plan.dailyTasks.find((item) => item.id === taskId);
+    const scheduledTask = this.findScheduledTask(userId, taskId);
+    const task = scheduledTask ?? plan.dailyTasks.find((item) => item.id === taskId);
     if (!task) {
       throw new BadRequestException(`Study task ${taskId} was not found`);
     }
+    if (scheduledTask?.status === 'completed') {
+      throw new BadRequestException(`Study task ${taskId} has already been completed`);
+    }
+    validateTaskCompletionInput(input, Boolean(scheduledTask));
 
     const completed = this.completedTaskDatesByUser.get(userId) ?? new Map<string, string>();
     const completedAt = new Date().toISOString();
+    const completedDate = todayKey();
     await this.learningProgressRepository.saveTaskCompletion({
       userId,
       taskId,
       completedAt,
+      completedDate,
       completedQuestionCount: input.completedQuestionCount,
       correctCount: input.correctCount,
       minutesSpent: input.minutesSpent,
       selfRating: input.selfRating,
     });
-    completed.set(taskCompletionKey(taskId, completedAt.slice(0, 10)), completedAt.slice(0, 10));
+    completed.set(taskCompletionKey(taskId, completedDate), completedDate);
     this.completedTaskDatesByUser.set(userId, completed);
+    this.startedTasks.delete(`${userId}@${taskId}`);
+    const taskMetrics = this.taskCompletionMetricsByUser.get(userId) ?? new Map<string, TaskCompletionMetric>();
+    taskMetrics.set(taskId, {
+      completedQuestionCount: input.completedQuestionCount ?? task.questionCount,
+      correctCount: input.correctCount ?? Math.round((input.completedQuestionCount ?? task.questionCount) * 0.75),
+      minutesSpent: input.minutesSpent ?? task.minutes,
+      selfRating: input.selfRating ?? 3,
+      completedAt,
+    });
+    this.taskCompletionMetricsByUser.set(userId, taskMetrics);
+    const adjustment = this.createTaskCompletionAdjustment(task, {
+      completedQuestionCount: input.completedQuestionCount,
+      correctCount: input.correctCount,
+      minutesSpent: input.minutesSpent,
+      selfRating: input.selfRating,
+    });
+
+    let nextDayAdjustment: { taskId: string; scheduledDate: string; questionCount: number; mode: string } | null = null;
+    if (scheduledTask) {
+      scheduledTask.status = 'completed';
+      scheduledTask.completedAt = completedAt;
+      scheduledTask.nextAvailableAt = undefined;
+      await this.onboardingPlanRepository.saveTask(userId, scheduledTask);
+
+      const futureTask = this.sevenDayPlansByUser.get(userId)?.tasks
+        .filter((item) => item.knowledgePointId === task.knowledgePointId && item.scheduledDate > scheduledTask.scheduledDate && item.status !== 'completed')
+        .sort((left, right) => left.scheduledDate.localeCompare(right.scheduledDate))[0];
+      if (futureTask) {
+        futureTask.questionCount = adjustment.tomorrowQuestionTarget;
+        futureTask.mode = adjustment.intensity === 'increase' ? '进阶训练' : adjustment.intensity === 'decrease' ? '概念复盘' : futureTask.mode;
+        futureTask.reason = adjustment.reasons.join(' ');
+        futureTask.nextAction = adjustment.nextActions[0];
+        await this.onboardingPlanRepository.saveTask(userId, futureTask);
+        nextDayAdjustment = {
+          taskId: futureTask.id,
+          scheduledDate: futureTask.scheduledDate,
+          questionCount: futureTask.questionCount,
+          mode: futureTask.mode,
+        };
+      }
+    }
 
     return {
       ...task,
       completed: true,
-      adjustment: this.createTaskCompletionAdjustment(task, {
-        completedQuestionCount: input.completedQuestionCount,
-        correctCount: input.correctCount,
-        minutesSpent: input.minutesSpent,
-        selfRating: input.selfRating,
-      }),
+      status: 'completed',
+      adjustment,
+      nextDayAdjustment,
+      weekProgress: this.sevenDayPlansByUser.get(userId)
+        ? this.getSevenDayPlanSummary(this.sevenDayPlansByUser.get(userId)!).days
+        : [],
       feedback: {
         message: `已完成 ${task.title}，今日计划进度已更新。`,
         nextAction: task.nextAction,
@@ -2174,6 +2307,57 @@ export class StudyService implements OnModuleInit {
     };
   }
 
+  private buildSevenDayPlan(userId: string): SevenDayPlanState {
+    const base = this.generatePlan(userId);
+    const tasks: ScheduledStudyTaskState[] = [];
+    for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+      const scheduledDate = dateKeyFromOffset(dayIndex);
+      for (let taskIndex = 0; taskIndex < Math.min(3, base.dailyTasks.length); taskIndex += 1) {
+        const baseTask = base.dailyTasks[(dayIndex + taskIndex) % base.dailyTasks.length];
+        tasks.push({
+          ...baseTask,
+          id: `week-${dayIndex + 1}-${taskIndex + 1}-${randomUUID()}`,
+          mode: dayIndex === 0 ? baseTask.mode : dayIndex % 3 === 0 ? '阶段巩固' : baseTask.mode,
+          scheduledDate,
+          status: 'pending',
+          postponeCount: 0,
+        });
+      }
+    }
+    return {
+      id: `plan-${randomUUID()}`,
+      userId,
+      phase: base.phase,
+      targetScore: base.targetScore,
+      remainingDays: base.remainingDays,
+      dailyHours: base.dailyHours,
+      checkpoint: base.checkpoint,
+      startDate: todayKey(),
+      tasks,
+    };
+  }
+
+  private getSevenDayPlanSummary(plan: SevenDayPlanState) {
+    const dates = [...new Set(plan.tasks.map((task) => task.scheduledDate))].sort();
+    return {
+      startDate: plan.startDate,
+      days: dates.map((date) => {
+        const tasks = plan.tasks.filter((task) => task.scheduledDate === date);
+        const completedTasks = tasks.filter((task) => task.status === 'completed').length;
+        return {
+          date,
+          taskCount: tasks.length,
+          completedTasks,
+          totalMinutes: tasks.reduce((sum, task) => sum + task.minutes, 0),
+        };
+      }),
+    };
+  }
+
+  private findScheduledTask(userId: string, taskId: string) {
+    return this.sevenDayPlansByUser.get(userId)?.tasks.find((task) => task.id === taskId);
+  }
+
   generatePlan(userId = this.student.id) {
     const student = this.getStudent(userId);
     const plan = buildStudyPlan({
@@ -2184,6 +2368,25 @@ export class StudyService implements OnModuleInit {
       knowledgePoints: this.knowledgePoints,
       records: this.records.filter((record) => record.userId === userId),
     });
+    const scheduledPlan = this.sevenDayPlansByUser.get(userId);
+    if (scheduledPlan) {
+      const dailyTasks = scheduledPlan.tasks
+        .filter((task) => task.scheduledDate === todayKey())
+        .map((task) => ({
+          ...task,
+          completed: task.status === 'completed',
+        }));
+      const completedTaskCount = dailyTasks.filter((task) => task.completed).length;
+      return {
+        ...plan,
+        phase: scheduledPlan.phase,
+        checkpoint: scheduledPlan.checkpoint,
+        dailyTasks,
+        completedTaskCount,
+        totalTaskCount: dailyTasks.length,
+        completionRate: dailyTasks.length ? Math.round((completedTaskCount / dailyTasks.length) * 100) : 0,
+      };
+    }
     const completedTaskDates = this.completedTaskDatesByUser.get(userId) ?? new Map<string, string>();
     const completedIds = new Set([...completedTaskDates.entries()]
       .filter(([, date]) => date === todayKey())
@@ -2274,6 +2477,23 @@ export class StudyService implements OnModuleInit {
     questionIds: string[];
     resourceId?: string;
   }) {
+    const questionIds = [...new Set(input.questionIds)];
+    if (questionIds.length === 0 || questionIds.length !== input.questionIds.length) {
+      throw new BadRequestException('A session requires a non-empty list of unique questions');
+    }
+    const knownQuestionIds = new Set(this.questions.map((question) => question.id));
+    const unknownQuestionId = questionIds.find((questionId) => !knownQuestionIds.has(questionId));
+    if (unknownQuestionId) throw new BadRequestException(`Question ${unknownQuestionId} was not found`);
+
+    const existing = [...this.practiceSessions.values()].find((session) =>
+      session.userId === userId
+      && !session.completed
+      && session.type === input.type
+      && session.resourceId === input.resourceId
+      && sameStringArray(session.questionIds, questionIds),
+    );
+    if (existing) return this.sessionView(existing);
+
     const id = `session-${randomUUID()}`;
     const now = Date.now();
     const session: PracticeSession = {
@@ -2281,7 +2501,7 @@ export class StudyService implements OnModuleInit {
       userId,
       type: input.type,
       resourceId: input.resourceId,
-      questionIds: input.questionIds,
+      questionIds,
       answers: {},
       markedQuestions: [],
       currentIndex: 0,
@@ -2297,35 +2517,14 @@ export class StudyService implements OnModuleInit {
   }
 
   async savePracticeProgress(sessionId: string, userId: string, input: {
-    answers?: Record<string, { selectedAnswer: string; timeSpentSec: number }>;
+    answers?: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
     currentIndex?: number;
     markedQuestions?: string[];
-    idleSince?: number; // timestamp when user went idle, used to exclude idle time
+    totalActiveMs?: number;
   }) {
     const session = this.getOwnSession(sessionId, userId);
-    const now = Date.now();
-
-    // Calculate active time, excluding idle periods
-    let elapsedMs = now - session.lastResumeAt;
-    if (input.idleSince && input.idleSince > session.lastResumeAt) {
-      // User just returned from idle — only count time before idle
-      elapsedMs = Math.max(0, input.idleSince - session.lastResumeAt);
-    }
-    session.totalActiveMs += elapsedMs;
-    session.lastResumeAt = now;
-    session.lastActiveAt = new Date(now).toISOString();
-
-    if (input.answers) {
-      for (const [questionId, answer] of Object.entries(input.answers)) {
-        session.answers[questionId] = answer;
-      }
-    }
-    if (input.currentIndex !== undefined) {
-      session.currentIndex = input.currentIndex;
-    }
-    if (input.markedQuestions) {
-      session.markedQuestions = [...new Set(input.markedQuestions)];
-    }
+    if (session.completed) throw new BadRequestException('Completed sessions cannot be changed');
+    this.applySessionProgress(session, input);
 
     this.practiceSessions.set(sessionId, session);
     await this.learningSessionRepository.save(session);
@@ -2347,6 +2546,7 @@ export class StudyService implements OnModuleInit {
 
   async submitPracticeSession(sessionId: string, userId: string, input: {
     answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
+    totalActiveMs?: number;
   }) {
     const session = this.getOwnSession(sessionId, userId);
     if (session.completed || this.submittingSessionIds.has(sessionId)) {
@@ -2356,6 +2556,10 @@ export class StudyService implements OnModuleInit {
     if (foreignAnswer) {
       throw new BadRequestException(`Question ${foreignAnswer.questionId} does not belong to this session`);
     }
+    if (new Set(input.answers.map((answer) => answer.questionId)).size !== input.answers.length) {
+      throw new BadRequestException('A question can only be submitted once');
+    }
+    for (const answer of input.answers) this.validateSessionAnswer(answer.questionId, answer);
 
     this.submittingSessionIds.add(sessionId);
 
@@ -2368,14 +2572,15 @@ export class StudyService implements OnModuleInit {
         maxScore: answer.maxScore,
       };
     }
+    this.applySessionProgress(session, { totalActiveMs: input.totalActiveMs });
 
-    await this.learningSessionRepository.save(session);
-    const claimed = await this.learningSessionRepository.claimForSubmission(sessionId, userId);
+    const claimed = await this.learningSessionRepository.claimForSubmission(session);
     if (!claimed) {
       this.submittingSessionIds.delete(sessionId);
       session.completed = true;
       throw new BadRequestException('Session has already been submitted');
     }
+    session.completed = true;
 
     const finalAnswers = session.questionIds.flatMap((questionId) => {
       const answer = session.answers[questionId];
@@ -2428,6 +2633,66 @@ export class StudyService implements OnModuleInit {
       throw error;
     } finally {
       this.submittingSessionIds.delete(sessionId);
+    }
+  }
+
+  private applySessionProgress(session: PracticeSession, input: {
+    answers?: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
+    currentIndex?: number;
+    markedQuestions?: string[];
+    totalActiveMs?: number;
+  }) {
+    if (input.currentIndex != null && input.currentIndex >= session.questionIds.length) {
+      throw new BadRequestException('Current question index is outside this session');
+    }
+    const foreignMarkedQuestion = input.markedQuestions?.find((questionId) => !session.questionIds.includes(questionId));
+    if (foreignMarkedQuestion) {
+      throw new BadRequestException(`Marked question ${foreignMarkedQuestion} does not belong to this session`);
+    }
+    if (input.answers) {
+      for (const [questionId, answer] of Object.entries(input.answers)) {
+        if (!session.questionIds.includes(questionId)) {
+          throw new BadRequestException(`Question ${questionId} does not belong to this session`);
+        }
+        this.validateSessionAnswer(questionId, answer);
+      }
+    }
+
+    const now = Date.now();
+    if (input.totalActiveMs != null) {
+      const wallElapsedMs = Math.max(0, now - new Date(session.startedAt).getTime());
+      const boundedActiveMs = Math.min(input.totalActiveMs, wallElapsedMs + 5_000);
+      session.totalActiveMs = Math.max(session.totalActiveMs, boundedActiveMs);
+    }
+    session.lastResumeAt = now;
+    session.lastActiveAt = new Date(now).toISOString();
+    if (input.answers) {
+      for (const [questionId, answer] of Object.entries(input.answers)) session.answers[questionId] = answer;
+    }
+    if (input.currentIndex != null) session.currentIndex = input.currentIndex;
+    if (input.markedQuestions) session.markedQuestions = [...new Set(input.markedQuestions)];
+  }
+
+  private validateSessionAnswer(questionId: string, answer: {
+    selectedAnswer: string;
+    timeSpentSec: number;
+    selfScore?: number;
+    maxScore?: number;
+  }) {
+    if (typeof answer.selectedAnswer !== 'string' || answer.selectedAnswer.length > 10_000) {
+      throw new BadRequestException(`Answer for ${questionId} is invalid`);
+    }
+    if (!Number.isInteger(answer.timeSpentSec) || answer.timeSpentSec < 0 || answer.timeSpentSec > 10_800) {
+      throw new BadRequestException(`Answer time for ${questionId} is invalid`);
+    }
+    if (answer.selfScore != null && (!Number.isInteger(answer.selfScore) || answer.selfScore < 0 || answer.selfScore > 150)) {
+      throw new BadRequestException(`Self score for ${questionId} is invalid`);
+    }
+    if (answer.maxScore != null && (!Number.isInteger(answer.maxScore) || answer.maxScore < 1 || answer.maxScore > 150)) {
+      throw new BadRequestException(`Maximum score for ${questionId} is invalid`);
+    }
+    if (answer.selfScore != null && answer.maxScore != null && answer.selfScore > answer.maxScore) {
+      throw new BadRequestException(`Self score for ${questionId} cannot exceed its maximum score`);
     }
   }
 
@@ -2641,7 +2906,17 @@ export class StudyService implements OnModuleInit {
 }
 
 function todayKey() {
-  return new Date().toISOString().slice(0, 10);
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: process.env.APP_TIME_ZONE ?? 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  if (!year || !month || !day) throw new Error('Unable to determine the current study date');
+  return `${year}-${month}-${day}`;
 }
 
 function lastNDates(count: number) {
@@ -2695,9 +2970,9 @@ function isTrialStatus(value: string | undefined): value is TrialStatus {
   return value === 'invited' || value === 'active' || value === 'completed' || value === 'follow_up';
 }
 
-function replaceNestedMap(
-  target: Map<string, Map<string, string>>,
-  source: Map<string, Map<string, string>>,
+function replaceNestedMap<T>(
+  target: Map<string, Map<string, T>>,
+  source: Map<string, Map<string, T>>,
 ) {
   target.clear();
   for (const [userId, values] of source) {
@@ -2707,6 +2982,68 @@ function replaceNestedMap(
 
 function taskCompletionKey(taskId: string, completedDate: string) {
   return `${taskId}@${completedDate}`;
+}
+
+function sameStringArray(left: string[], right: string[]) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function dateKeyFromOffset(offset: number) {
+  const date = new Date(`${todayKey()}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
+
+function validateOnboardingInput(input: {
+  examYear?: number;
+  targetScore: number;
+  currentScore: number;
+  remainingDays: number;
+  dailyHours: number;
+  weakestSubject: Subject;
+}) {
+  const currentYear = new Date().getUTCFullYear();
+  if (input.examYear != null && (!Number.isInteger(input.examYear) || input.examYear < currentYear || input.examYear > currentYear + 5)) {
+    throw new BadRequestException('Exam year is outside the supported range');
+  }
+  if (!Number.isFinite(input.targetScore) || input.targetScore < 60 || input.targetScore > 150) {
+    throw new BadRequestException('Target score must be between 60 and 150');
+  }
+  if (!Number.isFinite(input.currentScore) || input.currentScore < 0 || input.currentScore > 150 || input.currentScore > input.targetScore) {
+    throw new BadRequestException('Current score must be between 0 and the target score');
+  }
+  if (!Number.isInteger(input.remainingDays) || input.remainingDays < 1 || input.remainingDays > 730) {
+    throw new BadRequestException('Remaining days must be between 1 and 730');
+  }
+  if (!Number.isFinite(input.dailyHours) || input.dailyHours < 0.5 || input.dailyHours > 12) {
+    throw new BadRequestException('Daily study hours must be between 0.5 and 12');
+  }
+  if (!parseSubject(input.weakestSubject)) {
+    throw new BadRequestException('Weakest subject is invalid');
+  }
+}
+
+function validateTaskCompletionInput(input: {
+  completedQuestionCount?: number;
+  correctCount?: number;
+  minutesSpent?: number;
+  selfRating?: number;
+}, requireMetrics: boolean) {
+  if (requireMetrics && (
+    input.completedQuestionCount == null
+    || input.correctCount == null
+    || input.minutesSpent == null
+    || input.selfRating == null
+  )) {
+    throw new BadRequestException('Scheduled task completion metrics are required');
+  }
+  if (
+    input.completedQuestionCount != null
+    && input.correctCount != null
+    && input.correctCount > input.completedQuestionCount
+  ) {
+    throw new BadRequestException('Correct question count cannot exceed completed question count');
+  }
 }
 
 function replaceArrayFromState<T>(target: T[], value: unknown) {

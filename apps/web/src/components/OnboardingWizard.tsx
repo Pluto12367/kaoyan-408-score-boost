@@ -12,6 +12,7 @@ const SUBJECTS: Subject[] = ['数据结构', '计算机组成原理', '操作系
 export function OnboardingWizard({ onComplete }: Props) {
   const [step, setStep] = useState(0);
   const [status, setStatus] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     examYear: new Date().getFullYear() + 1,
     targetScore: 110,
@@ -22,17 +23,38 @@ export function OnboardingWizard({ onComplete }: Props) {
   });
 
   function update(field: string, value: string | number) {
+    setStatus('');
     setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function goNext() {
+    if (step === 0 && (form.targetScore < 60 || form.targetScore > 150)) {
+      setStatus('408 目标分数需要在 60 到 150 分之间。');
+      return;
+    }
+    if (step === 1 && (form.currentScore < 0 || form.currentScore > form.targetScore)) {
+      setStatus('当前估分不能高于目标分数。');
+      return;
+    }
+    if (step === 2 && (form.remainingDays < 1 || form.dailyHours < 0.5 || form.dailyHours > 12)) {
+      setStatus('请检查剩余天数和每日学习时间。');
+      return;
+    }
+    setStatus('');
+    setStep((current) => current + 1);
   }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    setSubmitting(true);
     setStatus('正在生成你的专属学习计划...');
     try {
       const result = await completeOnboarding(form);
       onComplete(result);
     } catch (error) {
       setStatus(error instanceof Error ? error.message : '提交失败，请重试');
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -127,10 +149,10 @@ export function OnboardingWizard({ onComplete }: Props) {
             <button type="button" className="secondary-action" onClick={() => setStep(step - 1)}>上一步</button>
           ) : null}
           {step < steps.length - 1 ? (
-            <button type="button" className="primary-action" onClick={() => setStep(step + 1)}>下一步</button>
+            <button type="button" className="primary-action" onClick={goNext}>下一步</button>
           ) : (
-            <button type="submit" className="primary-action" disabled={!!status}>
-              {status || '生成我的学习计划'}
+            <button type="submit" className="primary-action" disabled={submitting}>
+              {submitting ? '正在生成...' : '生成我的学习计划'}
             </button>
           )}
         </div>

@@ -3,7 +3,16 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export interface PersistedLearningProgress {
   completedTasks: Map<string, Map<string, string>>;
+  taskCompletionMetrics: Map<string, Map<string, TaskCompletionMetric>>;
   wrongQuestionReviews: Map<string, Map<string, string>>;
+}
+
+export interface TaskCompletionMetric {
+  completedQuestionCount: number;
+  correctCount: number;
+  minutesSpent: number;
+  selfRating: number;
+  completedAt: string;
 }
 
 @Injectable()
@@ -16,8 +25,9 @@ export class LearningProgressRepository {
 
   async load(): Promise<PersistedLearningProgress> {
     const completedTasks = new Map<string, Map<string, string>>();
+    const taskCompletionMetrics = new Map<string, Map<string, TaskCompletionMetric>>();
     const wrongQuestionReviews = new Map<string, Map<string, string>>();
-    if (!this.enabled) return { completedTasks, wrongQuestionReviews };
+    if (!this.enabled) return { completedTasks, taskCompletionMetrics, wrongQuestionReviews };
 
     const [taskRows, reviewRows] = await Promise.all([
       this.prisma.studyTaskCompletion.findMany({ orderBy: { completedAt: 'asc' } }),
@@ -28,6 +38,15 @@ export class LearningProgressRepository {
       const userTasks = completedTasks.get(row.userId) ?? new Map<string, string>();
       userTasks.set(taskCompletionKey(row.taskId, row.completedDate), row.completedDate);
       completedTasks.set(row.userId, userTasks);
+      const userMetrics = taskCompletionMetrics.get(row.userId) ?? new Map<string, TaskCompletionMetric>();
+      userMetrics.set(row.taskId, {
+        completedQuestionCount: row.completedQuestionCount ?? 0,
+        correctCount: row.correctCount ?? 0,
+        minutesSpent: row.minutesSpent ?? 0,
+        selfRating: row.selfRating ?? 3,
+        completedAt: row.completedAt.toISOString(),
+      });
+      taskCompletionMetrics.set(row.userId, userMetrics);
     }
     for (const row of reviewRows) {
       const userReviews = wrongQuestionReviews.get(row.userId) ?? new Map<string, string>();
@@ -35,7 +54,7 @@ export class LearningProgressRepository {
       wrongQuestionReviews.set(row.userId, userReviews);
     }
 
-    return { completedTasks, wrongQuestionReviews };
+    return { completedTasks, taskCompletionMetrics, wrongQuestionReviews };
   }
 
   async saveWrongQuestionReview(userId: string, questionId: string, reviewedAt: string) {
@@ -51,6 +70,7 @@ export class LearningProgressRepository {
     userId: string;
     taskId: string;
     completedAt: string;
+    completedDate: string;
     completedQuestionCount?: number;
     correctCount?: number;
     minutesSpent?: number;
@@ -59,7 +79,7 @@ export class LearningProgressRepository {
     if (!this.enabled) return;
     const data = {
       completedAt: new Date(input.completedAt),
-      completedDate: input.completedAt.slice(0, 10),
+      completedDate: input.completedDate,
       completedQuestionCount: input.completedQuestionCount,
       correctCount: input.correctCount,
       minutesSpent: input.minutesSpent,

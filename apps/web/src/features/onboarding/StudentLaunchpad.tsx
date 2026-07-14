@@ -6,10 +6,13 @@ import { OnboardingWizard } from '../../components/OnboardingWizard';
 import { ResumeSessionBanner } from '../../components/ResumeSessionBanner';
 import { TodayPlan } from '../../components/TodayPlan';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
+import { ModuleUnavailable } from '../../components/ModuleResourceState';
 
 interface StudentLaunchpadProps {
   showOnboarding: boolean;
   todayPlan: TodayPlanType | null;
+  todayPlanLoading: boolean;
+  todayPlanError: string;
   latestPaper: GeneratedPaper | null;
   examQuestionCount: number;
   onOnboardingComplete: ComponentProps<typeof OnboardingWizard>['onComplete'];
@@ -22,6 +25,8 @@ interface StudentLaunchpadProps {
 export function StudentLaunchpad({
   showOnboarding,
   todayPlan,
+  todayPlanLoading,
+  todayPlanError,
   latestPaper,
   examQuestionCount,
   onOnboardingComplete,
@@ -35,6 +40,13 @@ export function StudentLaunchpad({
   return (
     <>
       {todayPlan ? <TodayPlan plan={todayPlan} onRefresh={onRefreshTodayPlan} onOpenReview={onOpenReview} /> : null}
+      {!todayPlan && (todayPlanLoading || todayPlanError) ? (
+        <ModuleUnavailable
+          title="今日计划"
+          resource={{ data: null, state: todayPlanLoading ? 'loading' : 'error', error: todayPlanError || undefined }}
+          onRetry={onRefreshTodayPlan}
+        />
+      ) : null}
       <ResumeSessionBanner allowedTypes={['paper']} onResume={onResumeExam} />
       <section className="panel exam-entry-panel">
         <div className="panel-heading">
