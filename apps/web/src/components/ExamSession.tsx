@@ -4,6 +4,7 @@ import { usePracticeSession } from '../hooks/usePracticeSession';
 import type { SessionView, SessionSubmitResult } from '../api/endpoints/sessions';
 
 interface Props {
+  sessionType?: SessionView['type'];
   questionIds: string[];
   questions: Array<{
     id: string;
@@ -20,11 +21,11 @@ interface Props {
   onSubmit: (result: SessionSubmitResult) => void;
 }
 
-export function ExamSession({ questionIds, questions, timeLimitMin = 180, resourceId, onExit, onSubmit }: Props) {
+export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, onExit, onSubmit }: Props) {
   const {
     session, saving, submitting, error, saveError, lastSavedAt,
     updateAnswer, setCurrentQuestion, toggleMark, saveNow, submitSession, getActiveElapsedMs,
-  } = usePracticeSession({ type: 'paper', questionIds, resourceId });
+  } = usePracticeSession({ type: sessionType, questionIds, resourceId });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);
@@ -32,6 +33,7 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
   const questionStartedAtRef = useRef(0);
   const questionTimeCarryMsRef = useRef(0);
   const totalTimeSec = timeLimitMin * 60;
+  const sessionLabel = sessionType === 'practice_set' ? '专项练习' : sessionType === 'stage_assessment' ? '阶段测评' : '模拟考试';
 
   // Timer
   useEffect(() => {
@@ -135,7 +137,7 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
   }
 
   if (error) return <div className="panel"><p className="task-status">会话错误: {error}</p></div>;
-  if (!session) return <div className="panel"><p className="task-status">加载考试...</p></div>;
+  if (!session) return <div className="panel"><p className="task-status">正在加载{sessionLabel}...</p></div>;
 
   const timerClass = remainingSec < 300 ? 'timer-danger' : remainingSec < 600 ? 'timer-warning' : '';
 
@@ -163,7 +165,7 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
         </div>
         <button type="button" className="secondary-action" onClick={handleExit}>保存并退出</button>
         <button type="button" className="primary-action" disabled={submitting} onClick={() => setShowSubmitConfirm(true)}>
-          交卷
+          {sessionType === 'paper' ? '交卷' : '提交'}
         </button>
       </header>
 
@@ -263,7 +265,7 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
       {showSubmitConfirm ? (
         <div className="submit-confirm-overlay">
           <div className="submit-confirm-panel">
-            <h3><AlertTriangle size={20} /> 确认交卷</h3>
+            <h3><AlertTriangle size={20} /> 确认提交{sessionLabel}</h3>
             {unansweredQuestions.length > 0 ? (
               <div className="unanswered-warning">
                 <p>还有 <strong>{unansweredQuestions.length}</strong> 道题未作答：</p>
@@ -306,7 +308,7 @@ export function ExamSession({ questionIds, questions, timeLimitMin = 180, resour
             <div className="confirm-actions">
               <button type="button" className="secondary-action" onClick={() => setShowSubmitConfirm(false)}>返回检查</button>
               <button type="button" className="primary-action" disabled={submitting || missingSubjectiveScores.length > 0} onClick={handleSubmit}>
-                {submitting ? '提交中...' : '确认交卷'}
+                {submitting ? '提交中...' : sessionType === 'paper' ? '确认交卷' : '确认提交'}
               </button>
             </div>
           </div>

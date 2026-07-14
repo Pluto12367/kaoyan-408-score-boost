@@ -232,6 +232,39 @@ async function main() {
     totalActiveMs: 1250,
   }, studentHeaders);
   assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes(subjectiveQuestion.id), 'session progress should be saved');
+
+  const recommendedPracticeSet = await getJson(`${apiUrl}/practice-sets/recommended`, studentHeaders);
+  const practiceSessionQuestions = recommendedPracticeSet.questions.slice(0, Math.min(2, recommendedPracticeSet.questions.length));
+  assert(practiceSessionQuestions.length > 0, 'recommended practice set should contain resumable questions');
+  const practiceSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'practice_set',
+    resourceId: recommendedPracticeSet.id,
+    questionIds: practiceSessionQuestions.map((question) => question.id),
+  }, studentHeaders);
+  await postJson(`${apiUrl}/sessions/practice/${practiceSession.id}/save`, {
+    answers: {
+      [practiceSessionQuestions[0].id]: sessionAnswerFor(practiceSessionQuestions[0], 61),
+    },
+    currentIndex: Math.min(1, practiceSessionQuestions.length - 1),
+    markedQuestions: [practiceSessionQuestions[0].id],
+    totalActiveMs: 2100,
+  }, studentHeaders);
+
+  const stageAssessment = await getJson(`${apiUrl}/assessments/stage`, studentHeaders);
+  const stageSessionQuestions = stageAssessment.questions.slice(0, Math.min(2, stageAssessment.questions.length));
+  assert(stageSessionQuestions.length > 0, 'stage assessment should contain resumable questions');
+  const stageSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'stage_assessment',
+    resourceId: stageAssessment.id,
+    questionIds: stageSessionQuestions.map((question) => question.id),
+  }, studentHeaders);
+  await postJson(`${apiUrl}/sessions/practice/${stageSession.id}/save`, {
+    answers: {
+      [stageSessionQuestions[0].id]: sessionAnswerFor(stageSessionQuestions[0], 79),
+    },
+    currentIndex: Math.min(1, stageSessionQuestions.length - 1),
+    totalActiveMs: 3300,
+  }, studentHeaders);
   await expectGetStatus(`${apiUrl}/sessions/practice/${startedSession.id}`, { Authorization: `Bearer ${teacherSession.token}` }, 403);
 
   await stop(activeApi);
@@ -268,6 +301,39 @@ async function main() {
   assert(restoredSession.currentIndex === 1, 'current question should survive an API restart');
   assert(restoredSession.markedQuestions.includes(subjectiveQuestion.id), 'marked question should survive an API restart');
   assert(restoredSession.totalActiveMs === 1250, 'foreground active time should survive an API restart without adding downtime');
+  const restoredPracticeSession = await getJson(`${apiUrl}/sessions/practice/${practiceSession.id}`, studentHeaders);
+  assert(restoredPracticeSession.answers[practiceSessionQuestions[0].id]?.selectedAnswer, 'practice-set answer should survive an API restart');
+  assert(restoredPracticeSession.markedQuestions.includes(practiceSessionQuestions[0].id), 'practice-set mark should survive an API restart');
+  assert(restoredPracticeSession.totalActiveMs === 2100, 'practice-set active time should survive an API restart');
+  const restoredStageSession = await getJson(`${apiUrl}/sessions/practice/${stageSession.id}`, studentHeaders);
+  assert(restoredStageSession.answers[stageSessionQuestions[0].id]?.selectedAnswer, 'stage-assessment answer should survive an API restart');
+  assert(restoredStageSession.totalActiveMs === 3300, 'stage-assessment active time should survive an API restart');
+
+  const submittedPracticeSession = await postJson(`${apiUrl}/sessions/practice/${practiceSession.id}/submit`, {
+    answers: practiceSessionQuestions.map((question, index) => ({
+      questionId: question.id,
+      ...sessionAnswerFor(question, 61 + index),
+    })),
+    totalActiveMs: 4100,
+  }, studentHeaders);
+  assert(submittedPracticeSession.workflowResult?.practiceSetId === recommendedPracticeSet.id, 'practice-set session should return its workflow result');
+  assert(submittedPracticeSession.workflowResult.totalQuestions === practiceSessionQuestions.length, 'practice-set result should cover the session questions');
+  await expectPostStatus(`${apiUrl}/sessions/practice/${practiceSession.id}/submit`, {
+    answers: practiceSessionQuestions.map((question) => ({ questionId: question.id, ...sessionAnswerFor(question, 1) })),
+  }, 400, studentHeaders);
+
+  const submittedStageSession = await postJson(`${apiUrl}/sessions/practice/${stageSession.id}/submit`, {
+    answers: stageSessionQuestions.map((question, index) => ({
+      questionId: question.id,
+      ...sessionAnswerFor(question, 79 + index),
+    })),
+    totalActiveMs: 5200,
+  }, studentHeaders);
+  assert(submittedStageSession.workflowResult?.score === 100, 'stage-assessment session should return its scored workflow result');
+  assert(submittedStageSession.workflowResult.adjustment.stage === '冲刺', 'stage assessment should adjust only the authenticated student profile');
+  await expectPostStatus(`${apiUrl}/sessions/practice/${stageSession.id}/submit`, {
+    answers: stageSessionQuestions.map((question) => ({ questionId: question.id, ...sessionAnswerFor(question, 1) })),
+  }, 400, studentHeaders);
   await expectGetStatus(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders, 400);
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
     answers: [{ questionId: 'question-outside-session', selectedAnswer: 'A', timeSpentSec: 10 }],
@@ -294,6 +360,9 @@ async function main() {
   assert(examReport.summary.subjectiveQuestionCount === 1 && examReport.summary.subjectiveEarnedScore === 7, 'subjective question should retain the student self score');
   assert(examReport.summary.subjectiveMaxScore === 10, 'subjective report should retain the maximum score');
   assert(examReport.subjectBreakdown.reduce((sum, item) => sum + item.totalQuestions, 0) === 2, 'old practice records must not contaminate the exam report');
+  const overviewAfterSessionSubmissions = await waitForOverview(studentHeaders);
+  assert(overviewAfterSessionSubmissions.practiceRecords.filter((record) => record.sessionId === practiceSession.id).length === practiceSessionQuestions.length, 'practice-set duplicate submission must not create duplicate records');
+  assert(overviewAfterSessionSubmissions.practiceRecords.filter((record) => record.sessionId === stageSession.id).length === stageSessionQuestions.length, 'stage-assessment duplicate submission must not create duplicate records');
   const examReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
   assert(examReviewPlan.days.length === 3, 'submitted exam should generate a three-day review plan');
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
@@ -443,6 +512,18 @@ async function stop(child) {
   child.kill();
   await Promise.race([once(child, 'exit'), delay(2_000)]);
   if (child.exitCode === null && !child.killed) child.kill('SIGKILL');
+}
+
+function sessionAnswerFor(question, timeSpentSec) {
+  if (question.type === '综合题') {
+    return {
+      selectedAnswer: question.answer || 'Integration self-assessed response',
+      timeSpentSec,
+      selfScore: 10,
+      maxScore: 10,
+    };
+  }
+  return { selectedAnswer: question.answer, timeSpentSec };
 }
 
 function assert(condition, message) {

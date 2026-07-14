@@ -7,6 +7,7 @@ const distRoot = join(process.cwd(), 'apps/web/dist');
 const fallbackRoot = process.cwd();
 const root = existsSync(distRoot) ? distRoot : fallbackRoot;
 const port = Number(process.env.PORT ?? 4173);
+const publicBasePath = normalizeBasePath(process.env.PUBLIC_BASE_PATH ?? '/kaoyan-408-score-boost/');
 
 const types = {
   '.html': 'text/html; charset=utf-8',
@@ -20,7 +21,11 @@ const types = {
 
 createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host}`);
-  const requestedPath = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
+  const decodedPath = decodeURIComponent(url.pathname);
+  const pathWithoutBase = decodedPath.startsWith(publicBasePath)
+    ? decodedPath.slice(publicBasePath.length - 1)
+    : decodedPath;
+  const requestedPath = pathWithoutBase === '/' ? '/index.html' : pathWithoutBase;
   const filePath = normalize(join(root, requestedPath));
 
   if (!filePath.startsWith(root)) {
@@ -61,3 +66,8 @@ createServer(async (request, response) => {
   console.log(`408 score boost system running at http://localhost:${port}`);
   console.log(`Serving from: ${root}`);
 });
+
+function normalizeBasePath(value) {
+  const withLeadingSlash = value.startsWith('/') ? value : `/${value}`;
+  return withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`;
+}

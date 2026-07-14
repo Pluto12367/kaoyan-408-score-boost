@@ -1,4 +1,5 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
+import type { PracticeSetResult, StageAssessmentResult } from '../types';
 
 export interface SessionAnswer {
   selectedAnswer: string;
@@ -36,6 +37,7 @@ export interface SessionSubmitResult {
   correctCount: number;
   accuracyRate: number;
   totalActiveMs: number;
+  workflowResult?: PracticeSetResult | StageAssessmentResult;
   records: Array<{ questionId: string; correct: boolean; mistakeReason: string | null; gradingMode?: string; selfScore?: number; maxScore?: number }>;
 }
 

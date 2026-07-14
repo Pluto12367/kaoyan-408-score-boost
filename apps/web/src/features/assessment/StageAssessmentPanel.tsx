@@ -21,7 +21,7 @@ export function StageAssessmentPanel({ assessment, result, status, onSubmit }: S
         <article><strong>测评说明</strong><p>{assessment.description}</p></article>
         <article><strong>提交后产出</strong><p>系统会同步练习记录、错题本和薄弱点报告，并给出下一步复习建议。</p></article>
       </div>
-      <div className="assessment-actions"><button type="button" onClick={onSubmit}><ClipboardCheck size={18} /> 提交演示测评</button></div>
+      <div className="assessment-actions"><button type="button" onClick={onSubmit}><ClipboardCheck size={18} /> 开始阶段测评</button></div>
       {result ? (
         <div className="assessment-result">
           <strong>本次得分 {result.score} / 100</strong>

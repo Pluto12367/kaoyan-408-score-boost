@@ -36,7 +36,7 @@ export function PracticePanel({ question, practiceSet, practiceSetResult, redoQu
           <ModuleResourceMeta resource={practiceSet} onRetry={onRetryPracticeSet} />
           <span>{set.reason}</span>
           <ol>{set.questions.slice(0, 3).map((item) => <li key={item.id}>{item.stem}</li>)}</ol>
-          <button type="button" className="secondary-action" onClick={onSubmitPracticeSet}>提交演示题组</button>
+          <button type="button" className="secondary-action" onClick={onSubmitPracticeSet}>开始专项练习</button>
           {practiceSetResult ? <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p> : null}
         </div>
       ) : <ModuleInlineUnavailable title="推荐题组" resource={practiceSet} onRetry={onRetryPracticeSet} />}

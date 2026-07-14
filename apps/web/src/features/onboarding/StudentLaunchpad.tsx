@@ -18,7 +18,7 @@ interface StudentLaunchpadProps {
   onOnboardingComplete: ComponentProps<typeof OnboardingWizard>['onComplete'];
   onRefreshTodayPlan: () => void;
   onOpenReview: (questionId: string) => void;
-  onResumeExam: (session: SessionView) => void;
+  onResumeSession: (session: SessionView) => void;
   onStartExam: () => void;
 }
 
@@ -32,7 +32,7 @@ export function StudentLaunchpad({
   onOnboardingComplete,
   onRefreshTodayPlan,
   onOpenReview,
-  onResumeExam,
+  onResumeSession,
   onStartExam,
 }: StudentLaunchpadProps) {
   if (showOnboarding) return <OnboardingWizard onComplete={onOnboardingComplete} />;
@@ -47,7 +47,7 @@ export function StudentLaunchpad({
           onRetry={onRefreshTodayPlan}
         />
       ) : null}
-      <ResumeSessionBanner allowedTypes={['paper']} onResume={onResumeExam} />
+      <ResumeSessionBanner allowedTypes={['practice_set', 'stage_assessment', 'paper']} onResume={onResumeSession} />
       <section className="panel exam-entry-panel">
         <div className="panel-heading">
           <div><p className="eyebrow">408 模拟考试</p><h3>{latestPaper?.title ?? '当前题库模拟卷'}</h3></div>

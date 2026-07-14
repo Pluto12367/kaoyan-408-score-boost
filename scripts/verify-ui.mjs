@@ -41,16 +41,13 @@ try {
   await stat(mobileScreenshot);
 
   const requiredText = [
-    '学生工作台',
-    '入学诊断',
-    '学习计划',
-    '408知识图谱',
-    '题库训练',
-    '错题本',
-    '提分报告',
-    'AI答疑',
-    '教研后台',
-    '管理看板',
+    '计算机考研 408 提分系统',
+    '学生工作区',
+    '登录后载入个人学习数据',
+    '账号与角色权限',
+    '邮箱',
+    '密码',
+    '注册账号',
   ];
 
   const missing = requiredText.filter((text) => !dom.stdout.includes(text));
@@ -104,6 +101,7 @@ async function runInteractionChecks() {
     '--headless',
     '--disable-gpu',
     '--no-sandbox',
+    '--window-size=390,1000',
     `--remote-debugging-port=${remotePort}`,
     `--user-data-dir=${userDataDir}`,
     checkedUrl,
@@ -147,57 +145,28 @@ async function runInteractionChecks() {
             if (text.includes(expected)) seen.push(label);
             else errors.push('missing text ' + expected);
           };
-          const click = (selector) => {
-            const node = document.querySelector(selector);
-            if (!node) errors.push('missing ' + selector);
-            else node.click();
+          const registerButton = [...document.querySelectorAll('button')]
+            .find((node) => node.textContent?.trim() === '注册账号');
+          if (!registerButton) errors.push('missing register button');
+          else registerButton.click();
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          expectText('register-mode', '创建学生账号');
+          if (!document.querySelector('input[name="name"]')) errors.push('missing registration name field');
+          if (!document.querySelector('input[name="email"]')) errors.push('missing email field');
+          if (!document.querySelector('input[name="password"]')) errors.push('missing password field');
+          if (!document.querySelector('#root')?.children.length) errors.push('React root is empty');
+          if (document.documentElement.scrollWidth > document.documentElement.clientWidth) {
+            errors.push('page has horizontal overflow');
+          }
+
+          return {
+            errors,
+            seen,
+            title: document.title,
+            length: document.body.innerText.length,
+            viewportWidth: document.documentElement.clientWidth,
+            contentWidth: document.documentElement.scrollWidth,
           };
-          const setValue = (selector, value) => {
-            const node = document.querySelector(selector);
-            if (!node) errors.push('missing ' + selector);
-            else {
-              node.value = value;
-              node.dispatchEvent(new Event('input', { bubbles: true }));
-              node.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-          };
-
-          setValue('[name="currentScore"]', '62');
-          setValue('[name="weakestSubject"]', '操作系统');
-          document.querySelector('[data-diagnostic-form]')?.requestSubmit();
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          expectText('diagnostic-plan', '基础补强');
-
-          click('[data-select-answer="q-002"][data-option="B"]');
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          click('[data-submit-answer="q-002"]');
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          expectText('practice-submit', '答对');
-
-          click('[data-ai-from-question="q-002"]');
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          expectText('ai-reply', 'Cache映射与替换');
-
-          click('[data-role="teacher"]');
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          setValue('[name="stem"]', '页面置换算法中，LRU 的核心依据是什么？');
-          setValue('[name="options"]', '未来访问/最近最久未使用/随机替换/先进先出');
-          setValue('[name="analysis"]', 'LRU 根据最近最久未使用原则选择淘汰页。');
-          document.querySelector('[data-question-form]')?.requestSubmit();
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          expectText('teacher-question', '页面置换算法中，LRU');
-
-          click('[data-generate-paper]');
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          expectText('paper-generated', '已生成 20 题阶段测验');
-
-          click('[data-role="admin"]');
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          click('[data-config="dailyReminder"]');
-          await new Promise((resolve) => setTimeout(resolve, 50));
-          expectText('admin-config', '系统配置已更新');
-
-          return { errors, seen, title: document.title, length: document.body.innerText.length };
         })()
       `,
     });

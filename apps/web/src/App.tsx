@@ -52,8 +52,6 @@ import {
   submitFeedback,
   submitPaper,
   submitPracticeAnswer,
-  submitPracticeSet,
-  submitStageAssessment,
   updateAdminUserTrialStatus,
   updateTeacherQuestion,
   updateSystemConfig,
@@ -131,9 +129,9 @@ export function App() {
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => isMockAllowed() ? createMockPaperSubmitResult() : null);
   const [paperSession, setPaperSession] = useState<PaperSubmitResult['examSession'] | null>(null);
-  const [examOpen, setExamOpen] = useState(false);
+  const [learningSessionType, setLearningSessionType] = useState<SessionView['type'] | null>(null);
   const [examReportSessionId, setExamReportSessionId] = useState<string | null>(null);
-  const [resumedExamSession, setResumedExamSession] = useState<SessionView | null>(null);
+  const [resumedLearningSession, setResumedLearningSession] = useState<SessionView | null>(null);
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
@@ -243,8 +241,31 @@ export function App() {
   const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
   const examQuestions = latestPaper?.questions.length ? latestPaper.questions : questions;
   const examResourceId = latestPaper?.id ?? `mock-exam-${examQuestions.map((question) => question.id).join('-')}`;
-  const activeExamQuestionIds = resumedExamSession?.questionIds ?? examQuestions.map((question) => question.id);
-  const activeExamQuestions = questions.filter((question) => activeExamQuestionIds.includes(question.id));
+  const practiceSessionQuestions = studentLearning.practiceSet.data?.questions ?? [];
+  const learningQuestionCatalog = [...questions, ...practiceSessionQuestions, ...stageAssessment.questions, ...examQuestions];
+  const activeLearningQuestionIds = resumedLearningSession?.questionIds ?? (
+    learningSessionType === 'practice_set'
+      ? practiceSessionQuestions.map((question) => question.id)
+      : learningSessionType === 'stage_assessment'
+        ? stageAssessment.questions.map((question) => question.id)
+        : examQuestions.map((question) => question.id)
+  );
+  const activeLearningQuestions = activeLearningQuestionIds.flatMap((questionId) => {
+    const question = learningQuestionCatalog.find((item) => item.id === questionId);
+    return question ? [question] : [];
+  });
+  const activeLearningResourceId = resumedLearningSession?.resourceId ?? (
+    learningSessionType === 'practice_set'
+      ? studentLearning.practiceSet.data?.id
+      : learningSessionType === 'stage_assessment'
+        ? stageAssessment.id
+        : examResourceId
+  );
+  const activeLearningTimeLimit = learningSessionType === 'practice_set'
+    ? studentLearning.practiceSet.data?.estimatedMinutes ?? 30
+    : learningSessionType === 'stage_assessment'
+      ? stageAssessment.estimatedMinutes
+      : 180;
   const currentQuestion = questions[0];
 
   function addMockPaperResultToHistory(result: PaperSubmitResult, paper: GeneratedPaper) {
@@ -355,39 +376,15 @@ export function App() {
     }
   }
 
-  async function handleSubmitPracticeSet() {
-    setPracticeStatus('正在提交推荐题组...');
+  function handleSubmitPracticeSet() {
     const practiceSet = studentLearning.practiceSet.data;
     if (!practiceSet) {
       setPracticeStatus('推荐题组尚未加载，请先重新加载本模块。');
       return;
     }
-
-    try {
-      const result = await submitPracticeSet({
-practiceSetId: practiceSet.id,
-        answers: practiceSet.questions.slice(0, 3).map((question, index) => ({
-          questionId: question.id,
-          selectedAnswer: index === 0 ? question.answer : 'A',
-          timeSpentSec: question.expectedTimeSec + 10,
-        })),
-      });
-      const nextOverview = await fetchDashboardOverview();
-      setOverview(nextOverview);
-      await refreshPracticeSet();
-      await refreshLearningProfile();
-      setPracticeSetResult(result);
-      setApiState('connected');
-      await refreshTrialProgress();
-      await refreshStudyReminders();
-      await refreshSprintPlan();
-      await refreshMasteryMap();
-      await refreshWrongQuestionSummary();
-      setPracticeStatus(`推荐题组已提交：正确率 ${result.accuracyRate}%，练习记录和错题本已更新。`);
-    } catch {
-      setPracticeStatus('推荐题组提交失败，请稍后重试。');
-      setApiState(isMockAllowed() ? 'mock' : 'error');
-    }
+    setResumedLearningSession(null);
+    setLearningSessionType('practice_set');
+    setPracticeStatus('专项练习已开始，作答进度会自动保存。');
   }
 
   async function handleCompleteTask(taskId: string) {
@@ -499,31 +496,14 @@ taskId,
     }
   }
 
-  async function handleSubmitAssessment() {
-    setAssessmentStatus('正在提交阶段测评...');
-
-    try {
-      const result = await submitStageAssessment({
-answers: stageAssessment.questions.map((question, index) => ({
-          questionId: question.id,
-          selectedAnswer: index === 0 ? question.answer : 'A',
-          timeSpentSec: question.expectedTimeSec + 20,
-        })),
-      });
-      const nextOverview = await fetchDashboardOverview();
-      setOverview(nextOverview);
-      setStageResult(result);
-      await refreshLearningProfile();
-      setApiState('connected');
-      await refreshStudyReminders();
-      await refreshSprintPlan();
-      await refreshMasteryMap();
-      setAssessmentStatus(`阶段测评完成：${result.score} 分，计划已调整为${result.adjustment.planPhase}。`);
-      setAssessmentStatus(`阶段测评完成：${result.score} 分，需复盘 ${result.reviewItems.length} 处。`);
-    } catch {
-      setAssessmentStatus('阶段测评提交失败，请稍后重试。');
-      setApiState(isMockAllowed() ? 'mock' : 'error');
+  function handleSubmitAssessment() {
+    if (stageAssessment.questions.length === 0) {
+      setAssessmentStatus('当前阶段测评没有可用题目，请先重新生成。');
+      return;
     }
+    setResumedLearningSession(null);
+    setLearningSessionType('stage_assessment');
+    setAssessmentStatus('阶段测评已开始，作答进度会自动保存。');
   }
 
   async function handleAskTutor() {
@@ -1035,15 +1015,15 @@ rating: 4,
               setDetailQuestionId(questionId);
               window.setTimeout(() => document.getElementById('wrong-question-detail')?.scrollIntoView({ behavior: 'smooth' }), 0);
             }}
-            onResumeExam={(session) => {
-              setResumedExamSession(session);
+            onResumeSession={(session) => {
+              setResumedLearningSession(session);
               setExamReportSessionId(null);
-              setExamOpen(true);
+              setLearningSessionType(session.type);
             }}
             onStartExam={() => {
-              setResumedExamSession(null);
+              setResumedLearningSession(null);
               setExamReportSessionId(null);
-              setExamOpen(true);
+              setLearningSessionType('paper');
             }}
           />
           ) : null}
@@ -1249,17 +1229,41 @@ rating: 4,
           ) : null}
         </StudentLayout>
       </section>
-      {examOpen ? (
+      {learningSessionType ? (
         <div className="exam-workspace-overlay">
           <ExamSession
-            questionIds={activeExamQuestionIds}
-            questions={resumedExamSession ? activeExamQuestions : examQuestions}
-            resourceId={resumedExamSession?.resourceId ?? examResourceId}
-            timeLimitMin={180}
-            onExit={() => setExamOpen(false)}
+            sessionType={learningSessionType}
+            questionIds={activeLearningQuestionIds}
+            questions={activeLearningQuestions}
+            resourceId={activeLearningResourceId}
+            timeLimitMin={activeLearningTimeLimit}
+            onExit={() => setLearningSessionType(null)}
             onSubmit={(result) => {
-              setExamOpen(false);
-              setExamReportSessionId(result.sessionId);
+              const completedType = learningSessionType;
+              setLearningSessionType(null);
+              setResumedLearningSession(null);
+              if (completedType === 'paper') {
+                setExamReportSessionId(result.sessionId);
+              } else if (completedType === 'practice_set' && result.workflowResult) {
+                const practiceResult = result.workflowResult as PracticeSetResult;
+                setPracticeSetResult(practiceResult);
+                setPracticeStatus(`专项练习完成：正确率 ${practiceResult.accuracyRate}%，练习记录和错题本已更新。`);
+              } else if (completedType === 'stage_assessment' && result.workflowResult) {
+                const assessmentResult = result.workflowResult as StageAssessmentResult;
+                setStageResult(assessmentResult);
+                setAssessmentStatus(`阶段测评完成：${assessmentResult.score} 分，需复盘 ${assessmentResult.reviewItems.length} 处。`);
+              }
+              void Promise.allSettled([
+                refreshOverview(),
+                refreshPracticeSet(),
+                refreshLearningProfile(),
+                refreshTrialProgress(),
+                refreshStudyReminders(),
+                refreshSprintPlan(),
+                refreshMasteryMap(),
+                refreshWrongQuestionSummary(),
+                refreshAssessmentHistory(),
+              ]);
             }}
           />
         </div>

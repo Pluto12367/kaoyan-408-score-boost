@@ -292,8 +292,8 @@ export class StudyService implements OnModuleInit {
   }
 
   getStudyReminders(userId = this.student.id) {
-    const report = this.getOverviewReport();
-    const plan = this.generatePlan();
+    const report = this.getOverviewReport(userId);
+    const plan = this.generatePlan(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
     const trialProgress = this.getTrialProgress(userId);
     const calendar = this.getLearningCalendar(userId);
@@ -386,11 +386,12 @@ export class StudyService implements OnModuleInit {
   }
 
   getSprintPlan(userId = this.student.id) {
-    const report = this.getOverviewReport();
-    const plan = this.generatePlan();
+    const student = this.getStudent(userId);
+    const report = this.getOverviewReport(userId);
+    const plan = this.generatePlan(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
     const calendar = this.getLearningCalendar(userId);
-    const scoreGap = Math.max(0, (this.student.targetScore ?? 0) - (this.student.currentScore ?? 0));
+    const scoreGap = Math.max(0, (student.targetScore ?? 0) - (student.currentScore ?? 0));
     const weakPointTitles = (report.weakPoints.length ? report.weakPoints : report.speedRisks)
       .map((point) => point.title)
       .slice(0, 4);
@@ -399,7 +400,7 @@ export class StudyService implements OnModuleInit {
     const baseQuestionTarget = clampNumber(
       this.systemConfig.recommendation.dailyTargetQuestionCount,
       10,
-      this.student.stage === '冲刺' ? 80 : 60,
+      student.stage === '冲刺' ? 80 : 60,
     );
     const reviewBase = wrongQuestions.length > 0 ? Math.min(6, wrongQuestions.length + 1) : 1;
     const dates = nextNDates(7);
@@ -415,7 +416,7 @@ export class StudyService implements OnModuleInit {
         dayIndex: index + 1,
         date,
         focus: isAssessmentDay ? '阶段小测与错题回看' : focus,
-        minutes: Math.max(45, Math.round((this.student.dailyHours ?? 3) * 60)),
+        minutes: Math.max(45, Math.round((student.dailyHours ?? 3) * 60)),
         questionTarget,
         reviewTarget,
         reason: isAssessmentDay
@@ -427,7 +428,7 @@ export class StudyService implements OnModuleInit {
     });
 
     const risks = [
-      ...((this.student.remainingDays ?? 0) < 60 ? ['剩余时间偏紧，需要优先保证高频考点和真题回看。'] : []),
+      ...((student.remainingDays ?? 0) < 60 ? ['剩余时间偏紧，需要优先保证高频考点和真题回看。'] : []),
       ...(wrongQuestions.length > 0 ? [`错题本仍有 ${wrongQuestions.length} 道待处理，建议每天至少复盘 ${reviewBase} 道。`] : []),
       ...(report.accuracyRate < 60 ? [`当前正确率 ${report.accuracyRate}%，本周先稳住基础题正确率。`] : []),
       ...(calendar.today.practiceCount === 0 ? ['今天还没有练习记录，建议先完成一组短题。'] : []),
@@ -436,11 +437,11 @@ export class StudyService implements OnModuleInit {
     return {
       userId,
       title: '7 天冲刺计划',
-      currentStage: this.student.stage,
+      currentStage: student.stage,
       scoreGap,
-      targetScore: this.student.targetScore,
-      currentScore: this.student.currentScore,
-      remainingDays: this.student.remainingDays,
+      targetScore: student.targetScore,
+      currentScore: student.currentScore,
+      remainingDays: student.remainingDays,
       weeklyQuestionTarget: days.reduce((sum, day) => sum + day.questionTarget, 0),
       weeklyReviewTarget: days.reduce((sum, day) => sum + day.reviewTarget, 0),
       risks: risks.length ? risks : ['当前节奏稳定，本周重点保持练习连续性和错题复盘质量。'],
@@ -530,7 +531,8 @@ export class StudyService implements OnModuleInit {
   }
 
   getStudentLearningProfile(userId = this.student.id) {
-    const report = this.getOverviewReport();
+    const student = this.getStudent(userId);
+    const report = this.getOverviewReport(userId);
     const calendar = this.getLearningCalendar(userId);
     const reviewedWrongQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
     const userPracticeSetResults = this.practiceSetResults.filter((item) => item.userId === userId);
@@ -555,7 +557,7 @@ export class StudyService implements OnModuleInit {
         type: 'stage_assessment',
         title: '阶段测评',
         date: String(item.submittedAt).slice(0, 10),
-        summary: `得分 ${item.score}，计划调整为 ${(item.adjustment as { planPhase?: string })?.planPhase ?? this.generatePlan().phase}。`,
+        summary: `得分 ${item.score}，计划调整为 ${(item.adjustment as { planPhase?: string })?.planPhase ?? this.generatePlan(userId).phase}。`,
       })),
       ...[...reviewedWrongQuestions.entries()].map(([questionId, reviewedAt]) => ({
         id: `timeline-review-${questionId}`,
@@ -569,11 +571,11 @@ export class StudyService implements OnModuleInit {
     return {
       userId,
       summary: {
-        name: this.student.name,
-        currentStage: this.student.stage,
-        targetScore: this.student.targetScore,
-        currentScore: this.student.currentScore,
-        weakestSubject: this.student.weakestSubject,
+        name: student.name,
+        currentStage: student.stage,
+        targetScore: student.targetScore,
+        currentScore: student.currentScore,
+        weakestSubject: student.weakestSubject,
         accuracyRate: report.accuracyRate,
         streakDays: calendar.streakDays,
       },
@@ -1546,10 +1548,10 @@ export class StudyService implements OnModuleInit {
   }
 
   getRecommendedPracticeSet(userId = this.student.id) {
-    const report = this.getOverviewReport();
-    const stage = this.student.stage ?? '强化';
+    const report = this.getOverviewReport(userId);
+    const stage = this.getStudent(userId).stage ?? '强化';
     const weakPointIds = report.weakPoints.map((point) => point.knowledgePointId);
-    const fallbackPointIds = this.generatePlan().dailyTasks.map((task) => task.knowledgePointId);
+    const fallbackPointIds = this.generatePlan(userId).dailyTasks.map((task) => task.knowledgePointId);
     const knowledgePointIds = [...new Set([...(weakPointIds.length ? weakPointIds : fallbackPointIds)])].slice(0, 4);
     let matchingQuestions = this.questions.filter((question) =>
       question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
@@ -1588,7 +1590,7 @@ export class StudyService implements OnModuleInit {
   }
 
   getRecommendedReviewResources(userId = this.student.id): ReviewResourceRecommendation {
-    const report = this.getOverviewReport();
+    const report = this.getOverviewReport(userId);
     const masteryMap = this.getMasteryMap(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
     const weakPointCandidates = report.weakPoints.length
@@ -1697,6 +1699,10 @@ export class StudyService implements OnModuleInit {
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
     })));
+    return this.createPracticeSetResult(practiceSetId, userId, records);
+  }
+
+  private createPracticeSetResult(practiceSetId: string, userId: string, records: PracticeRecord[]) {
     const correctCount = records.filter((record) => record.correct).length;
     const accuracyRate = Math.round((correctCount / records.length) * 100);
 
@@ -1924,7 +1930,8 @@ export class StudyService implements OnModuleInit {
   }
 
   getStageAssessment(userId = this.student.id) {
-    const report = this.getOverviewReport();
+    const report = this.getOverviewReport(userId);
+    const student = this.getStudent(userId);
     const focusKnowledgePointIds = new Set(
       (report.weakPoints.length ? report.weakPoints : report.speedRisks)
         .map((point) => point.knowledgePointId),
@@ -1941,7 +1948,7 @@ export class StudyService implements OnModuleInit {
 
     return {
       id: `stage-${todayKey()}`,
-      title: `${this.student.stage ?? '强化'}阶段测评`,
+      title: `${student.stage ?? '强化'}阶段测评`,
       userId,
       description: '根据当前薄弱点生成的小测，用于判断本阶段是否需要继续专项突破。',
       estimatedMinutes: Math.max(10, Math.round(selectedQuestions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
@@ -1971,6 +1978,10 @@ export class StudyService implements OnModuleInit {
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
     })));
+    return this.createStageAssessmentResult(userId, records);
+  }
+
+  private async createStageAssessmentResult(userId: string, records: PracticeRecord[]) {
     const correctCount = records.filter((record) => record.correct).length;
     const score = Math.round((correctCount / records.length) * 100);
     const reviewItems = records
@@ -1990,7 +2001,7 @@ export class StudyService implements OnModuleInit {
         };
       });
     const weakPointTitles = [...new Set(reviewItems.map((item) => item.knowledgePointTitle))].slice(0, 3);
-    const adjustment = this.applyStageAssessmentAdjustment(score, weakPointTitles);
+    const adjustment = await this.applyStageAssessmentAdjustment(userId, score, weakPointTitles);
 
     const result = {
       id: `stage-result-${Date.now()}`,
@@ -2012,18 +2023,23 @@ export class StudyService implements OnModuleInit {
     return result;
   }
 
-  private applyStageAssessmentAdjustment(score: number, weakPointTitles: string[]) {
-    const previousStage = this.student.stage ?? '强化';
+  private async applyStageAssessmentAdjustment(userId: string, score: number, weakPointTitles: string[]) {
+    const student = this.getStudent(userId);
+    const previousStage = student.stage ?? '强化';
     const nextStage: StudyStage = score < 60 ? '基础' : score >= 80 ? '冲刺' : '强化';
-    this.student.stage = nextStage;
-
-    if (score < 60) {
-      this.student.remainingDays = Math.max((this.student.remainingDays ?? 96) + 7, 14);
-    } else if (score >= 80) {
-      this.student.remainingDays = Math.max((this.student.remainingDays ?? 96) - 3, 1);
+    const profile = this.diagnosticProfilesByUser.get(userId);
+    if (profile) {
+      const remainingDays = score < 60
+        ? Math.max(profile.remainingDays + 7, 14)
+        : score >= 80
+          ? Math.max(profile.remainingDays - 3, 1)
+          : profile.remainingDays;
+      const updatedProfile = { ...profile, stage: nextStage, remainingDays };
+      this.diagnosticProfilesByUser.set(userId, updatedProfile);
+      await this.learningProfileRepository.save(userId, updatedProfile);
     }
 
-    const adjustedPlan = this.generatePlan();
+    const adjustedPlan = this.generatePlan(userId);
 
     return {
       previousStage,
@@ -2605,6 +2621,12 @@ export class StudyService implements OnModuleInit {
         ),
       );
 
+      const workflowResult = session.type === 'practice_set' && session.resourceId
+        ? this.createPracticeSetResult(session.resourceId, userId, records)
+        : session.type === 'stage_assessment'
+          ? await this.createStageAssessmentResult(userId, records)
+          : undefined;
+
       session.completed = true;
       session.lastActiveAt = new Date().toISOString();
       this.practiceSessions.set(sessionId, session);
@@ -2618,6 +2640,7 @@ export class StudyService implements OnModuleInit {
         correctCount,
         accuracyRate: records.length ? Math.round((correctCount / records.length) * 100) : 0,
         totalActiveMs: session.totalActiveMs,
+        workflowResult,
         records: records.map((r) => ({
           questionId: r.questionId,
           correct: r.correct,
