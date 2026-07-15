@@ -431,13 +431,13 @@ export class StudyController {
   @Roles('student', 'teacher', 'admin')
   submitFeedback(
     @CurrentUser() user: UserProfile,
-    @Body() input: { rating?: number; scene?: string; message?: string; surveyUrl?: string },
+    @Body() input?: { rating?: number; scene?: string; message?: string; surveyUrl?: string },
   ) {
     return this.studyService.submitFeedback({
       userId: user.id,
-      rating: input.rating,
-      scene: input.scene,
-      message: input.message,
+      rating: input?.rating,
+      scene: input?.scene,
+      message: input?.message,
     });
   }
 

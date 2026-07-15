@@ -13,7 +13,7 @@ CREATE TABLE "FeedbackSubmission" (
     CONSTRAINT "FeedbackSubmission_rating_check" CHECK ("rating" BETWEEN 1 AND 5),
     CONSTRAINT "FeedbackSubmission_scene_check" CHECK ("scene" IN ('diagnostic', 'today_plan', 'practice', 'mistakes', 'exam', 'overall')),
     CONSTRAINT "FeedbackSubmission_status_check" CHECK ("status" IN ('new', 'reviewed')),
-    CONSTRAINT "FeedbackSubmission_message_length_check" CHECK (char_length("message") BETWEEN 10 AND 1000)
+    CONSTRAINT "FeedbackSubmission_message_length_check" CHECK (char_length("message") BETWEEN 1 AND 1000)
 );
 
 -- Backfill valid feedback previously stored in the generic runtime-state array.
@@ -40,17 +40,31 @@ WITH legacy_items AS (
             ELSE 'overall'
         END AS scene,
         btrim(item->>'message') AS message,
-        CASE WHEN item->>'status' = 'reviewed' THEN 'reviewed' ELSE 'new' END AS status
+        CASE WHEN item->>'status' = 'reviewed' THEN 'reviewed' ELSE 'new' END AS status,
+        CASE WHEN jsonb_typeof(item->'createdAt') = 'string' THEN item->>'createdAt' ELSE NULL END AS "createdAt"
     FROM legacy_items
     WHERE jsonb_typeof(item) = 'object'
       AND jsonb_typeof(item->'userId') = 'string'
       AND jsonb_typeof(item->'message') = 'string'
 )
 INSERT INTO "FeedbackSubmission" ("id", "userId", "rating", "scene", "message", "status", "createdAt", "updatedAt")
-SELECT normalized.id, normalized."userId", normalized.rating, normalized.scene, normalized.message, normalized.status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+SELECT
+    normalized.id,
+    normalized."userId",
+    normalized.rating,
+    normalized.scene,
+    normalized.message,
+    normalized.status,
+    CASE
+        WHEN normalized."createdAt" IS NOT NULL
+          AND pg_input_is_valid(normalized."createdAt", 'timestamp with time zone')
+        THEN normalized."createdAt"::timestamp with time zone
+        ELSE CURRENT_TIMESTAMP
+    END,
+    CURRENT_TIMESTAMP
 FROM normalized
 INNER JOIN "User" ON "User"."id" = normalized."userId"
-WHERE char_length(normalized.message) BETWEEN 10 AND 1000
+WHERE char_length(normalized.message) BETWEEN 1 AND 1000
 ON CONFLICT ("id") DO NOTHING;
 
 -- CreateIndex

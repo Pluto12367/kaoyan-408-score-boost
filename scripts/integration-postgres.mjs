@@ -1,5 +1,8 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
+import { cp, mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 
 const root = process.cwd();
@@ -10,6 +13,7 @@ const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 let activeApi;
 
 async function main() {
+  await prepareLegacyFeedbackMigrationFixture();
   const schemaResult = spawnSync(npx, [
     'prisma',
     'migrate',
@@ -25,6 +29,25 @@ async function main() {
   if (schemaResult.status !== 0) {
     throw new Error(`Prisma migration deploy failed: ${schemaResult.error?.message || schemaResult.stderr || schemaResult.stdout}`);
   }
+
+  const migrationPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const migratedLegacyFeedback = await migrationPrisma.$queryRawUnsafe(
+    'SELECT "id", "scene", "message", "createdAt" FROM "FeedbackSubmission" WHERE "id" LIKE $1 ORDER BY "id"',
+    'feedback-legacy-fixture-%',
+  );
+  await migrationPrisma.$disconnect();
+  const migratedShortFeedback = migratedLegacyFeedback.find((item) => item.id === 'feedback-legacy-fixture-short');
+  assert(migratedShortFeedback?.message === '短反馈', 'migration should retain legacy feedback with 1 to 9 characters');
+  assert(migratedShortFeedback?.scene === 'overall', 'migration should map unknown legacy scenes to overall');
+  assert(
+    migratedShortFeedback?.createdAt.toISOString() === '2026-07-01T01:02:03.000Z',
+    'migration should preserve a valid legacy createdAt timestamp',
+  );
+  const migratedInvalidDateFeedback = migratedLegacyFeedback.find((item) => item.id === 'feedback-legacy-fixture-invalid-date');
+  assert(
+    migratedInvalidDateFeedback?.createdAt instanceof Date && !Number.isNaN(migratedInvalidDateFeedback.createdAt.getTime()),
+    'migration should fall back safely for an invalid legacy createdAt timestamp',
+  );
 
   activeApi = startApi();
   await waitForHealth(activeApi);
@@ -145,6 +168,7 @@ async function main() {
     })),
   }, studentHeaders);
   assert(submittedPaper.paperId === generatedPaper.id, 'generated paper should be submittable');
+  await expectPostStatus(`${apiUrl}/feedback`, null, 400, studentHeaders);
   await expectPostStatus(`${apiUrl}/feedback`, {
     rating: 0,
     scene: 'overall',
@@ -232,8 +256,11 @@ async function main() {
     data: { userId: externalStudent.user.id, rating: 5, scene: 'overall', message: 'invalid database status', status: 'pending' },
   }), 'database should reject unsupported feedback statuses');
   await expectDatabaseRejection(() => prisma.feedbackSubmission.create({
-    data: { userId: externalStudent.user.id, rating: 5, scene: 'overall', message: 'too short', status: 'new' },
-  }), 'database should reject feedback messages outside 10 to 1000 characters');
+    data: { userId: externalStudent.user.id, rating: 5, scene: 'overall', message: '', status: 'new' },
+  }), 'database should reject an empty feedback message');
+  await expectDatabaseRejection(() => prisma.feedbackSubmission.create({
+    data: { userId: externalStudent.user.id, rating: 5, scene: 'overall', message: 'a'.repeat(1001), status: 'new' },
+  }), 'database should reject feedback messages longer than 1000 characters');
   await prisma.$disconnect();
   const adminSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'admin' });
   const adminHeaders = { Authorization: `Bearer ${adminSession.token}` };
@@ -648,6 +675,69 @@ async function main() {
 
   await stop(activeApi);
   activeApi = undefined;
+}
+
+async function prepareLegacyFeedbackMigrationFixture() {
+  const resetPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  await resetPrisma.$executeRawUnsafe('DROP SCHEMA IF EXISTS "public" CASCADE');
+  await resetPrisma.$executeRawUnsafe('CREATE SCHEMA "public"');
+  await resetPrisma.$disconnect();
+
+  const temporaryRoot = await mkdtemp(join(tmpdir(), 'kaoyan-feedback-migration-'));
+  const temporaryPrisma = join(temporaryRoot, 'prisma');
+  try {
+    await cp(join(root, 'prisma'), temporaryPrisma, { recursive: true });
+    await rm(join(temporaryPrisma, 'migrations', '20260715160000_feedback_submissions'), { recursive: true, force: true });
+    const legacyDeploy = spawnSync(npx, [
+      'prisma',
+      'migrate',
+      'deploy',
+      '--schema',
+      join(temporaryPrisma, 'schema.prisma'),
+    ], {
+      cwd: root,
+      env: { ...process.env, DATABASE_URL: databaseUrl },
+      encoding: 'utf8',
+      shell: process.platform === 'win32',
+    });
+    if (legacyDeploy.status !== 0) {
+      throw new Error(`Legacy Prisma migration deploy failed: ${legacyDeploy.error?.message || legacyDeploy.stderr || legacyDeploy.stdout}`);
+    }
+
+    const fixturePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+    await fixturePrisma.$executeRawUnsafe(
+      'INSERT INTO "User" ("id", "name", "role", "createdAt", "updatedAt") VALUES ($1, $2, \'STUDENT\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      'legacy-feedback-user',
+      '历史反馈用户',
+    );
+    await fixturePrisma.$executeRawUnsafe(
+      'INSERT INTO "RuntimeState" ("key", "value", "updatedAt") VALUES ($1, $2::jsonb, CURRENT_TIMESTAMP)',
+      'feedbackItems',
+      JSON.stringify([
+        {
+          id: 'feedback-legacy-fixture-short',
+          userId: 'legacy-feedback-user',
+          rating: 4,
+          scene: 'legacy-scene',
+          message: '短反馈',
+          status: 'new',
+          createdAt: '2026-07-01T01:02:03.000Z',
+        },
+        {
+          id: 'feedback-legacy-fixture-invalid-date',
+          userId: 'legacy-feedback-user',
+          rating: 5,
+          scene: 'overall',
+          message: '历史反馈时间戳无效时仍应安全迁移',
+          status: 'reviewed',
+          createdAt: 'not-a-valid-timestamp',
+        },
+      ]),
+    );
+    await fixturePrisma.$disconnect();
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 }
 
 function startApi() {
