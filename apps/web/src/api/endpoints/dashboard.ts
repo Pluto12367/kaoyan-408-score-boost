@@ -1,4 +1,5 @@
 import { API_BASE_URL, fetchWithAuth, authenticatedFetch } from '../client';
+import type { FeedbackDraft } from '@kaoyan408/shared';
 import type {
   DashboardOverview,
   TrialProgress,
@@ -14,6 +15,7 @@ import type {
   WrongQuestion,
   TeacherStudentAuthorization,
   TeacherStudentAuthorizationList,
+  FeedbackItem,
 } from '../types';
 
 // All student-facing endpoints use fetchWithAuth — Phase 1 requires auth on every endpoint.
@@ -94,14 +96,14 @@ export async function reviewWrongQuestion(questionId: string): Promise<WrongQues
   return response.json() as Promise<WrongQuestion>;
 }
 
-export async function submitFeedback(input: { rating: number; scene: string; message: string; surveyUrl?: string }) {
+export async function submitFeedback(input: FeedbackDraft): Promise<FeedbackItem> {
   const response = await fetchWithAuth(`${API_BASE_URL}/feedback`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(`Feedback submission failed with ${response.status}`);
-  return response.json();
+  return response.json() as Promise<FeedbackItem>;
 }
 
 // Admin-only endpoints (use authenticatedFetch for auto-refresh)

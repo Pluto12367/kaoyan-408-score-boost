@@ -1546,31 +1546,190 @@ button {
   line-height: 1.5;
 }
 
-.feedback-grid {
+.feedback-form {
   display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  margin-top: 16px;
+  gap: 18px;
+  border-top: 1px solid #e2e8f0;
+  margin-top: 18px;
+  padding-top: 18px;
 }
 
-.feedback-grid article {
-  background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 6px;
+.feedback-fields {
   display: grid;
-  gap: 4px;
-  padding: 14px;
+  gap: 18px;
+  grid-template-columns: minmax(180px, 0.75fr) minmax(320px, 1.25fr);
 }
 
-.feedback-grid strong {
-  color: #0f172a;
-  font-size: 22px;
-}
-
-.feedback-grid span,
-.feedback-note {
-  color: #64748b;
+.feedback-fields > label,
+.feedback-message {
+  color: #334155;
+  display: grid;
   font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+}
+
+.feedback-fields select,
+.feedback-message textarea {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  color: #0f172a;
+  font: inherit;
+  padding: 10px 12px;
+  width: 100%;
+}
+
+.feedback-fields select {
+  min-height: 44px;
+}
+
+.feedback-message textarea {
+  line-height: 1.6;
+  min-height: 150px;
+  resize: vertical;
+}
+
+.feedback-fields select:focus,
+.feedback-message textarea:focus {
+  border-color: #0f766e;
+  outline: 2px solid #99f6e4;
+  outline-offset: 1px;
+}
+
+.feedback-rating {
+  border: 0;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.feedback-rating legend {
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.feedback-rating > div {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(52px, 1fr));
+}
+
+.feedback-rating label {
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  cursor: pointer;
+  min-height: 44px;
+  position: relative;
+}
+
+.feedback-rating label + label {
+  border-left: 0;
+}
+
+.feedback-rating label:first-child {
+  border-radius: 6px 0 0 6px;
+}
+
+.feedback-rating label:last-child {
+  border-radius: 0 6px 6px 0;
+}
+
+.feedback-rating label.selected {
+  background: #ccfbf1;
+  border-color: #0f766e;
+  color: #115e59;
+  font-weight: 700;
+}
+
+.feedback-rating input {
+  opacity: 0;
+  position: absolute;
+}
+
+.feedback-rating label span {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.feedback-rating label:focus-within {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+  z-index: 1;
+}
+
+.feedback-field-help,
+.feedback-count {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.feedback-count {
+  justify-self: end;
+  margin-top: -26px;
+}
+
+.feedback-count.over-limit,
+.feedback-error {
+  color: #b91c1c;
+}
+
+.feedback-error {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 7px 0 0;
+}
+
+.feedback-privacy {
+  border-left: 4px solid #d97706;
+  color: #475569;
+  padding: 2px 0 2px 14px;
+}
+
+.feedback-privacy strong {
+  color: #78350f;
+  display: block;
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.feedback-privacy p {
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 2px 0;
+}
+
+.feedback-submit-row {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+}
+
+.feedback-submit-row .task-status {
+  flex: 1;
+  margin: 0;
+}
+
+.feedback-submit-row button {
+  background: #0f766e;
+  color: #fff;
+  flex: 0 0 auto;
+  font-weight: 700;
+  min-height: 44px;
+  padding: 10px 18px;
+}
+
+.feedback-submit-row button:disabled,
+.feedback-fields select:disabled,
+.feedback-message textarea:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .trial-list {
@@ -2412,7 +2571,7 @@ button {
   .config-grid,
   .diagnostic-grid,
   .profile-grid,
-  .feedback-grid,
+  .feedback-fields,
   .sprint-summary,
   .sprint-days,
   .mastery-subjects,
@@ -2571,6 +2730,15 @@ button {
 @media (max-width: 720px) {
   .authorization-form {
     grid-template-columns: 1fr;
+  }
+
+  .feedback-rating > div {
+    grid-template-columns: repeat(5, minmax(48px, 1fr));
+  }
+
+  .feedback-submit-row {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .authorization-list article {

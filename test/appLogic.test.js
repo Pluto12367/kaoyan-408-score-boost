@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import shared from '../packages/shared/dist/index.js';
 import {
   applyDiagnosticProfile,
   buildStudyPlan,
@@ -12,6 +13,39 @@ import {
   recommendPracticeSet,
   requireQuestionKnowledgePoint,
 } from '../packages/shared/dist/learning.js';
+
+const { validateFeedbackDraft } = shared;
+
+test('validateFeedbackDraft accepts supported scenes and trims the message', () => {
+  for (const scene of ['diagnostic', 'today_plan', 'practice', 'mistakes', 'exam', 'overall']) {
+    const result = validateFeedbackDraft({ rating: 5, scene, message: '  今天的学习建议很具体，能直接照着执行。  ' });
+
+    assert.deepEqual(result, {
+      valid: true,
+      value: { rating: 5, scene, message: '今天的学习建议很具体，能直接照着执行。' },
+    });
+  }
+});
+
+test('validateFeedbackDraft rejects unsupported scenes and non-integer ratings outside 1-5', () => {
+  assert.equal(validateFeedbackDraft({ rating: 4, scene: 'prototype', message: '这段反馈正文长度已经足够提交。' }).errors.scene, '请选择反馈场景');
+
+  for (const rating of [0, 1.5, 6]) {
+    assert.equal(validateFeedbackDraft({ rating, scene: 'practice', message: '这段反馈正文长度已经足够提交。' }).errors.rating, '请选择 1-5 分的整数评分');
+  }
+});
+
+test('validateFeedbackDraft enforces a trimmed 10-1000 Unicode character message', () => {
+  const tooShort = validateFeedbackDraft({ rating: 3, scene: 'overall', message: '  123456789  ' });
+  const minimumWithEmoji = validateFeedbackDraft({ rating: 3, scene: 'overall', message: '😀123456789' });
+  const maximumWithEmoji = validateFeedbackDraft({ rating: 3, scene: 'overall', message: `😀${'好'.repeat(999)}` });
+  const tooLong = validateFeedbackDraft({ rating: 3, scene: 'overall', message: `😀${'好'.repeat(1000)}` });
+
+  assert.equal(tooShort.errors.message, '反馈正文需为 10-1000 个字符');
+  assert.equal(minimumWithEmoji.valid, true);
+  assert.equal(maximumWithEmoji.valid, true);
+  assert.equal(tooLong.errors.message, '反馈正文需为 10-1000 个字符');
+});
 
 test('gradePracticeSessionAnswers scores objective and self-scored questions', () => {
   const result = gradePracticeSessionAnswers({

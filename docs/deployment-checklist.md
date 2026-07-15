@@ -34,7 +34,7 @@
 5. 用真实学生账号完成“注册 → 诊断 → 今日任务 → 做题 → 错题笔记 → 退出重登 → 恢复记录”。
 6. 将 API `/health` 和前端首页加入可用性监控，请求失败时记录响应中的 `x-request-id`。
 
-GitHub Pages 保留为无真实数据的公开演示站，不作为可靠内测环境。
+当前 GitHub Pages 已通过仓库变量 `VITE_API_BASE_URL` 连接 Railway API，可作为 staging 内测入口；每次发布后仍需运行 staging 冒烟测试确认 PostgreSQL 链路。
 
 ### GitHub Pages
 
@@ -43,10 +43,11 @@ GitHub Pages 保留为无真实数据的公开演示站，不作为可靠内测�
 3. 进入 `Settings` → `Pages`。
 4. 将 Source 设置为 `GitHub Actions`。
 5. 打开 `Actions` 页面，查看 `Deploy GitHub Pages` 是否运行成功。
-6. 发布成功后访问 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
-7. 如果页面正常，将该链接填入 `docs/invitation-message.md`。当前体验地址为 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
+6. 在仓库 `Settings` → `Secrets and variables` → `Actions` 中确认 `VITE_API_BASE_URL` 指向 Railway API。
+7. 发布成功后访问 `https://pluto12367.github.io/kaoyan-408-score-boost/`，注册全新学生账号验证真实数据链路。
+8. 手动运行 `Verify staging` 工作流；成功后才将链接发送给内测学生。当前体验地址为 `https://pluto12367.github.io/kaoyan-408-score-boost/`。
 
-> GitHub Pages 只托管静态前端。未配置公网 API 时会进入明确标注的静态演示模式，不能用于验证 PostgreSQL 持久化。
+> GitHub Pages 只托管静态前端。配置公网 API 后可连接 Railway/PostgreSQL；未配置 `VITE_API_BASE_URL` 时会进入明确标注的静态演示模式，不能用于可靠内测。
 
 ### Netlify
 

@@ -1,5 +1,5 @@
 // ---- Auth ----
-import type { UserProfile, UserRole } from '@kaoyan408/shared';
+import type { FeedbackDraft, FeedbackScene, UserProfile, UserRole } from '@kaoyan408/shared';
 import type {
   KnowledgePoint,
   Question,
@@ -10,7 +10,7 @@ import type {
   Subject,
 } from '@kaoyan408/shared';
 
-export type { UserProfile, UserRole, KnowledgePoint, Question, PracticeRecord, StudyPlan, WeaknessReport, DiagnosticProfile, Subject };
+export type { FeedbackDraft, FeedbackScene, UserProfile, UserRole, KnowledgePoint, Question, PracticeRecord, StudyPlan, WeaknessReport, DiagnosticProfile, Subject };
 
 export interface AuthSession {
   token: string;
@@ -325,7 +325,7 @@ export interface FeedbackItem {
   id: string;
   userId: string;
   rating: number;
-  scene: string;
+  scene: FeedbackScene;
   message: string;
   surveyUrl: string;
   status: 'new' | 'reviewed';

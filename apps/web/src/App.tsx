@@ -55,7 +55,6 @@ import {
   updateSystemConfig,
   isStaticDemoMode,
   type AiFollowUp,
-  type FeedbackList,
   type GeneratedPaper,
   type PaperSubmitResult,
   type PrepareExamPaperInput,
@@ -64,19 +63,12 @@ import {
   type TaskCompletionAdjustment,
   type TutorReply,
 } from './api';
-import type { UserProfile, UserRole } from '@kaoyan408/shared';
+import type { FeedbackDraft, UserProfile, UserRole } from '@kaoyan408/shared';
 import { useAuth } from './hooks/useAuth';
 import {
   roleLabel,
   createInitialPaperSession,
 } from './constants';
-
-const STUDENT_FEEDBACK: FeedbackList = {
-  totalCount: 0,
-  averageRating: 0,
-  surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
-  items: [],
-};
 
 export function App() {
   const {
@@ -885,24 +877,23 @@ paperId: paper.id,
     }
   }
 
-  async function handleSubmitFeedback() {
+  async function handleSubmitFeedback(draft: FeedbackDraft): Promise<boolean> {
     setFeedbackStatus('正在提交体验反馈...');
 
     try {
-      const feedback = await submitFeedback({
-rating: 4,
-        scene: '原型试用',
-        message: '推荐题组和学习档案对备考路径有帮助，希望继续完善移动端体验。',
-        surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
-      });
-      await refreshTrialProgress();
-      await refreshStudyReminders();
-      await refreshSprintPlan();
+      const feedback = await submitFeedback(draft);
       setApiState('connected');
       setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
+      await Promise.allSettled([
+        refreshTrialProgress(),
+        refreshStudyReminders(),
+        refreshSprintPlan(),
+      ]);
+      return true;
     } catch {
       setFeedbackStatus('反馈提交失败，请稍后重试或直接填写问卷。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
+      return false;
     }
   }
 
@@ -1047,7 +1038,7 @@ rating: 4,
           onRetryMastery={refreshMasteryMap}
         />
         <LearningProfilePanel profile={studentProgress.learningProfile} onRetry={refreshLearningProfile} />
-        <FeedbackPanel feedback={STUDENT_FEEDBACK} status={feedbackStatus} onSubmit={handleSubmitFeedback} />
+        <FeedbackPanel status={feedbackStatus} onSubmit={handleSubmitFeedback} />
         <DiagnosticSummary student={student} plan={plan} status={diagnosticStatus} onSubmit={handleSubmitDiagnostic} />
         </> : null}
         </StudentLayout>
