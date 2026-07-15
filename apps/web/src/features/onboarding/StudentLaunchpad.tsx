@@ -17,6 +17,7 @@ interface StudentLaunchpadProps {
   todayPlanError: string;
   latestPaper: GeneratedPaper | null;
   examQuestionCount: number;
+  remoteSessionsEnabled: boolean;
   onOnboardingComplete: ComponentProps<typeof OnboardingWizard>['onComplete'];
   onRefreshTodayPlan: () => void;
   onOpenReview: (questionId: string) => void;
@@ -33,6 +34,7 @@ export function StudentLaunchpad({
   todayPlanError,
   latestPaper,
   examQuestionCount,
+  remoteSessionsEnabled,
   onOnboardingComplete,
   onRefreshTodayPlan,
   onOpenReview,
@@ -69,7 +71,11 @@ export function StudentLaunchpad({
           onRetry={onRefreshTodayPlan}
         />
       ) : null}
-      <ResumeSessionBanner allowedTypes={['practice_set', 'stage_assessment', 'paper']} onResume={onResumeSession} />
+      <ResumeSessionBanner
+        enabled={remoteSessionsEnabled}
+        allowedTypes={['practice_set', 'stage_assessment', 'paper']}
+        onResume={onResumeSession}
+      />
       <section className="panel exam-entry-panel">
         <div className="panel-heading">
           <div><p className="eyebrow">408 模拟考试</p><h3>{latestPaper?.title ?? '当前题库模拟卷'}</h3></div>

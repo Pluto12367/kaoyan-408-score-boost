@@ -8,9 +8,30 @@ import {
   createPracticeRecord,
   createTeacherQuestion,
   generateTutorReply,
+  gradePracticeSessionAnswers,
   recommendPracticeSet,
   requireQuestionKnowledgePoint,
 } from '../packages/shared/dist/learning.js';
+
+test('gradePracticeSessionAnswers scores objective and self-scored questions', () => {
+  const result = gradePracticeSessionAnswers({
+    questions: [
+      { id: 'q-objective', answer: 'B' },
+      { id: 'q-subjective', answer: '', subjective: true },
+      { id: 'q-unanswered', answer: 'A' },
+    ],
+    answers: {
+      'q-objective': { selectedAnswer: 'B', timeSpentSec: 35 },
+      'q-subjective': { selectedAnswer: 'process', timeSpentSec: 120, selfScore: 7, maxScore: 10 },
+    },
+  });
+
+  assert.equal(result.correctCount, 2);
+  assert.equal(result.accuracyRate, 66.7);
+  assert.equal(result.records.length, 3);
+  assert.equal(result.records[1].gradingMode, 'self_scored');
+  assert.equal(result.records[2].correct, false);
+});
 
 const knowledgePoints = [
   { id: 'ds-tree', subject: '数据结构', chapter: '树与二叉树', title: '树的遍历应用', importance: 5, frequency: 5 },

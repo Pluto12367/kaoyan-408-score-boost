@@ -5,9 +5,10 @@ import { listActiveSessions, type SessionView } from '../api/endpoints/sessions'
 interface Props {
   onResume: (session: SessionView) => void;
   allowedTypes?: SessionView['type'][];
+  enabled?: boolean;
 }
 
-export function ResumeSessionBanner({ onResume, allowedTypes }: Props) {
+export function ResumeSessionBanner({ onResume, allowedTypes, enabled = true }: Props) {
   const [activeSessions, setActiveSessions] = useState<SessionView[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -23,13 +24,18 @@ export function ResumeSessionBanner({ onResume, allowedTypes }: Props) {
   }
 
   useEffect(() => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
     loadSessions();
-  }, []);
+  }, [enabled]);
 
   const visible = activeSessions.filter((session) =>
     !dismissed.has(session.id) && (!allowedTypes || allowedTypes.includes(session.type)),
   );
 
+  if (!enabled) return null;
   if (loading) return <section className="resume-banner"><p className="task-status">正在检查可恢复的学习进度...</p></section>;
   if (error) {
     return (

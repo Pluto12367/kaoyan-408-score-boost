@@ -17,15 +17,26 @@ interface Props {
   }>;
   timeLimitMin?: number;
   resourceId?: string;
+  localMode?: boolean;
   onExit: () => void;
   onSubmit: (result: SessionSubmitResult) => void;
 }
 
-export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, onExit, onSubmit }: Props) {
+export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, localMode = false, onExit, onSubmit }: Props) {
   const {
     session, saving, submitting, error, saveError, lastSavedAt,
     updateAnswer, setCurrentQuestion, toggleMark, saveNow, submitSession, getActiveElapsedMs,
-  } = usePracticeSession({ type: sessionType, questionIds, resourceId });
+  } = usePracticeSession({
+    type: sessionType,
+    questionIds,
+    resourceId,
+    localMode,
+    localQuestions: questions.map((question) => ({
+      id: question.id,
+      answer: question.answer ?? '',
+      subjective: question.type === '综合题',
+    })),
+  });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
   const [elapsedSec, setElapsedSec] = useState(0);

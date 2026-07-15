@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { gradePracticeSessionAnswers, type SessionGradingQuestion } from '@kaoyan408/shared';
 import {
   getPracticeSession,
   listActiveSessions,
@@ -17,6 +18,8 @@ interface UsePracticeSessionOptions {
   type: 'practice_set' | 'stage_assessment' | 'paper';
   questionIds: string[];
   resourceId?: string;
+  localMode?: boolean;
+  localQuestions?: SessionGradingQuestion[];
   onSubmitted?: (result: SessionSubmitResult) => void;
 }
 
@@ -100,6 +103,19 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
   const performSave = useCallback(async (options: SaveOptions = {}): Promise<SessionView | null> => {
     const current = sessionRef.current;
     if (!current || current.completed || submittingRef.current) return current;
+    if (opts.localMode) {
+      const updated = updateSessionSummary({
+        ...current,
+        totalActiveMs: rollActiveClock(Boolean(options.pauseClock)),
+        lastActiveAt: new Date().toISOString(),
+      });
+      sessionRef.current = updated;
+      persistLocalSession(updated);
+      if (mountedRef.current) {
+        dispatch({ type: 'patch', value: { session: updated, saveError: null, lastSavedAt: updated.lastActiveAt } });
+      }
+      return updated;
+    }
     if (saveInFlightRef.current) {
       saveQueuedRef.current = true;
       return saveInFlightRef.current;
@@ -155,7 +171,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
 
     saveInFlightRef.current = request;
     return request;
-  }, [rollActiveClock]);
+  }, [opts.localMode, rollActiveClock]);
 
   const scheduleSave = useCallback(() => {
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
@@ -172,6 +188,17 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     async function initialize() {
       dispatch({ type: 'patch', value: { error: null } });
       const storedId = typeof window === 'undefined' ? null : window.localStorage.getItem(SESSION_STORAGE_KEY);
+      if (opts.localMode) {
+        const stored = storedId ? loadLocalSession(storedId) : null;
+        if (stored && !stored.completed && sessionMatches(stored, opts.type, opts.resourceId, opts.questionIds)) {
+          adoptSession(stored);
+          return;
+        }
+        const created = createLocalSession(opts.type, opts.questionIds, opts.resourceId);
+        persistLocalSession(created);
+        if (active) adoptSession(created);
+        return;
+      }
       if (storedId) {
         try {
           const stored = await getPracticeSession(storedId);
@@ -212,7 +239,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
 
     void initialize();
     return () => { active = false; };
-  }, [adoptSession, opts.resourceId, opts.type, questionKey]);
+  }, [adoptSession, opts.localMode, opts.resourceId, opts.type, questionKey]);
 
   useEffect(() => {
     if (!session?.id || session.completed) return;
@@ -304,6 +331,29 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     }));
 
     try {
+      if (opts.localMode) {
+        const totalActiveMs = rollActiveClock(true);
+        const grading = gradePracticeSessionAnswers({
+          questions: opts.localQuestions ?? opts.questionIds.map((id) => ({ id, answer: '' })),
+          answers: current.answers,
+        });
+        const completed = updateSessionSummary({ ...current, completed: true, totalActiveMs });
+        const result: SessionSubmitResult = {
+          sessionId: current.id,
+          completed: true,
+          totalQuestions: current.totalQuestions,
+          correctCount: grading.correctCount,
+          accuracyRate: grading.accuracyRate,
+          totalActiveMs,
+          records: grading.records,
+        };
+        sessionRef.current = completed;
+        removeLocalSession(current.id);
+        dispatch({ type: 'patch', value: { session: completed, saveError: null } });
+        if (typeof window !== 'undefined') window.localStorage.removeItem(SESSION_STORAGE_KEY);
+        opts.onSubmitted?.(result);
+        return result;
+      }
       const result = await submitPracticeSession(current.id, {
         answers,
         totalActiveMs: rollActiveClock(true),
@@ -325,7 +375,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       submittingRef.current = false;
       dispatch({ type: 'patch', value: { submitting: false } });
     }
-  }, [opts.onSubmitted, rollActiveClock]);
+  }, [opts.localMode, opts.localQuestions, opts.onSubmitted, opts.questionIds, rollActiveClock]);
 
   return {
     session,
@@ -361,4 +411,56 @@ function pageIsVisible() {
 
 function monotonicNow() {
   return typeof performance === 'undefined' ? Date.now() : performance.now();
+}
+
+function createLocalSession(type: SessionView['type'], questionIds: string[], resourceId?: string): SessionView {
+  const now = new Date().toISOString();
+  return {
+    id: `demo-${type}-${Date.now()}`,
+    type,
+    resourceId,
+    questionIds,
+    answers: {},
+    markedQuestions: [],
+    currentIndex: 0,
+    totalQuestions: questionIds.length,
+    answeredCount: 0,
+    startedAt: now,
+    lastActiveAt: now,
+    totalActiveMs: 0,
+    completed: false,
+    progressRate: 0,
+  };
+}
+
+function updateSessionSummary(session: SessionView): SessionView {
+  const answeredCount = session.questionIds.filter((id) => Boolean(session.answers[id]?.selectedAnswer.trim())).length;
+  return {
+    ...session,
+    answeredCount,
+    progressRate: session.totalQuestions === 0 ? 0 : Math.round((answeredCount / session.totalQuestions) * 100),
+  };
+}
+
+function localSessionKey(sessionId: string) {
+  return `kaoyan408.demo.session.${sessionId}`;
+}
+
+function persistLocalSession(session: SessionView) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(localSessionKey(session.id), JSON.stringify(session));
+}
+
+function loadLocalSession(sessionId: string): SessionView | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = window.localStorage.getItem(localSessionKey(sessionId));
+    return value ? JSON.parse(value) as SessionView : null;
+  } catch {
+    return null;
+  }
+}
+
+function removeLocalSession(sessionId: string) {
+  if (typeof window !== 'undefined') window.localStorage.removeItem(localSessionKey(sessionId));
 }

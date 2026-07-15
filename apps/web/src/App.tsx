@@ -994,6 +994,7 @@ rating: 4,
             todayPlanError={todayPlanError}
             latestPaper={latestPaper}
             examQuestionCount={examQuestions.length}
+            remoteSessionsEnabled={!isStaticDemoMode()}
             onOnboardingComplete={handleOnboardingComplete}
             onRefreshTodayPlan={refreshTodayPlan}
             onOpenReview={(questionId) => {
@@ -1178,12 +1179,28 @@ rating: 4,
             questions={activeLearningQuestions}
             resourceId={activeLearningResourceId}
             timeLimitMin={activeLearningTimeLimit}
+            localMode={isStaticDemoMode()}
             onExit={() => setLearningSessionType(null)}
             onSubmit={(result) => {
               const completedType = learningSessionType;
               setLearningSessionType(null);
               setResumedLearningSession(null);
-              if (completedType === 'paper') {
+              if (isStaticDemoMode() && completedType === 'paper') {
+                const mockResult = createMockPaperSubmitResult(latestPaper ?? undefined, student.id);
+                setPaperResult(mockResult);
+                setPaperSession(mockResult?.examSession ?? null);
+                if (mockResult && latestPaper) addMockPaperResultToHistory(mockResult, latestPaper);
+                setPaperStatus(mockResult
+                  ? `模拟考试已完成：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，报告已生成。`
+                  : '模拟考试已提交。');
+                setApiState('mock');
+              } else if (isStaticDemoMode() && completedType === 'practice_set') {
+                setPracticeStatus(`专项练习已完成：正确率 ${result.accuracyRate}%，错题已进入复盘队列。`);
+                setApiState('mock');
+              } else if (isStaticDemoMode() && completedType === 'stage_assessment') {
+                setAssessmentStatus(`阶段测评已完成：${Math.round(result.accuracyRate)} 分，需复盘 ${result.records.filter((record) => !record.correct).length} 处。`);
+                setApiState('mock');
+              } else if (completedType === 'paper') {
                 setExamReportSessionId(result.sessionId);
               } else if (completedType === 'practice_set' && result.workflowResult) {
                 const practiceResult = result.workflowResult as PracticeSetResult;

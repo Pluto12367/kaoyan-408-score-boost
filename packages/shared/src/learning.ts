@@ -245,6 +245,51 @@ function round1(value: number): number {
   return Math.round(value * 10) / 10;
 }
 
+export interface SessionGradingAnswer {
+  selectedAnswer: string;
+  timeSpentSec: number;
+  selfScore?: number;
+  maxScore?: number;
+}
+
+export interface SessionGradingQuestion {
+  id: string;
+  answer: string;
+  subjective?: boolean;
+}
+
+export function gradePracticeSessionAnswers(input: {
+  questions: SessionGradingQuestion[];
+  answers: Record<string, SessionGradingAnswer>;
+}) {
+  const records = input.questions.map((question) => {
+    const answer = input.answers[question.id];
+    const selectedAnswer = answer?.selectedAnswer.trim() ?? '';
+    const maxScore = answer?.maxScore ?? 0;
+    const selfScore = answer?.selfScore ?? 0;
+    const correct = question.subjective
+      ? selectedAnswer.length > 0 && maxScore > 0 && selfScore / maxScore >= 0.6
+      : selectedAnswer.length > 0 && selectedAnswer === question.answer;
+
+    return {
+      questionId: question.id,
+      correct,
+      mistakeReason: correct ? null : '待复盘',
+      timeSpentSec: answer?.timeSpentSec ?? 0,
+      gradingMode: question.subjective ? 'self_scored' : 'automatic',
+      selfScore: answer?.selfScore,
+      maxScore: answer?.maxScore,
+    };
+  });
+  const correctCount = records.filter((record) => record.correct).length;
+
+  return {
+    records,
+    correctCount,
+    accuracyRate: records.length === 0 ? 0 : round1((correctCount / records.length) * 100),
+  };
+}
+
 export function recommendPracticeSet(input: {
   stage: StudyStage;
   report: WeaknessReport;
