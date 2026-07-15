@@ -993,6 +993,7 @@ rating: 4,
             todayPlanLoading={todayPlanLoading}
             todayPlanError={todayPlanError}
             latestPaper={latestPaper}
+            examResult={paperResult}
             examQuestionCount={examQuestions.length}
             remoteSessionsEnabled={!isStaticDemoMode()}
             onOnboardingComplete={handleOnboardingComplete}

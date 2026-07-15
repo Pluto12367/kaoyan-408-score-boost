@@ -1,7 +1,7 @@
 import { useState, type ComponentProps } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import type { Subject } from '@kaoyan408/shared';
-import type { GeneratedPaper } from '../../api';
+import type { GeneratedPaper, PaperSubmitResult } from '../../api';
 import type { PrepareExamPaperInput } from '../../api/endpoints/exam';
 import type { SessionView } from '../../api/endpoints/sessions';
 import { OnboardingWizard } from '../../components/OnboardingWizard';
@@ -16,6 +16,7 @@ interface StudentLaunchpadProps {
   todayPlanLoading: boolean;
   todayPlanError: string;
   latestPaper: GeneratedPaper | null;
+  examResult: PaperSubmitResult | null;
   examQuestionCount: number;
   remoteSessionsEnabled: boolean;
   onOnboardingComplete: ComponentProps<typeof OnboardingWizard>['onComplete'];
@@ -33,6 +34,7 @@ export function StudentLaunchpad({
   todayPlanLoading,
   todayPlanError,
   latestPaper,
+  examResult,
   examQuestionCount,
   remoteSessionsEnabled,
   onOnboardingComplete,
@@ -101,6 +103,14 @@ export function StudentLaunchpad({
         <button type="button" className="primary-action" disabled={preparing} onClick={() => void startConfiguredExam()}>
           <ClipboardCheck size={18} /> {preparing ? '正在准备试卷...' : '生成并开始考试'}
         </button>
+        {examResult && latestPaper && examResult.paperId === latestPaper.id ? (
+          <div className="exam-completion-summary" role="status">
+            <strong>本次模拟：{examResult.score} 分</strong>
+            <span>正确率 {examResult.accuracyRate}%</span>
+            <span>用时 {Math.max(1, Math.round(examResult.examSession.elapsedSec / 60))} 分钟</span>
+            <p>{examResult.nextActions[0] ?? '根据失分知识点安排下一轮复盘。'}</p>
+          </div>
+        ) : null}
       </section>
     </>
   );

@@ -165,6 +165,27 @@
   width: 92px;
 }
 
+.exam-completion-summary {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin-top: 16px;
+  border-left: 3px solid #16836f;
+  padding: 10px 14px;
+  background: #edf8f5;
+  color: #27413d;
+}
+
+.exam-completion-summary strong {
+  color: #105f52;
+}
+
+.exam-completion-summary p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .segmented-control {
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
