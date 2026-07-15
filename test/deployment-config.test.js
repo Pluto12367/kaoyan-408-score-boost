@@ -8,6 +8,10 @@ const deploymentWorkflow = readFileSync(
   new URL('../.github/workflows/deploy-pages.yml', import.meta.url),
   'utf8',
 );
+const stagingSmokeWorkflow = readFileSync(
+  new URL('../.github/workflows/staging-smoke.yml', import.meta.url),
+  'utf8',
+);
 
 test('Railway uses the repository Dockerfile with production health and restart policy', () => {
   assert.match(railwayConfig, /builder\s*=\s*"DOCKERFILE"/);
@@ -65,4 +69,14 @@ test('CI verifies the production image and uses Node 24 based GitHub actions', (
     deploymentWorkflow,
     /- name: Build production API image\s+run: docker build --tag kaoyan408-api:ci \./,
   );
+});
+
+test('staging smoke is manual and reads credentials only from GitHub secrets', () => {
+  assert.match(stagingSmokeWorkflow, /^\s*workflow_dispatch:\s*$/m);
+  assert.doesNotMatch(stagingSmokeWorkflow, /^\s*(push|pull_request|schedule):\s*$/m);
+  assert.match(stagingSmokeWorkflow, /STAGING_API_URL:\s*\$\{\{ vars\.STAGING_API_URL \}\}/);
+  assert.match(stagingSmokeWorkflow, /STAGING_WEB_ORIGIN:\s*\$\{\{ vars\.STAGING_WEB_ORIGIN \}\}/);
+  assert.match(stagingSmokeWorkflow, /STAGING_SMOKE_EMAIL:\s*\$\{\{ secrets\.STAGING_SMOKE_EMAIL \}\}/);
+  assert.match(stagingSmokeWorkflow, /STAGING_SMOKE_PASSWORD:\s*\$\{\{ secrets\.STAGING_SMOKE_PASSWORD \}\}/);
+  assert.match(stagingSmokeWorkflow, /run: npm run smoke:staging/);
 });
