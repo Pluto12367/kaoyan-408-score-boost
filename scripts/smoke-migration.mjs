@@ -393,11 +393,9 @@ async function main() {
   assert(reviewQueueAfterApproval.pendingCount === reviewQueue.pendingCount - 2, 'review queue pending count should decrease after recheck and approval');
   assert(reviewQueueAfterApproval.items.some((item) => item.id === aiReviewItem.id && item.status === 'needs_recheck'), 'review queue should expose needs recheck status');
   const feedback = await postJson(`${apiUrl}/feedback`, {
-    userId: 'u-001',
     rating: 4,
-    scene: '试用体验',
+    scene: 'overall',
     message: '希望推荐题组能更贴合冲刺阶段。',
-    surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
   });
   assert(feedback.id && feedback.status === 'new', 'feedback submission should return a new feedback item');
   const feedbackList = await waitForJson(`${apiUrl}/admin/feedback`, (data) =>

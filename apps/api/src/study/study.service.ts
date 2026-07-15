@@ -249,11 +249,11 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  getTrialProgress(userId = this.student.id) {
+  async getTrialProgress(userId = this.student.id) {
     const completedTasks = this.completedTaskDatesByUser.get(userId) ?? new Map<string, string>();
     const reviewedWrongQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
     const userPracticeSetResults = this.practiceSetResults.filter((item) => item.userId === userId);
-    const userFeedbackItems = this.feedbackItems.filter((item) => item.userId === userId);
+    const hasFeedback = await this.feedbackRepository.hasForUser(userId);
     const items = [
       {
         id: 'diagnostic',
@@ -287,7 +287,7 @@ export class StudyService implements OnModuleInit {
         id: 'feedback',
         title: '提交体验反馈',
         description: '提交站内反馈或打开问卷补充建议。',
-        completed: userFeedbackItems.length > 0,
+        completed: hasFeedback,
         actionAnchor: '#feedback',
       },
     ];
@@ -304,11 +304,11 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  getStudyReminders(userId = this.student.id) {
+  async getStudyReminders(userId = this.student.id) {
     const report = this.getOverviewReport(userId);
     const plan = this.generatePlan(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
-    const trialProgress = this.getTrialProgress(userId);
+    const trialProgress = await this.getTrialProgress(userId);
     const calendar = this.getLearningCalendar(userId);
     const reminders: StudyReminder[] = [];
     const topWeakPoint = report.weakPoints[0];
@@ -864,7 +864,7 @@ export class StudyService implements OnModuleInit {
   async getAdminUsers() {
     const users = this.adminUsers.enabled
       ? (await this.adminUsers.list()).map((user) => this.toAdminManagedUser(user))
-      : this.buildAdminUsers();
+      : await this.buildAdminUsers();
     const studentCount = users.filter((user) => user.role === 'student').length;
     const activeTrialCount = users.filter((user) => user.trialStatus === 'active').length;
     const followUpCount = users.filter((user) => user.trialStatus === 'follow_up').length;
@@ -892,13 +892,13 @@ export class StudyService implements OnModuleInit {
       return updated ? this.toAdminManagedUser(updated) : null;
     }
 
-    const users = this.buildAdminUsers();
+    const users = await this.buildAdminUsers();
     if (!users.some((user) => user.id === userId)) {
       throw new BadRequestException(`User ${userId} was not found`);
     }
 
     this.trialStatusByUserId.set(userId, trialStatus);
-    return this.buildAdminUsers().find((user) => user.id === userId);
+    return (await this.buildAdminUsers()).find((user) => user.id === userId);
   }
 
   getTeacherClassAnalytics(teacherId?: string) {
@@ -1041,14 +1041,18 @@ export class StudyService implements OnModuleInit {
     scene?: string;
     message?: string;
   }) {
-    const message = input.message?.trim();
     if (!Number.isInteger(input.rating) || input.rating! < 1 || input.rating! > 5) {
       throw new BadRequestException('Feedback rating must be an integer from 1 to 5');
     }
     if (!FEEDBACK_SCENES.includes(input.scene as FeedbackScene)) {
       throw new BadRequestException('Feedback scene is not supported');
     }
-    if (!message || message.length < 10 || message.length > 1000) {
+    if (typeof input.message !== 'string') {
+      throw new BadRequestException('Feedback message must be a string');
+    }
+    const message = input.message.trim();
+    const messageLength = Array.from(message).length;
+    if (messageLength < 10 || messageLength > 1000) {
       throw new BadRequestException('Feedback message must contain 10 to 1000 characters');
     }
 
@@ -2406,9 +2410,9 @@ export class StudyService implements OnModuleInit {
     return `先处理 ${weakPointTitle ?? '本次薄弱点'}，再补 1 组变式题验证是否真正掌握。`;
   }
 
-  private buildAdminUsers(): AdminManagedUser[] {
+  private async buildAdminUsers(): Promise<AdminManagedUser[]> {
     const calendar = this.getLearningCalendar(this.student.id);
-    const trialProgress = this.getTrialProgress(this.student.id);
+    const trialProgress = await this.getTrialProgress(this.student.id);
     const studentStatus = this.trialStatusByUserId.get(this.student.id)
       ?? (trialProgress.completionRate === 100 ? 'completed' : trialProgress.completedCount > 0 ? 'active' : 'invited');
 

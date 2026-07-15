@@ -165,6 +165,22 @@ async function main() {
     scene: 'unsupported-scene',
     message: 'unsupported feedback scene should be rejected',
   }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/feedback`, {
+    rating: 5,
+    scene: 'overall',
+    message: { text: 'feedback must be plain text' },
+  }, 400, studentHeaders);
+  const unicodeFeedback = await postJson(`${apiUrl}/feedback`, {
+    rating: 5,
+    scene: 'overall',
+    message: '😀'.repeat(1000),
+  }, studentHeaders);
+  assert(Array.from(unicodeFeedback.message).length === 1000, 'feedback length should count Unicode code points');
+  await expectPostStatus(`${apiUrl}/feedback`, {
+    rating: 5,
+    scene: 'overall',
+    message: '😀'.repeat(1001),
+  }, 400, studentHeaders);
   const feedback = await postJson(`${apiUrl}/feedback`, {
     rating: 5,
     scene: 'overall',
@@ -181,11 +197,44 @@ async function main() {
     'SELECT "id", "userId", "rating", "scene", "message", "status" FROM "FeedbackSubmission" WHERE "id" = $1',
     feedback.id,
   );
-  await prisma.$disconnect();
   assert(persistedFeedbackRows.length === 1, 'feedback should be written to its dedicated PostgreSQL table');
   assert(persistedFeedbackRows[0].userId === registered.user.id, 'persisted feedback should belong to the authenticated user');
   assert(persistedFeedbackRows[0].rating === 5 && persistedFeedbackRows[0].scene === 'overall', 'persisted feedback should retain structured fields');
   assert(persistedFeedbackRows[0].message === feedback.message && persistedFeedbackRows[0].status === 'new', 'persisted feedback should retain normalized content and status');
+  const externalCredentials = {
+    email: `external.feedback.${Date.now()}@example.com`,
+    password: 'ExternalFeedbackPassword!408',
+    name: '外部反馈测试学生',
+  };
+  const externalStudent = await postJson(`${apiUrl}/auth/register`, externalCredentials);
+  const externalStudentHeaders = { Authorization: `Bearer ${externalStudent.accessToken}` };
+  await prisma.feedbackSubmission.create({
+    data: {
+      userId: externalStudent.user.id,
+      rating: 4,
+      scene: 'overall',
+      message: 'feedback inserted outside the running API process',
+      status: 'new',
+    },
+  });
+  const externalTrialProgress = await getJson(`${apiUrl}/trial-progress`, externalStudentHeaders);
+  assert(
+    externalTrialProgress.items.some((item) => item.id === 'feedback' && item.completed),
+    'trial progress should see feedback inserted outside the running API process',
+  );
+  await expectDatabaseRejection(() => prisma.feedbackSubmission.create({
+    data: { userId: externalStudent.user.id, rating: 0, scene: 'overall', message: 'invalid database rating', status: 'new' },
+  }), 'database should reject feedback ratings outside 1 to 5');
+  await expectDatabaseRejection(() => prisma.feedbackSubmission.create({
+    data: { userId: externalStudent.user.id, rating: 5, scene: 'other', message: 'invalid database scene', status: 'new' },
+  }), 'database should reject unsupported feedback scenes');
+  await expectDatabaseRejection(() => prisma.feedbackSubmission.create({
+    data: { userId: externalStudent.user.id, rating: 5, scene: 'overall', message: 'invalid database status', status: 'pending' },
+  }), 'database should reject unsupported feedback statuses');
+  await expectDatabaseRejection(() => prisma.feedbackSubmission.create({
+    data: { userId: externalStudent.user.id, rating: 5, scene: 'overall', message: 'too short', status: 'new' },
+  }), 'database should reject feedback messages outside 10 to 1000 characters');
+  await prisma.$disconnect();
   const adminSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'admin' });
   const adminHeaders = { Authorization: `Bearer ${adminSession.token}` };
   const adminUsers = await getJson(`${apiUrl}/admin/users`, adminHeaders);
@@ -711,6 +760,15 @@ async function stop(child) {
   child.kill();
   await Promise.race([once(child, 'exit'), delay(2_000)]);
   if (child.exitCode === null && !child.killed) child.kill('SIGKILL');
+}
+
+async function expectDatabaseRejection(operation, message) {
+  try {
+    await operation();
+  } catch {
+    return;
+  }
+  throw new Error(message);
 }
 
 function sessionAnswerFor(question, timeSpentSec) {

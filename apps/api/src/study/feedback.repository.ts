@@ -40,6 +40,15 @@ export class FeedbackRepository {
     return rows.map(toRecord);
   }
 
+  async hasForUser(userId: string): Promise<boolean> {
+    if (!this.enabled) return this.memoryItems.some((item) => item.userId === userId);
+    const row = await this.prisma.feedbackSubmission.findFirst({
+      where: { userId },
+      select: { id: true },
+    });
+    return Boolean(row);
+  }
+
   async create(input: {
     userId: string;
     rating: number;
