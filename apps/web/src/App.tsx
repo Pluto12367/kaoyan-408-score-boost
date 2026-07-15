@@ -69,6 +69,7 @@ import {
   roleLabel,
   createInitialPaperSession,
 } from './constants';
+import { isStudentOverviewReady, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
 
 export function App() {
   const {
@@ -82,7 +83,10 @@ export function App() {
   const dashboardOverview = useDashboardOverviewData(studentDataEnabled, authKey);
   const { setOverview, refreshOverview } = dashboardOverview;
   const overview = dashboardOverview.overview.data ?? createMockOverview();
-  const studentOverviewReady = dashboardOverview.overview.data !== null;
+  const studentOverviewReady = isStudentOverviewReady(
+    studentDataEnabled,
+    dashboardOverview.overview.data !== null,
+  );
   const roleWorkspace = useRoleWorkspaceData(sessionUser?.role, authKey);
   const adminUsers = roleWorkspace.adminUsers.data;
   const teacherQuestionList = roleWorkspace.questions.data ?? [];
@@ -164,7 +168,7 @@ export function App() {
 
   useEffect(() => {
     const resource = dashboardOverview.overview;
-    if (resource.data) {
+    if (shouldHydrateSessionFromOverview(isStaticDemoMode(), resource.data !== null)) {
       setSessionUser((current) => current ?? resource.data?.student ?? null);
     }
     if (sessionUser?.role === 'teacher') {
