@@ -4,6 +4,10 @@ import { readFileSync } from 'node:fs';
 
 const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 'utf8');
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
+const deploymentWorkflow = readFileSync(
+  new URL('../.github/workflows/deploy-pages.yml', import.meta.url),
+  'utf8',
+);
 
 test('Railway uses the repository Dockerfile with production health and restart policy', () => {
   assert.match(railwayConfig, /builder\s*=\s*"DOCKERFILE"/);
@@ -35,5 +39,30 @@ test('production image uses supported Node and applies Prisma migrations before 
     dockerfile.match(/RUN apk add --no-cache openssl/g)?.length,
     2,
     'OpenSSL must be installed in both build and runtime stages for Prisma',
+  );
+});
+
+test('CI verifies the production image and uses Node 24 based GitHub actions', () => {
+  assert.doesNotMatch(deploymentWorkflow, /actions\/checkout@v4/);
+  assert.doesNotMatch(deploymentWorkflow, /actions\/setup-node@v4/);
+  assert.equal(
+    deploymentWorkflow.match(/actions\/checkout@v5/g)?.length,
+    2,
+    'both jobs must use the Node 24 based checkout action',
+  );
+  assert.equal(
+    deploymentWorkflow.match(/actions\/setup-node@v5/g)?.length,
+    2,
+    'both jobs must use the Node 24 based setup-node action',
+  );
+  assert.match(deploymentWorkflow, /node-version:\s*22/g);
+  assert.equal(
+    deploymentWorkflow.match(/run: npm ci/g)?.length,
+    2,
+    'test and deployment jobs must install exactly from package-lock.json',
+  );
+  assert.match(
+    deploymentWorkflow,
+    /- name: Build production API image\s+run: docker build --tag kaoyan408-api:ci \./,
   );
 });
