@@ -121,8 +121,24 @@ export function createMockAdminMetrics(): AdminMetrics {
     averagePracticeTimeSec: 140,
     retentionDays: 3,
     topWeakPoint: 'Cache 映射与替换',
+    core: {
+      registrationCompletionRate: mockRate(80, 8, 10, '最近 30 天'),
+      diagnosticCompletionRate: mockRate(75, 6, 8, '全部内测学生'),
+      firstTaskCompletionRate: mockRate(62.5, 5, 8, '全部内测学生'),
+      day1RetentionRate: mockRate(60, 3, 5, '已满 1 天注册用户'),
+      day7RetentionRate: mockRate(null, 0, 0, '已满 7 天注册用户'),
+      weeklyPlanCompletionRate: mockRate(66.7, 12, 18, '最近 7 个自然日'),
+      wrongQuestionSecondAccuracyRate: mockRate(50, 2, 4, '首次到期重做'),
+      mockExamCompletionRate: mockRate(50, 1, 2, '全部模拟考试会话'),
+      apiFailureRate: mockRate(1.2, 2, 167, '最近 7 天'),
+      sessionRecoverySuccessRate: mockRate(100, 3, 3, '最近 30 天'),
+    },
     generatedAt: new Date().toISOString(),
   };
+}
+
+function mockRate(rate: number | null, numerator: number, denominator: number, window: string) {
+  return { rate, numerator, denominator, window };
 }
 
 export function createMockTeacherClassAnalytics(): TeacherClassAnalytics {

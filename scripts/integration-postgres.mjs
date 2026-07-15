@@ -41,6 +41,8 @@ async function main() {
   let studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
   let initial = await waitForOverview(studentHeaders);
   assert(initial.source === 'postgresql', 'API should report the real PostgreSQL data source');
+  assert(initial.student.id === registered.user.id && initial.student.name === credentials.name, 'dashboard should use the authenticated student identity');
+  assert(initial.student.targetSchool === undefined, 'new student must not inherit another student\'s target school');
   const onboardingBefore = await getJson(`${apiUrl}/onboarding/status`, studentHeaders);
   assert(onboardingBefore.completed === false, 'new student should require onboarding');
   const onboarding = await postJson(`${apiUrl}/onboarding/complete`, {
@@ -54,6 +56,7 @@ async function main() {
   assert(onboarding.sevenDayPlan.days.length === 7, 'onboarding should create a seven-day plan');
   assert(onboarding.todayPlan.priorityTasks.length === 3, 'onboarding should return three actionable tasks for today');
   initial = await waitForOverview(studentHeaders, (data) => data.student?.targetScore === 126 && data.plan?.dailyTasks?.length === 3);
+  assert(initial.student.name === credentials.name, 'onboarding must preserve the authenticated student identity');
   await expectGetStatus(`${apiUrl}/wrong-questions?userId=u-001`, studentHeaders, 403);
   await expectPostStatus(`${apiUrl}/auth/login`, { email: credentials.email, password: 'wrong-password' }, 401);
   await expectGetStatus(`${apiUrl}/teacher/questions`, { Authorization: `Bearer ${loggedIn.accessToken}` }, 403);
@@ -435,6 +438,17 @@ async function main() {
   assert(examReviewPlan.days[0].date > localToday, 'post-exam review plan should start on the next local calendar day');
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
   assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
+  await delay(300);
+  const betaMetrics = await getJson(`${apiUrl}/admin/metrics`, { Authorization: `Bearer ${adminSession.token}` });
+  assert(betaMetrics.source === 'postgresql', 'admin metrics should come from PostgreSQL in beta mode');
+  assert(betaMetrics.core.registrationCompletionRate.denominator >= 1, 'registration attempts should be traceable in operation logs');
+  assert(betaMetrics.core.registrationCompletionRate.numerator >= 1, 'successful registration should be counted');
+  assert(betaMetrics.core.diagnosticCompletionRate.numerator >= 1, 'completed onboarding should contribute to diagnostic completion');
+  assert(betaMetrics.core.firstTaskCompletionRate.numerator >= 1, 'completed first task should be counted');
+  assert(betaMetrics.core.wrongQuestionSecondAccuracyRate.denominator >= 1, 'first due-review attempts should be measurable');
+  assert(betaMetrics.core.mockExamCompletionRate.numerator >= 1, 'completed paper session should be counted');
+  assert(betaMetrics.core.sessionRecoverySuccessRate.numerator >= 1, 'successful session recovery should be counted');
+  assert(betaMetrics.core.apiFailureRate.denominator >= 1, 'API failure rate should expose its request sample size');
   assert(restored.student.targetScore === 126, 'diagnostic profile should survive an API restart');
   assert(restored.student.weakestSubject === '计算机组成原理', 'diagnostic weakest subject should survive an API restart');
   assert(restored.questions.some((question) => question.id === teacherQuestion.id), 'teacher-created question should survive an API restart');

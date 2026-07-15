@@ -28,6 +28,8 @@ import {
   type ScheduledStudyTaskState,
   type SevenDayPlanState,
 } from './onboarding-plan.repository';
+import { BetaMetricsService } from './beta-metrics.service';
+import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -41,6 +43,8 @@ export class StudyService implements OnModuleInit {
     private readonly reviewScheduleRepository: ReviewScheduleRepository,
     private readonly examReviewPlanRepository: ExamReviewPlanRepository,
     private readonly onboardingPlanRepository: OnboardingPlanRepository,
+    private readonly betaMetricsService: BetaMetricsService,
+    private readonly authenticatedUsers: AuthenticatedUserRegistry,
   ) {}
 
   private readonly student: UserProfile = {
@@ -804,7 +808,14 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  getAdminMetrics() {
+  async getAdminMetrics() {
+    if (this.betaMetricsService.enabled) {
+      return this.betaMetricsService.calculate(this.getReviewQueue().pendingCount);
+    }
+    return this.getMemoryAdminMetrics();
+  }
+
+  private getMemoryAdminMetrics() {
     const report = this.getOverviewReport();
     const calendar = this.getLearningCalendar(this.student.id);
     const wrongQuestions = this.listWrongQuestions(this.student.id);
@@ -829,6 +840,7 @@ export class StudyService implements OnModuleInit {
         : 0,
       retentionDays: activeDates.size,
       topWeakPoint: report.weakPoints[0]?.title ?? null,
+      core: emptyCoreMetrics(),
       generatedAt: new Date().toISOString(),
     };
   }
@@ -2381,15 +2393,17 @@ export class StudyService implements OnModuleInit {
 
   private getStudent(userId: string): UserProfile {
     const profile = this.diagnosticProfilesByUser.get(userId);
+    const identity = this.authenticatedUsers.get(userId)
+      ?? (userId === this.student.id ? this.student : { id: userId, name: '408 学习者', role: 'student' as const });
     return {
-      ...this.student,
-      id: userId,
-      targetScore: profile?.targetScore ?? this.student.targetScore,
-      currentScore: profile?.currentScore ?? this.student.currentScore,
-      dailyHours: profile?.dailyHours ?? this.student.dailyHours,
-      remainingDays: profile?.remainingDays ?? this.student.remainingDays,
-      weakestSubject: profile?.weakestSubject ?? this.student.weakestSubject,
-      stage: profile?.stage ?? this.student.stage,
+      ...identity,
+      targetScore: profile?.targetScore ?? (userId === this.student.id ? this.student.targetScore : undefined),
+      currentScore: profile?.currentScore ?? (userId === this.student.id ? this.student.currentScore : undefined),
+      dailyHours: profile?.dailyHours ?? (userId === this.student.id ? this.student.dailyHours : undefined),
+      remainingDays: profile?.remainingDays ?? (userId === this.student.id ? this.student.remainingDays : undefined),
+      weakestSubject: profile?.weakestSubject ?? (userId === this.student.id ? this.student.weakestSubject : undefined),
+      stage: profile?.stage ?? (userId === this.student.id ? this.student.stage : '基础'),
+      targetSchool: userId === this.student.id ? this.student.targetSchool : undefined,
     };
   }
 
@@ -3024,6 +3038,22 @@ export class StudyService implements OnModuleInit {
 
 function isAnswered(answer?: { selectedAnswer: string }) {
   return Boolean(answer?.selectedAnswer.trim());
+}
+
+function emptyCoreMetrics() {
+  const empty = (window: string) => ({ rate: null, numerator: 0, denominator: 0, window });
+  return {
+    registrationCompletionRate: empty('最近 30 天'),
+    diagnosticCompletionRate: empty('全部内测学生'),
+    firstTaskCompletionRate: empty('全部内测学生'),
+    day1RetentionRate: empty('已满 1 天注册用户'),
+    day7RetentionRate: empty('已满 7 天注册用户'),
+    weeklyPlanCompletionRate: empty('最近 7 个自然日'),
+    wrongQuestionSecondAccuracyRate: empty('首次到期重做'),
+    mockExamCompletionRate: empty('全部模拟考试会话'),
+    apiFailureRate: empty('最近 7 天'),
+    sessionRecoverySuccessRate: empty('最近 30 天'),
+  };
 }
 
 function todayKey() {

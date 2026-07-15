@@ -4,6 +4,11 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AppModule } from './app.module';
+import { OperationLogService } from './operations/operation-log.service';
+
+interface AuthenticatedRequest extends IncomingMessage {
+  user?: { id: string; role: string };
+}
 
 function validatePublicEnvironment() {
   const errors: string[] = [];
@@ -35,6 +40,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+  const operationLogService = app.get(OperationLogService);
 
   // CORS: allow configured origins in production, localhost in dev
   const originEnv = process.env.WEB_ORIGIN;
@@ -49,16 +55,26 @@ async function bootstrap() {
   });
 
   // Correlated request logs make failures traceable without recording request bodies.
-  app.use((req: IncomingMessage, res: ServerResponse, next: () => void) => {
+  app.use((req: AuthenticatedRequest, res: ServerResponse, next: () => void) => {
     const start = Date.now();
     const requestId = req.headers['x-request-id']?.toString() || randomUUID();
     res.setHeader('x-request-id', requestId);
     res.once('finish', () => {
       const ms = Date.now() - start;
-      const message = `${requestId} ${req.method} ${req.url} ${res.statusCode} ${ms}ms`;
+      const path = (req.url ?? '/').split('?')[0];
+      const message = `${requestId} ${req.method} ${path} ${res.statusCode} ${ms}ms`;
       if (res.statusCode >= 500) logger.error(message);
       else if (res.statusCode >= 400) logger.warn(message);
       else if (ms > 1000 || process.env.NODE_ENV !== 'production') logger.log(message);
+      void operationLogService.record({
+        requestId,
+        userId: req.user?.id,
+        role: req.user?.role,
+        method: req.method ?? 'UNKNOWN',
+        path,
+        statusCode: res.statusCode,
+        durationMs: ms,
+      }).catch((error: unknown) => logger.warn(`Could not persist operation log ${requestId}: ${String(error)}`));
     });
     next();
   });

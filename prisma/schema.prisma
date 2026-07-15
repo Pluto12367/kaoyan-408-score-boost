@@ -58,6 +58,25 @@ model User {
   learningSessions     LearningSession[]
   reviewSchedules      ReviewSchedule[]
   examReviewPlans      ExamReviewPlan[]
+  operationLogs        OperationLog[]
+}
+
+model OperationLog {
+  id         String   @id @default(cuid())
+  requestId  String
+  userId     String?
+  role       String?
+  method     String
+  path       String
+  statusCode Int
+  durationMs Int
+  createdAt  DateTime @default(now())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([method, path, createdAt])
+  @@index([statusCode, createdAt])
 }
 
 model LearningSession {

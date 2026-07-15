@@ -31,6 +31,11 @@ export function validateEnvironment(values) {
     errors.push('JWT_SECRET must contain at least 32 characters.');
   }
 
+  const retentionDays = Number(values.AUDIT_LOG_RETENTION_DAYS ?? 90);
+  if (!Number.isInteger(retentionDays) || retentionDays < 7 || retentionDays > 365) {
+    errors.push('AUDIT_LOG_RETENTION_DAYS must be an integer from 7 to 365.');
+  }
+
   if (publicEnvironment) {
     for (const key of ['DATABASE_URL', 'JWT_SECRET', 'WEB_ORIGIN', 'VITE_API_BASE_URL']) {
       if (placeholders.test(values[key] ?? '')) errors.push(`${key} still contains a placeholder value.`);

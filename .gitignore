@@ -9,3 +9,4 @@ dist/
 apps/*/dist/
 packages/*/dist/
 *-local.log
+backups/

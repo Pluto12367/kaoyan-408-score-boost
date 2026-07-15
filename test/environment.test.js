@@ -28,3 +28,8 @@ test('rejects unsafe production placeholders and demo auth', () => {
   assert.ok(errors.some((error) => error.includes('WEB_ORIGIN must use HTTPS')));
   assert.ok(errors.some((error) => error.includes('VITE_ALLOW_MOCK')));
 });
+
+test('rejects operation-log retention outside the supported range', () => {
+  const errors = validateEnvironment({ ...production, AUDIT_LOG_RETENTION_DAYS: '2' });
+  assert.ok(errors.some((error) => error.includes('AUDIT_LOG_RETENTION_DAYS')));
+});

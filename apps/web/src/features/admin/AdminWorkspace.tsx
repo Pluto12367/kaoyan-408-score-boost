@@ -49,6 +49,22 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
             <article><strong>{metrics.todayPracticeCount}</strong><span>今日练习</span></article>
           </div>
           <p className="task-status">当前最弱考点：{metrics.topWeakPoint ?? '暂无'} · 平均耗时 {metrics.averagePracticeTimeSec} 秒 · 留存学习日 {metrics.retentionDays} 天</p>
+          <div className="panel-heading admin-core-heading">
+            <div><p className="eyebrow">可靠内测指标</p><h4>学习闭环与系统质量</h4></div>
+            <span>无样本时显示“待积累”</span>
+          </div>
+          <div className="admin-grid admin-core-grid">
+            {coreMetricEntries.map(([key, label]) => {
+              const metric = metrics.core[key];
+              return (
+                <article key={key} title={`${metric.window}，${metric.numerator}/${metric.denominator}`}>
+                  <strong>{metric.rate === null ? '待积累' : `${metric.rate}%`}</strong>
+                  <span>{label}</span>
+                  <small>{metric.window} · {metric.numerator}/{metric.denominator}</small>
+                </article>
+              );
+            })}
+          </div>
           {feedback ? (
             <>
               <ModuleResourceMeta resource={props.feedback} onRetry={props.onRetryFeedback} />
@@ -146,3 +162,16 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
     </>
   );
 }
+
+const coreMetricEntries = [
+  ['registrationCompletionRate', '注册完成率'],
+  ['diagnosticCompletionRate', '诊断完成率'],
+  ['firstTaskCompletionRate', '首任务完成率'],
+  ['day1RetentionRate', '次日留存'],
+  ['day7RetentionRate', '七日留存'],
+  ['weeklyPlanCompletionRate', '周计划完成率'],
+  ['wrongQuestionSecondAccuracyRate', '错题二次正确率'],
+  ['mockExamCompletionRate', '模拟考试完成率'],
+  ['apiFailureRate', '接口失败率'],
+  ['sessionRecoverySuccessRate', '会话恢复成功率'],
+] as const;

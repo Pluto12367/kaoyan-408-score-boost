@@ -356,7 +356,27 @@ export interface AdminMetrics {
   averagePracticeTimeSec: number;
   retentionDays: number;
   topWeakPoint: string | null;
+  core: Record<AdminCoreMetricKey, AdminRateMetric>;
   generatedAt: string;
+}
+
+export type AdminCoreMetricKey =
+  | 'registrationCompletionRate'
+  | 'diagnosticCompletionRate'
+  | 'firstTaskCompletionRate'
+  | 'day1RetentionRate'
+  | 'day7RetentionRate'
+  | 'weeklyPlanCompletionRate'
+  | 'wrongQuestionSecondAccuracyRate'
+  | 'mockExamCompletionRate'
+  | 'apiFailureRate'
+  | 'sessionRecoverySuccessRate';
+
+export interface AdminRateMetric {
+  rate: number | null;
+  numerator: number;
+  denominator: number;
+  window: string;
 }
 
 export type TrialStatus = 'invited' | 'active' | 'completed' | 'follow_up';

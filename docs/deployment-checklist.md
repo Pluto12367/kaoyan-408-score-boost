@@ -10,14 +10,17 @@
 - [ ] 运行 `npm run validate:env -- --file .env.staging`，确认环境门禁通过。
 - [ ] 运行 `npm run check:release`，确认单元测试、前后端构建和迁移冒烟测试通过。
 - [ ] 运行 `npm run test:integration:postgres`，确认注册、诊断、练习、错题、退出重登和会话恢复通过。
-- [ ] 本地启动前端与 API，并确认 `/health` 返回 `source: postgresql`。
+- [ ] 运行 `npm run db:backup` 和 `npm run db:backup:verify`，并在独立演练数据库完成一次恢复。
+- [ ] 本地启动前端与 API，并确认 `/health` 返回 `dataSource: postgresql`。
 - [ ] 运行 `npm run check:local`，确认页面能渲染并生成桌面/移动截图。
+- [ ] 在浏览器用全新账号走通“注册 → 诊断 → 今日任务 → 答错并选择错因 → 退出重登”，确认任务和错题恢复且不出现其他学生资料。
 - [ ] 检查首页能访问，地址栏显示 HTTPS。
 - [ ] 检查移动端可正常浏览，无明显横向滚动。
 - [ ] 确认 `robots.txt` 暂时禁止搜索引擎收录。
 - [x] 将问卷链接填入邀请文案或反馈群公告：`https://wj.qq.com/s2/27160624/40fe/`。
 - [ ] 发送 `docs/privacy-notice.md` 中的隐私说明。
 - [ ] 建立反馈收集表格，字段至少包含姓名/昵称、备考阶段、联系方式、问题截图、建议。
+- [ ] 管理端确认十项核心内测指标显示真实分子/分母；无样本指标应显示“待积累”。
 
 ## 推荐部署方式
 
