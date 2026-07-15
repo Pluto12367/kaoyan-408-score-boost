@@ -12,6 +12,8 @@ import type {
   WrongQuestionSummary,
   StageAssessment,
   WrongQuestion,
+  TeacherStudentAuthorization,
+  TeacherStudentAuthorizationList,
 } from '../types';
 
 // All student-facing endpoints use fetchWithAuth — Phase 1 requires auth on every endpoint.
@@ -123,6 +125,30 @@ export async function updateAdminUserTrialStatus(input: { userId: string; trialS
   });
   if (!response.ok) throw new Error(`Admin user trial status update failed with ${response.status}`);
   return response.json();
+}
+
+export async function fetchTeacherStudentAuthorizations(): Promise<TeacherStudentAuthorizationList> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/teacher-authorizations`);
+  if (!response.ok) throw new Error(`Teacher authorization request failed with ${response.status}`);
+  return response.json();
+}
+
+export async function grantTeacherStudentAuthorization(input: { teacherId: string; studentId: string }): Promise<TeacherStudentAuthorization> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/teacher-authorizations`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Teacher authorization grant failed with ${response.status}`);
+  return response.json();
+}
+
+export async function revokeTeacherStudentAuthorization(input: { teacherId: string; studentId: string }) {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/teacher-authorizations/${encodeURIComponent(input.teacherId)}/${encodeURIComponent(input.studentId)}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) throw new Error(`Teacher authorization revoke failed with ${response.status}`);
+  return response.json() as Promise<{ revoked: boolean; teacherId: string; studentId: string }>;
 }
 
 export async function fetchReviewQueue() {

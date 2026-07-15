@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { TrialStatus, UserRole } from '@prisma/client';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -41,13 +41,13 @@ export class TeacherStudentAuthorizationRepository {
 
     await this.prisma.user.upsert({
       where: { id: 'teacher-001' },
-      create: { id: 'teacher-001', name: '王老师', role: UserRole.TEACHER },
-      update: { name: '王老师', role: UserRole.TEACHER },
+      create: { id: 'teacher-001', name: '王老师', role: UserRole.TEACHER, trialStatus: TrialStatus.ACTIVE },
+      update: { name: '王老师', role: UserRole.TEACHER, trialStatus: TrialStatus.ACTIVE },
     });
     await this.prisma.user.upsert({
       where: { id: 'admin-001' },
-      create: { id: 'admin-001', name: '管理员', role: UserRole.ADMIN },
-      update: { name: '管理员', role: UserRole.ADMIN },
+      create: { id: 'admin-001', name: '管理员', role: UserRole.ADMIN, trialStatus: TrialStatus.ACTIVE },
+      update: { name: '管理员', role: UserRole.ADMIN, trialStatus: TrialStatus.ACTIVE },
     });
 
     const rows = await this.prisma.teacherStudentAuthorization.findMany({

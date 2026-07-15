@@ -1,8 +1,14 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
-  "buildCommand": "npm run predeploy",
-  "outputDirectory": ".",
+  "buildCommand": "npm run build:web",
+  "outputDirectory": "apps/web/dist",
   "cleanUrls": true,
+  "build": {
+    "env": {
+      "VITE_PUBLIC_BASE_PATH": "/"
+    }
+  },
   "headers": [
     {
       "source": "/(.*)",

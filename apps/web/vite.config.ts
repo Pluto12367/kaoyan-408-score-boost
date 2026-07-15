@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
-  base: '/kaoyan-408-score-boost/',
+  base: process.env.VITE_PUBLIC_BASE_PATH || '/',
   plugins: [react()],
   resolve: {
     alias: {

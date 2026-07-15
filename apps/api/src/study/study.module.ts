@@ -15,10 +15,11 @@ import { StudyController } from './study.controller';
 import { StudyService } from './study.service';
 import { BetaMetricsService } from './beta-metrics.service';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
+import { AdminUserRepository } from './admin-user.repository';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule],
   controllers: [StudyController],
-  providers: [StudyService, BetaMetricsService, TeacherStudentAuthorizationRepository, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
+  providers: [StudyService, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
 })
 export class StudyModule {}

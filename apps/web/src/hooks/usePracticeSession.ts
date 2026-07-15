@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 import {
   getPracticeSession,
   listActiveSessions,
@@ -25,13 +25,37 @@ interface SaveOptions {
   pauseClock?: boolean;
 }
 
+interface PracticeSessionState {
+  session: SessionView | null;
+  error: string | null;
+  saveError: string | null;
+  saving: boolean;
+  submitting: boolean;
+  lastSavedAt: string | null;
+}
+
+type PracticeSessionAction = {
+  type: 'patch';
+  value: Partial<PracticeSessionState>;
+};
+
+const initialPracticeSessionState: PracticeSessionState = {
+  session: null,
+  error: null,
+  saveError: null,
+  saving: false,
+  submitting: false,
+  lastSavedAt: null,
+};
+
+export function practiceSessionReducer(state: PracticeSessionState, action: PracticeSessionAction): PracticeSessionState {
+  if (action.type === 'patch') return { ...state, ...action.value };
+  return state;
+}
+
 export function usePracticeSession(opts: UsePracticeSessionOptions) {
-  const [session, setSession] = useState<SessionView | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(practiceSessionReducer, initialPracticeSessionState);
+  const { session, error, saveError, saving, submitting, lastSavedAt } = state;
 
   const sessionRef = useRef<SessionView | null>(null);
   const revisionRef = useRef(0);
@@ -67,7 +91,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       activeBaseMsRef.current = Math.max(activeBaseMsRef.current, next.totalActiveMs);
     }
     sessionRef.current = next;
-    if (mountedRef.current) setSession(next);
+    if (mountedRef.current) dispatch({ type: 'patch', value: { session: next, error: null } });
     if (typeof window !== 'undefined' && !next.completed) {
       window.localStorage.setItem(SESSION_STORAGE_KEY, next.id);
     }
@@ -88,7 +112,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       markedQuestions: [...current.markedQuestions],
       totalActiveMs: rollActiveClock(Boolean(options.pauseClock)),
     };
-    if (mountedRef.current) setSaving(true);
+    if (mountedRef.current) dispatch({ type: 'patch', value: { saving: true } });
 
     const request = savePracticeProgress(current.id, payload, { keepalive: options.keepalive })
       .then((updated) => {
@@ -104,21 +128,25 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
         activeBaseMsRef.current = Math.max(activeBaseMsRef.current, updated.totalActiveMs);
         sessionRef.current = merged;
         if (mountedRef.current) {
-          setSession(merged);
-          setSaveError(null);
-          setLastSavedAt(new Date().toISOString());
+          dispatch({
+            type: 'patch',
+            value: { session: merged, saveError: null, lastSavedAt: new Date().toISOString() },
+          });
         }
         return merged;
       })
       .catch((saveFailure: unknown) => {
         if (mountedRef.current) {
-          setSaveError(saveFailure instanceof Error ? saveFailure.message : '学习进度保存失败，请重试。');
+          dispatch({
+            type: 'patch',
+            value: { saveError: saveFailure instanceof Error ? saveFailure.message : '学习进度保存失败，请重试。' },
+          });
         }
         throw saveFailure;
       })
       .finally(() => {
         saveInFlightRef.current = null;
-        if (mountedRef.current) setSaving(false);
+        if (mountedRef.current) dispatch({ type: 'patch', value: { saving: false } });
         if (saveQueuedRef.current && !submittingRef.current) {
           saveQueuedRef.current = false;
           queueMicrotask(() => { void performSave().catch(() => undefined); });
@@ -142,7 +170,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     let active = true;
 
     async function initialize() {
-      setError(null);
+      dispatch({ type: 'patch', value: { error: null } });
       const storedId = typeof window === 'undefined' ? null : window.localStorage.getItem(SESSION_STORAGE_KEY);
       if (storedId) {
         try {
@@ -174,7 +202,10 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
         if (active) adoptSession(created);
       } catch (initializationFailure) {
         if (active) {
-          setError(initializationFailure instanceof Error ? initializationFailure.message : '学习会话加载失败，请重试。');
+          dispatch({
+            type: 'patch',
+            value: { error: initializationFailure instanceof Error ? initializationFailure.message : '学习会话加载失败，请重试。' },
+          });
         }
       }
     }
@@ -229,7 +260,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     };
     revisionRef.current += 1;
     sessionRef.current = next;
-    setSession(next);
+    dispatch({ type: 'patch', value: { session: next } });
     scheduleSave();
   }, [scheduleSave]);
 
@@ -239,7 +270,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     const next = { ...current, currentIndex: index };
     revisionRef.current += 1;
     sessionRef.current = next;
-    setSession(next);
+    dispatch({ type: 'patch', value: { session: next } });
     scheduleSave();
   }, [scheduleSave]);
 
@@ -252,7 +283,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     const next = { ...current, markedQuestions };
     revisionRef.current += 1;
     sessionRef.current = next;
-    setSession(next);
+    dispatch({ type: 'patch', value: { session: next } });
     scheduleSave();
   }, [scheduleSave]);
 
@@ -261,7 +292,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     if (!current) throw new Error('No active session');
     if (submittingRef.current) throw new Error('Session submission is already in progress');
     submittingRef.current = true;
-    setSubmitting(true);
+    dispatch({ type: 'patch', value: { submitting: true, saveError: null } });
     if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
     const answers = Object.entries(current.answers).map(([questionId, answer]) => ({
@@ -279,18 +310,20 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       });
       const completed = { ...current, completed: true, totalActiveMs: result.totalActiveMs };
       sessionRef.current = completed;
-      setSession(completed);
-      setSaveError(null);
+      dispatch({ type: 'patch', value: { session: completed, saveError: null } });
       if (typeof window !== 'undefined') window.localStorage.removeItem(SESSION_STORAGE_KEY);
       opts.onSubmitted?.(result);
       return result;
     } catch (submissionFailure) {
       if (pageIsVisible()) activeSegmentStartedAtRef.current = monotonicNow();
-      setSaveError(submissionFailure instanceof Error ? submissionFailure.message : '提交失败，请重试。');
+      dispatch({
+        type: 'patch',
+        value: { saveError: submissionFailure instanceof Error ? submissionFailure.message : '提交失败，请重试。' },
+      });
       throw submissionFailure;
     } finally {
       submittingRef.current = false;
-      setSubmitting(false);
+      dispatch({ type: 'patch', value: { submitting: false } });
     }
   }, [opts.onSubmitted, rollActiveClock]);
 

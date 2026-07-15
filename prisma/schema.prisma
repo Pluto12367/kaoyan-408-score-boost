@@ -13,6 +13,13 @@ enum UserRole {
   ADMIN
 }
 
+enum TrialStatus {
+  INVITED
+  ACTIVE
+  COMPLETED
+  FOLLOW_UP
+}
+
 enum Subject {
   DATA_STRUCTURE
   COMPUTER_ORGANIZATION
@@ -38,6 +45,7 @@ model User {
   passwordHash         String?
   name                 String
   role                 UserRole
+  trialStatus          TrialStatus           @default(INVITED)
   targetSchool         String?
   targetScore          Int?
   currentScore         Int?

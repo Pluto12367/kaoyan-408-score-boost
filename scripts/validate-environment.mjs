@@ -23,8 +23,12 @@ export function validateEnvironment(values) {
     errors.push('NODE_ENV must be development, staging, or production.');
   }
 
-  for (const key of ['DATABASE_URL', 'JWT_SECRET', 'WEB_ORIGIN', 'VITE_API_BASE_URL']) {
+  for (const key of ['DATABASE_URL', 'JWT_SECRET', 'WEB_ORIGIN', 'VITE_API_BASE_URL', 'VITE_PUBLIC_BASE_PATH']) {
     if (!values[key]) errors.push(`${key} is required.`);
+  }
+
+  if (values.VITE_PUBLIC_BASE_PATH && (!values.VITE_PUBLIC_BASE_PATH.startsWith('/') || !values.VITE_PUBLIC_BASE_PATH.endsWith('/'))) {
+    errors.push('VITE_PUBLIC_BASE_PATH must start and end with /.');
   }
 
   if ((values.JWT_SECRET?.length ?? 0) < 32) {

@@ -1,6 +1,14 @@
 [build]
-  publish = "."
-  command = "npm run predeploy"
+  publish = "apps/web/dist"
+  command = "npm run build:web"
+
+[build.environment]
+  VITE_PUBLIC_BASE_PATH = "/"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 [[headers]]
   for = "/*"

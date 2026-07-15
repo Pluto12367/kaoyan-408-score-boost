@@ -1,6 +1,6 @@
 # 计算机考研 408 提分系统
 
-面向计算机考研学生的 408 专业课提分 Web 原型。当前版本聚焦一条完整体验链路：智能诊断、学习计划、408 知识图谱、题库训练、错题本、提分报告、教研后台和管理看板。
+面向计算机考研学生的 408 专业课提分平台。项目采用 React + TypeScript + NestJS + Prisma + PostgreSQL，覆盖智能诊断、学习计划、题库训练、错题复习、模拟考试、提分报告、教研后台和管理看板。
 
 ## 本地运行
 
@@ -8,7 +8,11 @@
 npm start
 ```
 
-打开 `http://localhost:4173`。
+静态预览打开 `http://localhost:4173`。使用本地 API 和 PostgreSQL 进行全栈开发时运行：
+
+```bash
+npm run dev:migration
+```
 
 ## 验证
 
@@ -25,18 +29,19 @@ npm run check:local
 
 ## 部署
 
-当前项目是静态页面 + 原生 ES Modules，可直接部署根目录。
+前端构建产物位于 `apps/web/dist`：
 
-- Build command: 留空或使用 `npm run predeploy` 作为发布前检查
+- Build command: `npm run build:web`
 - 本地完整检查：`npm run check:local`
-- Output directory: `.`
-- Entry: `index.html`
+- Output directory: `apps/web/dist`
+- 独立域名设置：`VITE_PUBLIC_BASE_PATH=/`
+- 公网 API 设置：`VITE_API_BASE_URL=https://<api-domain>`
 
-推荐先使用封闭测试链接，不开放搜索引擎收录。
+可靠内测需要同时部署 NestJS API 和 PostgreSQL。GitHub Pages 未配置公网 API 时仅作为明确标识的静态演示站。
 
 ### GitHub Pages
 
-仓库包含 `.github/workflows/deploy-pages.yml`。推送 `codex/deployment-ready` 分支后，GitHub Actions 会先运行 `npm run predeploy`，通过后发布静态站点。
+仓库包含 `.github/workflows/deploy-pages.yml`。推送 `codex/deployment-ready` 分支后，GitHub Actions 会运行单元测试、PostgreSQL 集成测试、备份校验和前后端构建，再发布静态站点。
 
 首次使用时，在 GitHub 仓库页面进入 `Settings` → `Pages`，将 Source 设置为 `GitHub Actions`。发布完成后，页面地址通常是：
 

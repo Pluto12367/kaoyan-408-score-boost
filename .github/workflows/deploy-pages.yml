@@ -70,6 +70,7 @@ jobs:
         run: npm run build:web
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '' }}
+          VITE_PUBLIC_BASE_PATH: /kaoyan-408-score-boost/
 
   deploy:
     needs: test
@@ -94,6 +95,7 @@ jobs:
         run: npm run build:web
         env:
           VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '' }}
+          VITE_PUBLIC_BASE_PATH: /kaoyan-408-score-boost/
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

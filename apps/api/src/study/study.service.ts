@@ -31,6 +31,7 @@ import {
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
+import { AdminUserRepository, type ManagedUserRecord, type TrialStatus } from './admin-user.repository';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -47,6 +48,7 @@ export class StudyService implements OnModuleInit {
     private readonly betaMetricsService: BetaMetricsService,
     private readonly authenticatedUsers: AuthenticatedUserRegistry,
     private readonly teacherStudentAuthorizations: TeacherStudentAuthorizationRepository,
+    private readonly adminUsers: AdminUserRepository,
   ) {}
 
   private readonly student: UserProfile = {
@@ -855,8 +857,10 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  getAdminUsers() {
-    const users = this.buildAdminUsers();
+  async getAdminUsers() {
+    const users = this.adminUsers.enabled
+      ? (await this.adminUsers.list()).map((user) => this.toAdminManagedUser(user))
+      : this.buildAdminUsers();
     const studentCount = users.filter((user) => user.role === 'student').length;
     const activeTrialCount = users.filter((user) => user.trialStatus === 'active').length;
     const followUpCount = users.filter((user) => user.trialStatus === 'follow_up').length;
@@ -874,9 +878,14 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  updateAdminUserTrialStatus(userId: string, trialStatus: string | undefined) {
+  async updateAdminUserTrialStatus(userId: string, trialStatus: string | undefined) {
     if (!isTrialStatus(trialStatus)) {
       throw new BadRequestException('Trial status must be invited, active, completed or follow_up');
+    }
+
+    if (this.adminUsers.enabled) {
+      const updated = await this.adminUsers.updateTrialStatus(userId, trialStatus);
+      return updated ? this.toAdminManagedUser(updated) : null;
     }
 
     const users = this.buildAdminUsers();
@@ -2450,6 +2459,30 @@ export class StudyService implements OnModuleInit {
     };
   }
 
+  private toAdminManagedUser(user: ManagedUserRecord): AdminManagedUser {
+    return {
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      trialStatus: user.trialStatus,
+      stage: user.stage ?? (user.role === 'teacher' ? '教研维护' : user.role === 'admin' ? '平台运营' : '尚未完成诊断'),
+      targetScore: user.targetScore,
+      targetSchool: user.targetSchool,
+      lastActiveAt: user.lastActiveAt,
+      nextAction: user.role === 'teacher'
+        ? '维护题库并查看已授权学生的学习情况。'
+        : user.role === 'admin'
+          ? '维护内测名单、教师授权和内容审核。'
+          : user.trialStatus === 'follow_up'
+            ? '联系学生填写问卷，并追问最影响备考效率的功能缺口。'
+            : user.trialStatus === 'completed'
+              ? '整理试用反馈，判断是否邀请继续深度体验。'
+              : user.onboardingCompleted
+                ? '跟进今日任务完成情况和错题复习体验。'
+                : '提醒完成首次引导和七天学习计划。',
+    };
+  }
+
   private buildSevenDayPlan(userId: string): SevenDayPlanState {
     const base = this.generatePlan(userId);
     const tasks: ScheduledStudyTaskState[] = [];
@@ -3260,8 +3293,6 @@ function inferReviewReason(selfReportedReason: string, records: PracticeRecord[]
 }
 
 export type PaperType = '模拟卷' | '阶段卷' | '专项卷';
-
-export type TrialStatus = 'invited' | 'active' | 'completed' | 'follow_up';
 
 export interface GeneratedPaper {
   id: string;

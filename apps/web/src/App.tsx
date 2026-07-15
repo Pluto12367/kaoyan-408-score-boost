@@ -6,6 +6,8 @@ import { ExamReportView } from './components/ExamReport';
 import { RoleNavigation } from './layouts/RoleNavigation';
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
 import { AdminWorkspace } from './features/admin/AdminWorkspace';
+import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
+import { AccountPanel } from './features/auth/AccountPanel';
 import { TeacherWorkspace } from './features/teacher/TeacherWorkspace';
 import { StudentLaunchpad } from './features/onboarding/StudentLaunchpad';
 import { DiagnosticSummary } from './features/diagnostic/DiagnosticSummary';
@@ -29,7 +31,6 @@ import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
-  approveReviewItem,
   completeStudyTask,
   createKnowledgePoint,
   createTeacherQuestion,
@@ -38,15 +39,11 @@ import {
   createMockGeneratedPaper,
   createMockOverview,
   createMockPaperSubmitResult,
-  fetchAdminMetrics,
-  fetchAdminUsers,
   fetchDashboardOverview,
   fetchQuestions,
-  fetchReviewQueue,
   fetchStageAssessment,
   generatePaper,
   prepareExamPaper,
-  markReviewItemNeedsRecheck,
   requestAiFollowUp,
   requestTutorReply,
   reviewWrongQuestion,
@@ -54,7 +51,6 @@ import {
   submitFeedback,
   submitPaper,
   submitPracticeAnswer,
-  updateAdminUserTrialStatus,
   updateTeacherQuestion,
   updateSystemConfig,
   isStaticDemoMode,
@@ -72,7 +68,6 @@ import type { UserProfile, UserRole } from '@kaoyan408/shared';
 import { useAuth } from './hooks/useAuth';
 import {
   roleLabel,
-  permissionHint,
   createInitialPaperSession,
 } from './constants';
 
@@ -107,6 +102,13 @@ export function App() {
     setQuestions: setTeacherQuestionList,
   } = roleWorkspace;
   const [apiState, setApiState] = useState<ApiState>('connecting');
+  const adminActions = useAdminWorkspaceActions({
+    users: adminUsers,
+    setUsers: setAdminUsers,
+    setMetrics: setAdminMetrics,
+    setReviewQueue,
+    setApiState,
+  });
   const [lastSyncAt, setLastSyncAt] = useState<string | undefined>();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [todayPlan, setTodayPlan] = useState<TodayPlanType | null>(null);
@@ -135,7 +137,6 @@ export function App() {
   const [aiFollowUp, setAiFollowUp] = useState<AiFollowUp | null>(() => isMockAllowed() ? createMockAiFollowUp() : null);
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
   const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
-  const [reviewStatus, setReviewStatus] = useState('教师题目和 AI 生成内容会进入审核队列。');
   const [configStatus, setConfigStatus] = useState('推荐策略参数会影响阶段测评和每日训练建议。');
   const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
   const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
@@ -148,7 +149,6 @@ export function App() {
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
   const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
-  const [userStatus, setUserStatus] = useState('管理员可以跟踪试用名单状态，方便后续邀请填写问卷。');
   const studentProgress = useStudentProgressData(
     sessionUser?.id ?? overview.student.id,
     studentDataEnabled,
@@ -182,14 +182,14 @@ export function App() {
       return;
     }
     if (sessionUser?.role === 'admin') {
-      const resources = [roleWorkspace.adminMetrics, roleWorkspace.adminUsers, roleWorkspace.reviewQueue, roleWorkspace.systemConfig, roleWorkspace.feedback];
+      const resources = [roleWorkspace.adminMetrics, roleWorkspace.adminUsers, roleWorkspace.teacherAuthorizations, roleWorkspace.reviewQueue, roleWorkspace.systemConfig, roleWorkspace.feedback];
       setApiState(resources.some((item) => item.state === 'error') ? 'error' : resources.every((item) => item.state === 'ready') ? 'connected' : resources.some((item) => item.state === 'mock') ? 'mock' : 'connecting');
       setLastSyncAt(resources.map((item) => item.lastSyncAt).filter(Boolean).sort().at(-1));
       return;
     }
     setApiState(resource.state === 'ready' ? 'connected' : resource.state === 'loading' ? 'connecting' : resource.state);
     setLastSyncAt(resource.lastSyncAt);
-  }, [dashboardOverview.overview, roleWorkspace.adminMetrics, roleWorkspace.adminUsers, roleWorkspace.classAnalytics, roleWorkspace.feedback, roleWorkspace.questions, roleWorkspace.reviewQueue, roleWorkspace.systemConfig, sessionUser?.role, setSessionUser]);
+  }, [dashboardOverview.overview, roleWorkspace.adminMetrics, roleWorkspace.adminUsers, roleWorkspace.classAnalytics, roleWorkspace.feedback, roleWorkspace.questions, roleWorkspace.reviewQueue, roleWorkspace.systemConfig, roleWorkspace.teacherAuthorizations, sessionUser?.role, setSessionUser]);
 
   // Phase 3: Check onboarding status on mount
   useEffect(() => {
@@ -859,44 +859,6 @@ paperId: paper.id,
     }
   }
 
-  async function handleApproveReviewItem(reviewItemId: string) {
-    setReviewStatus('正在提交审核结果...');
-
-    try {
-      await approveReviewItem({
-        reviewItemId,
-        reviewerId: 'admin-001',
-      });
-      const nextQueue = await fetchReviewQueue();
-      const nextMetrics = await fetchAdminMetrics();
-      setReviewQueue(nextQueue);
-      setAdminMetrics(nextMetrics);
-      setApiState('connected');
-      setReviewStatus(`审核已通过，当前仍有 ${nextQueue.pendingCount} 项待处理。`);
-    } catch {
-      setReviewStatus('审核提交失败，请稍后重试。');
-      setApiState(isMockAllowed() ? 'mock' : 'error');
-    }
-  }
-
-  async function handleMarkReviewItemNeedsRecheck(reviewItemId: string) {
-    setReviewStatus('正在标记复查...');
-
-    try {
-      await markReviewItemNeedsRecheck({
-        reviewItemId,
-        reviewerId: 'admin-001',
-      });
-      const nextQueue = await fetchReviewQueue();
-      setReviewQueue(nextQueue);
-      setApiState('connected');
-      setReviewStatus(`已标记复查，当前仍有 ${nextQueue.pendingCount} 项待处理。`);
-    } catch {
-      setReviewStatus('复查标记失败，请稍后重试。');
-      setApiState(isMockAllowed() ? 'mock' : 'error');
-    }
-  }
-
   async function handleApplySprintConfig() {
     setConfigStatus('正在应用冲刺期推荐策略...');
 
@@ -940,53 +902,6 @@ rating: 4,
       setFeedbackStatus(`已提交反馈 ${feedback.id}，也可以继续填写详细问卷。`);
     } catch {
       setFeedbackStatus('反馈提交失败，请稍后重试或直接填写问卷。');
-      setApiState(isMockAllowed() ? 'mock' : 'error');
-    }
-  }
-
-  async function handleMarkTrialFollowUp() {
-    if (!adminUsers) {
-      setUserStatus('用户名单尚未加载，请重试用户管理模块。');
-      return;
-    }
-    const studentUser = adminUsers.users.find((user) => user.role === 'student');
-    if (!studentUser) {
-      setUserStatus('暂无可标记的学生账号。');
-      return;
-    }
-
-    setUserStatus('正在更新试用名单状态...');
-
-    if (isStaticDemoMode()) {
-      const nextUsers = adminUsers.users.map((user) => user.id === studentUser.id
-        ? { ...user, trialStatus: 'follow_up' as const, nextAction: '联系学生填写问卷，并追问最影响备考效率的功能缺口。' }
-        : user);
-      setAdminUsers({
-        ...adminUsers,
-        generatedAt: new Date().toISOString(),
-        summary: {
-          totalUsers: nextUsers.length,
-          studentCount: nextUsers.filter((user) => user.role === 'student').length,
-          activeTrialCount: nextUsers.filter((user) => user.trialStatus === 'active').length,
-          followUpCount: nextUsers.filter((user) => user.trialStatus === 'follow_up').length,
-        },
-        users: nextUsers,
-      });
-      setUserStatus(`已将 ${studentUser.name} 标记为待回访，可邀请填写问卷。`);
-      return;
-    }
-
-    try {
-      const updated = await updateAdminUserTrialStatus({
-        userId: studentUser.id,
-        trialStatus: 'follow_up',
-      });
-      const nextAdminUsers = await fetchAdminUsers();
-      setAdminUsers(nextAdminUsers);
-      setApiState('connected');
-      setUserStatus(`已将 ${updated.name} 标记为待回访，可邀请填写问卷。`);
-    } catch {
-      setUserStatus('试用状态更新失败，当前保留原名单。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
@@ -1095,63 +1010,19 @@ rating: 4,
           ) : null}
         </StudentLayout>
 
-        <section className="panel role-panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">账号与角色权限</p>
-              <h3>{sessionUser?.name ?? (studentOverviewReady ? student.name : '未登录')}</h3>
-            </div>
-            {authSession?.refreshToken ? (
-              <button type="button" className="secondary-action" onClick={onLogout}>退出登录</button>
-            ) : null}
-          </div>
-          <p className="task-status">{authStatus} {permissionHint[sessionUser?.role ?? 'student']}</p>
-          {!authSession?.refreshToken && !isStaticDemoMode() ? (
-            <form className="account-form" onSubmit={handleAccountSubmit}>
-              {authMode === 'register' ? (
-                <label>
-                  <span>姓名</span>
-                  <input name="name" autoComplete="name" required maxLength={40} />
-                </label>
-              ) : null}
-              <label>
-                <span>邮箱</span>
-                <input name="email" type="email" autoComplete="email" required />
-              </label>
-              <label>
-                <span>密码</span>
-                <input
-                  name="password"
-                  type="password"
-                  autoComplete={authMode === 'register' ? 'new-password' : 'current-password'}
-                  required
-                  minLength={8}
-                  maxLength={128}
-                />
-              </label>
-              <div className="account-actions">
-                <button type="submit">{authMode === 'register' ? '创建学生账号' : '登录'}</button>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  onClick={() => setAuthMode((current) => current === 'login' ? 'register' : 'login')}
-                >
-                  {authMode === 'register' ? '已有账号' : '注册账号'}
-                </button>
-              </div>
-            </form>
-          ) : null}
-          {isStaticDemoMode() || import.meta.env.DEV ? (
-            <div className="demo-role-actions">
-              <span>演示身份</span>
-              <div className="panel-actions">
-                <button type="button" className="secondary-action" onClick={() => onRoleSwitch('student')}>学生</button>
-                <button type="button" className="secondary-action" onClick={() => onRoleSwitch('teacher')}>教师</button>
-                <button type="button" className="secondary-action" onClick={() => onRoleSwitch('admin')}>管理员</button>
-              </div>
-            </div>
-          ) : null}
-        </section>
+        <AccountPanel
+          user={sessionUser}
+          fallbackName={studentOverviewReady ? student.name : undefined}
+          hasRefreshToken={Boolean(authSession?.refreshToken)}
+          authMode={authMode}
+          status={authStatus}
+          staticDemoMode={isStaticDemoMode()}
+          showDemoRoles={isStaticDemoMode() || import.meta.env.DEV}
+          onSubmit={handleAccountSubmit}
+          onToggleMode={() => setAuthMode((current) => current === 'login' ? 'register' : 'login')}
+          onLogout={() => void onLogout()}
+          onRoleSwitch={(role) => void onRoleSwitch(role)}
+        />
 
         <StudentLayout role={sessionUser?.role}>
           {!studentOverviewReady ? (
@@ -1186,17 +1057,21 @@ rating: 4,
             feedback={roleWorkspace.feedback}
             reviewQueue={roleWorkspace.reviewQueue}
             systemConfig={roleWorkspace.systemConfig}
-            userStatus={userStatus}
-            reviewStatus={reviewStatus}
+            teacherAuthorizations={roleWorkspace.teacherAuthorizations}
+            userStatus={adminActions.userStatus}
+            reviewStatus={adminActions.reviewStatus}
             configStatus={configStatus}
             onRetryMetrics={roleWorkspace.refreshAdminMetrics}
             onRetryUsers={roleWorkspace.refreshAdminUsers}
             onRetryFeedback={roleWorkspace.refreshFeedback}
             onRetryReviewQueue={roleWorkspace.refreshReviewQueue}
             onRetrySystemConfig={roleWorkspace.refreshSystemConfig}
-            onMarkTrialFollowUp={handleMarkTrialFollowUp}
-            onApproveReviewItem={handleApproveReviewItem}
-            onMarkReviewItemNeedsRecheck={handleMarkReviewItemNeedsRecheck}
+            onRetryTeacherAuthorizations={roleWorkspace.refreshTeacherAuthorizations}
+            onGrantTeacherAuthorization={roleWorkspace.grantAuthorization}
+            onRevokeTeacherAuthorization={roleWorkspace.revokeAuthorization}
+            onUpdateTrialStatus={adminActions.updateTrialStatus}
+            onApproveReviewItem={adminActions.approveItem}
+            onMarkReviewItemNeedsRecheck={adminActions.markNeedsRecheck}
             onApplySprintConfig={handleApplySprintConfig}
           />
         </AdminLayout>

@@ -26,6 +26,7 @@ import type {
   PaperSubmitResult,
   AssessmentHistory,
   GeneratePaperInput,
+  TeacherStudentAuthorizationList,
 } from '../types';
 
 // ---- Dashboard ----
@@ -214,6 +215,21 @@ export function createMockAdminUserManagement(): AdminUserManagement {
       followUpCount: users.filter((u) => u.trialStatus === 'follow_up').length,
     },
     users,
+  };
+}
+
+export function createMockTeacherStudentAuthorizationList(): TeacherStudentAuthorizationList {
+  return {
+    source: 'mock',
+    generatedAt: new Date().toISOString(),
+    items: [{
+      id: 'mock-teacher-student-authorization',
+      teacherId: 'teacher-001',
+      teacherName: '王老师',
+      studentId: student.id,
+      studentName: student.name,
+      createdAt: new Date().toISOString(),
+    }],
   };
 }
 

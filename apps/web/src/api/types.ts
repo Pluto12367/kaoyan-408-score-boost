@@ -405,6 +405,21 @@ export interface AdminUserManagement {
   users: AdminManagedUser[];
 }
 
+export interface TeacherStudentAuthorization {
+  id: string;
+  teacherId: string;
+  teacherName: string;
+  studentId: string;
+  studentName: string;
+  createdAt: string;
+}
+
+export interface TeacherStudentAuthorizationList {
+  source: 'memory-api' | 'postgresql' | 'mock';
+  generatedAt: string;
+  items: TeacherStudentAuthorization[];
+}
+
 export interface SystemConfig {
   source: 'memory-api' | 'postgresql';
   recommendation: {

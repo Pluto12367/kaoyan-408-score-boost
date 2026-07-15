@@ -1,8 +1,9 @@
 import { ClipboardCheck } from 'lucide-react';
-import type { AdminMetrics, AdminUserManagement, FeedbackList, ReviewQueue, SystemConfig } from '../../api';
+import type { AdminMetrics, AdminUserManagement, FeedbackList, ReviewQueue, SystemConfig, TeacherStudentAuthorizationList } from '../../api';
 import { ModuleInlineUnavailable, ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
 import { riskLabel, reviewStatusLabel, roleLabel, trialStatusLabel } from '../../constants';
 import type { ModuleResource } from '../../hooks/moduleResource';
+import { TeacherAuthorizationPanel } from './TeacherAuthorizationPanel';
 
 interface AdminWorkspaceProps {
   metrics: ModuleResource<AdminMetrics>;
@@ -10,6 +11,7 @@ interface AdminWorkspaceProps {
   feedback: ModuleResource<FeedbackList>;
   reviewQueue: ModuleResource<ReviewQueue>;
   systemConfig: ModuleResource<SystemConfig>;
+  teacherAuthorizations: ModuleResource<TeacherStudentAuthorizationList>;
   userStatus: string;
   reviewStatus: string;
   configStatus: string;
@@ -18,7 +20,10 @@ interface AdminWorkspaceProps {
   onRetryFeedback: () => void;
   onRetryReviewQueue: () => void;
   onRetrySystemConfig: () => void;
-  onMarkTrialFollowUp: () => void;
+  onRetryTeacherAuthorizations: () => void;
+  onGrantTeacherAuthorization: (teacherId: string, studentId: string) => Promise<void>;
+  onRevokeTeacherAuthorization: (teacherId: string, studentId: string) => Promise<void>;
+  onUpdateTrialStatus: (userId: string, trialStatus: 'invited' | 'active' | 'completed' | 'follow_up') => void;
   onApproveReviewItem: (itemId: string) => void;
   onMarkReviewItemNeedsRecheck: (itemId: string) => void;
   onApplySprintConfig: () => void;
@@ -82,7 +87,7 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         <section className="panel admin-users-panel">
           <div className="panel-heading">
             <div><p className="eyebrow">用户管理</p><h3>试用名单与角色状态</h3></div>
-            <button type="button" className="secondary-action" onClick={props.onMarkTrialFollowUp}>标记学生待回访</button>
+            <span>逐个维护学生内测进度</span>
           </div>
           <ModuleResourceMeta resource={props.users} onRetry={props.onRetryUsers} />
           <p className="task-status">{props.userStatus}</p>
@@ -101,6 +106,20 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
                   <small>{user.targetSchool ?? '平台账号'} · 最近活跃 {user.lastActiveAt}</small>
                 </div>
                 <p>{user.nextAction}</p>
+                {user.role === 'student' ? (
+                  <label className="trial-status-control">
+                    <span>内测状态</span>
+                    <select
+                      value={user.trialStatus}
+                      onChange={(event) => props.onUpdateTrialStatus(user.id, event.target.value as 'invited' | 'active' | 'completed' | 'follow_up')}
+                    >
+                      <option value="invited">已邀请</option>
+                      <option value="active">试用中</option>
+                      <option value="completed">已完成</option>
+                      <option value="follow_up">待回访</option>
+                    </select>
+                  </label>
+                ) : null}
               </article>
             ))}
           </div>
@@ -108,6 +127,16 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
       ) : (
         <ModuleUnavailable title="用户管理" resource={props.users} onRetry={props.onRetryUsers} />
       )}
+
+      {users ? (
+        <TeacherAuthorizationPanel
+          users={users}
+          authorizations={props.teacherAuthorizations}
+          onRetry={props.onRetryTeacherAuthorizations}
+          onGrant={props.onGrantTeacherAuthorization}
+          onRevoke={props.onRevokeTeacherAuthorization}
+        />
+      ) : null}
 
       {reviewQueue ? (
         <section id="review" className="panel review-panel">

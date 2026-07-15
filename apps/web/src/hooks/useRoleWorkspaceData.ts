@@ -7,6 +7,7 @@ import {
   createMockReviewQueue,
   createMockSystemConfig,
   createMockTeacherClassAnalytics,
+  createMockTeacherStudentAuthorizationList,
   fetchAdminMetrics,
   fetchAdminUsers,
   fetchFeedbackList,
@@ -14,6 +15,9 @@ import {
   fetchReviewQueue,
   fetchSystemConfig,
   fetchTeacherClassAnalytics,
+  fetchTeacherStudentAuthorizations,
+  grantTeacherStudentAuthorization,
+  revokeTeacherStudentAuthorization,
   type AdminMetrics,
   type AdminUserManagement,
   type FeedbackList,
@@ -21,6 +25,7 @@ import {
   type ReviewQueue,
   type SystemConfig,
   type TeacherClassAnalytics,
+  type TeacherStudentAuthorizationList,
 } from '../api';
 import { isMockAllowed, isStaticDemoMode } from '../api/env';
 import type { UserRole } from '@kaoyan408/shared';
@@ -60,6 +65,7 @@ export function useRoleWorkspaceData(role?: UserRole, authKey?: string) {
   const [reviewQueue, setReviewQueue] = useState(() => initialResource(createMockReviewQueue));
   const [systemConfig, setSystemConfig] = useState(() => initialResource(createMockSystemConfig));
   const [feedback, setFeedback] = useState(() => initialResource(createMockFeedbackList));
+  const [teacherAuthorizations, setTeacherAuthorizations] = useState(() => initialResource(createMockTeacherStudentAuthorizationList));
 
   const loadResource = useCallback(async <T,>(
     label: string,
@@ -114,6 +120,54 @@ export function useRoleWorkspaceData(role?: UserRole, authKey?: string) {
     () => loadResource('内测反馈', fetchFeedbackList, createMockFeedbackList, setFeedback),
     [loadResource],
   );
+  const refreshTeacherAuthorizations = useCallback(
+    () => loadResource('教师学生授权', fetchTeacherStudentAuthorizations, createMockTeacherStudentAuthorizationList, setTeacherAuthorizations),
+    [loadResource],
+  );
+
+  const grantAuthorization = useCallback(async (teacherId: string, studentId: string) => {
+    if (isStaticDemoMode()) {
+      setTeacherAuthorizations((current) => {
+        const data = current.data ?? createMockTeacherStudentAuthorizationList();
+        if (data.items.some((item) => item.teacherId === teacherId && item.studentId === studentId)) return current;
+        const users = adminUsers.data?.users ?? [];
+        return {
+          data: {
+            ...data,
+            generatedAt: new Date().toISOString(),
+            items: [...data.items, {
+              id: `mock-${teacherId}-${studentId}`,
+              teacherId,
+              teacherName: users.find((user) => user.id === teacherId)?.name ?? teacherId,
+              studentId,
+              studentName: users.find((user) => user.id === studentId)?.name ?? studentId,
+              createdAt: new Date().toISOString(),
+            }],
+          },
+          state: 'mock',
+        };
+      });
+      return;
+    }
+    await grantTeacherStudentAuthorization({ teacherId, studentId });
+    await refreshTeacherAuthorizations();
+  }, [adminUsers.data?.users, refreshTeacherAuthorizations]);
+
+  const revokeAuthorization = useCallback(async (teacherId: string, studentId: string) => {
+    if (isStaticDemoMode()) {
+      setTeacherAuthorizations((current) => current.data ? {
+        data: {
+          ...current.data,
+          generatedAt: new Date().toISOString(),
+          items: current.data.items.filter((item) => item.teacherId !== teacherId || item.studentId !== studentId),
+        },
+        state: 'mock',
+      } : current);
+      return;
+    }
+    await revokeTeacherStudentAuthorization({ teacherId, studentId });
+    await refreshTeacherAuthorizations();
+  }, [refreshTeacherAuthorizations]);
 
   useEffect(() => {
     if (role === 'teacher') {
@@ -129,6 +183,7 @@ export function useRoleWorkspaceData(role?: UserRole, authKey?: string) {
         setReviewQueue({ data: null, state: 'loading' });
         setSystemConfig({ data: null, state: 'loading' });
         setFeedback({ data: null, state: 'loading' });
+        setTeacherAuthorizations({ data: null, state: 'loading' });
       }
       void Promise.allSettled([
         refreshAdminMetrics(),
@@ -136,9 +191,10 @@ export function useRoleWorkspaceData(role?: UserRole, authKey?: string) {
         refreshReviewQueue(),
         refreshSystemConfig(),
         refreshFeedback(),
+        refreshTeacherAuthorizations(),
       ]);
     }
-  }, [authKey, role, refreshAdminMetrics, refreshAdminUsers, refreshClassAnalytics, refreshFeedback, refreshQuestions, refreshReviewQueue, refreshSystemConfig]);
+  }, [authKey, role, refreshAdminMetrics, refreshAdminUsers, refreshClassAnalytics, refreshFeedback, refreshQuestions, refreshReviewQueue, refreshSystemConfig, refreshTeacherAuthorizations]);
 
   return {
     questions,
@@ -148,6 +204,7 @@ export function useRoleWorkspaceData(role?: UserRole, authKey?: string) {
     reviewQueue,
     systemConfig,
     feedback,
+    teacherAuthorizations,
     refreshQuestions,
     refreshClassAnalytics,
     refreshAdminMetrics,
@@ -155,11 +212,15 @@ export function useRoleWorkspaceData(role?: UserRole, authKey?: string) {
     refreshReviewQueue,
     refreshSystemConfig,
     refreshFeedback,
+    refreshTeacherAuthorizations,
+    grantAuthorization,
+    revokeAuthorization,
     setQuestions: (action: SetStateAction<Question[]>) => updateResourceData(setQuestions, action),
     setAdminMetrics: (action: SetStateAction<AdminMetrics>) => updateResourceData(setAdminMetrics, action),
     setAdminUsers: (action: SetStateAction<AdminUserManagement>) => updateResourceData(setAdminUsers, action),
     setReviewQueue: (action: SetStateAction<ReviewQueue>) => updateResourceData(setReviewQueue, action),
     setSystemConfig: (action: SetStateAction<SystemConfig>) => updateResourceData(setSystemConfig, action),
     setFeedback: (action: SetStateAction<FeedbackList>) => updateResourceData(setFeedback, action),
+    setTeacherAuthorizations: (action: SetStateAction<TeacherStudentAuthorizationList>) => updateResourceData(setTeacherAuthorizations, action),
   };
 }

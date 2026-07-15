@@ -27,7 +27,7 @@
 
 ### 可靠内测环境（推荐）
 
-1. 前端部署至 Vercel 或 Cloudflare Pages，设置 `VITE_API_BASE_URL=https://<api-domain>`。
+1. 前端部署至 Vercel 或 Cloudflare Pages，设置 `VITE_API_BASE_URL=https://<api-domain>` 与 `VITE_PUBLIC_BASE_PATH=/`。
 2. NestJS API 部署至 Railway，配置 `DATABASE_URL`、`JWT_SECRET`、`WEB_ORIGIN`、`ALLOW_DEMO_AUTH=false`。
 3. Railway PostgreSQL 启用每日自动备份，并在首次邀请前执行一次恢复演练。
 4. 前端域名、API 域名只使用 HTTPS；`WEB_ORIGIN` 精确填写前端域名，不使用 `*`。
@@ -52,26 +52,29 @@ GitHub Pages 保留为无真实数据的公开演示站，不作为可靠内测�
 
 1. 将项目推送到 GitHub。
 2. 在 Netlify 导入仓库。
-3. Build command 使用 `npm run predeploy`。
-4. Publish directory 使用 `.`。
-5. 发布后打开首页检查。
+3. Build command 使用 `npm run build:web`。
+4. Publish directory 使用 `apps/web/dist`。
+5. 设置 `VITE_API_BASE_URL=https://<api-domain>` 和 `VITE_PUBLIC_BASE_PATH=/`。
+6. 发布后打开首页检查。
 
 ### Vercel
 
 1. 将项目推送到 GitHub。
 2. 在 Vercel 导入仓库。
-3. Framework 选择 Other。
-4. Build command 使用 `npm run predeploy`。
-5. Output directory 使用 `.`。
-6. 发布后打开首页检查。
+3. Framework 选择 Vite 或 Other。
+4. Build command 使用 `npm run build:web`。
+5. Output directory 使用 `apps/web/dist`。
+6. 设置 `VITE_API_BASE_URL=https://<api-domain>` 和 `VITE_PUBLIC_BASE_PATH=/`。
+7. 发布后打开首页检查。
 
 ### Cloudflare Pages
 
 1. 将项目推送到 GitHub。
 2. 在 Cloudflare Pages 导入仓库。
-3. Build command 使用 `npm run predeploy`。
-4. Build output directory 使用 `/` 或留空后按平台提示配置根目录。
-5. 发布后打开首页检查。
+3. Build command 使用 `npm run build:web`。
+4. Build output directory 使用 `apps/web/dist`。
+5. 设置 `VITE_API_BASE_URL=https://<api-domain>` 和 `VITE_PUBLIC_BASE_PATH=/`。
+6. 发布后打开首页检查。
 
 ## 体验周期
 

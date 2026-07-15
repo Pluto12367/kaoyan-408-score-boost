@@ -152,6 +152,33 @@ async function main() {
   assert(feedback.id, 'student feedback should be accepted');
   const adminSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'admin' });
   const adminHeaders = { Authorization: `Bearer ${adminSession.token}` };
+  const adminUsers = await getJson(`${apiUrl}/admin/users`, adminHeaders);
+  const registeredAdminUser = adminUsers.users.find((user) => user.id === registered.user.id);
+  assert(adminUsers.source === 'postgresql', 'admin user management should report the real PostgreSQL source');
+  assert(registeredAdminUser?.name === credentials.name, 'admin user management should list the real registered student');
+  assert(registeredAdminUser?.trialStatus === 'active', 'completing onboarding should activate the student trial');
+  assert(adminUsers.users.some((user) => user.id === teacherSession.user.id && user.role === 'teacher' && user.trialStatus === 'active'), 'admin user management should list active teacher accounts');
+  assert(adminUsers.users.some((user) => user.id === adminSession.user.id && user.role === 'admin' && user.trialStatus === 'active'), 'admin user management should list active administrator accounts');
+  const followUpUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/trial-status`, {
+    trialStatus: 'follow_up',
+  }, adminHeaders);
+  assert(followUpUser.trialStatus === 'follow_up', 'admin should persist a student trial follow-up status');
+  await postJson(`${apiUrl}/onboarding/complete`, {
+    examYear: new Date().getUTCFullYear() + 1,
+    targetScore: 126,
+    currentScore: 82,
+    remainingDays: 88,
+    dailyHours: 3,
+    weakestSubject: '计算机组成原理',
+  }, studentHeaders);
+  const adminUsersAfterRepeatedOnboarding = await getJson(`${apiUrl}/admin/users`, adminHeaders);
+  assert(
+    adminUsersAfterRepeatedOnboarding.users.find((user) => user.id === registered.user.id)?.trialStatus === 'follow_up',
+    'repeating onboarding must not overwrite an administrator-managed trial status',
+  );
+  await expectPostStatus(`${apiUrl}/admin/users/${registered.user.id}/trial-status`, {
+    trialStatus: 'completed',
+  }, 403, studentHeaders);
   await expectPostStatus(`${apiUrl}/admin/teacher-authorizations`, {
     teacherId: teacherSession.user.id,
     studentId: registered.user.id,
@@ -500,6 +527,10 @@ async function main() {
   assert(restoredConfig.recommendation.stageAssessmentQuestionLimit === 2, 'system configuration should survive an API restart');
   const restoredFeedback = await getJson(`${apiUrl}/admin/feedback`, { Authorization: `Bearer ${adminSession.token}` });
   assert(restoredFeedback.items.some((item) => item.id === feedback.id), 'feedback should survive an API restart');
+  const restoredAdminUsers = await getJson(`${apiUrl}/admin/users`, adminHeaders);
+  const restoredManagedStudent = restoredAdminUsers.users.find((user) => user.id === registered.user.id);
+  assert(restoredManagedStudent?.trialStatus === 'follow_up', 'student trial status should survive an API restart');
+  assert(restoredManagedStudent?.name === credentials.name, 'real registered student should remain visible to administrators after restart');
   const restoredAuthorizations = await getJson(`${apiUrl}/admin/teacher-authorizations?teacherId=${teacherSession.user.id}`, adminHeaders);
   assert(restoredAuthorizations.items.some((item) => item.studentId === registered.user.id), 'teacher authorization should survive an API restart');
   const restoredAuthorizedOverview = await getJson(`${apiUrl}/dashboard/overview?userId=${registered.user.id}`, teacherHeaders);

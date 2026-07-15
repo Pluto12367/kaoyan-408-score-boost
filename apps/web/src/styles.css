@@ -2469,6 +2469,95 @@ button {
   font-size: 12px;
 }
 
+.trial-status-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.trial-status-control select {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.authorization-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.authorization-form label {
+  display: grid;
+  gap: 6px;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.authorization-form select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  color: #0f172a;
+}
+
+.authorization-form button,
+.authorization-list button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.authorization-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.authorization-list article {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid #dbe4ea;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.authorization-list article div {
+  display: grid;
+  gap: 3px;
+}
+
+.authorization-list article span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+@media (max-width: 720px) {
+  .authorization-form {
+    grid-template-columns: 1fr;
+  }
+
+  .authorization-list article {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 .module-resource-meta small {
   overflow: hidden;
   max-width: 520px;

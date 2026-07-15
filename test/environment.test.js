@@ -8,6 +8,7 @@ const production = {
   JWT_SECRET: 'a-secure-random-secret-that-is-long-enough',
   WEB_ORIGIN: 'https://study.408.test',
   VITE_API_BASE_URL: 'https://api.408.test',
+  VITE_PUBLIC_BASE_PATH: '/',
   ALLOW_DEMO_AUTH: 'false',
 };
 
@@ -32,4 +33,9 @@ test('rejects unsafe production placeholders and demo auth', () => {
 test('rejects operation-log retention outside the supported range', () => {
   const errors = validateEnvironment({ ...production, AUDIT_LOG_RETENTION_DAYS: '2' });
   assert.ok(errors.some((error) => error.includes('AUDIT_LOG_RETENTION_DAYS')));
+});
+
+test('rejects an invalid frontend public base path', () => {
+  const errors = validateEnvironment({ ...production, VITE_PUBLIC_BASE_PATH: 'kaoyan-408' });
+  assert.ok(errors.some((error) => error.includes('VITE_PUBLIC_BASE_PATH')));
 });

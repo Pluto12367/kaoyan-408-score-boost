@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { TrialStatus } from '@prisma/client';
 import type { Subject } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -124,6 +125,10 @@ export class OnboardingPlanRepository {
           examYear: profile.examYear,
           onboardingCompletedAt: new Date(profile.completedAt),
         },
+      });
+      await tx.user.updateMany({
+        where: { id: userId, trialStatus: TrialStatus.INVITED },
+        data: { trialStatus: TrialStatus.ACTIVE },
       });
       await tx.studyPlan.updateMany({ where: { userId, status: 'ACTIVE' }, data: { status: 'ARCHIVED' } });
       await tx.studyPlan.create({
