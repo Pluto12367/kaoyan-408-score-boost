@@ -30,6 +30,7 @@ import {
 } from './onboarding-plan.repository';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
+import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -45,6 +46,7 @@ export class StudyService implements OnModuleInit {
     private readonly onboardingPlanRepository: OnboardingPlanRepository,
     private readonly betaMetricsService: BetaMetricsService,
     private readonly authenticatedUsers: AuthenticatedUserRegistry,
+    private readonly teacherStudentAuthorizations: TeacherStudentAuthorizationRepository,
   ) {}
 
   private readonly student: UserProfile = {
@@ -87,6 +89,7 @@ export class StudyService implements OnModuleInit {
       seedRecords: this.records,
     });
     this.records.splice(0, this.records.length, ...records);
+    await this.teacherStudentAuthorizations.initialize();
     const progress = await this.learningProgressRepository.load();
     replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
     replaceNestedMap(this.taskCompletionMetricsByUser, progress.taskCompletionMetrics);
@@ -610,19 +613,26 @@ export class StudyService implements OnModuleInit {
     return profile;
   }
 
-  /**
-   * Phase 1: Teacher can only access students in their authorized class.
-   * For now, teacher-001 is authorized for u-001 (demo student).
-   */
   assertTeacherAuthorizedForStudent(teacherId: string, studentId: string) {
-    const authorizedTeacherIds = ['teacher-001', 'admin-001'];
-    const authorizedStudentIds = ['u-001'];
-    if (!authorizedTeacherIds.includes(teacherId)) {
-      throw new ForbiddenException('Teacher is not authorized to view class data');
-    }
-    if (!authorizedStudentIds.includes(studentId)) {
+    if (!this.teacherStudentAuthorizations.has(teacherId, studentId)) {
       throw new ForbiddenException(`Student ${studentId} is not in your class`);
     }
+  }
+
+  listTeacherStudentAuthorizations(teacherId?: string) {
+    return {
+      source: this.dataSource,
+      items: this.teacherStudentAuthorizations.list(teacherId),
+      generatedAt: new Date().toISOString(),
+    };
+  }
+
+  grantTeacherStudentAuthorization(teacherId?: string, studentId?: string) {
+    return this.teacherStudentAuthorizations.grant(teacherId?.trim() ?? '', studentId?.trim() ?? '');
+  }
+
+  revokeTeacherStudentAuthorization(teacherId: string, studentId: string) {
+    return this.teacherStudentAuthorizations.revoke(teacherId, studentId);
   }
 
   // ---- Phase 3: Onboarding & Today's Plan ----
@@ -878,87 +888,120 @@ export class StudyService implements OnModuleInit {
     return this.buildAdminUsers().find((user) => user.id === userId);
   }
 
-  getTeacherClassAnalytics() {
-    const report = this.getOverviewReport();
-    const plan = this.generatePlan();
-    const wrongQuestions = this.listWrongQuestions(this.student.id);
-    const masteryMap = this.getMasteryMap(this.student.id);
-    const assessmentHistory = this.getAssessmentHistory(this.student.id);
-    const latestAssessment = assessmentHistory.items[0];
-    const topWeakPoint = report.weakPoints[0];
-    const averageCompletionRate = plan.completionRate ?? 0;
+  getTeacherClassAnalytics(teacherId?: string) {
+    const authorizedIds = teacherId
+      ? this.teacherStudentAuthorizations.studentIds(teacherId)
+      : [...new Set(this.teacherStudentAuthorizations.list().map((item) => item.studentId))];
+    if (teacherId && authorizedIds.length === 0) {
+      throw new ForbiddenException('Teacher has no authorized students');
+    }
+    const studentIds = authorizedIds.length ? authorizedIds : [this.student.id];
+    const students = studentIds.map((userId) => {
+      const report = this.getOverviewReport(userId);
+      const plan = this.generatePlan(userId);
+      const wrongQuestions = this.listWrongQuestions(userId);
+      const masteryMap = this.getMasteryMap(userId);
+      const latestAssessment = this.getAssessmentHistory(userId).items[0];
+      return {
+        user: this.getStudent(userId),
+        report,
+        plan,
+        wrongQuestions,
+        masteryMap,
+        latestAssessment,
+        active: this.getLearningCalendar(userId).today.isActive,
+      };
+    });
 
-    const subjectWeakness = masteryMap.subjects.map((subject) => ({
-      subject: subject.subject,
-      weakPointCount: subject.weakCount,
-      averageMastery: subject.averageMastery,
-      recommendation: subject.weakCount > 0
-        ? `安排 ${subject.subject} 薄弱点讲解，并配 1 组同考点训练。`
-        : `${subject.subject} 当前以保持训练和真题巩固为主。`,
-    }));
-
-    const weakKnowledgePoints = (report.weakPoints.length ? report.weakPoints : masteryMap.weakestPoints)
-      .slice(0, 4)
-      .map((point) => {
-        const knowledgePoint = this.knowledgePoints.find((item) => item.id === point.knowledgePointId);
-        const wrongCount = wrongQuestions
-          .filter((item) => item.knowledgePointId === point.knowledgePointId)
-          .reduce((sum, item) => sum + item.wrongCount, 0);
-
+    const subjectWeakness = this.knowledgePoints
+      .map((point) => point.subject)
+      .filter((subject, index, all) => all.indexOf(subject) === index)
+      .map((subject) => {
+        const entries = students.map((student) => student.masteryMap.subjects.find((item) => item.subject === subject));
+        const weakPointCount = entries.reduce((sum, item) => sum + (item?.weakCount ?? 0), 0);
         return {
-          knowledgePointId: point.knowledgePointId,
-          title: point.title,
-          subject: knowledgePoint?.subject ?? '408',
-          accuracyRate: 'accuracyRate' in point ? point.accuracyRate : 0,
-          wrongCount,
-          recommendedAction: `围绕 ${point.title} 做 15 分钟概念串讲，再布置 5 道变式题。`,
+          subject,
+          weakPointCount,
+          averageMastery: average(entries.map((item) => item?.averageMastery ?? 0)),
+          recommendation: weakPointCount > 0
+            ? `安排 ${subject} 薄弱点讲解，并配 1 组同考点训练。`
+            : `${subject} 当前以保持训练和真题巩固为主。`,
         };
       });
 
-    const riskReasons = [
-      ...(report.accuracyRate < 65 ? [`班级平均正确率 ${report.accuracyRate}%，基础题稳定性不足。`] : []),
-      ...(averageCompletionRate < 60 ? [`今日任务完成率 ${averageCompletionRate}%，需要提醒补齐计划任务。`] : []),
-      ...(wrongQuestions.length > 0 ? [`仍有 ${wrongQuestions.length} 道错题未完成闭环复盘。`] : []),
-      ...(latestAssessment && latestAssessment.accuracyRate < 70 ? [`最近测评正确率 ${latestAssessment.accuracyRate}%，测评后复盘优先级较高。`] : []),
-    ];
+    const weakPointStats = new Map<string, { title: string; accuracyRates: number[]; wrongCount: number }>();
+    for (const student of students) {
+      const points = student.report.weakPoints.length ? student.report.weakPoints : student.masteryMap.weakestPoints;
+      for (const point of points) {
+        const current = weakPointStats.get(point.knowledgePointId) ?? { title: point.title, accuracyRates: [], wrongCount: 0 };
+        current.accuracyRates.push('accuracyRate' in point ? point.accuracyRate : 0);
+        current.wrongCount += student.wrongQuestions
+          .filter((item) => item.knowledgePointId === point.knowledgePointId)
+          .reduce((sum, item) => sum + item.wrongCount, 0);
+        weakPointStats.set(point.knowledgePointId, current);
+      }
+    }
+    const weakKnowledgePoints = [...weakPointStats.entries()]
+      .map(([knowledgePointId, value]) => ({
+        knowledgePointId,
+        title: value.title,
+        subject: this.knowledgePoints.find((item) => item.id === knowledgePointId)?.subject ?? '408',
+        accuracyRate: average(value.accuracyRates),
+        wrongCount: value.wrongCount,
+        recommendedAction: `围绕 ${value.title} 做 15 分钟概念串讲，再布置 5 道变式题。`,
+      }))
+      .sort((left, right) => right.wrongCount - left.wrongCount || left.accuracyRate - right.accuracyRate)
+      .slice(0, 4);
 
-    const atRiskStudents = [{
-      userId: this.student.id,
-      name: this.student.name,
-      riskType: report.accuracyRate < 65 ? '正确率偏低' : averageCompletionRate < 60 ? '任务完成不足' : '错题复盘待加强',
-      reason: riskReasons[0] ?? `${this.student.name} 需要继续保持错题复盘和限时训练节奏。`,
-      nextAction: topWeakPoint
-        ? `本周优先跟进 ${topWeakPoint.title}，要求完成错题复盘和同考点训练。`
-        : '保持每日任务完成，并安排一次阶段测评观察趋势。',
-    }];
+    const atRiskStudents = students.map((student) => {
+      const completionRate = student.plan.completionRate ?? 0;
+      const reasons = [
+        ...(student.report.accuracyRate < 65 ? [`正确率 ${student.report.accuracyRate}%，基础题稳定性不足。`] : []),
+        ...(completionRate < 60 ? [`任务完成率 ${completionRate}%，需要提醒补齐计划任务。`] : []),
+        ...(student.wrongQuestions.length > 0 ? [`仍有 ${student.wrongQuestions.length} 道错题未完成闭环复盘。`] : []),
+        ...(student.latestAssessment && student.latestAssessment.accuracyRate < 70
+          ? [`最近测评正确率 ${student.latestAssessment.accuracyRate}%，测评后复盘优先级较高。`]
+          : []),
+      ];
+      return {
+        userId: student.user.id,
+        name: student.user.name,
+        riskType: student.report.accuracyRate < 65 ? '正确率偏低' : completionRate < 60 ? '任务完成不足' : '错题复盘待加强',
+        reason: reasons[0] ?? `${student.user.name} 需要继续保持错题复盘和限时训练节奏。`,
+        nextAction: student.report.weakPoints[0]
+          ? `本周优先跟进 ${student.report.weakPoints[0].title}，要求完成错题复盘和同考点训练。`
+          : '保持每日任务完成，并安排一次阶段测评观察趋势。',
+      };
+    });
 
-    const teachingActions = [
-      topWeakPoint
-        ? `本周小课优先讲 ${topWeakPoint.title}，讲完立即做变式题检验。`
-        : '先收集更多练习记录，再判断下一轮共性薄弱点。',
-      wrongQuestions.length > 0
-        ? '安排一次错题复盘课，要求学生写出错因而不是只看答案。'
-        : '错题闭环压力较低，可以增加整卷限时训练。',
-      latestAssessment?.unansweredCount
-        ? `最近测评仍有 ${latestAssessment.unansweredCount} 题未答，加入审题速度训练。`
-        : '保持测评后复盘节奏，用历史记录观察连续两次趋势。',
-    ];
-
+    const pendingWrongQuestionCount = students.reduce((sum, student) => sum + student.wrongQuestions.length, 0);
+    const unansweredCount = students.reduce((sum, student) => sum + (student.latestAssessment?.unansweredCount ?? 0), 0);
+    const topWeakPoint = weakKnowledgePoints[0];
     return {
       source: this.dataSource,
-      className: '408 强化体验班',
+      className: teacherId ? '我的授权班级' : '全局教学概览',
       generatedAt: new Date().toISOString(),
       overview: {
-        studentCount: 1,
-        activeStudentCount: 1,
-        averageAccuracyRate: report.accuracyRate,
-        averageCompletionRate,
-        pendingWrongQuestionCount: wrongQuestions.length,
+        studentCount: students.length,
+        activeStudentCount: students.filter((student) => student.active).length,
+        averageAccuracyRate: average(students.map((student) => student.report.accuracyRate)),
+        averageCompletionRate: average(students.map((student) => student.plan.completionRate ?? 0)),
+        pendingWrongQuestionCount,
       },
       subjectWeakness,
       weakKnowledgePoints,
       atRiskStudents,
-      teachingActions,
+      teachingActions: [
+        topWeakPoint
+          ? `本周小课优先讲 ${topWeakPoint.title}，讲完立即做变式题检验。`
+          : '先收集更多练习记录，再判断下一轮共性薄弱点。',
+        pendingWrongQuestionCount > 0
+          ? '安排一次错题复盘课，要求学生写出错因而不是只看答案。'
+          : '错题闭环压力较低，可以增加整卷限时训练。',
+        unansweredCount > 0
+          ? `最近测评共 ${unansweredCount} 题未答，加入审题速度训练。`
+          : '保持测评后复盘节奏，用历史记录观察连续两次趋势。',
+      ],
     };
   }
 
@@ -3054,6 +3097,10 @@ function emptyCoreMetrics() {
     apiFailureRate: empty('最近 7 天'),
     sessionRecoverySuccessRate: empty('最近 30 天'),
   };
+}
+
+function average(values: number[]) {
+  return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
 }
 
 function todayKey() {

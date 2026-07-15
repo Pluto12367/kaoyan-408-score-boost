@@ -58,6 +58,15 @@ async function main() {
   initial = await waitForOverview(studentHeaders, (data) => data.student?.targetScore === 126 && data.plan?.dailyTasks?.length === 3);
   assert(initial.student.name === credentials.name, 'onboarding must preserve the authenticated student identity');
   await expectGetStatus(`${apiUrl}/wrong-questions?userId=u-001`, studentHeaders, 403);
+  await expectPostStatus(`${apiUrl}/practice-records`, {
+    userId: 'u-001',
+    questionId: 'q-001',
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'A',
+    correct: false,
+    timeSpentSec: 30,
+    expectedTimeSec: 100,
+  }, 403, studentHeaders);
   await expectPostStatus(`${apiUrl}/auth/login`, { email: credentials.email, password: 'wrong-password' }, 401);
   await expectGetStatus(`${apiUrl}/teacher/questions`, { Authorization: `Bearer ${loggedIn.accessToken}` }, 403);
   await expectPostStatus(`${apiUrl}/questions`, {
@@ -71,6 +80,8 @@ async function main() {
     source: 'forbidden',
   }, 403, { Authorization: `Bearer ${loggedIn.accessToken}` });
   const teacherSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'teacher' });
+  const teacherHeaders = { Authorization: `Bearer ${teacherSession.token}` };
+  await expectGetStatus(`${apiUrl}/dashboard/overview?userId=${registered.user.id}`, teacherHeaders, 403);
   const teacherQuestion = await postJson(`${apiUrl}/questions`, {
     stem: 'integration teacher protected write question',
     options: ['A', 'B', 'C', 'D'],
@@ -140,6 +151,35 @@ async function main() {
   }, studentHeaders);
   assert(feedback.id, 'student feedback should be accepted');
   const adminSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'admin' });
+  const adminHeaders = { Authorization: `Bearer ${adminSession.token}` };
+  await expectPostStatus(`${apiUrl}/admin/teacher-authorizations`, {
+    teacherId: teacherSession.user.id,
+    studentId: registered.user.id,
+  }, 403, studentHeaders);
+  await expectPostStatus(`${apiUrl}/admin/teacher-authorizations`, {
+    teacherId: adminSession.user.id,
+    studentId: registered.user.id,
+  }, 400, adminHeaders);
+  const grantedAuthorization = await postJson(`${apiUrl}/admin/teacher-authorizations`, {
+    teacherId: teacherSession.user.id,
+    studentId: registered.user.id,
+  }, adminHeaders);
+  assert(grantedAuthorization.studentName === credentials.name, 'admin should grant a teacher access to the selected student');
+  const authorizedOverview = await getJson(`${apiUrl}/dashboard/overview?userId=${registered.user.id}`, teacherHeaders);
+  assert(authorizedOverview.student.name === credentials.name, 'authorized teacher should see the selected student profile');
+  const authorizationList = await getJson(`${apiUrl}/admin/teacher-authorizations?teacherId=${teacherSession.user.id}`, adminHeaders);
+  assert(authorizationList.items.some((item) => item.studentId === registered.user.id), 'admin should list persisted teacher-student authorizations');
+  const authorizedClass = await getJson(`${apiUrl}/teacher/class-analytics`, teacherHeaders);
+  const authorizedStudentIds = new Set(authorizationList.items.map((item) => item.studentId));
+  assert(authorizedClass.atRiskStudents.some((item) => item.userId === registered.user.id), 'teacher analytics should include the newly authorized student');
+  assert(authorizedClass.atRiskStudents.every((item) => authorizedStudentIds.has(item.userId)), 'teacher analytics must only include authorized students');
+  const revokedAuthorization = await deleteJson(`${apiUrl}/admin/teacher-authorizations/${teacherSession.user.id}/${registered.user.id}`, adminHeaders);
+  assert(revokedAuthorization.revoked === true, 'admin should revoke teacher access');
+  await expectGetStatus(`${apiUrl}/dashboard/overview?userId=${registered.user.id}`, teacherHeaders, 403);
+  await postJson(`${apiUrl}/admin/teacher-authorizations`, {
+    teacherId: teacherSession.user.id,
+    studentId: registered.user.id,
+  }, adminHeaders);
   const config = await postJson(`${apiUrl}/admin/system-config`, {
     recommendation: { stageAssessmentQuestionLimit: 2 },
   }, { Authorization: `Bearer ${adminSession.token}` });
@@ -460,6 +500,10 @@ async function main() {
   assert(restoredConfig.recommendation.stageAssessmentQuestionLimit === 2, 'system configuration should survive an API restart');
   const restoredFeedback = await getJson(`${apiUrl}/admin/feedback`, { Authorization: `Bearer ${adminSession.token}` });
   assert(restoredFeedback.items.some((item) => item.id === feedback.id), 'feedback should survive an API restart');
+  const restoredAuthorizations = await getJson(`${apiUrl}/admin/teacher-authorizations?teacherId=${teacherSession.user.id}`, adminHeaders);
+  assert(restoredAuthorizations.items.some((item) => item.studentId === registered.user.id), 'teacher authorization should survive an API restart');
+  const restoredAuthorizedOverview = await getJson(`${apiUrl}/dashboard/overview?userId=${registered.user.id}`, teacherHeaders);
+  assert(restoredAuthorizedOverview.student.name === credentials.name, 'teacher access should remain authorized after an API restart');
 
   await stop(activeApi);
   activeApi = startApi();
@@ -572,6 +616,12 @@ async function patchJson(url, body, headers = {}) {
     body: JSON.stringify(body),
   });
   if (!response.ok) throw new Error(`PATCH ${url} failed with ${response.status}: ${await response.text()}`);
+  return response.json();
+}
+
+async function deleteJson(url, headers = {}) {
+  const response = await fetch(url, { method: 'DELETE', headers });
+  if (!response.ok) throw new Error(`DELETE ${url} failed with ${response.status}: ${await response.text()}`);
   return response.json();
 }
 

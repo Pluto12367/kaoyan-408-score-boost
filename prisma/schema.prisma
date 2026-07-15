@@ -59,6 +59,20 @@ model User {
   reviewSchedules      ReviewSchedule[]
   examReviewPlans      ExamReviewPlan[]
   operationLogs        OperationLog[]
+  authorizedStudents   TeacherStudentAuthorization[] @relation("AuthorizedTeacher")
+  authorizedTeachers   TeacherStudentAuthorization[] @relation("AuthorizedStudent")
+}
+
+model TeacherStudentAuthorization {
+  id        String   @id @default(cuid())
+  teacherId String
+  studentId String
+  createdAt DateTime @default(now())
+  teacher   User     @relation("AuthorizedTeacher", fields: [teacherId], references: [id], onDelete: Cascade)
+  student   User     @relation("AuthorizedStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, studentId])
+  @@index([studentId])
 }
 
 model OperationLog {

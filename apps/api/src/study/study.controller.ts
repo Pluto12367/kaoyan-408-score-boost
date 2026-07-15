@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import type { Subject } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
@@ -511,6 +511,27 @@ export class StudyController {
     return this.studyService.updateAdminUserTrialStatus(userId, trialStatus);
   }
 
+  @Get('admin/teacher-authorizations')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  listTeacherStudentAuthorizations(@Query('teacherId') teacherId?: string) {
+    return this.studyService.listTeacherStudentAuthorizations(teacherId);
+  }
+
+  @Post('admin/teacher-authorizations')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  grantTeacherStudentAuthorization(@Body() input: { teacherId?: string; studentId?: string }) {
+    return this.studyService.grantTeacherStudentAuthorization(input.teacherId, input.studentId);
+  }
+
+  @Delete('admin/teacher-authorizations/:teacherId/:studentId')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  revokeTeacherStudentAuthorization(@Param('teacherId') teacherId: string, @Param('studentId') studentId: string) {
+    return this.studyService.revokeTeacherStudentAuthorization(teacherId, studentId);
+  }
+
   @Get('admin/feedback')
   @UseGuards(RoleGuard)
   @Roles('admin')
@@ -563,8 +584,8 @@ export class StudyController {
   @Get('teacher/class-analytics')
   @UseGuards(RoleGuard)
   @Roles('teacher', 'admin')
-  getTeacherClassAnalytics() {
-    return this.studyService.getTeacherClassAnalytics();
+  getTeacherClassAnalytics(@CurrentUser() user: UserProfile) {
+    return this.studyService.getTeacherClassAnalytics(user.role === 'admin' ? undefined : user.id);
   }
 
   // ---- Access control helpers ----
