@@ -32,6 +32,9 @@ import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
 import { AdminUserRepository, type ManagedUserRecord, type TrialStatus } from './admin-user.repository';
+import { FEEDBACK_SCENES, FeedbackRepository, type FeedbackRecord, type FeedbackScene } from './feedback.repository';
+
+const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -49,6 +52,7 @@ export class StudyService implements OnModuleInit {
     private readonly authenticatedUsers: AuthenticatedUserRegistry,
     private readonly teacherStudentAuthorizations: TeacherStudentAuthorizationRepository,
     private readonly adminUsers: AdminUserRepository,
+    private readonly feedbackRepository: FeedbackRepository,
   ) {}
 
   private readonly student: UserProfile = {
@@ -110,7 +114,7 @@ export class StudyService implements OnModuleInit {
     const runtimeState = await this.runtimeStateRepository.loadAll();
     replaceArrayFromState(this.papers, runtimeState.get('papers'));
     replaceArrayFromState(this.assessmentHistoryItems, runtimeState.get('assessmentHistoryItems'));
-    replaceArrayFromState(this.feedbackItems, runtimeState.get('feedbackItems'));
+    replaceFeedbackItems(this.feedbackItems, await this.feedbackRepository.list());
     const savedSystemConfig = runtimeState.get('systemConfig');
     if (savedSystemConfig && typeof savedSystemConfig === 'object') {
       this.systemConfig = savedSystemConfig as typeof this.systemConfig;
@@ -1032,34 +1036,36 @@ export class StudyService implements OnModuleInit {
   }
 
   async submitFeedback(input: {
-    userId?: string;
+    userId: string;
     rating?: number;
     scene?: string;
     message?: string;
-    surveyUrl?: string;
   }) {
     const message = input.message?.trim();
-    if (!message) {
-      throw new BadRequestException('Feedback message is required');
+    if (!Number.isInteger(input.rating) || input.rating! < 1 || input.rating! > 5) {
+      throw new BadRequestException('Feedback rating must be an integer from 1 to 5');
+    }
+    if (!FEEDBACK_SCENES.includes(input.scene as FeedbackScene)) {
+      throw new BadRequestException('Feedback scene is not supported');
+    }
+    if (!message || message.length < 10 || message.length > 1000) {
+      throw new BadRequestException('Feedback message must contain 10 to 1000 characters');
     }
 
-    const feedback: FeedbackItem = {
-      id: `feedback-${Date.now()}`,
-      userId: input.userId ?? this.student.id,
-      rating: clampNumber(input.rating ?? 5, 1, 5),
-      scene: input.scene?.trim() || '试用体验',
+    const record = await this.feedbackRepository.create({
+      userId: input.userId,
+      rating: input.rating!,
+      scene: input.scene as FeedbackScene,
       message,
-      surveyUrl: input.surveyUrl ?? 'https://wj.qq.com/s2/27160624/40fe/',
-      status: 'new',
-      createdAt: new Date().toISOString(),
-    };
+    });
+    const feedback = toFeedbackItem(record);
 
     this.feedbackItems.push(feedback);
-    await this.runtimeStateRepository.save('feedbackItems', this.feedbackItems);
     return feedback;
   }
 
-  getFeedbackList() {
+  async getFeedbackList() {
+    replaceFeedbackItems(this.feedbackItems, await this.feedbackRepository.list());
     const items = [...this.feedbackItems].sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     const averageRating = items.length
       ? Math.round((items.reduce((sum, item) => sum + item.rating, 0) / items.length) * 10) / 10
@@ -1068,7 +1074,7 @@ export class StudyService implements OnModuleInit {
     return {
       totalCount: items.length,
       averageRating,
-      surveyUrl: 'https://wj.qq.com/s2/27160624/40fe/',
+      surveyUrl: OFFICIAL_FEEDBACK_SURVEY_URL,
       items,
     };
   }
@@ -3415,4 +3421,12 @@ export interface ReviewSchedule {
   nextReviewAt: string;
   reviewCount: number;
   lastReviewedAt?: string;
+}
+
+function toFeedbackItem(record: FeedbackRecord): FeedbackItem {
+  return { ...record, surveyUrl: OFFICIAL_FEEDBACK_SURVEY_URL };
+}
+
+function replaceFeedbackItems(target: FeedbackItem[], records: FeedbackRecord[]) {
+  target.splice(0, target.length, ...records.map(toFeedbackItem));
 }

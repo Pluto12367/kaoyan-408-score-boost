@@ -433,7 +433,12 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Body() input: { rating?: number; scene?: string; message?: string; surveyUrl?: string },
   ) {
-    return this.studyService.submitFeedback({ ...input, userId: user.id });
+    return this.studyService.submitFeedback({
+      userId: user.id,
+      rating: input.rating,
+      scene: input.scene,
+      message: input.message,
+    });
   }
 
   @Get('assessment-history')

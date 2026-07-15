@@ -1,5 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
+import { PrismaClient } from '@prisma/client';
 
 const root = process.cwd();
 const apiUrl = 'http://127.0.0.1:3200';
@@ -144,12 +145,47 @@ async function main() {
     })),
   }, studentHeaders);
   assert(submittedPaper.paperId === generatedPaper.id, 'generated paper should be submittable');
+  await expectPostStatus(`${apiUrl}/feedback`, {
+    rating: 0,
+    scene: 'overall',
+    message: 'rating below the supported range',
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/feedback`, {
+    rating: 4.5,
+    scene: 'overall',
+    message: 'rating must be an integer value',
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/feedback`, {
+    rating: 5,
+    scene: 'overall',
+    message: 'too short',
+  }, 400, studentHeaders);
+  await expectPostStatus(`${apiUrl}/feedback`, {
+    rating: 5,
+    scene: 'unsupported-scene',
+    message: 'unsupported feedback scene should be rejected',
+  }, 400, studentHeaders);
   const feedback = await postJson(`${apiUrl}/feedback`, {
     rating: 5,
-    scene: 'postgres integration',
-    message: 'verify feedback persistence across restart',
+    scene: 'overall',
+    message: '  verify feedback persistence across restart  ',
+    surveyUrl: 'https://attacker.example/overridden-survey',
   }, studentHeaders);
   assert(feedback.id, 'student feedback should be accepted');
+  assert(feedback.message === 'verify feedback persistence across restart', 'feedback message should be trimmed');
+  assert(feedback.surveyUrl === 'https://wj.qq.com/s2/27160624/40fe/', 'feedback response should use the official survey URL');
+  await expectGetStatus(`${apiUrl}/admin/feedback`, studentHeaders, 403);
+  await expectGetStatus(`${apiUrl}/admin/feedback`, {}, 401);
+  const prisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const persistedFeedbackRows = await prisma.$queryRawUnsafe(
+    'SELECT "id", "userId", "rating", "scene", "message", "status" FROM "FeedbackSubmission" WHERE "id" = $1',
+    feedback.id,
+  );
+  await prisma.$disconnect();
+  assert(persistedFeedbackRows.length === 1, 'feedback should be written to its dedicated PostgreSQL table');
+  assert(persistedFeedbackRows[0].userId === registered.user.id, 'persisted feedback should belong to the authenticated user');
+  assert(persistedFeedbackRows[0].rating === 5 && persistedFeedbackRows[0].scene === 'overall', 'persisted feedback should retain structured fields');
+  assert(persistedFeedbackRows[0].message === feedback.message && persistedFeedbackRows[0].status === 'new', 'persisted feedback should retain normalized content and status');
   const adminSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'admin' });
   const adminHeaders = { Authorization: `Bearer ${adminSession.token}` };
   const adminUsers = await getJson(`${apiUrl}/admin/users`, adminHeaders);

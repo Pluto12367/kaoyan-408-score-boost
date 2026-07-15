@@ -40,35 +40,51 @@ enum QuestionType {
 }
 
 model User {
-  id                   String                @id @default(cuid())
-  email                String?               @unique
-  passwordHash         String?
-  name                 String
-  role                 UserRole
-  trialStatus          TrialStatus           @default(INVITED)
-  targetSchool         String?
-  targetScore          Int?
-  currentScore         Int?
-  dailyHours           Float?
-  remainingDays        Int?
-  studyStage           String?
-  weakestSubject       String?
-  diagnosis            String?
-  examYear             Int?
+  id                    String                        @id @default(cuid())
+  email                 String?                       @unique
+  passwordHash          String?
+  name                  String
+  role                  UserRole
+  trialStatus           TrialStatus                   @default(INVITED)
+  targetSchool          String?
+  targetScore           Int?
+  currentScore          Int?
+  dailyHours            Float?
+  remainingDays         Int?
+  studyStage            String?
+  weakestSubject        String?
+  diagnosis             String?
+  examYear              Int?
   onboardingCompletedAt DateTime?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  practiceRecords      PracticeRecord[]
-  studyPlans           StudyPlan[]
-  wrongQuestionReviews WrongQuestionReview[]
-  taskCompletions      StudyTaskCompletion[]
-  refreshTokens        RefreshToken[]
-  learningSessions     LearningSession[]
-  reviewSchedules      ReviewSchedule[]
-  examReviewPlans      ExamReviewPlan[]
-  operationLogs        OperationLog[]
-  authorizedStudents   TeacherStudentAuthorization[] @relation("AuthorizedTeacher")
-  authorizedTeachers   TeacherStudentAuthorization[] @relation("AuthorizedStudent")
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  practiceRecords       PracticeRecord[]
+  studyPlans            StudyPlan[]
+  wrongQuestionReviews  WrongQuestionReview[]
+  taskCompletions       StudyTaskCompletion[]
+  refreshTokens         RefreshToken[]
+  learningSessions      LearningSession[]
+  reviewSchedules       ReviewSchedule[]
+  examReviewPlans       ExamReviewPlan[]
+  operationLogs         OperationLog[]
+  feedbackSubmissions   FeedbackSubmission[]
+  authorizedStudents    TeacherStudentAuthorization[] @relation("AuthorizedTeacher")
+  authorizedTeachers    TeacherStudentAuthorization[] @relation("AuthorizedStudent")
+}
+
+model FeedbackSubmission {
+  id        String   @id @default(cuid())
+  userId    String
+  rating    Int
+  scene     String
+  message   String
+  status    String   @default("new")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
 }
 
 model TeacherStudentAuthorization {
