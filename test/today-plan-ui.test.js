@@ -38,3 +38,11 @@ test('App does not retain the legacy fabricated task completion handler', async 
   assert.equal(source.includes('function handleCompleteTask'), false);
   assert.equal(source.includes('Math.round(completedQuestionCount * 0.58)'), false);
 });
+
+test('onboarding and today-task actions refresh every student progress resource', async () => {
+  const source = await readFile(new URL('../apps/web/src/App.tsx', import.meta.url), 'utf8');
+  const refreshCalls = source.match(/refreshStudentProgress\(\)/g) ?? [];
+
+  assert.match(source, /refreshAll: refreshStudentProgress/);
+  assert.ok(refreshCalls.length >= 2, 'onboarding and today-plan refresh should both update student progress');
+});

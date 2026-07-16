@@ -152,6 +152,7 @@ export function App() {
     refreshSprintPlan,
     refreshMasteryMap,
     refreshLearningProfile,
+    refreshAll: refreshStudentProgress,
   } = studentProgress;
   const studentLearning = useStudentLearningData(studentDataEnabled, authKey);
   const {
@@ -220,13 +221,7 @@ export function App() {
     if (result.todayPlan) {
       setTodayPlan(result.todayPlan as TodayPlanType);
     }
-    // Reload dashboard to reflect new profile
-    try {
-      const data = await fetchDashboardOverview();
-      setOverview(data);
-      setApiState('connected');
-      setLastSyncAt(new Date().toISOString());
-    } catch { /* keep existing data */ }
+    await Promise.allSettled([refreshOverview(), refreshStudentProgress()]);
   }
 
   async function refreshTodayPlan() {
@@ -235,7 +230,7 @@ export function App() {
     try {
       const plan = await fetchTodayPlan();
       setTodayPlan(plan);
-      await Promise.allSettled([refreshOverview(), refreshMasteryMap(), refreshLearningProfile(), refreshStudyReminders()]);
+      await Promise.allSettled([refreshOverview(), refreshStudentProgress()]);
     } catch (error) {
       setTodayPlanError(error instanceof Error ? error.message : '今日计划更新失败，请重试。');
     } finally {
