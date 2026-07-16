@@ -466,8 +466,8 @@ export class StudyController {
   @Get('papers')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
-  listPapers() {
-    return this.studyService.listPapers();
+  listPapers(@CurrentUser() user: UserProfile) {
+    return this.studyService.listPapers(user.role === 'student');
   }
 
   @Post('papers/generate')

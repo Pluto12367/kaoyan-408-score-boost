@@ -43,6 +43,7 @@ async function main() {
     teacherHeaders,
   );
   assert(teacherOnlyQuestions.every((question) => question.knowledgePointIds?.length > 0), 'teacher question management should return knowledge-bound questions');
+  assert(teacherOnlyQuestions.some((question) => question.answer && question.analysis), 'teacher question management should retain answers and explanations');
   await expectForbidden(`${apiUrl}/teacher/questions`, studentHeaders, 'student session should not access teacher question management');
   await expectForbiddenPost(`${apiUrl}/questions`, {
     stem: 'student should not create this question',
@@ -76,6 +77,7 @@ async function main() {
   assert(classAnalytics.atRiskStudents.length > 0, 'class analytics should include at-risk students');
   assert(classAnalytics.teachingActions.length > 0, 'class analytics should include teaching actions');
   const overview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.source === 'memory-api');
+  assert(overview.questions.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'student dashboard should redact objective answers and explanations');
   assert(overview.report?.weakPoints?.length > 0, 'dashboard overview should include weak points');
   assert(overview.plan?.dailyTasks?.length > 0, 'dashboard overview should include daily tasks');
   assert(overview.plan.dailyTasks.every((task) => task.priority && task.reason && task.nextAction), 'daily tasks should include priority, reason and next action');
@@ -204,6 +206,7 @@ async function main() {
     Array.isArray(data) && data.some((paper) => paper.id === generatedPaper.id),
   );
   assert(papers.some((paper) => paper.paperType === '专项卷'), 'paper list should include generated special paper');
+  assert(papers.flatMap((paper) => paper.questions).every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'student paper list should redact objective answers and explanations');
   const historyBeforePaper = await waitForJson(`${apiUrl}/assessment-history?userId=u-001`, (data) =>
     Array.isArray(data.items) && data.summary,
   );
@@ -292,7 +295,10 @@ async function main() {
     ),
     'review resources should include actionable metadata',
   );
+  const scoringQuestionCatalog = await waitForJson(`${apiUrl}/teacher/questions`, (data) => Array.isArray(data) && data.length > 0, teacherHeaders);
+  const scoringQuestionsById = new Map(scoringQuestionCatalog.map((question) => [question.id, question]));
   const practiceSet = await waitForJson(`${apiUrl}/practice-sets/recommended?userId=u-001`, (data) => data.questions?.length > 0);
+  assert(practiceSet.questions.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'recommended practice set should redact objective answers and explanations');
   assert(practiceSet.title && practiceSet.focus, 'recommended practice set should include title and focus');
   assert(practiceSet.knowledgePointIds.includes('co-cache'), 'recommended practice set should focus on the current weak point');
   assert(practiceSet.questions.every((question) => question.knowledgePointIds.some((id) => practiceSet.knowledgePointIds.includes(id))), 'recommended practice set should return matching questions');
@@ -300,7 +306,7 @@ async function main() {
     userId: 'u-001',
     answers: practiceSet.questions.slice(0, 2).map((question, index) => ({
       questionId: question.id,
-      selectedAnswer: index === 0 ? question.answer : 'A',
+      selectedAnswer: index === 0 ? scoringQuestionsById.get(question.id)?.answer ?? 'A' : 'A',
       timeSpentSec: question.expectedTimeSec + 10,
     })),
   });
@@ -325,6 +331,7 @@ async function main() {
   assert(updatedSystemConfig.recommendation.stageAssessmentQuestionLimit === 2, 'system config should persist assessment question limit');
   assert(updatedSystemConfig.updatedBy === 'admin-001', 'system config should track updater');
   const stageAssessment = await waitForJson(`${apiUrl}/assessments/stage?userId=u-001`, (data) => data.questions?.length >= 2);
+  assert(stageAssessment.questions.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'stage assessment should redact objective answers and explanations');
   assert(stageAssessment.questions.length <= 2, 'stage assessment should respect configured question limit');
   assert(stageAssessment.focusKnowledgePoints.length > 0, 'stage assessment should include focused weak knowledge points');
   assert(stageAssessment.estimatedMinutes > 0, 'stage assessment should include estimated minutes');
@@ -332,7 +339,9 @@ async function main() {
     userId: 'u-001',
     answers: stageAssessment.questions.map((question, index) => ({
       questionId: question.id,
-      selectedAnswer: index === 0 ? (question.answer === 'A' ? 'B' : 'A') : question.answer,
+      selectedAnswer: index === 0
+        ? (scoringQuestionsById.get(question.id)?.answer === 'A' ? 'B' : 'A')
+        : scoringQuestionsById.get(question.id)?.answer ?? 'A',
       timeSpentSec: question.expectedTimeSec + 20,
     })),
   });

@@ -3,6 +3,7 @@ import { QuestionsService } from './questions.service';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { RoleGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorator';
+import { toStudentQuestions } from './question-view';
 
 @Controller('questions')
 export class QuestionsController {
@@ -10,11 +11,11 @@ export class QuestionsController {
 
   @Get()
   listQuestions(@Query('knowledgePointId') knowledgePointId?: string, @Query('subject') subject?: string, @Query('chapter') chapter?: string) {
-    return this.questionsService.listQuestions({
+    return toStudentQuestions(this.questionsService.listQuestions({
       knowledgePointId,
       subject,
       chapter,
-    });
+    }));
   }
 
   @Post()
@@ -46,7 +47,11 @@ export class TeacherQuestionsController {
   constructor(private readonly questionsService: QuestionsService) {}
 
   @Get()
-  listTeacherQuestions() {
-    return this.questionsService.listQuestions();
+  listTeacherQuestions(@Query('knowledgePointId') knowledgePointId?: string, @Query('subject') subject?: string, @Query('chapter') chapter?: string) {
+    return this.questionsService.listQuestions({
+      knowledgePointId,
+      subject,
+      chapter,
+    });
   }
 }

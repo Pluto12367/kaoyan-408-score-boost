@@ -15,6 +15,7 @@ import {
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
+import { toStudentQuestion, toStudentQuestions } from '../questions/question-view';
 import { PracticeRecordRepository } from './practice-record.repository';
 import { LearningProgressRepository, type TaskCompletionMetric } from './learning-progress.repository';
 import { LearningSessionRepository } from './learning-session.repository';
@@ -246,7 +247,7 @@ export class StudyService implements OnModuleInit {
       source: this.dataSource,
       student: this.getStudent(uid),
       knowledgePoints: this.knowledgePoints,
-      questions: this.questions,
+      questions: toStudentQuestions(this.questions),
       practiceRecords: this.records.filter((r) => r.userId === uid),
       wrongQuestions: this.listWrongQuestions(uid),
       learningCalendar: this.getLearningCalendar(uid),
@@ -1090,8 +1091,10 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  listPapers() {
-    return this.papers;
+  listPapers(forStudent = false) {
+    return forStudent
+      ? this.papers.map((paper) => ({ ...paper, questions: toStudentQuestions(paper.questions) }))
+      : this.papers;
   }
 
   getAssessmentHistory(userId = this.student.id) {
@@ -1168,13 +1171,17 @@ export class StudyService implements OnModuleInit {
       throw new BadRequestException(`暂未配置${input.subject}的知识点，无法生成专项卷`);
     }
 
-    return this.generatePaper({
+    const paper = await this.generatePaper({
       title: paperType === '专项卷' ? `${input.subject}专项卷` : `408 模拟卷-${todayKey()}`,
       paperType,
       knowledgePointIds,
       questionCount,
       createdBy: userId,
     });
+    return {
+      ...paper,
+      questions: toStudentQuestions(paper.questions),
+    };
   }
 
   async submitPaper(paperId: string, input: {
@@ -1740,7 +1747,7 @@ export class StudyService implements OnModuleInit {
       knowledgePointIds,
       questionCount: questions.length,
       estimatedMinutes: Math.max(10, Math.round(questions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
-      questions,
+      questions: toStudentQuestions(questions),
     };
   }
 
@@ -2111,7 +2118,7 @@ export class StudyService implements OnModuleInit {
       description: '根据当前薄弱点生成的小测，用于判断本阶段是否需要继续专项突破。',
       estimatedMinutes: Math.max(10, Math.round(selectedQuestions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
       focusKnowledgePoints,
-      questions: selectedQuestions,
+      questions: toStudentQuestions(selectedQuestions),
     };
   }
 
@@ -3148,7 +3155,7 @@ export class StudyService implements OnModuleInit {
       questionIds: s.questionIds,
       questions: s.questionIds.flatMap((questionId) => {
         const question = questionsById.get(questionId);
-        return question ? [question] : [];
+        return question ? [toStudentQuestion(question)] : [];
       }),
       answers: s.answers,
       markedQuestions: s.markedQuestions,

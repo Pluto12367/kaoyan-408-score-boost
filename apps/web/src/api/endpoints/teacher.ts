@@ -9,7 +9,7 @@ export async function fetchQuestions(filters: {
   if (filters.subject) params.set('subject', filters.subject);
   if (filters.chapter) params.set('chapter', filters.chapter);
   const query = params.toString();
-  const response = await fetchWithAuth(`${API_BASE_URL}/questions${query ? `?${query}` : ''}`);
+  const response = await fetchWithAuth(`${API_BASE_URL}/teacher/questions${query ? `?${query}` : ''}`);
   if (!response.ok) throw new Error(`Question list request failed with ${response.status}`);
   return response.json() as Promise<Question[]>;
 }

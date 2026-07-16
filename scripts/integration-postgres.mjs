@@ -86,6 +86,9 @@ async function main() {
   let initial = await waitForOverview(studentHeaders);
   assert(initial.source === 'postgresql', 'API should report the real PostgreSQL data source');
   assert(initial.student.id === registered.user.id && initial.student.name === credentials.name, 'dashboard should use the authenticated student identity');
+  assert(initial.questions.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'student dashboard must redact objective answers and explanations');
+  const publicQuestionCatalog = await getJson(`${apiUrl}/questions`, studentHeaders);
+  assert(publicQuestionCatalog.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'general question catalog must redact objective answers and explanations');
   assert(initial.student.targetSchool === undefined, 'new student must not inherit another student\'s target school');
   const onboardingBefore = await getJson(`${apiUrl}/onboarding/status`, studentHeaders);
   assert(onboardingBefore.completed === false, 'new student should require onboarding');
@@ -125,6 +128,11 @@ async function main() {
   }, 403, { Authorization: `Bearer ${loggedIn.accessToken}` });
   const teacherSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'teacher' });
   const teacherHeaders = { Authorization: `Bearer ${teacherSession.token}` };
+  const teacherQuestionCatalog = await getJson(`${apiUrl}/teacher/questions`, teacherHeaders);
+  const teacherQuestionsById = new Map(teacherQuestionCatalog.map((question) => [question.id, question]));
+  assert(teacherQuestionCatalog.some((question) => question.answer && question.analysis), 'teacher question catalog should retain answers and explanations');
+  const filteredTeacherQuestionCatalog = await getJson(`${apiUrl}/teacher/questions?knowledgePointId=co-cache`, teacherHeaders);
+  assert(filteredTeacherQuestionCatalog.length > 0 && filteredTeacherQuestionCatalog.every((question) => question.knowledgePointIds.includes('co-cache')), 'teacher question catalog should retain knowledge point filtering');
   await expectGetStatus(`${apiUrl}/dashboard/overview?userId=${registered.user.id}`, teacherHeaders, 403);
   const teacherQuestion = await postJson(`${apiUrl}/questions`, {
     stem: 'integration teacher protected write question',
@@ -136,6 +144,7 @@ async function main() {
     type: '选择题',
     source: 'integration',
   }, { Authorization: `Bearer ${teacherSession.token}` });
+  teacherQuestionsById.set(teacherQuestion.id, teacherQuestion);
   assert(teacherQuestion.id, 'teacher role should create questions');
   const subjectiveQuestion = await postJson(`${apiUrl}/questions`, {
     stem: 'Explain the key steps of direct-mapped cache address decomposition.',
@@ -147,6 +156,7 @@ async function main() {
     type: '综合题',
     source: 'integration subjective',
   }, { Authorization: `Bearer ${teacherSession.token}` });
+  teacherQuestionsById.set(subjectiveQuestion.id, subjectiveQuestion);
   assert(subjectiveQuestion.type === '综合题', 'teacher should create a comprehensive question for self assessment');
   const preparedMockPaper = await postJson(`${apiUrl}/exam/papers/prepare`, {
     paperType: '模拟卷',
@@ -155,6 +165,7 @@ async function main() {
   }, studentHeaders);
   assert(preparedMockPaper.paperType === '模拟卷' && preparedMockPaper.questionCount > 0, 'student should prepare a full mock paper from the available bank');
   assert(preparedMockPaper.createdBy === registered.user.id, 'prepared exam must use the authenticated student as its owner');
+  assert(preparedMockPaper.questions.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'prepared student papers must not expose objective answers or explanations');
   const preparedSpecialPaper = await postJson(`${apiUrl}/exam/papers/prepare`, {
     paperType: '专项卷',
     subject: '计算机组成原理',
@@ -180,6 +191,8 @@ async function main() {
     questionCount: 2,
     createdBy: teacherSession.user.id,
   }, { Authorization: `Bearer ${teacherSession.token}` });
+  const studentPaperCatalog = await getJson(`${apiUrl}/papers`, studentHeaders);
+  assert(studentPaperCatalog.flatMap((paper) => paper.questions).every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'student paper catalog must redact objective answers and explanations');
   const submittedPaper = await postJson(`${apiUrl}/papers/${generatedPaper.id}/submit`, {
     answers: generatedPaper.questions.map((question) => ({
       questionId: question.id,
@@ -435,7 +448,7 @@ async function main() {
   assert(reopenedDelayHours > 23 && reopenedDelayHours <= 24, 'a reopened schedule should return to a next-day review');
   assert(reopenedDetail.reviewHistory?.length === 4, 'reopening should preserve the earlier review trajectory');
 
-  const historicalReasonQuestion = initial.questions.find((question) => question.id === 'q-002');
+  const historicalReasonQuestion = teacherQuestionsById.get('q-002');
   assert(historicalReasonQuestion, 'historical reason verification requires q-002');
   const historicalWrongRecord = await postJson(`${apiUrl}/practice-records`, {
     questionId: historicalReasonQuestion.id,
@@ -503,6 +516,10 @@ async function main() {
   };
   const startedSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
   assert(startedSession.questions?.map((question) => question.id).join(',') === sessionInput.questionIds.join(','), 'started session should include its ordered question snapshot');
+  const startedObjectiveQuestion = startedSession.questions.find((question) => question.id === 'q-001');
+  const startedSubjectiveQuestion = startedSession.questions.find((question) => question.id === subjectiveQuestion.id);
+  assert(startedObjectiveQuestion?.answer === '' && startedObjectiveQuestion.analysis === '', 'active exams must redact objective answers and explanations');
+  assert(startedSubjectiveQuestion?.answer === '' && startedSubjectiveQuestion.analysis.includes('Scoring points'), 'active exams should expose subjective scoring points without the standard answer');
   assert(startedSession.revision === 0, 'a new session should start at revision zero');
   const originalSessionStem = startedSession.questions[0].stem;
   const idempotentSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
@@ -533,12 +550,13 @@ async function main() {
     totalActiveMs: 1250,
   }, studentHeaders);
   assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes(subjectiveQuestion.id), 'session progress should be saved');
-  await patchJson(`${apiUrl}/questions/q-001`, {
+  const updatedCatalogQuestion = await patchJson(`${apiUrl}/questions/q-001`, {
     stem: `${originalSessionStem}（题库已更新）`,
     answer: 'A',
     knowledgePointIds: ['net-tcp'],
     expectedTimeSec: 999,
   }, teacherHeaders);
+  teacherQuestionsById.set(updatedCatalogQuestion.id, updatedCatalogQuestion);
 
   const partialExamSession = await postJson(`${apiUrl}/sessions/practice/start`, {
     type: 'paper',
@@ -575,6 +593,7 @@ async function main() {
   await missingSnapshotPrisma.$disconnect();
 
   const recommendedPracticeSet = await getJson(`${apiUrl}/practice-sets/recommended`, studentHeaders);
+  assert(recommendedPracticeSet.questions.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'recommended practice questions must redact objective answers and explanations');
   const practiceSessionQuestions = recommendedPracticeSet.questions.slice(0, Math.min(2, recommendedPracticeSet.questions.length));
   assert(practiceSessionQuestions.length > 0, 'recommended practice set should contain resumable questions');
   const practiceSession = await postJson(`${apiUrl}/sessions/practice/start`, {
@@ -585,7 +604,7 @@ async function main() {
   await postJson(`${apiUrl}/sessions/practice/${practiceSession.id}/save`, {
     revision: 1,
     answers: {
-      [practiceSessionQuestions[0].id]: sessionAnswerFor(practiceSessionQuestions[0], 61),
+      [practiceSessionQuestions[0].id]: sessionAnswerFor(teacherQuestionsById.get(practiceSessionQuestions[0].id) ?? practiceSessionQuestions[0], 61),
     },
     currentIndex: Math.min(1, practiceSessionQuestions.length - 1),
     markedQuestions: [practiceSessionQuestions[0].id],
@@ -593,6 +612,7 @@ async function main() {
   }, studentHeaders);
 
   const stageAssessment = await getJson(`${apiUrl}/assessments/stage`, studentHeaders);
+  assert(stageAssessment.questions.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'stage assessment questions must redact objective answers and explanations');
   const stageSessionQuestions = stageAssessment.questions.slice(0, Math.min(2, stageAssessment.questions.length));
   assert(stageSessionQuestions.length > 0, 'stage assessment should contain resumable questions');
   const stageSession = await postJson(`${apiUrl}/sessions/practice/start`, {
@@ -603,7 +623,7 @@ async function main() {
   await postJson(`${apiUrl}/sessions/practice/${stageSession.id}/save`, {
     revision: 1,
     answers: {
-      [stageSessionQuestions[0].id]: sessionAnswerFor(stageSessionQuestions[0], 79),
+      [stageSessionQuestions[0].id]: sessionAnswerFor(teacherQuestionsById.get(stageSessionQuestions[0].id) ?? stageSessionQuestions[0], 79),
     },
     currentIndex: Math.min(1, stageSessionQuestions.length - 1),
     totalActiveMs: 3300,
@@ -731,27 +751,27 @@ async function main() {
   const submittedPracticeSession = await postJson(`${apiUrl}/sessions/practice/${practiceSession.id}/submit`, {
     answers: practiceSessionQuestions.map((question, index) => ({
       questionId: question.id,
-      ...sessionAnswerFor(question, 61 + index),
+      ...sessionAnswerFor(teacherQuestionsById.get(question.id) ?? question, 61 + index),
     })),
     totalActiveMs: 4100,
   }, studentHeaders);
   assert(submittedPracticeSession.workflowResult?.practiceSetId === recommendedPracticeSet.id, 'practice-set session should return its workflow result');
   assert(submittedPracticeSession.workflowResult.totalQuestions === practiceSessionQuestions.length, 'practice-set result should cover the session questions');
   await expectPostStatus(`${apiUrl}/sessions/practice/${practiceSession.id}/submit`, {
-    answers: practiceSessionQuestions.map((question) => ({ questionId: question.id, ...sessionAnswerFor(question, 1) })),
+    answers: practiceSessionQuestions.map((question) => ({ questionId: question.id, ...sessionAnswerFor(teacherQuestionsById.get(question.id) ?? question, 1) })),
   }, 400, studentHeaders);
 
   const submittedStageSession = await postJson(`${apiUrl}/sessions/practice/${stageSession.id}/submit`, {
     answers: stageSessionQuestions.map((question, index) => ({
       questionId: question.id,
-      ...sessionAnswerFor(question, 79 + index),
+      ...sessionAnswerFor(teacherQuestionsById.get(question.id) ?? question, 79 + index),
     })),
     totalActiveMs: 5200,
   }, studentHeaders);
   assert(submittedStageSession.workflowResult?.score === 100, 'stage-assessment session should return its scored workflow result');
   assert(submittedStageSession.workflowResult.adjustment.stage === '冲刺', 'stage assessment should adjust only the authenticated student profile');
   await expectPostStatus(`${apiUrl}/sessions/practice/${stageSession.id}/submit`, {
-    answers: stageSessionQuestions.map((question) => ({ questionId: question.id, ...sessionAnswerFor(question, 1) })),
+    answers: stageSessionQuestions.map((question) => ({ questionId: question.id, ...sessionAnswerFor(teacherQuestionsById.get(question.id) ?? question, 1) })),
   }, 400, studentHeaders);
   await expectGetStatus(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders, 400);
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
