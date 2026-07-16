@@ -31,7 +31,6 @@ import type { SessionView } from './api/endpoints/sessions';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
-  completeStudyTask,
   createKnowledgePoint,
   createTeacherQuestion,
   deleteTeacherQuestion,
@@ -60,7 +59,6 @@ import {
   type PrepareExamPaperInput,
   type PracticeSetResult,
   type StageAssessmentResult,
-  type TaskCompletionAdjustment,
   type TutorReply,
 } from './api';
 import type { FeedbackDraft, UserProfile, UserRole } from '@kaoyan408/shared';
@@ -124,7 +122,6 @@ export function App() {
   const practiceTimerRef = useRef<{ questionId: string; activeMs: number; startedAt: number | null }>({
     questionId: '', activeMs: 0, startedAt: null,
   });
-  const [taskStatus, setTaskStatus] = useState('今日任务等待完成。');
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
   const [detailQuestionId, setDetailQuestionId] = useState<string | null>(null);
   const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
@@ -143,7 +140,6 @@ export function App() {
   const [examReportSessionId, setExamReportSessionId] = useState<string | null>(null);
   const [resumedLearningSession, setResumedLearningSession] = useState<SessionView | null>(null);
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
-  const [taskAdjustment, setTaskAdjustment] = useState<TaskCompletionAdjustment | null>(null);
   const [feedbackStatus, setFeedbackStatus] = useState('可以提交站内反馈，也可以打开问卷继续补充详细建议。');
   const studentProgress = useStudentProgressData(
     sessionUser?.id ?? overview.student.id,
@@ -434,76 +430,6 @@ export function App() {
     setResumedLearningSession(null);
     setLearningSessionType('practice_set');
     setPracticeStatus('专项练习已开始，作答进度会自动保存。');
-  }
-
-  async function handleCompleteTask(taskId: string) {
-    setTaskStatus('正在记录任务完成状态...');
-    const currentTask = plan.dailyTasks.find((task) => task.id === taskId);
-    const completedQuestionCount = currentTask?.questionCount ?? 12;
-
-    if (isStaticDemoMode() && currentTask) {
-      const mockAdjustment: TaskCompletionAdjustment = {
-        accuracyRate: 58,
-        completedQuestionCount,
-        correctCount: Math.max(1, Math.round(completedQuestionCount * 0.58)),
-        minutesSpent: currentTask.minutes + 12,
-        selfRating: 2,
-        intensity: 'decrease',
-        tomorrowQuestionTarget: Math.max(6, completedQuestionCount - 2),
-        reviewTarget: 4,
-        focusKnowledgePointId: currentTask.knowledgePointId,
-        focusTitle: currentTask.title,
-        reasons: [
-          `本任务正确率 58%，说明 ${currentTask.title} 仍需要先复盘再加题。`,
-          '自评掌握度偏低，明日优先安排概念复述和错题重做。',
-        ],
-        nextActions: [
-          `先复盘 ${currentTask.title} 的错题和概念，再做 4 道回炉题。`,
-          '完成后用一句话写下本考点最容易混淆的条件。',
-        ],
-      };
-      const nextTasks = plan.dailyTasks.map((task) => task.id === taskId ? { ...task, completed: true } : task);
-      const completedTaskCount = nextTasks.filter((task) => task.completed).length;
-      setOverview({
-        ...overview,
-        plan: {
-          ...plan,
-          dailyTasks: nextTasks,
-          completedTaskCount,
-          totalTaskCount: nextTasks.length,
-          completionRate: nextTasks.length ? Math.round((completedTaskCount / nextTasks.length) * 100) : 0,
-        },
-      });
-      setTaskAdjustment(mockAdjustment);
-      setApiState('mock');
-      setTaskStatus(`已使用静态演示数据完成 ${currentTask.title}，并生成明日调整建议。`);
-      return;
-    }
-
-    try {
-      const completedTask = await completeStudyTask({
-taskId,
-        completedQuestionCount,
-        correctCount: Math.max(1, Math.round(completedQuestionCount * 0.58)),
-        minutesSpent: (currentTask?.minutes ?? 45) + 12,
-        selfRating: 2,
-      });
-      const nextOverview = await fetchDashboardOverview();
-      setOverview(nextOverview);
-      await refreshLearningProfile();
-      setApiState('connected');
-      await refreshTrialProgress();
-      await refreshStudyReminders();
-      await refreshSprintPlan();
-      await refreshMasteryMap();
-      await refreshWrongQuestionSummary();
-      setTaskAdjustment(completedTask.adjustment);
-      setTaskStatus(`今日已完成 ${nextOverview.plan.completedTaskCount ?? 0}/${nextOverview.plan.totalTaskCount ?? nextOverview.plan.dailyTasks.length} 项任务。`);
-      setTaskStatus(`${completedTask.feedback.message} ${completedTask.feedback.nextAction}`);
-    } catch {
-      setTaskStatus('任务完成状态记录失败，请稍后重试。');
-      setApiState(isMockAllowed() ? 'mock' : 'error');
-    }
   }
 
   async function handleReviewWrongQuestion(questionId: string) {
@@ -1095,13 +1021,7 @@ paperId: paper.id,
 
         <StageAssessmentPanel assessment={stageAssessment} result={stageResult} status={assessmentStatus} onSubmit={handleSubmitAssessment} />
 
-        <StudyPlanOverview
-          plan={plan}
-          taskAdjustment={taskAdjustment}
-          taskStatus={taskStatus}
-          assessmentStatus={assessmentStatus}
-          onCompleteTask={handleCompleteTask}
-        />
+        {!todayPlan && isMockAllowed() ? <StudyPlanOverview plan={plan} /> : null}
 
         <section className="two-column">
           <PracticePanel

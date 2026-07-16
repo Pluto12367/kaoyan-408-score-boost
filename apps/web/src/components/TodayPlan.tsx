@@ -3,10 +3,11 @@ import { Clock, CheckCircle2, AlertCircle, BookOpen, RotateCcw } from 'lucide-re
 import { completeStudyTask } from '../api/endpoints/practice';
 import { postponeTask, startTask, type TodayPlan as TodayPlanType } from '../api/endpoints/onboarding';
 import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
+import { validateTaskCompletionDraft, type TaskCompletionDraft } from '../features/plan/taskCompletionDraft';
 
 interface Props {
   plan: TodayPlanType;
-  onRefresh: () => void;
+  onRefresh: () => Promise<void>;
   onOpenReview?: (questionId: string) => void;
 }
 
@@ -15,12 +16,7 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
   const [dueReviewError, setDueReviewError] = useState('');
   const [actionError, setActionError] = useState('');
   const [activeActionTaskId, setActiveActionTaskId] = useState<string | null>(null);
-  const [completionDrafts, setCompletionDrafts] = useState<Record<string, {
-    completedQuestionCount: number;
-    correctCount: number;
-    minutesSpent: number;
-    selfRating: number;
-  }>>({});
+  const [completionDrafts, setCompletionDrafts] = useState<Record<string, TaskCompletionDraft>>({});
 
   function loadDueReviews() {
     setDueReviewError('');
@@ -35,17 +31,16 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
   async function handleComplete(taskId: string) {
     const task = plan.priorityTasks.find((item) => item.id === taskId);
     if (!task) return;
-    const draft = completionDrafts[taskId] ?? {
-      completedQuestionCount: task.questionCount,
-      correctCount: Math.round(task.questionCount * 0.75),
-      minutesSpent: task.minutes,
-      selfRating: 3,
-    };
+    const result = validateTaskCompletionDraft(completionDrafts[taskId] ?? {});
+    if (!result.valid) {
+      setActionError(result.error);
+      return;
+    }
     setActionError('');
     setActiveActionTaskId(taskId);
     try {
-      await completeStudyTask({ taskId, ...draft });
-      onRefresh();
+      await completeStudyTask({ taskId, ...result.value });
+      await onRefresh();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '任务完成状态保存失败，请重试。');
     } finally {
@@ -58,7 +53,7 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
     setActiveActionTaskId(taskId);
     try {
       await startTask(taskId);
-      onRefresh();
+      await onRefresh();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '任务开始失败，请重试。');
     } finally {
@@ -71,7 +66,7 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
     setActiveActionTaskId(taskId);
     try {
       await postponeTask(taskId);
-      onRefresh();
+      await onRefresh();
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '任务延期失败，请重试。');
     } finally {
@@ -79,16 +74,11 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
     }
   }
 
-  function updateCompletionDraft(taskId: string, field: 'completedQuestionCount' | 'correctCount' | 'minutesSpent' | 'selfRating', value: number) {
-    const task = plan.priorityTasks.find((item) => item.id === taskId);
-    if (!task) return;
+  function updateCompletionDraft(taskId: string, field: keyof TaskCompletionDraft, value: number | undefined) {
     setCompletionDrafts((current) => ({
       ...current,
       [taskId]: {
-        completedQuestionCount: current[taskId]?.completedQuestionCount ?? task.questionCount,
-        correctCount: current[taskId]?.correctCount ?? Math.round(task.questionCount * 0.75),
-        minutesSpent: current[taskId]?.minutesSpent ?? task.minutes,
-        selfRating: current[taskId]?.selfRating ?? 3,
+        ...current[taskId],
         [field]: value,
       },
     }));
@@ -160,10 +150,10 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
               <div className="task-actions">
                 {task.status === 'in_progress' ? (
                   <div className="task-completion-fields">
-                    <label><span>完成题数</span><input type="number" min={0} max={200} value={completionDrafts[task.id]?.completedQuestionCount ?? task.questionCount} onChange={(event) => updateCompletionDraft(task.id, 'completedQuestionCount', Number(event.target.value))} /></label>
-                    <label><span>正确题数</span><input type="number" min={0} max={completionDrafts[task.id]?.completedQuestionCount ?? task.questionCount} value={completionDrafts[task.id]?.correctCount ?? Math.round(task.questionCount * 0.75)} onChange={(event) => updateCompletionDraft(task.id, 'correctCount', Number(event.target.value))} /></label>
-                    <label><span>实际分钟</span><input type="number" min={1} max={600} value={completionDrafts[task.id]?.minutesSpent ?? task.minutes} onChange={(event) => updateCompletionDraft(task.id, 'minutesSpent', Number(event.target.value))} /></label>
-                    <label><span>掌握自评</span><select value={completionDrafts[task.id]?.selfRating ?? 3} onChange={(event) => updateCompletionDraft(task.id, 'selfRating', Number(event.target.value))}><option value={1}>1 · 不会</option><option value={2}>2 · 较弱</option><option value={3}>3 · 一般</option><option value={4}>4 · 熟练</option><option value={5}>5 · 掌握</option></select></label>
+                    <label><span>完成题数</span><input type="number" min={0} max={200} placeholder={`计划 ${task.questionCount} 题`} value={completionDrafts[task.id]?.completedQuestionCount ?? ''} onChange={(event) => updateCompletionDraft(task.id, 'completedQuestionCount', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
+                    <label><span>正确题数</span><input type="number" min={0} max={completionDrafts[task.id]?.completedQuestionCount ?? 200} value={completionDrafts[task.id]?.correctCount ?? ''} onChange={(event) => updateCompletionDraft(task.id, 'correctCount', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
+                    <label><span>实际分钟</span><input type="number" min={1} max={600} placeholder={`计划 ${task.minutes} 分钟`} value={completionDrafts[task.id]?.minutesSpent ?? ''} onChange={(event) => updateCompletionDraft(task.id, 'minutesSpent', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
+                    <label><span>掌握自评</span><select value={completionDrafts[task.id]?.selfRating ?? ''} onChange={(event) => updateCompletionDraft(task.id, 'selfRating', event.target.value === '' ? undefined : Number(event.target.value))}><option value="" disabled>请选择</option><option value={1}>1 · 不会</option><option value={2}>2 · 较弱</option><option value={3}>3 · 一般</option><option value={4}>4 · 熟练</option><option value={5}>5 · 掌握</option></select></label>
                     <button type="button" className="primary-action" disabled={activeActionTaskId === task.id} onClick={() => handleComplete(task.id)}>{activeActionTaskId === task.id ? '保存中' : '完成并调整计划'}</button>
                   </div>
                 ) : task.completed || task.status === 'completed' ? (

@@ -20,7 +20,7 @@ interface StudentLaunchpadProps {
   examQuestionCount: number;
   remoteSessionsEnabled: boolean;
   onOnboardingComplete: ComponentProps<typeof OnboardingWizard>['onComplete'];
-  onRefreshTodayPlan: () => void;
+  onRefreshTodayPlan: () => Promise<void>;
   onOpenReview: (questionId: string) => void;
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
