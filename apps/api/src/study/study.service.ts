@@ -1890,8 +1890,8 @@ export class StudyService implements OnModuleInit {
     return result;
   }
 
-  async createPracticeRecord(input: CreatePracticeRecordDto & { userId: string }) {
-    const question = this.questions.find((item) => item.id === input.questionId);
+  async createPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }) {
+    const question = input.questionSnapshot ?? this.questions.find((item) => item.id === input.questionId);
     if (!question) {
       throw new BadRequestException(`Question ${input.questionId} was not found`);
     }
@@ -2805,6 +2805,7 @@ export class StudyService implements OnModuleInit {
         ? [{ questionId, ...answer }]
         : [];
     });
+    const snapshotQuestions = new Map(session.questionSnapshot.map((question) => [question.id, question]));
 
     try {
       const records = await Promise.all(
@@ -2818,6 +2819,7 @@ export class StudyService implements OnModuleInit {
             sessionId,
             selfScore: answer.selfScore,
             maxScore: answer.maxScore,
+            questionSnapshot: session.type === 'paper' ? snapshotQuestions.get(answer.questionId) : undefined,
           }),
         ),
       );
@@ -2945,15 +2947,20 @@ export class StudyService implements OnModuleInit {
     }
 
     const records = this.records.filter((record) => record.userId === userId && record.sessionId === sessionId);
+    const questionsById = new Map(session.questionSnapshot.map((question) => [question.id, question]));
+    const missingSnapshotQuestionId = session.questionIds.find((questionId) => !questionsById.has(questionId));
+    if (session.questionSnapshot.length === 0 || missingSnapshotQuestionId) {
+      throw new BadRequestException('Exam question snapshot is incomplete');
+    }
 
     const correctCount = records.filter((r) => r.correct).length;
     const totalQuestions = session.questionIds.length;
     const accuracyRate = totalQuestions ? Math.round((correctCount / totalQuestions) * 100) : 0;
     const objectiveQuestionIds = session.questionIds.filter((questionId) =>
-      this.questions.find((question) => question.id === questionId)?.type !== '综合题',
+      questionsById.get(questionId)?.type !== '综合题',
     );
     const subjectiveQuestionIds = session.questionIds.filter((questionId) =>
-      this.questions.find((question) => question.id === questionId)?.type === '综合题',
+      questionsById.get(questionId)?.type === '综合题',
     );
     const objectiveRecords = records.filter((record) => objectiveQuestionIds.includes(record.questionId));
     const subjectiveRecords = records.filter((record) => subjectiveQuestionIds.includes(record.questionId));
@@ -2968,7 +2975,7 @@ export class StudyService implements OnModuleInit {
     // Per-subject breakdown
     const subjectStats = new Map<string, { total: number; answered: number; correct: number; totalTimeSec: number }>();
     for (const questionId of session.questionIds) {
-      const question = this.questions.find((item) => item.id === questionId);
+      const question = questionsById.get(questionId);
       const point = question?.knowledgePointIds[0]
         ? this.knowledgePoints.find((item) => item.id === question.knowledgePointIds[0])
         : undefined;
@@ -2978,7 +2985,7 @@ export class StudyService implements OnModuleInit {
       subjectStats.set(subject, stat);
     }
     for (const record of records) {
-      const question = this.questions.find((q) => q.id === record.questionId);
+      const question = questionsById.get(record.questionId);
       const point = question?.knowledgePointIds[0]
         ? this.knowledgePoints.find((k) => k.id === question.knowledgePointIds[0])
         : undefined;
@@ -2997,7 +3004,7 @@ export class StudyService implements OnModuleInit {
       ...session.questionIds.filter((questionId) => !isAnswered(session.answers[questionId])),
     ];
     for (const questionId of lostQuestionIds) {
-      const question = this.questions.find((q) => q.id === questionId);
+      const question = questionsById.get(questionId);
       const pointId = question?.knowledgePointIds[0];
       if (!pointId) continue;
       const point = this.knowledgePoints.find((k) => k.id === pointId);
@@ -3033,6 +3040,7 @@ export class StudyService implements OnModuleInit {
         totalQuestions: stats.total,
         correctCount: stats.correct,
         accuracyRate: stats.total ? Math.round((stats.correct / stats.total) * 100) : 0,
+        totalTimeSec: Math.round(stats.totalTimeSec),
         avgTimeSec: stats.answered ? Math.round(stats.totalTimeSec / stats.answered) : 0,
       })),
       knowledgePointLosses: [...pointLosses.values()]
@@ -3041,7 +3049,7 @@ export class StudyService implements OnModuleInit {
       unansweredQuestions: session.questionIds
         .filter((id) => !isAnswered(session.answers[id]))
         .map((id) => {
-          const q = this.questions.find((q2) => q2.id === id);
+          const q = questionsById.get(id);
           return { questionId: id, stem: q?.stem ?? id };
         }),
     };
@@ -3132,8 +3140,7 @@ export class StudyService implements OnModuleInit {
 
   private sessionView(s: PracticeSession) {
     const answeredCount = s.questionIds.filter((questionId) => isAnswered(s.answers[questionId])).length;
-    const snapshot = s.questionSnapshot.length > 0 ? s.questionSnapshot : this.questions;
-    const questionsById = new Map(snapshot.map((question) => [question.id, question]));
+    const questionsById = new Map(s.questionSnapshot.map((question) => [question.id, question]));
     return {
       id: s.id,
       type: s.type,

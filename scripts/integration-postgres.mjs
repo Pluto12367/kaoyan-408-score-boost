@@ -533,7 +533,12 @@ async function main() {
     totalActiveMs: 1250,
   }, studentHeaders);
   assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes(subjectiveQuestion.id), 'session progress should be saved');
-  await patchJson(`${apiUrl}/questions/q-001`, { stem: `${originalSessionStem}（题库已更新）` }, teacherHeaders);
+  await patchJson(`${apiUrl}/questions/q-001`, {
+    stem: `${originalSessionStem}（题库已更新）`,
+    answer: 'A',
+    knowledgePointIds: ['net-tcp'],
+    expectedTimeSec: 999,
+  }, teacherHeaders);
 
   const partialExamSession = await postJson(`${apiUrl}/sessions/practice/start`, {
     type: 'paper',
@@ -562,6 +567,12 @@ async function main() {
   assert(partialExamReport.summary.subjectiveQuestionCount === 1, 'report should count unanswered comprehensive questions in the paper structure');
   assert(partialExamReport.subjectBreakdown.reduce((sum, item) => sum + item.totalQuestions, 0) === 2, 'subject breakdown should cover the whole paper including unanswered questions');
   assert(partialExamReport.knowledgePointLosses.some((item) => item.title), 'unanswered questions should contribute to knowledge-point losses');
+  const missingSnapshotPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  await missingSnapshotPrisma.learningSession.update({
+    where: { id: partialExamSession.id },
+    data: { questionSnapshot: [] },
+  });
+  await missingSnapshotPrisma.$disconnect();
 
   const recommendedPracticeSet = await getJson(`${apiUrl}/practice-sets/recommended`, studentHeaders);
   const practiceSessionQuestions = recommendedPracticeSet.questions.slice(0, Math.min(2, recommendedPracticeSet.questions.length));
@@ -627,6 +638,7 @@ async function main() {
   const reloggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(reloggedIn.user.id === registered.user.id, 'student should log in again after an API restart');
   studentHeaders = { Authorization: `Bearer ${reloggedIn.accessToken}` };
+  await expectGetStatus(`${apiUrl}/exam/report/${partialExamSession.id}`, studentHeaders, 400);
   const restored = await waitForOverview(studentHeaders, (data) =>
     data.practiceRecords?.some((record) => record.id === created.id)
       && data.plan?.dailyTasks?.some((task) => task.id === taskId && task.completed)
@@ -745,6 +757,11 @@ async function main() {
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
     answers: [{ questionId: 'question-outside-session', selectedAnswer: 'A', timeSpentSec: 10 }],
   }, 400, studentHeaders);
+  await patchJson(`${apiUrl}/questions/${subjectiveQuestion.id}`, {
+    type: '选择题',
+    answer: 'A',
+    knowledgePointIds: ['net-tcp'],
+  }, teacherHeaders);
   const submittedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
     answers: [
       { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 },
@@ -768,7 +785,15 @@ async function main() {
   assert(examReport.summary.subjectiveQuestionCount === 1 && examReport.summary.subjectiveEarnedScore === 7, 'subjective question should retain the student self score');
   assert(examReport.summary.subjectiveMaxScore === 10, 'subjective report should retain the maximum score');
   assert(examReport.subjectBreakdown.reduce((sum, item) => sum + item.totalQuestions, 0) === 2, 'old practice records must not contaminate the exam report');
+  assert(examReport.subjectBreakdown.reduce((sum, item) => sum + item.totalTimeSec, 0) === 313, 'subject breakdown should expose traceable total time per subject');
+  const reportAfterQuestionEdit = await getJson(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders);
+  assert(reportAfterQuestionEdit.summary.subjectiveQuestionCount === 1, 'historical exam grading should use the question snapshot after catalog edits');
+  assert(JSON.stringify(reportAfterQuestionEdit.subjectBreakdown) === JSON.stringify(examReport.subjectBreakdown), 'historical subject timing and accuracy should not change after catalog edits');
   const overviewAfterSessionSubmissions = await waitForOverview(studentHeaders);
+  const snapshotGradedRecord = overviewAfterSessionSubmissions.practiceRecords.find((record) =>
+    record.sessionId === startedSession.id && record.questionId === 'q-001',
+  );
+  assert(snapshotGradedRecord?.expectedTimeSec === 100, 'paper grading should retain the question snapshot expected time');
   assert(overviewAfterSessionSubmissions.practiceRecords.filter((record) => record.sessionId === practiceSession.id).length === practiceSessionQuestions.length, 'practice-set duplicate submission must not create duplicate records');
   assert(overviewAfterSessionSubmissions.practiceRecords.filter((record) => record.sessionId === stageSession.id).length === stageSessionQuestions.length, 'stage-assessment duplicate submission must not create duplicate records');
   const examReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);

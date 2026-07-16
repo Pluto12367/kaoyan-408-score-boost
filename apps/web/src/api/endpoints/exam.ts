@@ -19,7 +19,7 @@ export interface ExamReport {
   };
   subjectBreakdown: Array<{
     subject: string; totalQuestions: number; correctCount: number;
-    accuracyRate: number; avgTimeSec: number;
+    accuracyRate: number; totalTimeSec: number; avgTimeSec: number;
   }>;
   knowledgePointLosses: Array<{ title: string; subject: string; wrongCount: number }>;
   unansweredQuestions: Array<{ questionId: string; stem: string }>;

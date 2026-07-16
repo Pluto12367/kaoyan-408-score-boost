@@ -107,7 +107,7 @@ export function ExamReportView({ sessionId, onClose }: Props) {
               <div className="subject-bar">
                 <div className="subject-fill" style={{ width: `${s.accuracyRate}%` }} />
               </div>
-              <span>{s.correctCount}/{s.totalQuestions} · {s.accuracyRate}% · 均{s.avgTimeSec}秒</span>
+              <span>{s.correctCount}/{s.totalQuestions} · {s.accuracyRate}% · 总用时{s.totalTimeSec}秒 · 均{s.avgTimeSec}秒</span>
             </div>
           ))}
         </div>
