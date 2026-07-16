@@ -35,7 +35,6 @@ async function main() {
     'SELECT "id", "scene", "message", "createdAt" FROM "FeedbackSubmission" WHERE "id" LIKE $1 ORDER BY "id"',
     'feedback-legacy-fixture-%',
   );
-  await migrationPrisma.$disconnect();
   const migratedShortFeedback = migratedLegacyFeedback.find((item) => item.id === 'feedback-legacy-fixture-short');
   assert(migratedShortFeedback?.message === '短反馈', 'migration should retain legacy feedback with 1 to 9 characters');
   assert(migratedShortFeedback?.scene === 'overall', 'migration should map unknown legacy scenes to overall');
@@ -48,6 +47,27 @@ async function main() {
     migratedInvalidDateFeedback?.createdAt instanceof Date && !Number.isNaN(migratedInvalidDateFeedback.createdAt.getTime()),
     'migration should fall back safely for an invalid legacy createdAt timestamp',
   );
+  const migratedReviewSchedules = await migrationPrisma.reviewSchedule.findMany({
+    where: { userId: 'legacy-review-user' },
+    orderBy: { id: 'asc' },
+  });
+  const migratedRelapseSchedule = migratedReviewSchedules.find((item) => item.id === 'legacy-review-relapse');
+  assert(migratedRelapseSchedule?.lastWrongRecordId === null, 'migration should leave a mastered-then-wrong schedule for startup compensation');
+  assert(migratedRelapseSchedule?.redoCorrect === false && migratedRelapseSchedule.timeSpentSec === 131, 'migration should recover the latest unprocessed wrong result and time');
+  const migratedLearningSchedule = migratedReviewSchedules.find((item) => item.id === 'legacy-review-learning');
+  assert(migratedLearningSchedule?.lastWrongRecordId === 'legacy-record-learning', 'migration should acknowledge an existing active wrong schedule');
+  assert(migratedLearningSchedule?.redoCorrect === false && migratedLearningSchedule.timeSpentSec === 88, 'migration should recover a first wrong-answer time without review attempts');
+  await migrationPrisma.feedbackSubmission.deleteMany({
+    where: { id: { startsWith: 'feedback-legacy-fixture-' } },
+  });
+  await migrationPrisma.user.deleteMany({ where: { id: 'legacy-review-user' } });
+  await migrationPrisma.question.deleteMany({
+    where: { id: { startsWith: 'legacy-review-question-' } },
+  });
+  await migrationPrisma.knowledgePoint.deleteMany({
+    where: { id: { startsWith: 'legacy-review-point-' } },
+  });
+  await migrationPrisma.$disconnect();
 
   activeApi = startApi();
   await waitForHealth(activeApi);
@@ -336,6 +356,7 @@ async function main() {
     timeSpentSec: 137,
   }, studentHeaders);
   assert(created.id && created.correct === false && created.userId === registered.user.id, 'practice submission without userId should use the authenticated student');
+  assert(Math.abs(Date.now() - Date.parse(created.submittedAt)) < 60_000, 'practice submissions should retain their real submission time for deterministic recovery ordering');
   await expectPostStatus(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-002',
@@ -366,6 +387,9 @@ async function main() {
   const detailAfterInitialReason = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
   assert(detailAfterInitialReason.reviewHistory.length === 0, 'initial mistake classification should not create a redo history item');
   assert(detailAfterInitialReason.reviewSchedule.selfReportedReason === 'concept unclear', 'initial self-reported reason should be retained');
+  assert(detailAfterInitialReason.reviewSchedule.inferredReason.includes('concept unclear'), 'combined mistake reasoning should retain the student self-assessment');
+  assert(detailAfterInitialReason.reviewSchedule.inferredReason !== detailAfterInitialReason.reviewSchedule.selfReportedReason, 'combined mistake reasoning should use historical answer behavior');
+  assert(detailAfterInitialReason.analysis && detailAfterInitialReason.similarQuestions.length > 0, 'wrong-question detail should include analysis and similar questions');
   const savedNote = await patchJson(`${apiUrl}/wrong-questions/q-001/note`, {
     note: 'Cache mapping: check block number modulo line count before choosing.',
   }, studentHeaders);
@@ -394,6 +418,44 @@ async function main() {
     timeSpentSec: 76,
   }, studentHeaders);
   assert(masteredRedo.nextReviewInDays === 14 && masteredRedo.stability === 'mastered', 'third correct redo should reach stable mastery with a fourteen-day interval');
+
+  const relapseRecord = await postJson(`${apiUrl}/practice-records`, {
+    questionId: 'q-001',
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'integration-test-relapse',
+    timeSpentSec: 128,
+  }, studentHeaders);
+  assert(relapseRecord.correct === false, 'a mastered question should still record a later wrong answer');
+  const reopenedDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
+  assert(reopenedDetail.reviewSchedule?.stability === 'learning', 'a new wrong answer should reopen a mastered review schedule');
+  assert(reopenedDetail.reviewSchedule?.consecutiveCorrect === 0, 'a new wrong answer should reset the mastery streak');
+  assert(reopenedDetail.reviewSchedule?.reviewCount === 4, 'reopening should preserve the completed review count');
+  assert(!reopenedDetail.reviewSchedule?.selfReportedReason, 'a reopened schedule should wait for a new self-reported reason');
+  const reopenedDelayHours = (Date.parse(reopenedDetail.reviewSchedule.nextReviewAt) - Date.now()) / 3_600_000;
+  assert(reopenedDelayHours > 23 && reopenedDelayHours <= 24, 'a reopened schedule should return to a next-day review');
+  assert(reopenedDetail.reviewHistory?.length === 4, 'reopening should preserve the earlier review trajectory');
+
+  const historicalReasonQuestion = initial.questions.find((question) => question.id === 'q-002');
+  assert(historicalReasonQuestion, 'historical reason verification requires q-002');
+  const historicalWrongRecord = await postJson(`${apiUrl}/practice-records`, {
+    questionId: historicalReasonQuestion.id,
+    knowledgePointId: historicalReasonQuestion.knowledgePointIds[0],
+    selectedAnswer: '__wrong__',
+    timeSpentSec: historicalReasonQuestion.expectedTimeSec,
+  }, studentHeaders);
+  await postJson(`${apiUrl}/practice-records`, {
+    questionId: historicalReasonQuestion.id,
+    knowledgePointId: historicalReasonQuestion.knowledgePointIds[0],
+    selectedAnswer: historicalReasonQuestion.answer,
+    timeSpentSec: historicalReasonQuestion.expectedTimeSec,
+  }, studentHeaders);
+  const reasonAfterCorrectAnswer = await postJson(`${apiUrl}/wrong-questions/${historicalReasonQuestion.id}/reason`, {
+    selfReportedReason: '审题问题',
+    redoCorrect: true,
+    timeSpentSec: historicalReasonQuestion.expectedTimeSec,
+  }, studentHeaders);
+  assert(reasonAfterCorrectAnswer.inferredReason.includes('审题问题'), 'combined reasoning should retain the self-reported reason after a correct answer');
+  assert(reasonAfterCorrectAnswer.inferredReason.includes(historicalWrongRecord.mistakeReason), 'combined reasoning should retain the latest historical mistake after a correct answer');
 
   const todayPlanBeforeTask = await getJson(`${apiUrl}/today/plan`, studentHeaders);
   const taskId = todayPlanBeforeTask.priorityTasks?.[0]?.id;
@@ -537,7 +599,29 @@ async function main() {
   }, studentHeaders);
   await expectGetStatus(`${apiUrl}/sessions/practice/${startedSession.id}`, { Authorization: `Bearer ${teacherSession.token}` }, 403);
 
+  const restartRelapseRecord = await postJson(`${apiUrl}/practice-records`, {
+    questionId: 'q-001',
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'restart-relapse',
+    timeSpentSec: 131,
+  }, studentHeaders);
+  const restartClassification = await postJson(`${apiUrl}/wrong-questions/q-001/reason`, {
+    selfReportedReason: '重启前自评',
+    redoCorrect: false,
+    timeSpentSec: 131,
+    isReview: false,
+  }, studentHeaders);
+  const restartDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
+  assert(restartDetail.reviewSchedule.selfReportedReason === '重启前自评', 'restart verification should begin with a classified latest wrong answer');
+  assert(restartDetail.reviewSchedule.inferredReason === restartClassification.inferredReason, 'pre-restart combined reason should be traceable');
   await stop(activeApi);
+  const dueReviewPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const forcedDueAt = new Date(Date.now() - 60_000);
+  await dueReviewPrisma.reviewSchedule.update({
+    where: { userId_questionId: { userId: registered.user.id, questionId: 'q-001' } },
+    data: { nextReviewAt: forcedDueAt },
+  });
+  await dueReviewPrisma.$disconnect();
   activeApi = startApi();
   await waitForHealth(activeApi);
   const reloggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
@@ -553,10 +637,62 @@ async function main() {
   assert(restoredRecord.timeSpentSec === 137, 'record should survive an API restart');
   const restoredWrongDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
   assert(restoredWrongDetail.note === savedNote.note, 'wrong-question note should survive an API restart');
-  assert(restoredWrongDetail.reviewSchedule?.stability === 'mastered', 'review mastery should survive an API restart');
+  assert(restoredWrongDetail.reviewSchedule?.stability === 'learning', 'a reopened review schedule should survive an API restart');
+  assert(restoredWrongDetail.reviewSchedule?.consecutiveCorrect === 0, 'the reset mastery streak should survive an API restart');
+  assert(restoredWrongDetail.reviewSchedule?.reviewCount === 4, 'the completed review count should survive an API restart');
+  assert(restoredWrongDetail.reviewSchedule?.selfReportedReason === '重启前自评', 'the latest self-reported reason should survive an API restart');
+  assert(restoredWrongDetail.reviewSchedule?.inferredReason === restartClassification.inferredReason, 'the combined reason should survive an API restart');
+  assert(restoredWrongDetail.reviewSchedule?.nextReviewAt === forcedDueAt.toISOString(), 'API restart must not move an existing review deadline');
   assert(restoredWrongDetail.reviewHistory?.length === 4, 'complete review trajectory should survive an API restart');
   assert(restoredWrongDetail.reviewHistory[0].nextIntervalDays === 1, 'review history should retain interval decisions');
   assert(restoredWrongDetail.reviewHistory.at(-1)?.reviewedAt === masteredRedo.lastReviewedAt, 'latest wrong-question review timestamp should survive an API restart');
+  const restoredDueReviews = await getJson(`${apiUrl}/review/due`, studentHeaders);
+  const restoredDueReview = restoredDueReviews.items.find((item) => item.questionId === 'q-001');
+  assert(restoredDueReview, 'a reopened schedule should appear in today\'s due reviews when its time arrives');
+  assert(restoredDueReview.redoCorrect === false, 'a reopened schedule should retain the latest wrong result after restart');
+  assert(restoredDueReview.timeSpentSec === 131, 'a reopened schedule should retain the latest wrong-answer time after restart');
+  const restoredSchedulePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const restoredScheduleRow = await restoredSchedulePrisma.reviewSchedule.findUnique({
+    where: { userId_questionId: { userId: registered.user.id, questionId: 'q-001' } },
+  });
+  await restoredSchedulePrisma.$disconnect();
+  assert(restoredScheduleRow?.reviewCount === 4, 'PostgreSQL should retain the completed review count after restart');
+  assert(restoredScheduleRow?.selfReportedReason === '重启前自评', 'PostgreSQL should retain the latest self-reported reason after restart');
+  assert(restoredScheduleRow?.inferredReason === restartClassification.inferredReason, 'PostgreSQL should retain the combined reason after restart');
+  assert(restoredScheduleRow?.lastReviewedAt?.toISOString() === masteredRedo.lastReviewedAt, 'PostgreSQL should retain the last completed review time after reopening');
+  assert(restoredScheduleRow?.nextReviewAt.toISOString() === forcedDueAt.toISOString(), 'PostgreSQL should retain the exact review deadline after restart');
+
+  await stop(activeApi);
+  const interruptedSchedulePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  await interruptedSchedulePrisma.reviewSchedule.update({
+    where: { userId_questionId: { userId: registered.user.id, questionId: 'q-001' } },
+    data: {
+      lastWrongRecordId: relapseRecord.id,
+      selfReportedReason: 'stale reason',
+      redoCorrect: true,
+      timeSpentSec: 76,
+      consecutiveCorrect: 3,
+      stability: 'mastered',
+      nextReviewAt: new Date(Date.now() + 14 * 86_400_000),
+    },
+  });
+  await interruptedSchedulePrisma.$disconnect();
+  activeApi = startApi();
+  await waitForHealth(activeApi);
+  const recoveredLogin = await postJson(`${apiUrl}/auth/login`, credentials);
+  studentHeaders = { Authorization: `Bearer ${recoveredLogin.accessToken}` };
+  const compensatedDetail = await getJson(`${apiUrl}/wrong-questions/q-001/detail`, studentHeaders);
+  assert(compensatedDetail.reviewSchedule?.stability === 'learning', 'startup should compensate an unprocessed latest wrong record');
+  assert(compensatedDetail.reviewSchedule?.consecutiveCorrect === 0, 'crash compensation should reset the stale mastery streak');
+  assert(!compensatedDetail.reviewSchedule?.selfReportedReason, 'crash compensation should clear the stale self-reported reason');
+  assert(compensatedDetail.reviewHistory?.length === 4, 'crash compensation should preserve the earlier review trajectory');
+  const compensatedSchedulePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const compensatedScheduleRow = await compensatedSchedulePrisma.reviewSchedule.findUnique({
+    where: { userId_questionId: { userId: registered.user.id, questionId: 'q-001' } },
+  });
+  await compensatedSchedulePrisma.$disconnect();
+  assert(compensatedScheduleRow?.lastWrongRecordId === restartRelapseRecord.id, 'crash compensation should acknowledge the latest wrong record');
+  assert(compensatedScheduleRow?.redoCorrect === false && compensatedScheduleRow.timeSpentSec === 131, 'crash compensation should persist the latest wrong result and time');
   const restoredTask = restored.plan.dailyTasks.find((task) => task.id === taskId);
   assert(restoredTask.completed === true, 'study-task completion should survive an API restart');
   const restoredOnboarding = await getJson(`${apiUrl}/onboarding/status`, studentHeaders);
@@ -712,6 +848,7 @@ async function prepareLegacyFeedbackMigrationFixture() {
   try {
     await cp(join(root, 'prisma'), temporaryPrisma, { recursive: true });
     await rm(join(temporaryPrisma, 'migrations', '20260715160000_feedback_submissions'), { recursive: true, force: true });
+    await rm(join(temporaryPrisma, 'migrations', '20260716150000_review_schedule_recovery'), { recursive: true, force: true });
     const legacyDeploy = spawnSync(npx, [
       'prisma',
       'migrate',
@@ -758,6 +895,42 @@ async function prepareLegacyFeedbackMigrationFixture() {
         },
       ]),
     );
+    const legacyReviewFixtureStatements = [
+      `INSERT INTO "User" ("id", "name", "role", "createdAt", "updatedAt")
+      VALUES ('legacy-review-user', '历史复习用户', 'STUDENT', '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z')`,
+      `
+      INSERT INTO "KnowledgePoint" ("id", "subject", "chapter", "title", "importance", "frequency", "prerequisites", "createdAt", "updatedAt")
+      VALUES
+        ('legacy-review-point-a', 'COMPUTER_ORGANIZATION', '缓存', '迁移错题 A', 5, 5, ARRAY[]::TEXT[], '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z'),
+        ('legacy-review-point-b', 'COMPUTER_ORGANIZATION', '缓存', '迁移错题 B', 5, 5, ARRAY[]::TEXT[], '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z')`,
+      `
+      INSERT INTO "Question" ("id", "stem", "options", "answer", "analysis", "difficulty", "type", "source", "expectedTimeSec", "createdAt", "updatedAt")
+      VALUES
+        ('legacy-review-question-a', '迁移测试题 A', ARRAY['A', 'B'], 'A', '迁移解析 A', 'MEDIUM', 'SINGLE_CHOICE', 'migration-fixture', 100, '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z'),
+        ('legacy-review-question-b', '迁移测试题 B', ARRAY['A', 'B'], 'A', '迁移解析 B', 'MEDIUM', 'SINGLE_CHOICE', 'migration-fixture', 100, '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z')`,
+      `
+      INSERT INTO "QuestionKnowledgePoint" ("questionId", "knowledgePointId")
+      VALUES
+        ('legacy-review-question-a', 'legacy-review-point-a'),
+        ('legacy-review-question-b', 'legacy-review-point-b')`,
+      `
+      INSERT INTO "PracticeRecord" ("id", "userId", "questionId", "knowledgePointId", "selectedAnswer", "correct", "timeSpentSec", "expectedTimeSec", "mistakeReason", "submittedAt")
+      VALUES
+        ('legacy-record-initial', 'legacy-review-user', 'legacy-review-question-a', 'legacy-review-point-a', 'B', false, 120, 100, '概念不清', '2026-07-01T09:00:00Z'),
+        ('legacy-record-relapse', 'legacy-review-user', 'legacy-review-question-a', 'legacy-review-point-a', 'B', false, 131, 100, '知识点混淆', '2026-07-03T09:00:00Z'),
+        ('legacy-record-learning', 'legacy-review-user', 'legacy-review-question-b', 'legacy-review-point-b', 'B', false, 88, 100, '审题问题', '2026-07-04T09:00:00Z')`,
+      `
+      INSERT INTO "ReviewSchedule" ("id", "userId", "questionId", "inferredReason", "selfReportedReason", "consecutiveCorrect", "stability", "nextReviewAt", "reviewCount", "lastReviewedAt", "createdAt", "updatedAt")
+      VALUES
+        ('legacy-review-relapse', 'legacy-review-user', 'legacy-review-question-a', '概念不清', '概念不清', 3, 'mastered', '2026-07-16T09:00:00Z', 3, '2026-07-02T09:00:00Z', '2026-07-01T09:00:00Z', '2026-07-02T09:00:00Z'),
+        ('legacy-review-learning', 'legacy-review-user', 'legacy-review-question-b', '审题问题', '审题问题', 0, 'learning', '2026-07-05T09:00:00Z', 0, NULL, '2026-07-04T09:00:00Z', '2026-07-04T09:00:00Z')`,
+      `
+      INSERT INTO "ReviewAttempt" ("id", "scheduleId", "redoCorrect", "timeSpentSec", "reportedReason", "inferredReason", "nextIntervalDays", "reviewedAt")
+      VALUES ('legacy-review-attempt', 'legacy-review-relapse', true, 76, '概念不清', '概念不清', 14, '2026-07-02T09:00:00Z')`,
+    ];
+    for (const statement of legacyReviewFixtureStatements) {
+      await fixturePrisma.$executeRawUnsafe(statement);
+    }
     await fixturePrisma.$disconnect();
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });

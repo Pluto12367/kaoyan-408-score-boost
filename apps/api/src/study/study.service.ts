@@ -33,6 +33,7 @@ import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
 import { AdminUserRepository, type ManagedUserRecord, type TrialStatus } from './admin-user.repository';
 import { FEEDBACK_SCENES, FeedbackRepository, type FeedbackRecord, type FeedbackScene } from './feedback.repository';
+import { studyDateKey } from './study-date';
 
 const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
 
@@ -126,10 +127,16 @@ export class StudyService implements OnModuleInit {
       this.reviewSchedules.set(key, state.schedule);
       this.reviewAttemptsByKey.set(key, state.attempts);
     }
-    const latestRecordByQuestion = new Map<string, PracticeRecord>();
-    for (const record of this.records) latestRecordByQuestion.set(scheduleKey(record.userId, record.questionId), record);
-    for (const record of latestRecordByQuestion.values()) {
-      if (!record.correct) await this.ensureReviewSchedule(record);
+    const latestWrongRecordByQuestion = new Map<string, PracticeRecord>();
+    for (const record of this.records) {
+      if (record.correct) continue;
+      const key = scheduleKey(record.userId, record.questionId);
+      const current = latestWrongRecordByQuestion.get(key);
+      if (!current || comparePracticeRecordOrder(record, current) > 0) latestWrongRecordByQuestion.set(key, record);
+    }
+    for (const record of latestWrongRecordByQuestion.values()) {
+      const schedule = this.reviewSchedules.get(scheduleKey(record.userId, record.questionId));
+      if (schedule?.lastWrongRecordId !== record.id) await this.ensureReviewSchedule(record);
     }
     const examReviewPlans = await this.examReviewPlanRepository.loadAll();
     this.examReviewPlans.clear();
@@ -562,21 +569,21 @@ export class StudyService implements OnModuleInit {
         id: `timeline-${item.id}`,
         type: 'practice_set',
         title: '推荐题组练习',
-        date: String(item.submittedAt).slice(0, 10),
+        date: studyDateKey(String(item.submittedAt)),
         summary: `完成 ${item.totalQuestions} 题，正确率 ${item.accuracyRate}%。`,
       })),
       ...userStageResults.map((item) => ({
         id: `timeline-${item.id}`,
         type: 'stage_assessment',
         title: '阶段测评',
-        date: String(item.submittedAt).slice(0, 10),
+        date: studyDateKey(String(item.submittedAt)),
         summary: `得分 ${item.score}，计划调整为 ${(item.adjustment as { planPhase?: string })?.planPhase ?? this.generatePlan(userId).phase}。`,
       })),
       ...[...reviewedWrongQuestions.entries()].map(([questionId, reviewedAt]) => ({
         id: `timeline-review-${questionId}`,
         type: 'wrong_review',
         title: '错题复盘',
-        date: reviewedAt.slice(0, 10),
+        date: studyDateKey(reviewedAt),
         summary: `已复盘错题 ${questionId}，并获得同考点练习建议。`,
       })),
     ].sort((left, right) => right.date.localeCompare(left.date));
@@ -836,7 +843,7 @@ export class StudyService implements OnModuleInit {
     const calendar = this.getLearningCalendar(this.student.id);
     const wrongQuestions = this.listWrongQuestions(this.student.id);
     const completedTaskCount = this.generatePlan().completedTaskCount ?? 0;
-    const activeDates = new Set(this.records.map((record) => record.submittedAt.slice(0, 10)));
+    const activeDates = new Set(this.records.map((record) => studyDateKey(record.submittedAt)));
 
     return {
       source: this.dataSource,
@@ -1442,6 +1449,8 @@ export class StudyService implements OnModuleInit {
       throw new BadRequestException(`Question ${questionId} has no practice history for this user`);
     }
     const inferredReason = inferReviewReason(selfReportedReason, questionRecords);
+    const lastWrongRecordId = existing?.lastWrongRecordId
+      ?? [...questionRecords].reverse().find((record) => !record.correct)?.id;
 
     if (input.isReview === false) {
       const nextReviewAt = existing?.nextReviewAt ?? new Date(now.getTime() + 86_400_000).toISOString();
@@ -1451,6 +1460,7 @@ export class StudyService implements OnModuleInit {
         inferredReason,
         selfReportedReason,
         note: existing?.note,
+        lastWrongRecordId,
         redoCorrect: false,
         timeSpentSec: input.timeSpentSec,
         consecutiveCorrect: existing?.consecutiveCorrect ?? 0,
@@ -1492,6 +1502,7 @@ export class StudyService implements OnModuleInit {
       inferredReason,
       selfReportedReason,
       note: existing?.note,
+      lastWrongRecordId,
       redoCorrect: input.redoCorrect,
       timeSpentSec: input.timeSpentSec,
       consecutiveCorrect,
@@ -1911,7 +1922,7 @@ export class StudyService implements OnModuleInit {
       timeSpentSec: input.timeSpentSec,
       expectedTimeSec,
       mistakeReason,
-      submittedAt: todayKey(),
+      submittedAt: new Date().toISOString(),
       sessionId: input.sessionId,
       gradingMode: isSubjective ? 'self_assessed' : 'objective',
       selfScore: input.selfScore,
@@ -1927,22 +1938,25 @@ export class StudyService implements OnModuleInit {
 
   private async ensureReviewSchedule(record: PracticeRecord) {
     const key = scheduleKey(record.userId, record.questionId);
-    if (this.reviewSchedules.has(key)) return;
+    const existing = this.reviewSchedules.get(key);
     const nextReviewAt = new Date();
     nextReviewAt.setUTCDate(nextReviewAt.getUTCDate() + 1);
     const schedule: ReviewSchedule = {
       questionId: record.questionId,
       userId: record.userId,
       inferredReason: record.mistakeReason ?? '待归因',
+      note: existing?.note,
+      lastWrongRecordId: record.id,
       redoCorrect: false,
       timeSpentSec: record.timeSpentSec,
       consecutiveCorrect: 0,
       stability: 'learning',
       nextReviewAt: nextReviewAt.toISOString(),
-      reviewCount: 0,
+      reviewCount: existing?.reviewCount ?? 0,
+      lastReviewedAt: existing?.lastReviewedAt,
     };
     this.reviewSchedules.set(key, schedule);
-    this.reviewAttemptsByKey.set(key, []);
+    if (!this.reviewAttemptsByKey.has(key)) this.reviewAttemptsByKey.set(key, []);
     await this.reviewScheduleRepository.saveSchedule(schedule);
   }
 
@@ -3094,7 +3108,7 @@ export class StudyService implements OnModuleInit {
       const correctCount = records.filter((r) => r.correct).length;
       return {
         sessionId: s.id,
-        date: s.lastActiveAt.slice(0, 10),
+        date: studyDateKey(s.lastActiveAt),
         totalQuestions: s.questionIds.length,
         correctCount,
         accuracyRate: s.questionIds.length ? Math.round((correctCount / s.questionIds.length) * 100) : 0,
@@ -3171,17 +3185,7 @@ function average(values: number[]) {
 }
 
 function todayKey() {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: process.env.APP_TIME_ZONE ?? 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === 'year')?.value;
-  const month = parts.find((part) => part.type === 'month')?.value;
-  const day = parts.find((part) => part.type === 'day')?.value;
-  if (!year || !month || !day) throw new Error('Unable to determine the current study date');
-  return `${year}-${month}-${day}`;
+  return studyDateKey(new Date());
 }
 
 function lastNDates(count: number) {
@@ -3206,7 +3210,7 @@ function nextNDates(count: number) {
 
 function countByDate(dates: string[]) {
   return dates.reduce((acc, date) => {
-    const key = date.slice(0, 10);
+    const key = studyDateKey(date);
     acc.set(key, (acc.get(key) ?? 0) + 1);
     return acc;
   }, new Map<string, number>());
@@ -3317,13 +3321,19 @@ function replaceArrayFromState<T>(target: T[], value: unknown) {
 }
 
 function inferReviewReason(selfReportedReason: string, records: PracticeRecord[]) {
-  const latest = records.at(-1);
   const wrongRecords = records.filter((record) => !record.correct);
+  const latestWrong = wrongRecords.at(-1);
   const slowCount = records.filter((record) => record.timeSpentSec > record.expectedTimeSec * 1.4).length;
   const wrongRate = records.length ? wrongRecords.length / records.length : 0;
-  if (slowCount >= Math.ceil(records.length / 2)) return `${selfReportedReason} + 速度风险`;
-  if (wrongRate >= 0.6 && latest?.mistakeReason) return `${selfReportedReason} + ${latest.mistakeReason}`;
-  return latest?.mistakeReason ?? selfReportedReason;
+  const signals = [selfReportedReason];
+  if (slowCount >= Math.ceil(records.length / 2)) signals.push('速度风险');
+  if (wrongRate >= 0.6 && latestWrong?.mistakeReason) signals.push(latestWrong.mistakeReason);
+  if (signals.length === 1 && latestWrong?.mistakeReason) signals.push(latestWrong.mistakeReason);
+  return [...new Set(signals)].join(' + ');
+}
+
+function comparePracticeRecordOrder(left: PracticeRecord, right: PracticeRecord) {
+  return left.submittedAt.localeCompare(right.submittedAt) || left.id.localeCompare(right.id);
 }
 
 export type PaperType = '模拟卷' | '阶段卷' | '专项卷';
@@ -3444,6 +3454,7 @@ export interface ReviewSchedule {
   inferredReason?: string;
   selfReportedReason?: string;
   note?: string;
+  lastWrongRecordId?: string;
   redoCorrect: boolean;
   timeSpentSec: number;
   consecutiveCorrect: number;

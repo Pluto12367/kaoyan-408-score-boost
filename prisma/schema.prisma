@@ -312,6 +312,9 @@ model ReviewSchedule {
   inferredReason     String?
   selfReportedReason String?
   note               String?
+  lastWrongRecordId  String?
+  redoCorrect        Boolean         @default(false)
+  timeSpentSec       Int             @default(0)
   consecutiveCorrect Int             @default(0)
   stability          String          @default("learning")
   nextReviewAt       DateTime

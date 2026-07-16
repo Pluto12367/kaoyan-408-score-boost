@@ -9,6 +9,7 @@ export interface ReviewScheduleState {
   inferredReason?: string;
   selfReportedReason?: string;
   note?: string;
+  lastWrongRecordId?: string;
   redoCorrect: boolean;
   timeSpentSec: number;
   consecutiveCorrect: number;
@@ -49,8 +50,9 @@ export class ReviewScheduleRepository {
           inferredReason: row.inferredReason ?? undefined,
           selfReportedReason: row.selfReportedReason ?? undefined,
           note: row.note ?? undefined,
-          redoCorrect: row.attempts.at(-1)?.redoCorrect ?? false,
-          timeSpentSec: row.attempts.at(-1)?.timeSpentSec ?? 0,
+          lastWrongRecordId: row.lastWrongRecordId ?? undefined,
+          redoCorrect: row.redoCorrect,
+          timeSpentSec: row.timeSpentSec,
           consecutiveCorrect: row.consecutiveCorrect,
           stability: row.stability as ReviewStability,
           nextReviewAt: row.nextReviewAt.toISOString(),
@@ -117,6 +119,9 @@ function toScheduleData(schedule: ReviewScheduleState) {
     inferredReason: schedule.inferredReason,
     selfReportedReason: schedule.selfReportedReason,
     note: schedule.note,
+    lastWrongRecordId: schedule.lastWrongRecordId,
+    redoCorrect: schedule.redoCorrect,
+    timeSpentSec: schedule.timeSpentSec,
     consecutiveCorrect: schedule.consecutiveCorrect,
     stability: schedule.stability,
     nextReviewAt: new Date(schedule.nextReviewAt),
@@ -127,9 +132,12 @@ function toScheduleData(schedule: ReviewScheduleState) {
 
 function toScheduleUpdate(schedule: ReviewScheduleState) {
   return {
-    inferredReason: schedule.inferredReason,
-    selfReportedReason: schedule.selfReportedReason,
+    inferredReason: schedule.inferredReason ?? null,
+    selfReportedReason: schedule.selfReportedReason ?? null,
     note: schedule.note,
+    lastWrongRecordId: schedule.lastWrongRecordId ?? null,
+    redoCorrect: schedule.redoCorrect,
+    timeSpentSec: schedule.timeSpentSec,
     consecutiveCorrect: schedule.consecutiveCorrect,
     stability: schedule.stability,
     nextReviewAt: new Date(schedule.nextReviewAt),
