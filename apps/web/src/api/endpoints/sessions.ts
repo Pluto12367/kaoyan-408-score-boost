@@ -25,6 +25,7 @@ export interface SessionView {
   answers: Record<string, SessionAnswer>;
   markedQuestions: string[];
   currentIndex: number;
+  revision: number;
   totalQuestions: number;
   answeredCount: number;
   startedAt: string;
@@ -65,6 +66,7 @@ export async function startPracticeSession(input: {
 }
 
 export async function savePracticeProgress(sessionId: string, input: {
+  revision: number;
   answers?: Record<string, SessionAnswer>;
   currentIndex?: number;
   markedQuestions?: string[];

@@ -441,16 +441,30 @@ async function main() {
   };
   const startedSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
   assert(startedSession.questions?.map((question) => question.id).join(',') === sessionInput.questionIds.join(','), 'started session should include its ordered question snapshot');
+  assert(startedSession.revision === 0, 'a new session should start at revision zero');
   const originalSessionStem = startedSession.questions[0].stem;
   const idempotentSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
   assert(idempotentSession.id === startedSession.id, 'starting the same active resource should be idempotent');
+  const newerSave = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    revision: 2,
+    answers: { 'q-001': { selectedAnswer: 'B', timeSpentSec: 70 } },
+  }, studentHeaders);
+  assert(newerSave.revision === 2 && newerSave.answers['q-001'].selectedAnswer === 'B', 'a newer save should advance the session revision');
+  const staleSave = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    revision: 1,
+    answers: { 'q-001': { selectedAnswer: 'A', timeSpentSec: 71 } },
+  }, studentHeaders);
+  assert(staleSave.revision === 2 && staleSave.answers['q-001'].selectedAnswer === 'B', 'an out-of-order save must not overwrite newer progress');
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    revision: 3,
     answers: { 'question-outside-session': { selectedAnswer: 'A', timeSpentSec: 10 } },
   }, 400, studentHeaders);
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    revision: 3,
     currentIndex: 9,
   }, 400, studentHeaders);
   const savedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    revision: 3,
     answers: { 'q-001': { selectedAnswer: 'A', timeSpentSec: 73 } },
     currentIndex: 1,
     markedQuestions: [subjectiveQuestion.id],
@@ -465,6 +479,7 @@ async function main() {
     questionIds: ['q-001', subjectiveQuestion.id],
   }, studentHeaders);
   const partialSavedSession = await postJson(`${apiUrl}/sessions/practice/${partialExamSession.id}/save`, {
+    revision: 1,
     answers: {
       'q-001': { selectedAnswer: 'B', timeSpentSec: 60 },
       [subjectiveQuestion.id]: { selectedAnswer: '', timeSpentSec: 20 },
@@ -495,6 +510,7 @@ async function main() {
     questionIds: practiceSessionQuestions.map((question) => question.id),
   }, studentHeaders);
   await postJson(`${apiUrl}/sessions/practice/${practiceSession.id}/save`, {
+    revision: 1,
     answers: {
       [practiceSessionQuestions[0].id]: sessionAnswerFor(practiceSessionQuestions[0], 61),
     },
@@ -512,6 +528,7 @@ async function main() {
     questionIds: stageSessionQuestions.map((question) => question.id),
   }, studentHeaders);
   await postJson(`${apiUrl}/sessions/practice/${stageSession.id}/save`, {
+    revision: 1,
     answers: {
       [stageSessionQuestions[0].id]: sessionAnswerFor(stageSessionQuestions[0], 79),
     },
@@ -550,6 +567,7 @@ async function main() {
   const restoredSession = await getJson(`${apiUrl}/sessions/practice/${startedSession.id}`, studentHeaders);
   assert(restoredSession.questions?.map((question) => question.id).join(',') === sessionInput.questionIds.join(','), 'restored session should include its ordered question snapshot');
   assert(restoredSession.questions[0].stem === originalSessionStem, 'restored session should preserve the question content captured when it started');
+  assert(restoredSession.revision === 3, 'the latest accepted save revision should survive an API restart');
   assert(restoredSession.answers['q-001']?.selectedAnswer === 'A', 'saved answer should survive an API restart');
   assert(restoredSession.currentIndex === 1, 'current question should survive an API restart');
   assert(restoredSession.markedQuestions.includes(subjectiveQuestion.id), 'marked question should survive an API restart');
@@ -604,6 +622,7 @@ async function main() {
     answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 }],
   }, 400, studentHeaders);
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
+    revision: 4,
     currentIndex: 0,
     totalActiveMs: 3000,
   }, 400, studentHeaders);

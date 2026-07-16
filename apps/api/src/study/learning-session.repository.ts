@@ -15,6 +15,7 @@ export interface PersistedLearningSession {
   answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
   markedQuestions: string[];
   currentIndex: number;
+  revision: number;
   startedAt: string;
   lastActiveAt: string;
   totalActiveMs: number;
@@ -46,6 +47,26 @@ export class LearningSessionRepository {
       create: { id: session.id, ...data },
       update: data,
     });
+  }
+
+  async saveProgress(session: PersistedLearningSession): Promise<boolean> {
+    if (!this.enabled) return true;
+    const result = await this.prisma.learningSession.updateMany({
+      where: {
+        id: session.id,
+        userId: session.userId,
+        completed: false,
+        revision: { lt: session.revision },
+      },
+      data: toPersistenceData(session),
+    });
+    return result.count === 1;
+  }
+
+  async loadOne(sessionId: string, userId: string): Promise<PersistedLearningSession | null> {
+    if (!this.enabled) return null;
+    const row = await this.prisma.learningSession.findFirst({ where: { id: sessionId, userId } });
+    return row ? toDomainSession(row) : null;
   }
 
   async claimForSubmission(session: PersistedLearningSession): Promise<boolean> {
@@ -80,6 +101,7 @@ function toPersistenceData(session: PersistedLearningSession) {
     answers: session.answers as Prisma.InputJsonValue,
     markedQuestions: session.markedQuestions,
     currentIndex: session.currentIndex,
+    revision: session.revision,
     startedAt: new Date(session.startedAt),
     lastActiveAt: new Date(session.lastActiveAt),
     totalActiveMs: session.totalActiveMs,
@@ -99,6 +121,7 @@ function toDomainSession(row: {
   answers: Prisma.JsonValue;
   markedQuestions: string[];
   currentIndex: number;
+  revision: number;
   startedAt: Date;
   lastActiveAt: Date;
   totalActiveMs: number;
@@ -115,6 +138,7 @@ function toDomainSession(row: {
     answers: row.answers as PersistedLearningSession['answers'],
     markedQuestions: row.markedQuestions,
     currentIndex: row.currentIndex,
+    revision: row.revision,
     startedAt: row.startedAt.toISOString(),
     lastActiveAt: row.lastActiveAt.toISOString(),
     totalActiveMs: row.totalActiveMs,

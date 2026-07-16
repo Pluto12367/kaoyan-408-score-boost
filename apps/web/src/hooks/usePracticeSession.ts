@@ -9,6 +9,7 @@ import {
   type SessionSubmitResult,
   type SessionView,
 } from '../api/endpoints/sessions';
+import { shouldQueueSessionSave } from '../studentSessionPolicy';
 
 const SAVE_INTERVAL_MS = 8_000;
 const SAVE_DEBOUNCE_MS = 600;
@@ -62,6 +63,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
 
   const sessionRef = useRef<SessionView | null>(null);
   const revisionRef = useRef(0);
+  const saveRevisionRef = useRef(0);
   const mountedRef = useRef(true);
   const saveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -88,10 +90,12 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
   const adoptSession = useCallback((next: SessionView) => {
     if (clockSessionIdRef.current !== next.id) {
       clockSessionIdRef.current = next.id;
+      saveRevisionRef.current = next.revision;
       activeBaseMsRef.current = next.totalActiveMs;
       activeSegmentStartedAtRef.current = pageIsVisible() ? monotonicNow() : null;
     } else {
       activeBaseMsRef.current = Math.max(activeBaseMsRef.current, next.totalActiveMs);
+      saveRevisionRef.current = Math.max(saveRevisionRef.current, next.revision);
     }
     sessionRef.current = next;
     if (mountedRef.current) dispatch({ type: 'patch', value: { session: next, error: null } });
@@ -103,9 +107,12 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
   const performSave = useCallback(async (options: SaveOptions = {}): Promise<SessionView | null> => {
     const current = sessionRef.current;
     if (!current || current.completed || submittingRef.current) return current;
+    const saveRevision = saveRevisionRef.current + 1;
+    saveRevisionRef.current = saveRevision;
     if (opts.localMode) {
       const updated = updateSessionSummary({
         ...current,
+        revision: saveRevision,
         totalActiveMs: rollActiveClock(Boolean(options.pauseClock)),
         lastActiveAt: new Date().toISOString(),
       });
@@ -116,19 +123,22 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       }
       return updated;
     }
-    if (saveInFlightRef.current) {
+    const hasInFlightSave = Boolean(saveInFlightRef.current);
+    if (shouldQueueSessionSave(hasInFlightSave, Boolean(options.keepalive))) {
       saveQueuedRef.current = true;
       return saveInFlightRef.current;
     }
 
     const revisionAtStart = revisionRef.current;
     const payload = {
+      revision: saveRevision,
       answers: { ...current.answers },
       currentIndex: current.currentIndex,
       markedQuestions: [...current.markedQuestions],
       totalActiveMs: rollActiveClock(Boolean(options.pauseClock)),
     };
-    if (mountedRef.current) dispatch({ type: 'patch', value: { saving: true } });
+    const trackRequest = !hasInFlightSave;
+    if (trackRequest && mountedRef.current) dispatch({ type: 'patch', value: { saving: true } });
 
     const request = savePracticeProgress(current.id, payload, { keepalive: options.keepalive })
       .then((updated) => {
@@ -142,6 +152,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
             }
           : updated;
         activeBaseMsRef.current = Math.max(activeBaseMsRef.current, updated.totalActiveMs);
+        saveRevisionRef.current = Math.max(saveRevisionRef.current, updated.revision);
         sessionRef.current = merged;
         if (mountedRef.current) {
           dispatch({
@@ -159,18 +170,20 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
           });
         }
         throw saveFailure;
-      })
-      .finally(() => {
-        saveInFlightRef.current = null;
-        if (mountedRef.current) dispatch({ type: 'patch', value: { saving: false } });
-        if (saveQueuedRef.current && !submittingRef.current) {
-          saveQueuedRef.current = false;
-          queueMicrotask(() => { void performSave().catch(() => undefined); });
-        }
       });
+    if (!trackRequest) return request;
 
-    saveInFlightRef.current = request;
-    return request;
+    const trackedRequest = request.finally(() => {
+      saveInFlightRef.current = null;
+      if (mountedRef.current) dispatch({ type: 'patch', value: { saving: false } });
+      if (saveQueuedRef.current && !submittingRef.current) {
+        saveQueuedRef.current = false;
+        queueMicrotask(() => { void performSave().catch(() => undefined); });
+      }
+    });
+
+    saveInFlightRef.current = trackedRequest;
+    return trackedRequest;
   }, [opts.localMode, rollActiveClock]);
 
   const scheduleSave = useCallback(() => {
@@ -423,6 +436,7 @@ function createLocalSession(type: SessionView['type'], questionIds: string[], re
     answers: {},
     markedQuestions: [],
     currentIndex: 0,
+    revision: 0,
     totalQuestions: questionIds.length,
     answeredCount: 0,
     startedAt: now,

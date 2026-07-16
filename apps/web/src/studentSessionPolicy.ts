@@ -18,3 +18,7 @@ export function resolveSessionQuestions<T extends { id: string }>(
     return question ? [question] : [];
   });
 }
+
+export function shouldQueueSessionSave(hasInFlightSave: boolean, keepalive: boolean) {
+  return hasInFlightSave && !keepalive;
+}

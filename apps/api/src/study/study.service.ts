@@ -2692,6 +2692,7 @@ export class StudyService implements OnModuleInit {
       answers: {},
       markedQuestions: [],
       currentIndex: 0,
+      revision: 0,
       startedAt: new Date(now).toISOString(),
       lastActiveAt: new Date(now).toISOString(),
       totalActiveMs: 0,
@@ -2704,6 +2705,7 @@ export class StudyService implements OnModuleInit {
   }
 
   async savePracticeProgress(sessionId: string, userId: string, input: {
+    revision: number;
     answers?: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
     currentIndex?: number;
     markedQuestions?: string[];
@@ -2711,11 +2713,24 @@ export class StudyService implements OnModuleInit {
   }) {
     const session = this.getOwnSession(sessionId, userId);
     if (session.completed) throw new BadRequestException('Completed sessions cannot be changed');
-    this.applySessionProgress(session, input);
+    if (input.revision <= session.revision) return this.sessionView(session);
 
-    this.practiceSessions.set(sessionId, session);
-    await this.learningSessionRepository.save(session);
-    return this.sessionView(session);
+    const nextSession: PracticeSession = {
+      ...session,
+      answers: { ...session.answers },
+      markedQuestions: [...session.markedQuestions],
+      revision: input.revision,
+    };
+    this.applySessionProgress(nextSession, input);
+    const persisted = await this.learningSessionRepository.saveProgress(nextSession);
+    if (persisted) {
+      const current = this.practiceSessions.get(sessionId);
+      if (!current || current.revision < nextSession.revision) this.practiceSessions.set(sessionId, nextSession);
+    } else {
+      const stored = await this.learningSessionRepository.loadOne(sessionId, userId);
+      if (stored && stored.revision > session.revision) this.practiceSessions.set(sessionId, stored);
+    }
+    return this.sessionView(this.getOwnSession(sessionId, userId));
   }
 
   getPracticeSession(sessionId: string, userId: string) {
@@ -2760,6 +2775,7 @@ export class StudyService implements OnModuleInit {
       };
     }
     this.applySessionProgress(session, { totalActiveMs: input.totalActiveMs });
+    session.revision += 1;
 
     const claimed = await this.learningSessionRepository.claimForSubmission(session);
     if (!claimed) {
@@ -3116,6 +3132,7 @@ export class StudyService implements OnModuleInit {
       answers: s.answers,
       markedQuestions: s.markedQuestions,
       currentIndex: s.currentIndex,
+      revision: s.revision,
       totalQuestions: s.questionIds.length,
       answeredCount,
       startedAt: s.startedAt,
@@ -3406,6 +3423,7 @@ interface PracticeSession {
   answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
   markedQuestions: string[];
   currentIndex: number;
+  revision: number;
   startedAt: string;
   lastActiveAt: string;
   totalActiveMs: number;

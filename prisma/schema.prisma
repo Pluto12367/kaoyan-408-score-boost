@@ -127,6 +127,7 @@ model LearningSession {
   answers         Json
   markedQuestions String[]
   currentIndex    Int              @default(0)
+  revision        Int              @default(0)
   startedAt       DateTime         @default(now())
   lastActiveAt    DateTime         @default(now())
   totalActiveMs   Int              @default(0)

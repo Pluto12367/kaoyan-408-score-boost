@@ -33,6 +33,10 @@ export class StartLearningSessionDto {
 }
 
 export class SaveLearningSessionDto {
+  @IsInt()
+  @Min(1)
+  revision!: number;
+
   @IsOptional()
   @IsObject()
   answers?: Record<string, {

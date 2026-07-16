@@ -39,3 +39,11 @@ test('resumed sessions prefer their persisted question snapshot over the current
     { id: 'q-current', stem: '当前题面' },
   ]);
 });
+
+test('page-close keepalive saves bypass an existing ordinary save queue', async () => {
+  const { shouldQueueSessionSave } = await loadPolicy();
+
+  assert.equal(shouldQueueSessionSave(true, false), true);
+  assert.equal(shouldQueueSessionSave(true, true), false);
+  assert.equal(shouldQueueSessionSave(false, false), false);
+});
