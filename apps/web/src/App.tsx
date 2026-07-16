@@ -67,7 +67,7 @@ import {
   roleLabel,
   createInitialPaperSession,
 } from './constants';
-import { isStudentOverviewReady, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
+import { isStudentOverviewReady, resolveSessionQuestions, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
 
 export function App() {
   const {
@@ -250,10 +250,11 @@ export function App() {
         ? stageAssessment.questions.map((question) => question.id)
         : examQuestions.map((question) => question.id)
   );
-  const activeLearningQuestions = activeLearningQuestionIds.flatMap((questionId) => {
-    const question = learningQuestionCatalog.find((item) => item.id === questionId);
-    return question ? [question] : [];
-  });
+  const activeLearningQuestions = resolveSessionQuestions(
+    activeLearningQuestionIds,
+    resumedLearningSession?.questions ?? [],
+    learningQuestionCatalog,
+  );
   const activeLearningResourceId = resumedLearningSession?.resourceId ?? (
     learningSessionType === 'practice_set'
       ? studentLearning.practiceSet.data?.id

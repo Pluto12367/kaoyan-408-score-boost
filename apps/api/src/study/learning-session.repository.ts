@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import type { Question } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type SessionType = 'practice_set' | 'stage_assessment' | 'paper';
@@ -10,6 +11,7 @@ export interface PersistedLearningSession {
   type: SessionType;
   resourceId?: string;
   questionIds: string[];
+  questionSnapshot: Question[];
   answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
   markedQuestions: string[];
   currentIndex: number;
@@ -74,6 +76,7 @@ function toPersistenceData(session: PersistedLearningSession) {
     type: session.type,
     resourceId: session.resourceId,
     questionIds: session.questionIds,
+    questionSnapshot: session.questionSnapshot as unknown as Prisma.InputJsonValue,
     answers: session.answers as Prisma.InputJsonValue,
     markedQuestions: session.markedQuestions,
     currentIndex: session.currentIndex,
@@ -92,6 +95,7 @@ function toDomainSession(row: {
   type: string;
   resourceId: string | null;
   questionIds: string[];
+  questionSnapshot: Prisma.JsonValue;
   answers: Prisma.JsonValue;
   markedQuestions: string[];
   currentIndex: number;
@@ -107,6 +111,7 @@ function toDomainSession(row: {
     type: row.type as SessionType,
     resourceId: row.resourceId ?? undefined,
     questionIds: row.questionIds,
+    questionSnapshot: Array.isArray(row.questionSnapshot) ? row.questionSnapshot as unknown as Question[] : [],
     answers: row.answers as PersistedLearningSession['answers'],
     markedQuestions: row.markedQuestions,
     currentIndex: row.currentIndex,

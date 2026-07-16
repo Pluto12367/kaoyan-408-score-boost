@@ -13,6 +13,15 @@ export interface SessionView {
   type: 'practice_set' | 'stage_assessment' | 'paper';
   resourceId?: string;
   questionIds: string[];
+  questions?: Array<{
+    id: string;
+    stem: string;
+    options: string[];
+    answer?: string;
+    analysis?: string;
+    knowledgePointIds: string[];
+    type?: string;
+  }>;
   answers: Record<string, SessionAnswer>;
   markedQuestions: string[];
   currentIndex: number;

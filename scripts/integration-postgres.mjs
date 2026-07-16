@@ -440,6 +440,8 @@ async function main() {
     questionIds: ['q-001', subjectiveQuestion.id],
   };
   const startedSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
+  assert(startedSession.questions?.map((question) => question.id).join(',') === sessionInput.questionIds.join(','), 'started session should include its ordered question snapshot');
+  const originalSessionStem = startedSession.questions[0].stem;
   const idempotentSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
   assert(idempotentSession.id === startedSession.id, 'starting the same active resource should be idempotent');
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
@@ -455,6 +457,7 @@ async function main() {
     totalActiveMs: 1250,
   }, studentHeaders);
   assert(savedSession.currentIndex === 1 && savedSession.markedQuestions.includes(subjectiveQuestion.id), 'session progress should be saved');
+  await patchJson(`${apiUrl}/questions/q-001`, { stem: `${originalSessionStem}（题库已更新）` }, teacherHeaders);
 
   const partialExamSession = await postJson(`${apiUrl}/sessions/practice/start`, {
     type: 'paper',
@@ -545,6 +548,8 @@ async function main() {
   assert(restoredTodayPlan.weekProgress.length === 7, 'seven-day plan should survive an API restart');
   assert(!restoredTodayPlan.priorityTasks.some((task) => task.id === postponeTaskId), 'task rescheduling should survive an API restart');
   const restoredSession = await getJson(`${apiUrl}/sessions/practice/${startedSession.id}`, studentHeaders);
+  assert(restoredSession.questions?.map((question) => question.id).join(',') === sessionInput.questionIds.join(','), 'restored session should include its ordered question snapshot');
+  assert(restoredSession.questions[0].stem === originalSessionStem, 'restored session should preserve the question content captured when it started');
   assert(restoredSession.answers['q-001']?.selectedAnswer === 'A', 'saved answer should survive an API restart');
   assert(restoredSession.currentIndex === 1, 'current question should survive an API restart');
   assert(restoredSession.markedQuestions.includes(subjectiveQuestion.id), 'marked question should survive an API restart');

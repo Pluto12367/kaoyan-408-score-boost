@@ -25,3 +25,17 @@ test('only the static demo may hydrate a user from overview data', async () => {
   assert.equal(shouldHydrateSessionFromOverview(true, true), true);
   assert.equal(shouldHydrateSessionFromOverview(true, false), false);
 });
+
+test('resumed sessions prefer their persisted question snapshot over the current catalog', async () => {
+  const { resolveSessionQuestions } = await loadPolicy();
+  const restored = resolveSessionQuestions(
+    ['q-old', 'q-current'],
+    [{ id: 'q-old', stem: '保存时的旧题面' }],
+    [{ id: 'q-current', stem: '当前题面' }, { id: 'q-old', stem: '后来修改的题面' }],
+  );
+
+  assert.deepEqual(restored, [
+    { id: 'q-old', stem: '保存时的旧题面' },
+    { id: 'q-current', stem: '当前题面' },
+  ]);
+});

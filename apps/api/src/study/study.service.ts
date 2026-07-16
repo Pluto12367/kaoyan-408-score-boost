@@ -2688,6 +2688,7 @@ export class StudyService implements OnModuleInit {
       type: input.type,
       resourceId: input.resourceId,
       questionIds,
+      questionSnapshot: questionIds.map((questionId) => ({ ...this.questions.find((question) => question.id === questionId)! })),
       answers: {},
       markedQuestions: [],
       currentIndex: 0,
@@ -3101,11 +3102,17 @@ export class StudyService implements OnModuleInit {
 
   private sessionView(s: PracticeSession) {
     const answeredCount = s.questionIds.filter((questionId) => isAnswered(s.answers[questionId])).length;
+    const snapshot = s.questionSnapshot.length > 0 ? s.questionSnapshot : this.questions;
+    const questionsById = new Map(snapshot.map((question) => [question.id, question]));
     return {
       id: s.id,
       type: s.type,
       resourceId: s.resourceId,
       questionIds: s.questionIds,
+      questions: s.questionIds.flatMap((questionId) => {
+        const question = questionsById.get(questionId);
+        return question ? [question] : [];
+      }),
       answers: s.answers,
       markedQuestions: s.markedQuestions,
       currentIndex: s.currentIndex,
@@ -3395,6 +3402,7 @@ interface PracticeSession {
   type: 'practice_set' | 'stage_assessment' | 'paper';
   resourceId?: string;
   questionIds: string[];
+  questionSnapshot: Question[];
   answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
   markedQuestions: string[];
   currentIndex: number;

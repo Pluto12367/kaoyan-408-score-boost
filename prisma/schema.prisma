@@ -123,6 +123,7 @@ model LearningSession {
   type            String
   resourceId      String?
   questionIds     String[]
+  questionSnapshot Json             @default("[]")
   answers         Json
   markedQuestions String[]
   currentIndex    Int              @default(0)
