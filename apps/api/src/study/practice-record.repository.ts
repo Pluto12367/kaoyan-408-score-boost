@@ -185,7 +185,7 @@ function toDomainRecord(record: {
     };
 }
 
-function toPrismaRecord(record: PracticeRecord) {
+export function toPrismaRecord(record: PracticeRecord) {
   return {
     id: record.id,
     userId: record.userId,

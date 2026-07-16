@@ -521,6 +521,266 @@ async function main() {
   assert(startedObjectiveQuestion?.answer === '' && startedObjectiveQuestion.analysis === '', 'active exams must redact objective answers and explanations');
   assert(startedSubjectiveQuestion?.answer === '' && startedSubjectiveQuestion.analysis.includes('Scoring points'), 'active exams should expose subjective scoring points without the standard answer');
   assert(startedSession.revision === 0, 'a new session should start at revision zero');
+
+  const atomicQuestion = await postJson(`${apiUrl}/questions`, {
+    stem: 'Atomic submission integration question',
+    options: ['A', 'B', 'C', 'D'],
+    answer: 'A',
+    analysis: 'Used to verify that a failed multi-record submission rolls back completely.',
+    knowledgePointIds: ['co-cache'],
+    difficulty: '中等',
+    type: '选择题',
+    source: 'integration atomic submission',
+    expectedTimeSec: 90,
+  }, teacherHeaders);
+  const atomicSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-atomic-submission',
+    questionIds: ['q-001', atomicQuestion.id],
+  }, studentHeaders);
+  await deleteJson(`${apiUrl}/questions/${atomicQuestion.id}`, teacherHeaders);
+  await expectPostStatus(`${apiUrl}/sessions/practice/${atomicSession.id}/submit`, {
+    answers: [
+      { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 80 },
+      { questionId: atomicQuestion.id, selectedAnswer: 'A', timeSpentSec: 90 },
+    ],
+  }, 500, studentHeaders);
+  await delay(100);
+  const failedAtomicSessionView = await getJson(`${apiUrl}/sessions/practice/${atomicSession.id}`, studentHeaders);
+  assert(
+    failedAtomicSessionView.completed === false
+      && failedAtomicSessionView.revision === 0
+      && failedAtomicSessionView.answeredCount === 0,
+    'failed submission must not publish candidate answers, revision, or completion to the in-memory session',
+  );
+  const atomicFailurePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const failedAtomicSession = await atomicFailurePrisma.learningSession.findUnique({ where: { id: atomicSession.id } });
+  const partialAtomicRecordCount = await atomicFailurePrisma.practiceRecord.count({ where: { sessionId: atomicSession.id } });
+  assert(failedAtomicSession?.completed === false && partialAtomicRecordCount === 0, 'failed session submission must roll back both the completion flag and every practice record');
+  await atomicFailurePrisma.question.create({
+    data: {
+      id: atomicQuestion.id,
+      stem: atomicQuestion.stem,
+      options: atomicQuestion.options,
+      answer: atomicQuestion.answer,
+      analysis: atomicQuestion.analysis,
+      difficulty: 'MEDIUM',
+      type: 'SINGLE_CHOICE',
+      source: atomicQuestion.source,
+      expectedTimeSec: atomicQuestion.expectedTimeSec,
+    },
+  });
+  await atomicFailurePrisma.questionKnowledgePoint.create({
+    data: { questionId: atomicQuestion.id, knowledgePointId: 'co-cache' },
+  });
+  await atomicFailurePrisma.$disconnect();
+  const retriedAtomicSubmission = await postJson(`${apiUrl}/sessions/practice/${atomicSession.id}/submit`, {
+    answers: [
+      { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 80 },
+      { questionId: atomicQuestion.id, selectedAnswer: 'A', timeSpentSec: 90 },
+    ],
+  }, studentHeaders);
+  assert(retriedAtomicSubmission.completed === true && retriedAtomicSubmission.records.length === 2, 'a rolled-back submission should be retryable exactly once');
+  const atomicSuccessPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const retriedAtomicRecordCount = await atomicSuccessPrisma.practiceRecord.count({ where: { sessionId: atomicSession.id } });
+  await atomicSuccessPrisma.$disconnect();
+  assert(retriedAtomicRecordCount === 2, 'a retried session submission must persist one record per answered question without duplicates');
+
+  const emptyAnswerSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-empty-answer-submission',
+    questionIds: ['q-002'],
+  }, studentHeaders);
+  const emptyAnswerSubmission = await postJson(`${apiUrl}/sessions/practice/${emptyAnswerSession.id}/submit`, {
+    answers: [],
+  }, studentHeaders);
+  assert(
+    emptyAnswerSubmission.completed === true
+      && emptyAnswerSubmission.totalQuestions === 1
+      && emptyAnswerSubmission.records.length === 0,
+    'an all-unanswered paper should commit once without creating fabricated practice records',
+  );
+  const emptyAnswerPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const emptyAnswerRecordCount = await emptyAnswerPrisma.practiceRecord.count({ where: { sessionId: emptyAnswerSession.id } });
+  await emptyAnswerPrisma.$disconnect();
+  assert(emptyAnswerRecordCount === 0, 'an all-unanswered paper must persist no practice records');
+  await expectPostStatus(`${apiUrl}/sessions/practice/${emptyAnswerSession.id}/submit`, { answers: [] }, 400, studentHeaders);
+
+  const postCommitFailureSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-post-commit-failure',
+    questionIds: ['q-002'],
+  }, studentHeaders);
+  const postCommitFailurePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  await postCommitFailurePrisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION integration_fail_review_schedule() RETURNS trigger AS $$
+    BEGIN
+      RAISE EXCEPTION 'integration review schedule failure';
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await postCommitFailurePrisma.$executeRawUnsafe(`
+    CREATE TRIGGER integration_fail_review_schedule_trigger
+    BEFORE INSERT OR UPDATE ON "ReviewSchedule"
+    FOR EACH ROW
+    WHEN (NEW."userId" = '${registered.user.id}' AND NEW."questionId" = 'q-002')
+    EXECUTE FUNCTION integration_fail_review_schedule()
+  `);
+  const postCommitFailureResult = await postJson(`${apiUrl}/sessions/practice/${postCommitFailureSession.id}/submit`, {
+    answers: [{ questionId: 'q-002', selectedAnswer: '__post_commit_wrong__', timeSpentSec: 100 }],
+  }, studentHeaders);
+  assert(
+    postCommitFailureResult.completed === true
+      && postCommitFailureResult.synchronizationWarnings.includes('review_schedule:q-002'),
+    'post-commit review synchronization failure must return a successful submission with an explicit warning',
+  );
+  const postCommitPersistedSession = await postCommitFailurePrisma.learningSession.findUnique({ where: { id: postCommitFailureSession.id } });
+  const postCommitRecordCount = await postCommitFailurePrisma.practiceRecord.count({ where: { sessionId: postCommitFailureSession.id } });
+  assert(postCommitPersistedSession?.completed === true && postCommitRecordCount === 1, 'post-commit side-effect failure must retain the committed session and record');
+  await postCommitFailurePrisma.$executeRawUnsafe('DROP TRIGGER integration_fail_review_schedule_trigger ON "ReviewSchedule"');
+  await postCommitFailurePrisma.$executeRawUnsafe('DROP FUNCTION integration_fail_review_schedule()');
+  await postCommitFailurePrisma.$disconnect();
+
+  const concurrentSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-concurrent-submission',
+    questionIds: ['q-001'],
+  }, studentHeaders);
+  const concurrentSubmit = () => fetch(`${apiUrl}/sessions/practice/${concurrentSession.id}/submit`, {
+    method: 'POST',
+    headers: { ...studentHeaders, 'content-type': 'application/json' },
+    body: JSON.stringify({ answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 80 }] }),
+  });
+  const concurrentResponses = await Promise.all([concurrentSubmit(), concurrentSubmit()]);
+  const concurrentStatuses = concurrentResponses.map((response) => response.status).sort((left, right) => left - right).join(',');
+  assert(
+    concurrentStatuses === '201,400',
+    `two simultaneous submissions must produce exactly one success and one duplicate rejection; received ${concurrentStatuses}`,
+  );
+  const concurrentPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const concurrentRecordCount = await concurrentPrisma.practiceRecord.count({ where: { sessionId: concurrentSession.id } });
+  await concurrentPrisma.$disconnect();
+  assert(concurrentRecordCount === 1, 'simultaneous submission attempts must persist exactly one record');
+
+  const crossInstanceSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-cross-instance-submission',
+    questionIds: ['q-001'],
+  }, studentHeaders);
+  const crossInstanceRecordId = `r-cross-instance-${Date.now()}`;
+  const crossInstancePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  await crossInstancePrisma.$transaction([
+    crossInstancePrisma.learningSession.update({
+      where: { id: crossInstanceSession.id },
+      data: {
+        answers: { 'q-001': { selectedAnswer: 'B', timeSpentSec: 80 } },
+        revision: 1,
+        completed: true,
+        submittedAt: new Date(),
+        lastActiveAt: new Date(),
+      },
+    }),
+    crossInstancePrisma.practiceRecord.create({
+      data: {
+        id: crossInstanceRecordId,
+        userId: registered.user.id,
+        questionId: 'q-001',
+        knowledgePointId: 'co-cache',
+        selectedAnswer: 'B',
+        correct: true,
+        timeSpentSec: 80,
+        expectedTimeSec: 100,
+        sessionId: crossInstanceSession.id,
+        gradingMode: 'objective',
+      },
+    }),
+  ]);
+  await crossInstancePrisma.$disconnect();
+  await expectPostStatus(`${apiUrl}/sessions/practice/${crossInstanceSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 80 }],
+  }, 400, studentHeaders);
+  const reloadedCrossInstanceSession = await getJson(`${apiUrl}/sessions/practice/${crossInstanceSession.id}`, studentHeaders);
+  assert(
+    reloadedCrossInstanceSession.completed === true
+      && reloadedCrossInstanceSession.revision === 1
+      && reloadedCrossInstanceSession.answers['q-001']?.selectedAnswer === 'B',
+    'a losing API instance must reload the winning session state after duplicate rejection',
+  );
+  const overviewAfterCrossInstanceSubmit = await waitForOverview(studentHeaders);
+  assert(
+    overviewAfterCrossInstanceSubmit.practiceRecords.some((record) => record.id === crossInstanceRecordId),
+    'a losing API instance must reload the winning submission records before serving reports',
+  );
+
+  const preCommitValidationSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-pre-commit-validation',
+    questionIds: [subjectiveQuestion.id],
+  }, studentHeaders);
+  await expectPostStatus(`${apiUrl}/sessions/practice/${preCommitValidationSession.id}/submit`, {
+    answers: [{ questionId: subjectiveQuestion.id, selectedAnswer: 'partial subjective answer', timeSpentSec: 120 }],
+  }, 400, studentHeaders);
+  const preCommitFailureView = await getJson(`${apiUrl}/sessions/practice/${preCommitValidationSession.id}`, studentHeaders);
+  assert(
+    preCommitFailureView.completed === false
+      && preCommitFailureView.revision === 0
+      && preCommitFailureView.answeredCount === 0,
+    'pre-commit validation failure must release the lock without publishing candidate progress',
+  );
+  const recoveredPreCommitSubmission = await postJson(`${apiUrl}/sessions/practice/${preCommitValidationSession.id}/submit`, {
+    answers: [{
+      questionId: subjectiveQuestion.id,
+      selectedAnswer: 'tag, line index, block offset',
+      timeSpentSec: 120,
+      selfScore: 7,
+      maxScore: 10,
+    }],
+  }, studentHeaders);
+  assert(recoveredPreCommitSubmission.completed === true, 'a session must remain retryable after record construction validation fails');
+
+  const profileBeforeWorkflowFailure = await waitForOverview(studentHeaders);
+  const workflowFailureSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'stage_assessment',
+    resourceId: 'integration-workflow-sync-failure',
+    questionIds: ['q-001'],
+  }, studentHeaders);
+  const workflowFailurePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  await workflowFailurePrisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION integration_fail_profile_update() RETURNS trigger AS $$
+    BEGIN
+      RAISE EXCEPTION 'integration profile update failure';
+    END;
+    $$ LANGUAGE plpgsql
+  `);
+  await workflowFailurePrisma.$executeRawUnsafe(`
+    CREATE TRIGGER integration_fail_profile_update_trigger
+    BEFORE UPDATE ON "User"
+    FOR EACH ROW
+    WHEN (NEW."id" = '${registered.user.id}')
+    EXECUTE FUNCTION integration_fail_profile_update()
+  `);
+  const workflowFailureResult = await postJson(`${apiUrl}/sessions/practice/${workflowFailureSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 80 }],
+  }, studentHeaders);
+  assert(
+    workflowFailureResult.completed === true
+      && workflowFailureResult.synchronizationWarnings.includes('workflow_result')
+      && workflowFailureResult.workflowResult === undefined,
+    'post-commit workflow synchronization failure must return a successful submission with an explicit warning',
+  );
+  const profileAfterWorkflowFailure = await waitForOverview(studentHeaders);
+  assert(
+    profileAfterWorkflowFailure.student.stage === profileBeforeWorkflowFailure.student.stage
+      && profileAfterWorkflowFailure.student.remainingDays === profileBeforeWorkflowFailure.student.remainingDays,
+    'failed workflow synchronization must not publish an unpersisted profile adjustment to memory',
+  );
+  const persistedWorkflowFailureSession = await workflowFailurePrisma.learningSession.findUnique({ where: { id: workflowFailureSession.id } });
+  const workflowFailureRecordCount = await workflowFailurePrisma.practiceRecord.count({ where: { sessionId: workflowFailureSession.id } });
+  assert(persistedWorkflowFailureSession?.completed === true && workflowFailureRecordCount === 1, 'workflow synchronization failure must retain the committed session and record');
+  await workflowFailurePrisma.$executeRawUnsafe('DROP TRIGGER integration_fail_profile_update_trigger ON "User"');
+  await workflowFailurePrisma.$executeRawUnsafe('DROP FUNCTION integration_fail_profile_update()');
+  await workflowFailurePrisma.$disconnect();
+
   const originalSessionStem = startedSession.questions[0].stem;
   const idempotentSession = await postJson(`${apiUrl}/sessions/practice/start`, sessionInput, studentHeaders);
   assert(idempotentSession.id === startedSession.id, 'starting the same active resource should be idempotent');

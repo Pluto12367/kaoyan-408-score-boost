@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import type { Question } from '@kaoyan408/shared';
+import type { PracticeRecord, Question } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { toPrismaRecord } from './practice-record.repository';
 
 export type SessionType = 'practice_set' | 'stage_assessment' | 'paper';
 
@@ -69,24 +70,20 @@ export class LearningSessionRepository {
     return row ? toDomainSession(row) : null;
   }
 
-  async claimForSubmission(session: PersistedLearningSession): Promise<boolean> {
+  async commitSubmission(session: PersistedLearningSession, records: PracticeRecord[]): Promise<boolean> {
     if (!this.enabled) return true;
-    const result = await this.prisma.learningSession.updateMany({
-      where: { id: session.id, userId: session.userId, completed: false },
-      data: {
-        ...toPersistenceData(session),
-        completed: true,
-        submittedAt: new Date(),
-      },
-    });
-    return result.count === 1;
-  }
-
-  async releaseSubmission(sessionId: string, userId: string): Promise<void> {
-    if (!this.enabled) return;
-    await this.prisma.learningSession.updateMany({
-      where: { id: sessionId, userId },
-      data: { completed: false, submittedAt: null },
+    return this.prisma.$transaction(async (tx) => {
+      const result = await tx.learningSession.updateMany({
+        where: { id: session.id, userId: session.userId, completed: false },
+        data: toPersistenceData(session),
+      });
+      if (result.count !== 1) return false;
+      if (records.length > 0) {
+        await tx.practiceRecord.createMany({
+          data: records.map(toPrismaRecord),
+        });
+      }
+      return true;
     });
   }
 }

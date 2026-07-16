@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import {
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildStudyPlan,
@@ -40,6 +40,8 @@ const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
 
 @Injectable()
 export class StudyService implements OnModuleInit {
+  private readonly logger = new Logger(StudyService.name);
+
   constructor(
     private readonly questionsService: QuestionsService,
     private readonly practiceRecordRepository: PracticeRecordRepository,
@@ -1898,6 +1900,16 @@ export class StudyService implements OnModuleInit {
   }
 
   async createPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }) {
+    const record = this.buildPracticeRecord(input);
+    const savedRecord = await this.practiceRecordRepository.save(record);
+    this.records.push(savedRecord);
+    if (!savedRecord.correct) {
+      await this.ensureReviewSchedule(savedRecord);
+    }
+    return savedRecord;
+  }
+
+  private buildPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }): PracticeRecord {
     const question = input.questionSnapshot ?? this.questions.find((item) => item.id === input.questionId);
     if (!question) {
       throw new BadRequestException(`Question ${input.questionId} was not found`);
@@ -1919,7 +1931,7 @@ export class StudyService implements OnModuleInit {
       expectedTimeSec,
     });
 
-    const record: PracticeRecord = {
+    return {
       id: `r-${randomUUID()}`,
       userId: input.userId,
       questionId: input.questionId,
@@ -1935,12 +1947,6 @@ export class StudyService implements OnModuleInit {
       selfScore: input.selfScore,
       maxScore: input.maxScore,
     };
-    const savedRecord = await this.practiceRecordRepository.save(record);
-    this.records.push(savedRecord);
-    if (!savedRecord.correct) {
-      await this.ensureReviewSchedule(savedRecord);
-    }
-    return savedRecord;
   }
 
   private async ensureReviewSchedule(record: PracticeRecord) {
@@ -2200,8 +2206,8 @@ export class StudyService implements OnModuleInit {
           ? Math.max(profile.remainingDays - 3, 1)
           : profile.remainingDays;
       const updatedProfile = { ...profile, stage: nextStage, remainingDays };
-      this.diagnosticProfilesByUser.set(userId, updatedProfile);
       await this.learningProfileRepository.save(userId, updatedProfile);
+      this.diagnosticProfilesByUser.set(userId, updatedProfile);
     }
 
     const adjustedPlan = this.generatePlan(userId);
@@ -2786,61 +2792,94 @@ export class StudyService implements OnModuleInit {
 
     this.submittingSessionIds.add(sessionId);
 
-    // Save final progress
-    for (const answer of input.answers) {
-      session.answers[answer.questionId] = {
-        selectedAnswer: answer.selectedAnswer,
-        timeSpentSec: answer.timeSpentSec,
-        selfScore: answer.selfScore,
-        maxScore: answer.maxScore,
-      };
-    }
-    this.applySessionProgress(session, { totalActiveMs: input.totalActiveMs });
-    session.revision += 1;
-
-    const claimed = await this.learningSessionRepository.claimForSubmission(session);
-    if (!claimed) {
-      this.submittingSessionIds.delete(sessionId);
-      session.completed = true;
-      throw new BadRequestException('Session has already been submitted');
-    }
-    session.completed = true;
-
-    const finalAnswers = session.questionIds.flatMap((questionId) => {
-      const answer = session.answers[questionId];
-      return isAnswered(answer)
-        ? [{ questionId, ...answer }]
-        : [];
-    });
-    const snapshotQuestions = new Map(session.questionSnapshot.map((question) => [question.id, question]));
-
     try {
-      const records = await Promise.all(
-        finalAnswers.map((answer) =>
-          this.createPracticeRecord({
-            userId,
-            questionId: answer.questionId,
-            knowledgePointId: '',
-            selectedAnswer: answer.selectedAnswer,
-            timeSpentSec: answer.timeSpentSec,
-            sessionId,
-            selfScore: answer.selfScore,
-            maxScore: answer.maxScore,
-            questionSnapshot: session.type === 'paper' ? snapshotQuestions.get(answer.questionId) : undefined,
-          }),
-        ),
+      const submittedSession: PracticeSession = {
+        ...session,
+        answers: { ...session.answers },
+        markedQuestions: [...session.markedQuestions],
+      };
+
+      // Save final progress on a detached candidate so a failed transaction cannot leak into the cache.
+      for (const answer of input.answers) {
+        submittedSession.answers[answer.questionId] = {
+          selectedAnswer: answer.selectedAnswer,
+          timeSpentSec: answer.timeSpentSec,
+          selfScore: answer.selfScore,
+          maxScore: answer.maxScore,
+        };
+      }
+      this.applySessionProgress(submittedSession, { totalActiveMs: input.totalActiveMs });
+      submittedSession.revision += 1;
+      submittedSession.completed = true;
+
+      const finalAnswers = submittedSession.questionIds.flatMap((questionId) => {
+        const answer = submittedSession.answers[questionId];
+        return isAnswered(answer)
+          ? [{ questionId, ...answer }]
+          : [];
+      });
+      const snapshotQuestions = new Map(submittedSession.questionSnapshot.map((question) => [question.id, question]));
+      const records = finalAnswers.map((answer) =>
+        this.buildPracticeRecord({
+          userId,
+          questionId: answer.questionId,
+          knowledgePointId: '',
+          selectedAnswer: answer.selectedAnswer,
+          timeSpentSec: answer.timeSpentSec,
+          sessionId,
+          selfScore: answer.selfScore,
+          maxScore: answer.maxScore,
+          questionSnapshot: submittedSession.type === 'paper' ? snapshotQuestions.get(answer.questionId) : undefined,
+        }),
       );
 
-      const workflowResult = session.type === 'practice_set' && session.resourceId
-        ? this.createPracticeSetResult(session.resourceId, userId, records)
-        : session.type === 'stage_assessment'
-          ? await this.createStageAssessmentResult(userId, records)
-          : undefined;
-
-      session.completed = true;
-      session.lastActiveAt = new Date().toISOString();
+      const committed = await this.learningSessionRepository.commitSubmission(submittedSession, records);
+      if (!committed) {
+        const [persistedSession, persistedRecords] = await Promise.all([
+          this.learningSessionRepository.loadOne(sessionId, userId),
+          this.practiceRecordRepository.listByUser(userId),
+        ]);
+        if (persistedSession) {
+          Object.assign(session, persistedSession);
+          this.practiceSessions.set(sessionId, session);
+        }
+        const recordsById = new Map(this.records.map((record) => [record.id, record]));
+        for (const record of persistedRecords) recordsById.set(record.id, record);
+        this.records.splice(0, this.records.length, ...recordsById.values());
+        throw new BadRequestException('Session has already been submitted');
+      }
+      Object.assign(session, submittedSession);
       this.practiceSessions.set(sessionId, session);
-      await this.learningSessionRepository.save(session);
+      this.records.push(...records);
+      const synchronizationWarnings: string[] = [];
+      for (const record of records) {
+        if (!record.correct) {
+          try {
+            await this.ensureReviewSchedule(record);
+          } catch (error) {
+            this.logger.error(
+              `Review schedule synchronization failed after session ${sessionId} committed`,
+              error instanceof Error ? error.stack : String(error),
+            );
+            synchronizationWarnings.push(`review_schedule:${record.questionId}`);
+          }
+        }
+      }
+
+      let workflowResult;
+      try {
+        workflowResult = session.type === 'practice_set' && session.resourceId
+          ? this.createPracticeSetResult(session.resourceId, userId, records)
+          : session.type === 'stage_assessment'
+            ? await this.createStageAssessmentResult(userId, records)
+            : undefined;
+      } catch (error) {
+        this.logger.error(
+          `Workflow result synchronization failed after session ${sessionId} committed`,
+          error instanceof Error ? error.stack : String(error),
+        );
+        synchronizationWarnings.push('workflow_result');
+      }
 
       const correctCount = records.filter((r) => r.correct).length;
       const reportedTotalQuestions = session.type === 'paper' ? session.questionIds.length : records.length;
@@ -2852,6 +2891,7 @@ export class StudyService implements OnModuleInit {
         accuracyRate: reportedTotalQuestions ? Math.round((correctCount / reportedTotalQuestions) * 100) : 0,
         totalActiveMs: session.totalActiveMs,
         workflowResult,
+        synchronizationWarnings,
         records: records.map((r) => ({
           questionId: r.questionId,
           correct: r.correct,
@@ -2862,10 +2902,6 @@ export class StudyService implements OnModuleInit {
           maxScore: r.maxScore,
         })),
       };
-    } catch (error) {
-      session.completed = false;
-      await this.learningSessionRepository.releaseSubmission(sessionId, userId);
-      throw error;
     } finally {
       this.submittingSessionIds.delete(sessionId);
     }
