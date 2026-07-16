@@ -10,6 +10,7 @@ import {
   type SessionView,
 } from '../api/endpoints/sessions';
 import { shouldQueueSessionSave } from '../studentSessionPolicy';
+import { activeElapsedMs, pauseActiveClock, resumeActiveClock } from '../activeTime';
 
 const SAVE_INTERVAL_MS = 8_000;
 const SAVE_DEBOUNCE_MS = 600;
@@ -76,16 +77,22 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
   const questionKey = opts.questionIds.join('\u0001');
 
   const currentActiveMs = useCallback(() => {
-    const segmentStartedAt = activeSegmentStartedAtRef.current;
-    const segmentMs = segmentStartedAt == null ? 0 : Math.max(0, monotonicNow() - segmentStartedAt);
-    return Math.round(activeBaseMsRef.current + segmentMs);
+    return activeElapsedMs({
+      baseMs: activeBaseMsRef.current,
+      segmentStartedAt: activeSegmentStartedAtRef.current,
+    }, monotonicNow());
   }, []);
 
   const rollActiveClock = useCallback((pause: boolean) => {
-    activeBaseMsRef.current = currentActiveMs();
-    activeSegmentStartedAtRef.current = pause || !pageIsVisible() ? null : monotonicNow();
+    const now = monotonicNow();
+    const current = { baseMs: activeBaseMsRef.current, segmentStartedAt: activeSegmentStartedAtRef.current };
+    const next = pause || !pageIsVisible()
+      ? pauseActiveClock(current, now)
+      : resumeActiveClock(pauseActiveClock(current, now), now);
+    activeBaseMsRef.current = next.baseMs;
+    activeSegmentStartedAtRef.current = next.segmentStartedAt;
     return activeBaseMsRef.current;
-  }, [currentActiveMs]);
+  }, []);
 
   const adoptSession = useCallback((next: SessionView) => {
     if (clockSessionIdRef.current !== next.id) {
@@ -270,7 +277,12 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       if (document.hidden) {
         void performSave({ keepalive: true, pauseClock: true }).catch(() => undefined);
       } else if (activeSegmentStartedAtRef.current == null && !sessionRef.current?.completed) {
-        activeSegmentStartedAtRef.current = monotonicNow();
+        const resumed = resumeActiveClock({
+          baseMs: activeBaseMsRef.current,
+          segmentStartedAt: activeSegmentStartedAtRef.current,
+        }, monotonicNow());
+        activeBaseMsRef.current = resumed.baseMs;
+        activeSegmentStartedAtRef.current = resumed.segmentStartedAt;
       }
     }
     function onPageHide() {
