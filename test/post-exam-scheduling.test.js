@@ -84,3 +84,50 @@ test('does not mutate input arrays or task objects', () => {
   assert.deepEqual(currentTasks, currentSnapshot);
   assert.deepEqual(reviewTasks, reviewSnapshot);
 });
+
+test('normalizes a pre-existing over-capacity date before adding review tasks', () => {
+  const currentTasks = [
+    task('ordinary-1', '2026-07-16', HIGH),
+    task('ordinary-2', '2026-07-16', MEDIUM),
+    task('ordinary-3', '2026-07-16', LOW),
+    task('ordinary-4', '2026-07-16', LOW),
+  ];
+
+  const result = mergePostExamTasks(currentTasks, [review('session-e', 0, '2026-07-16')]);
+  const counts = new Map();
+  for (const item of result) counts.set(item.scheduledDate, (counts.get(item.scheduledDate) ?? 0) + 1);
+
+  assert.ok([...counts.values()].every((count) => count <= 3));
+});
+
+test('throws before returning when an over-capacity date has only protected tasks', () => {
+  const currentTasks = [
+    task('active', '2026-07-16', HIGH, 'in_progress'),
+    task('done', '2026-07-16', MEDIUM, 'completed'),
+    task('review-1', '2026-07-16', HIGH, 'pending', REVIEW_MODE),
+    task('review-2', '2026-07-16', LOW, 'pending', REVIEW_MODE),
+  ];
+  const reviewTasks = [review('session-f', 0, '2026-07-16')];
+  const currentSnapshot = structuredClone(currentTasks);
+  const reviewSnapshot = structuredClone(reviewTasks);
+
+  assert.throws(
+    () => mergePostExamTasks(currentTasks, reviewTasks),
+    new Error('Cannot schedule post-exam review: protected tasks exceed daily capacity on 2026-07-16'),
+  );
+  assert.deepEqual(currentTasks, currentSnapshot);
+  assert.deepEqual(reviewTasks, reviewSnapshot);
+});
+
+test('moves the latest task in current order when equal-priority tasks tie', () => {
+  const currentTasks = [
+    task('first-low', '2026-07-16', LOW),
+    task('second-low', '2026-07-16', LOW),
+    task('third-high', '2026-07-16', HIGH),
+  ];
+
+  const result = mergePostExamTasks(currentTasks, [review('session-g', 0, '2026-07-16')]);
+
+  assert.equal(result.find((item) => item.id === 'second-low').scheduledDate, '2026-07-17');
+  assert.equal(result.find((item) => item.id === 'first-low').scheduledDate, '2026-07-16');
+});

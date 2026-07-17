@@ -52,11 +52,31 @@ function displacementCandidate<T extends SchedulableStudyTask>(tasks: readonly T
   return selected;
 }
 
+function normalizeExistingTasks<T extends SchedulableStudyTask>(tasks: T[]): void {
+  while (true) {
+    const dates = [...new Set(tasks.map((task) => task.scheduledDate))].sort();
+    const overCapacityDate = dates.find((date) => dateCount(tasks, date) > 3);
+    if (!overCapacityDate) return;
+
+    const candidateIndex = displacementCandidate(tasks, overCapacityDate);
+    if (candidateIndex === -1) {
+      throw new Error(
+        `Cannot schedule post-exam review: protected tasks exceed daily capacity on ${overCapacityDate}`,
+      );
+    }
+    tasks[candidateIndex] = {
+      ...tasks[candidateIndex],
+      scheduledDate: nearestFreeDate(tasks, overCapacityDate),
+    };
+  }
+}
+
 export function mergePostExamTasks<T extends SchedulableStudyTask>(
   currentTasks: readonly T[],
   reviewTasks: readonly T[],
 ): T[] {
   const result = currentTasks.map((task) => ({ ...task }));
+  normalizeExistingTasks(result);
 
   for (const reviewTask of reviewTasks) {
     if (result.some((task) => task.id === reviewTask.id)) continue;
