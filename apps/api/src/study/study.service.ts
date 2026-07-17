@@ -5,6 +5,7 @@ import {
   buildStudyPlan,
   classifyMistake,
   computeWeaknessReport,
+  postExamTaskId,
   type DiagnosticProfile,
   type KnowledgePoint,
   type PracticeRecord,
@@ -3041,7 +3042,7 @@ export class StudyService implements OnModuleInit {
     }
 
     // Knowledge point losses
-    const pointLosses = new Map<string, { title: string; subject: string; wrongCount: number }>();
+    const pointLosses = new Map<string, { knowledgePointId: string; title: string; subject: string; wrongCount: number }>();
     const lostQuestionIds = [
       ...records.filter((record) => !record.correct).map((record) => record.questionId),
       ...session.questionIds.filter((questionId) => !isAnswered(session.answers[questionId])),
@@ -3052,7 +3053,7 @@ export class StudyService implements OnModuleInit {
       if (!pointId) continue;
       const point = this.knowledgePoints.find((k) => k.id === pointId);
       const key = pointId;
-      const existing = pointLosses.get(key) ?? { title: point?.title ?? key, subject: point?.subject ?? '未分类', wrongCount: 0 };
+      const existing = pointLosses.get(key) ?? { knowledgePointId: key, title: point?.title ?? key, subject: point?.subject ?? '未分类', wrongCount: 0 };
       existing.wrongCount += 1;
       pointLosses.set(key, existing);
     }
@@ -3102,52 +3103,81 @@ export class StudyService implements OnModuleInit {
     const existingPlan = this.examReviewPlans.get(sessionId);
     if (existingPlan) {
       if (existingPlan.userId !== userId) throw new ForbiddenException('You can only access your own exam review plan');
-      return existingPlan;
     }
     const report = this.getExamReport(sessionId, userId);
     const localToday = new Date(`${todayKey()}T00:00:00.000Z`);
+    const fallbackPoint = [...this.knowledgePoints]
+      .sort((left, right) => right.importance - left.importance || right.frequency - left.frequency)[0];
+    if (!fallbackPoint) throw new BadRequestException('No knowledge point is available for post-exam review');
 
-    // Generate 3-day review plan focused on weak knowledge points
     const days = Array.from({ length: 3 }, (_, index) => {
       const date = new Date(localToday);
       date.setUTCDate(localToday.getUTCDate() + index + 1);
-      const focus = report.knowledgePointLosses[index]
-        ?? report.knowledgePointLosses[0]
-        ?? { title: '408 高频考点', subject: '综合' };
+      const loss = report.knowledgePointLosses[index] ?? report.knowledgePointLosses[0];
+      const point = loss
+        ? this.knowledgePoints.find((item) => item.id === loss.knowledgePointId) ?? fallbackPoint
+        : fallbackPoint;
 
       return {
         dayIndex: index + 1,
         date: date.toISOString().slice(0, 10),
-        focus: focus.title,
-        subject: focus.subject,
+        taskId: postExamTaskId(sessionId, index + 1),
+        knowledgePointId: point.id,
+        focus: point.title,
+        subject: point.subject,
         questionCount: index === 0 ? 15 : index === 1 ? 12 : 8,
         minutes: index === 0 ? 90 : index === 1 ? 60 : 45,
         tasks: [
-          index === 0 ? `复盘 ${focus.title} 的错题，写出每道题的错因。` : '',
-          index <= 1 ? `完成 ${focus.title} 同考点专项训练。` : '',
+          index === 0 ? `复盘 ${point.title} 的错题，写出每道题的错因。` : '',
+          index <= 1 ? `完成 ${point.title} 同考点专项训练。` : '',
           `限时完成 ${index === 0 ? 15 : index === 1 ? 12 : 8} 题，目标正确率 ${70 + index * 5}% 以上。`,
         ].filter(Boolean),
       };
     });
 
-    const weakPointTitles = report.knowledgePointLosses.slice(0, 3).map((p) => p.title);
+    const summaryDraft: ExamReviewPlanState = existingPlan
+      ? { ...existingPlan, days: [...existingPlan.days] }
+      : {
+        userId,
+        examSessionId: sessionId,
+        generatedAt: new Date().toISOString(),
+        examAccuracyRate: report.summary.accuracyRate,
+        weakPointTitles: report.knowledgePointLosses.length
+          ? report.knowledgePointLosses.slice(0, 3).map((point) => point.title)
+          : [fallbackPoint.title],
+        days: [],
+        recommendation: report.summary.accuracyRate >= 80
+          ? '本次考试表现较好，重点保持限时训练节奏，巩固已掌握考点。'
+          : report.summary.accuracyRate >= 60
+            ? '本次考试处于中间水平，优先复盘错题知识点，再做同考点专项训练。'
+            : '基础还存在明显短板，建议暂停新题，先回到高频考点的概念和例题。',
+      };
 
-    const plan: ExamReviewPlanState = {
-      userId,
-      examSessionId: sessionId,
-      generatedAt: new Date().toISOString(),
-      examAccuracyRate: report.summary.accuracyRate,
-      weakPointTitles,
-      days,
-      recommendation: report.summary.accuracyRate >= 80
-        ? '本次考试表现较好，重点保持限时训练节奏，巩固已掌握考点。'
-        : report.summary.accuracyRate >= 60
-          ? '本次考试处于中间水平，优先复盘错题知识点，再做同考点专项训练。'
-          : '基础还存在明显短板，建议暂停新题，先回到高频考点的概念和例题。',
-    };
-    this.examReviewPlans.set(sessionId, plan);
-    await this.examReviewPlanRepository.save(plan);
-    return plan;
+    const reviewPlan = { ...summaryDraft, days };
+    const reviewTasks: ScheduledStudyTaskState[] = days.map((day) => ({
+      id: day.taskId,
+      knowledgePointId: day.knowledgePointId,
+      subject: day.subject as Subject,
+      chapter: this.knowledgePoints.find((point) => point.id === day.knowledgePointId)!.chapter,
+      title: `考后复盘：${day.focus}`,
+      mode: '考后复盘',
+      minutes: day.minutes,
+      questionCount: day.questionCount,
+      scheduledDate: day.date,
+      priority: '高',
+      reason: `来源考试 ${sessionId}，正确率 ${reviewPlan.examAccuracyRate}%。`,
+      nextAction: day.tasks.join('；'),
+      status: 'pending',
+      postponeCount: 0,
+    }));
+    const persisted = await this.examReviewPlanRepository.saveActionablePlan({
+      reviewPlan,
+      reviewTasks,
+      fallbackPlan: this.sevenDayPlansByUser.get(userId) ?? this.buildSevenDayPlan(userId),
+    });
+    this.examReviewPlans.set(sessionId, persisted.reviewPlan);
+    this.sevenDayPlansByUser.set(userId, persisted.studyPlan);
+    return persisted.reviewPlan;
   }
 
   getExamScoreHistory(userId: string) {

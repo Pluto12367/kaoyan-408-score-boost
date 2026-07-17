@@ -1080,6 +1080,37 @@ async function main() {
   assert(examReviewPlan.days.length === 3, 'submitted exam should generate a three-day review plan');
   const localToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
   assert(examReviewPlan.days[0].date > localToday, 'post-exam review plan should start on the next local calendar day');
+  assert(examReviewPlan.days.every((day) => day.taskId && day.knowledgePointId), 'post-exam review days should expose actionable task and knowledge point IDs');
+  const reviewTaskIds = examReviewPlan.days.map((day) => day.taskId);
+  assert(new Set(reviewTaskIds).size === 3, 'post-exam review days should expose three distinct task IDs');
+  const reviewTaskPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const reviewTasks = await reviewTaskPrisma.studyTask.findMany({
+    where: { id: { in: reviewTaskIds } },
+  });
+  assert(reviewTasks.length === 3, 'post-exam review plan should persist three StudyTask rows');
+  for (const day of examReviewPlan.days) {
+    const task = reviewTasks.find((item) => item.id === day.taskId);
+    assert(task?.mode === '考后复盘' && task.priority === '高', 'post-exam review tasks should be high-priority review tasks');
+    assert(task?.knowledgePointId === day.knowledgePointId, 'post-exam review task should persist the selected knowledge point');
+    assert(task?.scheduledDate === day.date, 'post-exam review task should persist its response date');
+    const taskCount = await reviewTaskPrisma.studyTask.count({
+      where: { planId: task?.planId, scheduledDate: day.date },
+    });
+    assert(taskCount <= 3, 'post-exam review task dates should not exceed plan capacity');
+  }
+  await reviewTaskPrisma.$disconnect();
+  const startedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, studentHeaders);
+  assert(startedReviewTask.status === 'in_progress', 'a generated review task should start through the normal task endpoint');
+  const completedReviewTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(examReviewPlan.days[1].taskId)}/complete`, {
+    userId: registered.user.id,
+    completedQuestionCount: examReviewPlan.days[1].questionCount,
+    correctCount: examReviewPlan.days[1].questionCount,
+    minutesSpent: examReviewPlan.days[1].minutes,
+    selfRating: 4,
+  }, studentHeaders);
+  assert(completedReviewTask.completed === true, 'a generated review task should complete through the normal task endpoint');
+  const postponedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[2].taskId)}/postpone`, {}, studentHeaders);
+  assert(postponedReviewTask.rescheduledDate > examReviewPlan.days[2].date, 'a generated review task should postpone through the normal task endpoint');
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
   assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
   await delay(300);
