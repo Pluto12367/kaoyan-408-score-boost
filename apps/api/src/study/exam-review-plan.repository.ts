@@ -101,13 +101,18 @@ export class ExamReviewPlanRepository {
       const current = this.mapStudyPlan(row);
       const tasks = mergePostExamTasks(current.tasks, input.reviewTasks);
       const reviewTaskIds = new Set(input.reviewTasks.map((task) => task.id));
+      const mergedTasksById = new Map(tasks.map((task) => [task.id, task]));
 
       for (const task of input.reviewTasks) {
         const existing = await tx.studyTask.findUnique({ where: { id: task.id } });
         if (existing && existing.planId !== current.id) {
           throw new BadRequestException('Post-exam review task ID belongs to another study plan');
         }
-        if (!existing) await tx.studyTask.create({ data: { ...this.taskData(task), planId: current.id } });
+        if (!existing) {
+          await tx.studyTask.create({
+            data: { ...this.taskData(mergedTasksById.get(task.id) ?? task), planId: current.id },
+          });
+        }
       }
 
       await this.persistSchedule(tx, current.tasks, tasks, reviewTaskIds);
@@ -139,7 +144,7 @@ export class ExamReviewPlanRepository {
   }
 
   private async createPlan(tx: Prisma.TransactionClient, plan: SevenDayPlanState): Promise<StudyPlanWithTasks> {
-    return tx.studyPlan.create({
+    const created = await tx.studyPlan.create({
       data: {
         id: plan.id,
         userId: plan.userId,
@@ -150,7 +155,11 @@ export class ExamReviewPlanRepository {
         checkpoint: plan.checkpoint,
         tasks: { create: plan.tasks.map((task) => this.taskData(task)) },
       },
-      include: { tasks: true },
+      select: { id: true },
+    });
+    return tx.studyPlan.findUniqueOrThrow({
+      where: { id: created.id },
+      include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
     });
   }
 

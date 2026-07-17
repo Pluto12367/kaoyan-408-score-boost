@@ -1076,10 +1076,26 @@ async function main() {
   assert(snapshotGradedRecord?.expectedTimeSec === 100, 'paper grading should retain the question snapshot expected time');
   assert(overviewAfterSessionSubmissions.practiceRecords.filter((record) => record.sessionId === practiceSession.id).length === practiceSessionQuestions.length, 'practice-set duplicate submission must not create duplicate records');
   assert(overviewAfterSessionSubmissions.practiceRecords.filter((record) => record.sessionId === stageSession.id).length === stageSessionQuestions.length, 'stage-assessment duplicate submission must not create duplicate records');
+  const localToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  const firstReviewTargetDate = new Date(`${localToday}T00:00:00.000Z`);
+  firstReviewTargetDate.setUTCDate(firstReviewTargetDate.getUTCDate() + 1);
+  const reviewCapacityPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const activePlan = await reviewCapacityPrisma.studyPlan.findFirst({
+    where: { userId: registered.user.id, status: 'ACTIVE' },
+    include: { tasks: { where: { scheduledDate: firstReviewTargetDate.toISOString().slice(0, 10) }, orderBy: { id: 'asc' } } },
+    orderBy: { createdAt: 'desc' },
+  });
+  const protectedTaskIds = activePlan?.tasks.slice(0, 3).map((task) => task.id) ?? [];
+  assert(protectedTaskIds.length === 3, 'review scheduler regression requires three target-date tasks');
+  await reviewCapacityPrisma.studyTask.updateMany({
+    where: { id: { in: protectedTaskIds } },
+    data: { status: 'in_progress' },
+  });
+  await reviewCapacityPrisma.$disconnect();
   const examReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
   assert(examReviewPlan.days.length === 3, 'submitted exam should generate a three-day review plan');
-  const localToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
   assert(examReviewPlan.days[0].date > localToday, 'post-exam review plan should start on the next local calendar day');
+  assert(examReviewPlan.days[0].date > firstReviewTargetDate.toISOString().slice(0, 10), 'protected target-date tasks should move the first review task later');
   assert(examReviewPlan.days.every((day) => day.taskId && day.knowledgePointId), 'post-exam review days should expose actionable task and knowledge point IDs');
   const reviewTaskIds = examReviewPlan.days.map((day) => day.taskId);
   assert(new Set(reviewTaskIds).size === 3, 'post-exam review days should expose three distinct task IDs');
