@@ -1146,10 +1146,14 @@ async function main() {
   await postJson(`${apiUrl}/sessions/practice/${bootstrapSession.id}/submit`, {
     answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
   }, bootstrapHeaders);
-  const bootstrapReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${bootstrapSession.id}`, {}, bootstrapHeaders);
-  assert(bootstrapReviewPlan.days.length === 3, 'a student without onboarding should receive review tasks');
   const bootstrapPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   try {
+    const bootstrapPlanCountBeforeGeneration = await bootstrapPrisma.studyPlan.count({
+      where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' },
+    });
+    assert(bootstrapPlanCountBeforeGeneration === 0, 'a student without onboarding should have no active plan before review generation');
+    const bootstrapReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${bootstrapSession.id}`, {}, bootstrapHeaders);
+    assert(bootstrapReviewPlan.days.length === 3, 'a student without onboarding should receive review tasks');
     const [bootstrapUser, bootstrapPlans] = await Promise.all([
       bootstrapPrisma.user.findUniqueOrThrow({ where: { id: bootstrapRegistered.user.id } }),
       bootstrapPrisma.studyPlan.findMany({ where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' } }),
@@ -1172,36 +1176,47 @@ async function main() {
   const rollbackPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   let rollbackPlanId;
   let rollbackScheduleBefore;
+  let rollbackFailure;
+  let rollbackCleanupFailure;
   try {
-    const rollbackPlan = await rollbackPrisma.studyPlan.findFirstOrThrow({
-      where: { userId: registered.user.id, status: 'ACTIVE' },
-      include: { tasks: { select: { id: true, scheduledDate: true }, orderBy: { id: 'asc' } } },
-      orderBy: { createdAt: 'desc' },
-    });
-    rollbackPlanId = rollbackPlan.id;
-    rollbackScheduleBefore = rollbackPlan.tasks;
-    await rollbackPrisma.$executeRawUnsafe(`
-      CREATE OR REPLACE FUNCTION integration_post_exam_task_failure()
-      RETURNS trigger AS $$
-      BEGIN
-        IF NEW.id LIKE 'exam-review-%-day-2' THEN
-          RAISE EXCEPTION 'integration post-exam task failure';
-        END IF;
-        RETURN NEW;
-      END;
-      $$ LANGUAGE plpgsql;
-    `);
-    await rollbackPrisma.$executeRawUnsafe(`
-      CREATE TRIGGER integration_post_exam_task_failure
-      BEFORE INSERT ON "StudyTask"
-      FOR EACH ROW EXECUTE FUNCTION integration_post_exam_task_failure();
-    `);
-    await expectPostStatus(`${apiUrl}/exam/review-tasks/${rollbackSession.id}`, {}, 500, studentHeaders);
-  } finally {
-    await rollbackPrisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS integration_post_exam_task_failure ON "StudyTask"');
-    await rollbackPrisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS integration_post_exam_task_failure()');
-  }
-  try {
+    try {
+      const rollbackPlan = await rollbackPrisma.studyPlan.findFirstOrThrow({
+        where: { userId: registered.user.id, status: 'ACTIVE' },
+        include: { tasks: { select: { id: true, scheduledDate: true }, orderBy: { id: 'asc' } } },
+        orderBy: { createdAt: 'desc' },
+      });
+      rollbackPlanId = rollbackPlan.id;
+      rollbackScheduleBefore = rollbackPlan.tasks;
+      await rollbackPrisma.$executeRawUnsafe(`
+        CREATE OR REPLACE FUNCTION integration_post_exam_task_failure()
+        RETURNS trigger AS $$
+        BEGIN
+          IF NEW.id LIKE 'exam-review-%-day-2' THEN
+            RAISE EXCEPTION 'integration post-exam task failure';
+          END IF;
+          RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+      `);
+      await rollbackPrisma.$executeRawUnsafe(`
+        CREATE TRIGGER integration_post_exam_task_failure
+        BEFORE INSERT ON "StudyTask"
+        FOR EACH ROW EXECUTE FUNCTION integration_post_exam_task_failure();
+      `);
+      await expectPostStatus(`${apiUrl}/exam/review-tasks/${rollbackSession.id}`, {}, 500, studentHeaders);
+    } finally {
+      try {
+        await rollbackPrisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS integration_post_exam_task_failure ON "StudyTask"');
+      } catch (error) {
+        rollbackCleanupFailure = error;
+      }
+      try {
+        await rollbackPrisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS integration_post_exam_task_failure()');
+      } catch (error) {
+        rollbackCleanupFailure ??= error;
+      }
+    }
+    if (rollbackCleanupFailure) throw rollbackCleanupFailure;
     const [failedSummary, failedTaskCount, rollbackPlan] = await Promise.all([
       rollbackPrisma.examReviewPlan.findUnique({ where: { sessionId: rollbackSession.id } }),
       rollbackPrisma.studyTask.count({ where: { id: { startsWith: `exam-review-${rollbackSession.id}-` } } }),
@@ -1213,9 +1228,15 @@ async function main() {
     assert(failedSummary === null, 'failed review generation must not persist a review summary');
     assert(failedTaskCount === 0, 'failed review generation must not persist partial review tasks');
     assert(JSON.stringify(rollbackPlan.tasks) === JSON.stringify(rollbackScheduleBefore), 'failed review generation must roll back displaced task dates');
-  } finally {
-    await rollbackPrisma.$disconnect();
+  } catch (error) {
+    rollbackFailure = error;
   }
+  try {
+    await rollbackPrisma.$disconnect();
+  } catch (error) {
+    rollbackFailure ??= error;
+  }
+  if (rollbackFailure) throw rollbackFailure;
   const retriedRollbackReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${rollbackSession.id}`, {}, studentHeaders);
   assert(retriedRollbackReviewPlan.days.length === 3, 'review generation should succeed after the injected transaction failure is removed');
   const startedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, studentHeaders);
@@ -1231,6 +1252,8 @@ async function main() {
   const postponedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[2].taskId)}/postpone`, {}, studentHeaders);
   assert(postponedReviewTask.rescheduledDate > examReviewPlan.days[2].date, 'a generated review task should postpone through the normal task endpoint');
   const persistedConcurrentReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
+  const persistedPostponedReviewDay = persistedConcurrentReviewPlan.days.find((day) => day.taskId === postponedReviewTask.taskId);
+  assert(persistedPostponedReviewDay?.date === postponedReviewTask.rescheduledDate, 'regenerated review plan should retain the postponed date for the exact task');
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
   assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
   await delay(300);
@@ -1271,6 +1294,8 @@ async function main() {
   assert(twiceRestoredExamReport.summary.subjectiveEarnedScore === 7, 'traceable exam report should survive a second API restart');
   const twiceRestoredReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
   assert(twiceRestoredReviewPlan.generatedAt === persistedConcurrentGeneratedAt, 'post-exam review plan should be restored instead of regenerated');
+  const restoredPostponedReviewDay = twiceRestoredReviewPlan.days.find((day) => day.taskId === postponedReviewTask.taskId);
+  assert(restoredPostponedReviewDay?.date === postponedReviewTask.rescheduledDate, 'restarted review plan should retain the postponed date for the exact task');
   assert(JSON.stringify(twiceRestoredReviewPlan.days) === JSON.stringify(persistedConcurrentReviewPlan.days), 'the concurrent review plan should retain the same days after restart');
   const restartTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
   assert(restartTodayPlan.weekProgress.every((day) => day.taskCount <= 3), 'Today Plan should retain at most three tasks per day after restart');
