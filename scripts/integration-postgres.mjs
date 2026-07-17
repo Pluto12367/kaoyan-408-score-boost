@@ -1080,41 +1080,144 @@ async function main() {
   const firstReviewTargetDate = new Date(`${localToday}T00:00:00.000Z`);
   firstReviewTargetDate.setUTCDate(firstReviewTargetDate.getUTCDate() + 1);
   const reviewCapacityPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
-  const activePlan = await reviewCapacityPrisma.studyPlan.findFirst({
-    where: { userId: registered.user.id, status: 'ACTIVE' },
-    include: { tasks: { where: { scheduledDate: firstReviewTargetDate.toISOString().slice(0, 10) }, orderBy: { id: 'asc' } } },
-    orderBy: { createdAt: 'desc' },
-  });
-  const protectedTaskIds = activePlan?.tasks.slice(0, 3).map((task) => task.id) ?? [];
-  assert(protectedTaskIds.length === 3, 'review scheduler regression requires three target-date tasks');
-  await reviewCapacityPrisma.studyTask.updateMany({
-    where: { id: { in: protectedTaskIds } },
-    data: { status: 'in_progress' },
-  });
-  await reviewCapacityPrisma.$disconnect();
-  const examReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
+  try {
+    const activePlan = await reviewCapacityPrisma.studyPlan.findFirst({
+      where: { userId: registered.user.id, status: 'ACTIVE' },
+      include: { tasks: { where: { scheduledDate: firstReviewTargetDate.toISOString().slice(0, 10) }, orderBy: { id: 'asc' } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const protectedTaskIds = activePlan?.tasks.slice(0, 3).map((task) => task.id) ?? [];
+    assert(protectedTaskIds.length === 3, 'review scheduler regression requires three target-date tasks');
+    await reviewCapacityPrisma.studyTask.updateMany({
+      where: { id: { in: protectedTaskIds } },
+      data: { status: 'in_progress' },
+    });
+  } finally {
+    await reviewCapacityPrisma.$disconnect();
+  }
+  const [examReviewPlan, concurrentExamReviewPlan] = await Promise.all([
+    postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders),
+    postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders),
+  ]);
   assert(examReviewPlan.days.length === 3, 'submitted exam should generate a three-day review plan');
+  assert(JSON.stringify(examReviewPlan.days) === JSON.stringify(concurrentExamReviewPlan.days), 'concurrent review generation should return the same persisted days');
   assert(examReviewPlan.days[0].date > localToday, 'post-exam review plan should start on the next local calendar day');
   assert(examReviewPlan.days[0].date > firstReviewTargetDate.toISOString().slice(0, 10), 'protected target-date tasks should move the first review task later');
   assert(examReviewPlan.days.every((day) => day.taskId && day.knowledgePointId), 'post-exam review days should expose actionable task and knowledge point IDs');
   const reviewTaskIds = examReviewPlan.days.map((day) => day.taskId);
   assert(new Set(reviewTaskIds).size === 3, 'post-exam review days should expose three distinct task IDs');
+  assert(reviewTaskIds.every((taskId, index) => taskId === `exam-review-${startedSession.id}-day-${index + 1}`), 'concurrent review generation should persist deterministic task IDs');
   const reviewTaskPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
-  const reviewTasks = await reviewTaskPrisma.studyTask.findMany({
-    where: { id: { in: reviewTaskIds } },
-  });
-  assert(reviewTasks.length === 3, 'post-exam review plan should persist three StudyTask rows');
-  for (const day of examReviewPlan.days) {
-    const task = reviewTasks.find((item) => item.id === day.taskId);
-    assert(task?.mode === '考后复盘' && task.priority === '高', 'post-exam review tasks should be high-priority review tasks');
-    assert(task?.knowledgePointId === day.knowledgePointId, 'post-exam review task should persist the selected knowledge point');
-    assert(task?.scheduledDate === day.date, 'post-exam review task should persist its response date');
-    const taskCount = await reviewTaskPrisma.studyTask.count({
-      where: { planId: task?.planId, scheduledDate: day.date },
+  let persistedConcurrentGeneratedAt;
+  try {
+    const reviewTasks = await reviewTaskPrisma.studyTask.findMany({
+      where: { id: { in: reviewTaskIds } },
     });
-    assert(taskCount <= 3, 'post-exam review task dates should not exceed plan capacity');
+    const persistedConcurrentReview = await reviewTaskPrisma.examReviewPlan.findUniqueOrThrow({
+      where: { sessionId: startedSession.id },
+    });
+    persistedConcurrentGeneratedAt = persistedConcurrentReview.createdAt.toISOString();
+    assert(reviewTasks.length === 3, 'concurrent review generation should persist exactly three task rows');
+    for (const day of examReviewPlan.days) {
+      const task = reviewTasks.find((item) => item.id === day.taskId);
+      assert(task?.mode === '考后复盘' && task.priority === '高', 'post-exam review tasks should be high-priority review tasks');
+      assert(task?.knowledgePointId === day.knowledgePointId, 'post-exam review task should persist the selected knowledge point');
+      assert(task?.scheduledDate === day.date, 'post-exam review task should persist its response date');
+      const taskCount = await reviewTaskPrisma.studyTask.count({
+        where: { planId: task?.planId, scheduledDate: day.date },
+      });
+      assert(taskCount <= 3, 'post-exam review task dates should not exceed plan capacity');
+    }
+  } finally {
+    await reviewTaskPrisma.$disconnect();
   }
-  await reviewTaskPrisma.$disconnect();
+  const bootstrapCredentials = {
+    email: `integration.bootstrap.${Date.now()}@example.com`,
+    password: 'ReliableTestPassword!408',
+    name: '未引导复盘学生',
+  };
+  const bootstrapRegistered = await postJson(`${apiUrl}/auth/register`, bootstrapCredentials);
+  const bootstrapHeaders = { Authorization: `Bearer ${bootstrapRegistered.accessToken}` };
+  const bootstrapSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-no-plan-review',
+    questionIds: ['q-001'],
+  }, bootstrapHeaders);
+  await postJson(`${apiUrl}/sessions/practice/${bootstrapSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
+  }, bootstrapHeaders);
+  const bootstrapReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${bootstrapSession.id}`, {}, bootstrapHeaders);
+  assert(bootstrapReviewPlan.days.length === 3, 'a student without onboarding should receive review tasks');
+  const bootstrapPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const [bootstrapUser, bootstrapPlans] = await Promise.all([
+      bootstrapPrisma.user.findUniqueOrThrow({ where: { id: bootstrapRegistered.user.id } }),
+      bootstrapPrisma.studyPlan.findMany({ where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' } }),
+    ]);
+    assert(bootstrapPlans.length === 1, 'review generation without onboarding should bootstrap exactly one active plan');
+    assert(bootstrapUser.onboardingCompletedAt === null && bootstrapUser.trialStatus === 'INVITED', 'review plan bootstrap must not complete onboarding or activate the trial');
+  } finally {
+    await bootstrapPrisma.$disconnect();
+  }
+  await expectPostStatus(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, 403, bootstrapHeaders);
+  await expectPostStatus(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, 400, bootstrapHeaders);
+  const rollbackSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-review-rollback',
+    questionIds: ['q-001'],
+  }, studentHeaders);
+  await postJson(`${apiUrl}/sessions/practice/${rollbackSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
+  }, studentHeaders);
+  const rollbackPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  let rollbackPlanId;
+  let rollbackScheduleBefore;
+  try {
+    const rollbackPlan = await rollbackPrisma.studyPlan.findFirstOrThrow({
+      where: { userId: registered.user.id, status: 'ACTIVE' },
+      include: { tasks: { select: { id: true, scheduledDate: true }, orderBy: { id: 'asc' } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    rollbackPlanId = rollbackPlan.id;
+    rollbackScheduleBefore = rollbackPlan.tasks;
+    await rollbackPrisma.$executeRawUnsafe(`
+      CREATE OR REPLACE FUNCTION integration_post_exam_task_failure()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW.id LIKE 'exam-review-%-day-2' THEN
+          RAISE EXCEPTION 'integration post-exam task failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await rollbackPrisma.$executeRawUnsafe(`
+      CREATE TRIGGER integration_post_exam_task_failure
+      BEFORE INSERT ON "StudyTask"
+      FOR EACH ROW EXECUTE FUNCTION integration_post_exam_task_failure();
+    `);
+    await expectPostStatus(`${apiUrl}/exam/review-tasks/${rollbackSession.id}`, {}, 500, studentHeaders);
+  } finally {
+    await rollbackPrisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS integration_post_exam_task_failure ON "StudyTask"');
+    await rollbackPrisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS integration_post_exam_task_failure()');
+  }
+  try {
+    const [failedSummary, failedTaskCount, rollbackPlan] = await Promise.all([
+      rollbackPrisma.examReviewPlan.findUnique({ where: { sessionId: rollbackSession.id } }),
+      rollbackPrisma.studyTask.count({ where: { id: { startsWith: `exam-review-${rollbackSession.id}-` } } }),
+      rollbackPrisma.studyPlan.findUniqueOrThrow({
+        where: { id: rollbackPlanId },
+        include: { tasks: { select: { id: true, scheduledDate: true }, orderBy: { id: 'asc' } } },
+      }),
+    ]);
+    assert(failedSummary === null, 'failed review generation must not persist a review summary');
+    assert(failedTaskCount === 0, 'failed review generation must not persist partial review tasks');
+    assert(JSON.stringify(rollbackPlan.tasks) === JSON.stringify(rollbackScheduleBefore), 'failed review generation must roll back displaced task dates');
+  } finally {
+    await rollbackPrisma.$disconnect();
+  }
+  const retriedRollbackReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${rollbackSession.id}`, {}, studentHeaders);
+  assert(retriedRollbackReviewPlan.days.length === 3, 'review generation should succeed after the injected transaction failure is removed');
   const startedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, studentHeaders);
   assert(startedReviewTask.status === 'in_progress', 'a generated review task should start through the normal task endpoint');
   const completedReviewTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(examReviewPlan.days[1].taskId)}/complete`, {
@@ -1127,6 +1230,7 @@ async function main() {
   assert(completedReviewTask.completed === true, 'a generated review task should complete through the normal task endpoint');
   const postponedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[2].taskId)}/postpone`, {}, studentHeaders);
   assert(postponedReviewTask.rescheduledDate > examReviewPlan.days[2].date, 'a generated review task should postpone through the normal task endpoint');
+  const persistedConcurrentReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
   assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
   await delay(300);
@@ -1166,7 +1270,10 @@ async function main() {
   const twiceRestoredExamReport = await getJson(`${apiUrl}/exam/report/${startedSession.id}`, studentHeaders);
   assert(twiceRestoredExamReport.summary.subjectiveEarnedScore === 7, 'traceable exam report should survive a second API restart');
   const twiceRestoredReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
-  assert(twiceRestoredReviewPlan.generatedAt === examReviewPlan.generatedAt, 'post-exam review plan should be restored instead of regenerated');
+  assert(twiceRestoredReviewPlan.generatedAt === persistedConcurrentGeneratedAt, 'post-exam review plan should be restored instead of regenerated');
+  assert(JSON.stringify(twiceRestoredReviewPlan.days) === JSON.stringify(persistedConcurrentReviewPlan.days), 'the concurrent review plan should retain the same days after restart');
+  const restartTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
+  assert(restartTodayPlan.weekProgress.every((day) => day.taskCount <= 3), 'Today Plan should retain at most three tasks per day after restart');
 
   console.log(JSON.stringify({
     ok: true,

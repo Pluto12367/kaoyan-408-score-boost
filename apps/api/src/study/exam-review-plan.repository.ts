@@ -80,6 +80,7 @@ export class ExamReviewPlanRepository {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${input.reviewPlan.userId}))`;
       const session = await tx.learningSession.findFirst({
         where: {
           id: input.reviewPlan.examSessionId,
