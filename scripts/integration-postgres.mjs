@@ -990,7 +990,7 @@ async function main() {
   const restoredOnboarding = await getJson(`${apiUrl}/onboarding/status`, studentHeaders);
   assert(restoredOnboarding.completed === true && restoredOnboarding.profile.examYear, 'onboarding profile should survive an API restart');
   const restoredTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
-  assert(restoredTodayPlan.weekProgress.length === 7, 'seven-day plan should survive an API restart');
+  assert(restoredTodayPlan.weekProgress.length >= 7, 'the original seven-day plan and any capacity extension should survive an API restart');
   assert(!restoredTodayPlan.priorityTasks.some((task) => task.id === postponeTaskId), 'task rescheduling should survive an API restart');
   const restoredSession = await getJson(`${apiUrl}/sessions/practice/${startedSession.id}`, studentHeaders);
   assert(restoredSession.questions?.map((question) => question.id).join(',') === sessionInput.questionIds.join(','), 'restored session should include its ordered question snapshot');
@@ -1281,8 +1281,66 @@ async function main() {
   } finally {
     await preservedReviewCheckPrisma.$disconnect();
   }
+  const postponeCapacityPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  let forcedFullPostponeDate;
+  let postponePlanId;
+  try {
+    const postponePlan = await postponeCapacityPrisma.studyPlan.findFirstOrThrow({
+      where: { userId: registered.user.id, status: 'ACTIVE' },
+      include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    postponePlanId = postponePlan.id;
+    const postponedCandidate = postponePlan.tasks.find((task) => task.id === examReviewPlan.days[2].taskId);
+    assert(postponedCandidate, 'postpone capacity regression requires the day 3 review task');
+    const dates = [...new Set(postponePlan.tasks.map((task) => task.scheduledDate))].sort();
+    const currentIndex = Math.max(0, dates.indexOf(postponedCandidate.scheduledDate));
+    forcedFullPostponeDate = dates.slice(currentIndex + 1).find((date) =>
+      postponePlan.tasks.filter((task) => task.scheduledDate === date).length < 4,
+    );
+    if (!forcedFullPostponeDate) {
+      const date = new Date(`${localToday}T00:00:00.000Z`);
+      date.setUTCDate(date.getUTCDate() + Math.max(1, dates.length));
+      forcedFullPostponeDate = date.toISOString().slice(0, 10);
+    }
+    const targetCount = postponePlan.tasks.filter((task) => task.scheduledDate === forcedFullPostponeDate).length;
+    assert(targetCount <= 3, 'postpone capacity fixture target must begin at or below capacity');
+    if (targetCount < 3) {
+      await postponeCapacityPrisma.studyTask.createMany({
+        data: Array.from({ length: 3 - targetCount }, (_, index) => ({
+          id: `integration-postpone-capacity-${startedSession.id}-${index}`,
+          planId: postponePlan.id,
+          knowledgePointId: 'co-cache',
+          subject: '计算机组成原理',
+          chapter: '存储系统',
+          title: `延期容量占位任务 ${index + 1}`,
+          mode: '专项训练',
+          minutes: 20,
+          questionCount: 5,
+          scheduledDate: forcedFullPostponeDate,
+          priority: '中',
+          reason: 'PostgreSQL integration capacity fixture',
+          nextAction: '完成容量回归测试',
+        })),
+      });
+    }
+  } finally {
+    await postponeCapacityPrisma.$disconnect();
+  }
   const postponedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[2].taskId)}/postpone`, {}, studentHeaders);
   assert(postponedReviewTask.rescheduledDate > examReviewPlan.days[2].date, 'a generated review task should postpone through the normal task endpoint');
+  assert(postponedReviewTask.rescheduledDate !== forcedFullPostponeDate, 'postpone must skip a date that already contains three tasks');
+  const postponedCapacityCheckPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const groupedDates = await postponedCapacityCheckPrisma.studyTask.groupBy({
+      by: ['scheduledDate'],
+      where: { planId: postponePlanId },
+      _count: { _all: true },
+    });
+    assert(groupedDates.every((item) => item._count._all <= 3), 'postpone must preserve the three-task daily capacity');
+  } finally {
+    await postponedCapacityCheckPrisma.$disconnect();
+  }
   const persistedConcurrentReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
   const persistedPostponedReviewDay = persistedConcurrentReviewPlan.days.find((day) => day.taskId === postponedReviewTask.taskId);
   assert(persistedPostponedReviewDay?.date === postponedReviewTask.rescheduledDate, 'regenerated review plan should retain the postponed date for the exact task');
@@ -1294,6 +1352,125 @@ async function main() {
     assert(JSON.stringify(persistedConcurrentReviewPlan) === JSON.stringify(persistedPostponedSummary), 'regenerated response should equal the persisted postponed summary');
   } finally {
     await postPostponeReviewPrisma.$disconnect();
+  }
+  const staleLifecyclePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  let staleStartTask;
+  let staleCompleteTask;
+  let externallyScheduledStartDate;
+  let externallyScheduledCompleteDate;
+  try {
+    const activePlan = await staleLifecyclePrisma.studyPlan.findFirstOrThrow({
+      where: { userId: registered.user.id, status: 'ACTIVE' },
+      include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const candidates = activePlan.tasks.filter((task) =>
+      task.status === 'pending'
+      && task.mode !== '考后复盘'
+      && !task.id.startsWith('exam-review-')
+      && !task.id.startsWith('integration-postpone-capacity-'),
+    );
+    assert(candidates.length >= 2, 'stale lifecycle regression requires two pending ordinary tasks');
+    [staleStartTask, staleCompleteTask] = candidates;
+    const latestDate = activePlan.tasks.map((task) => task.scheduledDate).sort().at(-1);
+    const externalStartDate = new Date(`${latestDate}T00:00:00.000Z`);
+    externalStartDate.setUTCDate(externalStartDate.getUTCDate() + 2);
+    externallyScheduledStartDate = externalStartDate.toISOString().slice(0, 10);
+    const externalCompleteDate = new Date(externalStartDate);
+    externalCompleteDate.setUTCDate(externalCompleteDate.getUTCDate() + 1);
+    externallyScheduledCompleteDate = externalCompleteDate.toISOString().slice(0, 10);
+    await staleLifecyclePrisma.$transaction([
+      staleLifecyclePrisma.studyTask.update({
+        where: { id: staleStartTask.id },
+        data: { scheduledDate: externallyScheduledStartDate },
+      }),
+      staleLifecyclePrisma.studyTask.update({
+        where: { id: staleCompleteTask.id },
+        data: { scheduledDate: externallyScheduledCompleteDate },
+      }),
+    ]);
+  } finally {
+    await staleLifecyclePrisma.$disconnect();
+  }
+  const staleStartResult = await postJson(`${apiUrl}/tasks/${encodeURIComponent(staleStartTask.id)}/start`, {}, studentHeaders);
+  assert(staleStartResult.status === 'in_progress', 'stale-cache start regression should start the owned task');
+  const staleCompleteResult = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(staleCompleteTask.id)}/complete`, {
+    completedQuestionCount: staleCompleteTask.questionCount,
+    correctCount: staleCompleteTask.questionCount,
+    minutesSpent: staleCompleteTask.minutes,
+    selfRating: 4,
+  }, studentHeaders);
+  assert(staleCompleteResult.completed === true, 'stale-cache completion regression should complete the owned task');
+  const staleLifecycleCheckPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const [startedRow, completedRow] = await Promise.all([
+      staleLifecycleCheckPrisma.studyTask.findUniqueOrThrow({ where: { id: staleStartTask.id } }),
+      staleLifecycleCheckPrisma.studyTask.findUniqueOrThrow({ where: { id: staleCompleteTask.id } }),
+    ]);
+    assert(startedRow.scheduledDate === externallyScheduledStartDate, 'start must not overwrite a concurrently committed scheduled date');
+    assert(completedRow.scheduledDate === externallyScheduledCompleteDate, 'complete must not overwrite a concurrently committed scheduled date');
+  } finally {
+    await staleLifecycleCheckPrisma.$disconnect();
+  }
+  const lifecycleRacePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  let raceStartTask;
+  let racePostponeTask;
+  let raceCompleteTask;
+  try {
+    const activePlan = await lifecycleRacePrisma.studyPlan.findFirstOrThrow({
+      where: { userId: registered.user.id, status: 'ACTIVE' },
+      include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const candidates = activePlan.tasks.filter((task) =>
+      task.status === 'pending'
+      && task.mode !== '考后复盘'
+      && !task.id.startsWith('exam-review-')
+      && !task.id.startsWith('integration-postpone-capacity-'),
+    );
+    assert(candidates.length >= 3, 'review lifecycle races require three pending ordinary tasks');
+    [raceStartTask, racePostponeTask, raceCompleteTask] = candidates;
+  } finally {
+    await lifecycleRacePrisma.$disconnect();
+  }
+  const [raceStartResult, raceStartReviewPlan] = await Promise.all([
+    postJson(`${apiUrl}/tasks/${encodeURIComponent(raceStartTask.id)}/start`, {}, studentHeaders),
+    postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders),
+  ]);
+  assert(raceStartResult.status === 'in_progress' && raceStartReviewPlan.days.length === 3, 'review generation racing with start should preserve both results');
+  const [racePostponeReviewPlan, racePostponeResult] = await Promise.all([
+    postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders),
+    postJson(`${apiUrl}/tasks/${encodeURIComponent(racePostponeTask.id)}/postpone`, {}, studentHeaders),
+  ]);
+  assert(racePostponeReviewPlan.days.length === 3 && racePostponeResult.rescheduledDate, 'review generation racing with postpone should preserve both results');
+  const [raceCompleteResult, raceCompleteReviewPlan] = await Promise.all([
+    postJson(`${apiUrl}/study-tasks/${encodeURIComponent(raceCompleteTask.id)}/complete`, {
+      completedQuestionCount: raceCompleteTask.questionCount,
+      correctCount: raceCompleteTask.questionCount,
+      minutesSpent: raceCompleteTask.minutes,
+      selfRating: 4,
+    }, studentHeaders),
+    postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders),
+  ]);
+  assert(raceCompleteResult.completed === true && raceCompleteReviewPlan.days.length === 3, 'review generation racing with completion should preserve both results');
+  const lifecycleRaceCheckPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const [startedRow, postponedRow, completedRow, groupedDates] = await Promise.all([
+      lifecycleRaceCheckPrisma.studyTask.findUniqueOrThrow({ where: { id: raceStartTask.id } }),
+      lifecycleRaceCheckPrisma.studyTask.findUniqueOrThrow({ where: { id: racePostponeTask.id } }),
+      lifecycleRaceCheckPrisma.studyTask.findUniqueOrThrow({ where: { id: raceCompleteTask.id } }),
+      lifecycleRaceCheckPrisma.studyTask.groupBy({
+        by: ['scheduledDate'],
+        where: { planId: postponePlanId },
+        _count: { _all: true },
+      }),
+    ]);
+    assert(startedRow.status === 'in_progress', 'start status should survive concurrent review generation');
+    assert(postponedRow.status === 'postponed' && postponedRow.scheduledDate === racePostponeResult.rescheduledDate, 'postpone state should survive concurrent review generation');
+    assert(completedRow.status === 'completed', 'completion status should survive concurrent review generation');
+    assert(groupedDates.every((item) => item._count._all <= 3), 'lifecycle races must preserve daily task capacity');
+  } finally {
+    await lifecycleRaceCheckPrisma.$disconnect();
   }
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
   assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
