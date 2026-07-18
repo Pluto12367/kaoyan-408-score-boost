@@ -1109,6 +1109,7 @@ async function main() {
   assert(reviewTaskIds.every((taskId, index) => taskId === `exam-review-${startedSession.id}-day-${index + 1}`), 'concurrent review generation should persist deterministic task IDs');
   const reviewTaskPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   let persistedConcurrentGeneratedAt;
+  let persistedConcurrentSummary;
   try {
     const reviewTasks = await reviewTaskPrisma.studyTask.findMany({
       where: { id: { in: reviewTaskIds } },
@@ -1117,8 +1118,9 @@ async function main() {
       where: { sessionId: startedSession.id },
     });
     persistedConcurrentGeneratedAt = persistedConcurrentReview.createdAt.toISOString();
-    assert(examReviewPlan.generatedAt === persistedConcurrentGeneratedAt, 'first concurrent response should expose the persisted review timestamp');
-    assert(concurrentExamReviewPlan.generatedAt === persistedConcurrentGeneratedAt, 'second concurrent response should expose the persisted review timestamp');
+    persistedConcurrentSummary = toExamReviewPlanResponse(persistedConcurrentReview);
+    assert(JSON.stringify(examReviewPlan) === JSON.stringify(persistedConcurrentSummary), 'first concurrent response should equal the persisted review summary');
+    assert(JSON.stringify(concurrentExamReviewPlan) === JSON.stringify(persistedConcurrentSummary), 'second concurrent response should equal the persisted review summary');
     assert(reviewTasks.length === 3, 'concurrent review generation should persist exactly three task rows');
     for (const day of examReviewPlan.days) {
       const task = reviewTasks.find((item) => item.id === day.taskId);
@@ -1244,32 +1246,37 @@ async function main() {
   const startedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, studentHeaders);
   assert(startedReviewTask.status === 'in_progress', 'a generated review task should start through the normal task endpoint');
   const preservedReviewPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
-  let futureReviewBeforeCompletion;
+  let futureReviewsBeforeCompletion;
   try {
-    futureReviewBeforeCompletion = await preservedReviewPrisma.studyTask.findUniqueOrThrow({
-      where: { id: examReviewPlan.days[2].taskId },
+    futureReviewsBeforeCompletion = await preservedReviewPrisma.studyTask.findMany({
+      where: { id: { in: examReviewPlan.days.slice(1).map((day) => day.taskId) } },
+      orderBy: { id: 'asc' },
     });
+    assert(futureReviewsBeforeCompletion.length === 2, 'review identity regression requires day 2 and day 3 tasks');
   } finally {
     await preservedReviewPrisma.$disconnect();
   }
-  const completedReviewTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(examReviewPlan.days[1].taskId)}/complete`, {
+  const completedReviewTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/complete`, {
     userId: registered.user.id,
-    completedQuestionCount: examReviewPlan.days[1].questionCount,
-    correctCount: examReviewPlan.days[1].questionCount,
-    minutesSpent: examReviewPlan.days[1].minutes,
+    completedQuestionCount: examReviewPlan.days[0].questionCount,
+    correctCount: examReviewPlan.days[0].questionCount,
+    minutesSpent: examReviewPlan.days[0].minutes,
     selfRating: 4,
   }, studentHeaders);
   assert(completedReviewTask.completed === true, 'a generated review task should complete through the normal task endpoint');
   const preservedReviewCheckPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   try {
-    const futureReviewAfterCompletion = await preservedReviewCheckPrisma.studyTask.findUniqueOrThrow({
-      where: { id: examReviewPlan.days[2].taskId },
+    const futureReviewsAfterCompletion = await preservedReviewCheckPrisma.studyTask.findMany({
+      where: { id: { in: examReviewPlan.days.slice(1).map((day) => day.taskId) } },
+      orderBy: { id: 'asc' },
     });
-    for (const field of ['id', 'mode', 'questionCount', 'reason', 'nextAction', 'knowledgePointId', 'scheduledDate']) {
-      assert(
-        futureReviewAfterCompletion[field] === futureReviewBeforeCompletion[field],
-        `completing one review task must preserve the future review task ${field}`,
-      );
+    for (let index = 0; index < futureReviewsBeforeCompletion.length; index += 1) {
+      for (const field of ['id', 'mode', 'questionCount', 'reason', 'nextAction', 'knowledgePointId', 'scheduledDate']) {
+        assert(
+          futureReviewsAfterCompletion[index][field] === futureReviewsBeforeCompletion[index][field],
+          `completing day 1 must preserve future review ${futureReviewsBeforeCompletion[index].id} ${field}`,
+        );
+      }
     }
   } finally {
     await preservedReviewCheckPrisma.$disconnect();
@@ -1279,6 +1286,15 @@ async function main() {
   const persistedConcurrentReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);
   const persistedPostponedReviewDay = persistedConcurrentReviewPlan.days.find((day) => day.taskId === postponedReviewTask.taskId);
   assert(persistedPostponedReviewDay?.date === postponedReviewTask.rescheduledDate, 'regenerated review plan should retain the postponed date for the exact task');
+  const postPostponeReviewPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const persistedPostponedSummary = toExamReviewPlanResponse(
+      await postPostponeReviewPrisma.examReviewPlan.findUniqueOrThrow({ where: { sessionId: startedSession.id } }),
+    );
+    assert(JSON.stringify(persistedConcurrentReviewPlan) === JSON.stringify(persistedPostponedSummary), 'regenerated response should equal the persisted postponed summary');
+  } finally {
+    await postPostponeReviewPrisma.$disconnect();
+  }
   const scoreHistory = await getJson(`${apiUrl}/exam/score-history`, studentHeaders);
   assert(scoreHistory.history.some((item) => item.sessionId === startedSession.id), 'submitted exam should appear in score history');
   await delay(300);
@@ -1321,7 +1337,7 @@ async function main() {
   assert(twiceRestoredReviewPlan.generatedAt === persistedConcurrentGeneratedAt, 'post-exam review plan should be restored instead of regenerated');
   const restoredPostponedReviewDay = twiceRestoredReviewPlan.days.find((day) => day.taskId === postponedReviewTask.taskId);
   assert(restoredPostponedReviewDay?.date === postponedReviewTask.rescheduledDate, 'restarted review plan should retain the postponed date for the exact task');
-  assert(JSON.stringify(twiceRestoredReviewPlan.days) === JSON.stringify(persistedConcurrentReviewPlan.days), 'the concurrent review plan should retain the same days after restart');
+  assert(JSON.stringify(twiceRestoredReviewPlan) === JSON.stringify(persistedConcurrentReviewPlan), 'the complete persisted review summary should survive restart');
   const restartTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
   assert(restartTodayPlan.weekProgress.every((day) => day.taskCount <= 3), 'Today Plan should retain at most three tasks per day after restart');
 
@@ -1581,6 +1597,18 @@ function sessionAnswerFor(question, timeSpentSec) {
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function toExamReviewPlanResponse(row) {
+  return {
+    userId: row.userId,
+    examSessionId: row.sessionId,
+    generatedAt: row.createdAt.toISOString(),
+    examAccuracyRate: row.examAccuracyRate,
+    weakPointTitles: row.weakPointTitles,
+    days: row.days,
+    recommendation: row.recommendation,
+  };
 }
 
 function delay(ms) {
