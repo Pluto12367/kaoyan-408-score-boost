@@ -1100,7 +1100,7 @@ async function main() {
     postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders),
   ]);
   assert(examReviewPlan.days.length === 3, 'submitted exam should generate a three-day review plan');
-  assert(JSON.stringify(examReviewPlan.days) === JSON.stringify(concurrentExamReviewPlan.days), 'concurrent review generation should return the same persisted days');
+  assert(JSON.stringify(examReviewPlan) === JSON.stringify(concurrentExamReviewPlan), 'concurrent review generation should return the same persisted summary');
   assert(examReviewPlan.days[0].date > localToday, 'post-exam review plan should start on the next local calendar day');
   assert(examReviewPlan.days[0].date > firstReviewTargetDate.toISOString().slice(0, 10), 'protected target-date tasks should move the first review task later');
   assert(examReviewPlan.days.every((day) => day.taskId && day.knowledgePointId), 'post-exam review days should expose actionable task and knowledge point IDs');
@@ -1117,6 +1117,8 @@ async function main() {
       where: { sessionId: startedSession.id },
     });
     persistedConcurrentGeneratedAt = persistedConcurrentReview.createdAt.toISOString();
+    assert(examReviewPlan.generatedAt === persistedConcurrentGeneratedAt, 'first concurrent response should expose the persisted review timestamp');
+    assert(concurrentExamReviewPlan.generatedAt === persistedConcurrentGeneratedAt, 'second concurrent response should expose the persisted review timestamp');
     assert(reviewTasks.length === 3, 'concurrent review generation should persist exactly three task rows');
     for (const day of examReviewPlan.days) {
       const task = reviewTasks.find((item) => item.id === day.taskId);
@@ -1241,6 +1243,15 @@ async function main() {
   assert(retriedRollbackReviewPlan.days.length === 3, 'review generation should succeed after the injected transaction failure is removed');
   const startedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, studentHeaders);
   assert(startedReviewTask.status === 'in_progress', 'a generated review task should start through the normal task endpoint');
+  const preservedReviewPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  let futureReviewBeforeCompletion;
+  try {
+    futureReviewBeforeCompletion = await preservedReviewPrisma.studyTask.findUniqueOrThrow({
+      where: { id: examReviewPlan.days[2].taskId },
+    });
+  } finally {
+    await preservedReviewPrisma.$disconnect();
+  }
   const completedReviewTask = await postJson(`${apiUrl}/study-tasks/${encodeURIComponent(examReviewPlan.days[1].taskId)}/complete`, {
     userId: registered.user.id,
     completedQuestionCount: examReviewPlan.days[1].questionCount,
@@ -1249,6 +1260,20 @@ async function main() {
     selfRating: 4,
   }, studentHeaders);
   assert(completedReviewTask.completed === true, 'a generated review task should complete through the normal task endpoint');
+  const preservedReviewCheckPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const futureReviewAfterCompletion = await preservedReviewCheckPrisma.studyTask.findUniqueOrThrow({
+      where: { id: examReviewPlan.days[2].taskId },
+    });
+    for (const field of ['id', 'mode', 'questionCount', 'reason', 'nextAction', 'knowledgePointId', 'scheduledDate']) {
+      assert(
+        futureReviewAfterCompletion[field] === futureReviewBeforeCompletion[field],
+        `completing one review task must preserve the future review task ${field}`,
+      );
+    }
+  } finally {
+    await preservedReviewCheckPrisma.$disconnect();
+  }
   const postponedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[2].taskId)}/postpone`, {}, studentHeaders);
   assert(postponedReviewTask.rescheduledDate > examReviewPlan.days[2].date, 'a generated review task should postpone through the normal task endpoint');
   const persistedConcurrentReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, studentHeaders);

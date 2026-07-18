@@ -2033,7 +2033,13 @@ export class StudyService implements OnModuleInit {
       await this.onboardingPlanRepository.saveTask(userId, scheduledTask);
 
       const futureTask = this.sevenDayPlansByUser.get(userId)?.tasks
-        .filter((item) => item.knowledgePointId === task.knowledgePointId && item.scheduledDate > scheduledTask.scheduledDate && item.status !== 'completed')
+        .filter((item) =>
+          item.knowledgePointId === task.knowledgePointId
+          && item.scheduledDate > scheduledTask.scheduledDate
+          && item.status !== 'completed'
+          && item.mode !== '考后复盘'
+          && !item.id.startsWith('exam-review-'),
+        )
         .sort((left, right) => left.scheduledDate.localeCompare(right.scheduledDate))[0];
       if (futureTask) {
         futureTask.questionCount = adjustment.tomorrowQuestionTarget;

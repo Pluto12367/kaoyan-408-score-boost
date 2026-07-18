@@ -49,15 +49,7 @@ export class ExamReviewPlanRepository {
     if (!this.enabled) return plans;
     const rows = await this.prisma.examReviewPlan.findMany();
     for (const row of rows) {
-      plans.set(row.sessionId, {
-        userId: row.userId,
-        examSessionId: row.sessionId,
-        generatedAt: row.createdAt.toISOString(),
-        examAccuracyRate: row.examAccuracyRate,
-        weakPointTitles: row.weakPointTitles,
-        days: row.days as unknown as ExamReviewDay[],
-        recommendation: row.recommendation,
-      });
+      plans.set(row.sessionId, this.mapExamReviewPlan(row));
     }
     return plans;
   }
@@ -118,13 +110,13 @@ export class ExamReviewPlanRepository {
 
       await this.persistSchedule(tx, current.tasks, tasks, reviewTaskIds);
       const reviewPlan = this.withActualDates(input.reviewPlan, tasks);
-      await this.upsertExamReviewPlan(tx, reviewPlan);
-      return { reviewPlan, studyPlan: { ...current, tasks } };
+      const persistedReviewPlan = this.mapExamReviewPlan(await this.upsertExamReviewPlan(tx, reviewPlan));
+      return { reviewPlan: persistedReviewPlan, studyPlan: { ...current, tasks } };
     });
   }
 
   private async upsertExamReviewPlan(tx: Prisma.TransactionClient, plan: ExamReviewPlanState) {
-    await tx.examReviewPlan.upsert({
+    return tx.examReviewPlan.upsert({
       where: { sessionId: plan.examSessionId },
       create: {
         sessionId: plan.examSessionId,
@@ -142,6 +134,18 @@ export class ExamReviewPlanRepository {
         weakPointTitles: plan.weakPointTitles,
       },
     });
+  }
+
+  private mapExamReviewPlan(row: Prisma.ExamReviewPlanGetPayload<object>): ExamReviewPlanState {
+    return {
+      userId: row.userId,
+      examSessionId: row.sessionId,
+      generatedAt: row.createdAt.toISOString(),
+      examAccuracyRate: row.examAccuracyRate,
+      weakPointTitles: row.weakPointTitles,
+      days: row.days as unknown as ExamReviewDay[],
+      recommendation: row.recommendation,
+    };
   }
 
   private async createPlan(tx: Prisma.TransactionClient, plan: SevenDayPlanState): Promise<StudyPlanWithTasks> {
