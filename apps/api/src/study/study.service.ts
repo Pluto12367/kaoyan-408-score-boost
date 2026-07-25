@@ -681,6 +681,17 @@ export class StudyService implements OnModuleInit {
     dailyHours: number;
     weakestSubject: Subject;
   }) {
+    return this.withPlanMutation(userId, () => this.completeOnboardingUnlocked(userId, input));
+  }
+
+  private async completeOnboardingUnlocked(userId: string, input: {
+    examYear?: number;
+    targetScore: number;
+    currentScore: number;
+    remainingDays: number;
+    dailyHours: number;
+    weakestSubject: Subject;
+  }) {
     validateOnboardingInput(input);
     const profile = {
       examYear: input.examYear,

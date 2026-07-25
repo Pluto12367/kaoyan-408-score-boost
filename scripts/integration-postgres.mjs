@@ -1167,6 +1167,108 @@ async function main() {
   } finally {
     await bootstrapPrisma.$disconnect();
   }
+  const onboardingRaceSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-onboarding-review-race',
+    questionIds: ['q-001'],
+  }, bootstrapHeaders);
+  await postJson(`${apiUrl}/sessions/practice/${onboardingRaceSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
+  }, bootstrapHeaders);
+  const onboardingRacePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  let releaseOnboardingLock = () => undefined;
+  let markOnboardingLockAcquired;
+  let markOnboardingLockFailed;
+  let onboardingLockHeld = false;
+  const onboardingLockRelease = new Promise((resolve) => {
+    releaseOnboardingLock = resolve;
+  });
+  const onboardingLockAcquired = new Promise((resolve, reject) => {
+    markOnboardingLockAcquired = resolve;
+    markOnboardingLockFailed = reject;
+  });
+  const onboardingLockTransaction = onboardingRacePrisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${bootstrapRegistered.user.id}))`;
+    onboardingLockHeld = true;
+    markOnboardingLockAcquired();
+    await onboardingLockRelease;
+  }, { maxWait: 5_000, timeout: 15_000 }).then(
+    () => ({ ok: true }),
+    (error) => {
+      if (!onboardingLockHeld) markOnboardingLockFailed(error);
+      return { ok: false, error };
+    },
+  );
+  let queuedOnboarding;
+  let queuedReviewGeneration;
+  let onboardingRaceFailure;
+  try {
+    await onboardingLockAcquired;
+    let onboardingSettledWhileLocked = false;
+    let reviewSettledBehindOnboarding = false;
+    queuedOnboarding = postJson(`${apiUrl}/onboarding/complete`, {
+      examYear: new Date().getUTCFullYear() + 1,
+      targetScore: 124,
+      currentScore: 80,
+      remainingDays: 90,
+      dailyHours: 3,
+      weakestSubject: onboarding.weakestSubject,
+    }, bootstrapHeaders).then(
+      (value) => {
+        onboardingSettledWhileLocked = true;
+        return { ok: true, value };
+      },
+      (error) => {
+        onboardingSettledWhileLocked = true;
+        return { ok: false, error };
+      },
+    );
+    await delay(100);
+    queuedReviewGeneration = postJson(
+      `${apiUrl}/exam/review-tasks/${onboardingRaceSession.id}`,
+      {},
+      bootstrapHeaders,
+    ).then(
+      (value) => {
+        reviewSettledBehindOnboarding = true;
+        return { ok: true, value };
+      },
+      (error) => {
+        reviewSettledBehindOnboarding = true;
+        return { ok: false, error };
+      },
+    );
+    await delay(250);
+    const onboardingWasBlocked = !onboardingSettledWhileLocked;
+    const reviewWaitedForOnboarding = !reviewSettledBehindOnboarding;
+    releaseOnboardingLock();
+    const lockResult = await onboardingLockTransaction;
+    if (!lockResult.ok) throw lockResult.error;
+    const [onboardingResult, reviewResult] = await Promise.all([
+      queuedOnboarding,
+      queuedReviewGeneration,
+    ]);
+    if (!onboardingResult.ok) throw onboardingResult.error;
+    if (!reviewResult.ok) throw reviewResult.error;
+    assert(onboardingWasBlocked, 'onboarding plan replacement must acquire the shared advisory lock');
+    assert(reviewWaitedForOnboarding, 'review generation must wait for the complete onboarding operation');
+    assert(onboardingResult.value.sevenDayPlan.days.length === 7, 'serialized onboarding should still return its seven-day plan');
+    assert(reviewResult.value.days.length === 3, 'review generation should resume after serialized onboarding');
+  } catch (error) {
+    onboardingRaceFailure = error;
+  } finally {
+    releaseOnboardingLock();
+    const pendingOperations = [onboardingLockTransaction];
+    if (queuedOnboarding) pendingOperations.push(queuedOnboarding);
+    if (queuedReviewGeneration) pendingOperations.push(queuedReviewGeneration);
+    await Promise.all(pendingOperations);
+    try {
+      await onboardingRacePrisma.$disconnect();
+    } catch (error) {
+      onboardingRaceFailure ??= error;
+    }
+  }
+  if (onboardingRaceFailure) throw onboardingRaceFailure;
   await expectPostStatus(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, 403, bootstrapHeaders);
   await expectPostStatus(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, 400, bootstrapHeaders);
   const rollbackSession = await postJson(`${apiUrl}/sessions/practice/start`, {
@@ -1282,7 +1384,7 @@ async function main() {
     await preservedReviewCheckPrisma.$disconnect();
   }
   const postponeCapacityPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
-  let forcedFullPostponeDate;
+  let forcedFullPostponeDates;
   let postponePlanId;
   try {
     const postponePlan = await postponeCapacityPrisma.studyPlan.findFirstOrThrow({
@@ -1293,22 +1395,19 @@ async function main() {
     postponePlanId = postponePlan.id;
     const postponedCandidate = postponePlan.tasks.find((task) => task.id === examReviewPlan.days[2].taskId);
     assert(postponedCandidate, 'postpone capacity regression requires the day 3 review task');
-    const dates = [...new Set(postponePlan.tasks.map((task) => task.scheduledDate))].sort();
-    const currentIndex = Math.max(0, dates.indexOf(postponedCandidate.scheduledDate));
-    forcedFullPostponeDate = dates.slice(currentIndex + 1).find((date) =>
-      postponePlan.tasks.filter((task) => task.scheduledDate === date).length < 4,
-    );
-    if (!forcedFullPostponeDate) {
-      const date = new Date(`${localToday}T00:00:00.000Z`);
-      date.setUTCDate(date.getUTCDate() + Math.max(1, dates.length));
-      forcedFullPostponeDate = date.toISOString().slice(0, 10);
-    }
-    const targetCount = postponePlan.tasks.filter((task) => task.scheduledDate === forcedFullPostponeDate).length;
-    assert(targetCount <= 3, 'postpone capacity fixture target must begin at or below capacity');
-    if (targetCount < 3) {
+    const candidateDate = new Date(`${postponedCandidate.scheduledDate}T00:00:00.000Z`);
+    forcedFullPostponeDates = Array.from({ length: 3 }, (_, index) => {
+      const date = new Date(candidateDate);
+      date.setUTCDate(candidateDate.getUTCDate() + index + 1);
+      return date.toISOString().slice(0, 10);
+    });
+    for (const [dateIndex, forcedFullPostponeDate] of forcedFullPostponeDates.entries()) {
+      const targetCount = postponePlan.tasks.filter((task) => task.scheduledDate === forcedFullPostponeDate).length;
+      assert(targetCount <= 3, 'postpone capacity fixture dates must begin at or below capacity');
+      if (targetCount >= 3) continue;
       await postponeCapacityPrisma.studyTask.createMany({
         data: Array.from({ length: 3 - targetCount }, (_, index) => ({
-          id: `integration-postpone-capacity-${startedSession.id}-${index}`,
+          id: `integration-postpone-capacity-${startedSession.id}-${dateIndex}-${index}`,
           planId: postponePlan.id,
           knowledgePointId: 'co-cache',
           subject: '计算机组成原理',
@@ -1329,7 +1428,7 @@ async function main() {
   }
   const postponedReviewTask = await postJson(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[2].taskId)}/postpone`, {}, studentHeaders);
   assert(postponedReviewTask.rescheduledDate > examReviewPlan.days[2].date, 'a generated review task should postpone through the normal task endpoint');
-  assert(postponedReviewTask.rescheduledDate !== forcedFullPostponeDate, 'postpone must skip a date that already contains three tasks');
+  assert(postponedReviewTask.rescheduledDate > forcedFullPostponeDates[2], 'postpone must skip three consecutive dates that already contain three tasks');
   const postponedCapacityCheckPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   try {
     const groupedDates = await postponedCapacityCheckPrisma.studyTask.groupBy({
