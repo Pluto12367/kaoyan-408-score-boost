@@ -1135,22 +1135,61 @@ async function main() {
   } finally {
     await reviewTaskPrisma.$disconnect();
   }
+  const todayProjectionCredentials = {
+    email: `integration.today-plan-projection.${Date.now()}@example.com`,
+    password: 'ReliableTestPassword!408',
+    name: 'Today Plan Projection Student',
+  };
+  const todayProjectionRegistered = await postJson(`${apiUrl}/auth/register`, todayProjectionCredentials);
+  const todayProjectionHeaders = { Authorization: `Bearer ${todayProjectionRegistered.accessToken}` };
+  const todayProjectionSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-today-plan-projection',
+    questionIds: ['q-001'],
+  }, todayProjectionHeaders);
+  const todayProjectionSubmission = await postJson(`${apiUrl}/sessions/practice/${todayProjectionSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'A', timeSpentSec: 60 }],
+  }, todayProjectionHeaders);
+  assert(todayProjectionSubmission.completed === true, 'today plan projection fixture requires a completed dedicated paper session');
+  const todayProjectionReviewPlan = await postJson(
+    `${apiUrl}/exam/review-tasks/${todayProjectionSession.id}`,
+    {},
+    todayProjectionHeaders,
+  );
   const exactTodayReviewProjection = {
-    taskId: examReviewPlan.days[0].taskId,
+    taskId: `exam-review-${todayProjectionSession.id}-day-1`,
     mode: '考后复盘',
     scheduledDate: shanghaiStudyDateKey(new Date()),
   };
+  assert(
+    todayProjectionReviewPlan.days.some((day) => day.taskId === exactTodayReviewProjection.taskId),
+    'today plan projection fixture requires its dedicated deterministic review task',
+  );
   const todayProjectionPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   try {
     await todayProjectionPrisma.$transaction(async (tx) => {
+      const capacityReliefDate = new Date(`${exactTodayReviewProjection.scheduledDate}T00:00:00.000Z`);
+      capacityReliefDate.setUTCDate(capacityReliefDate.getUTCDate() - 1);
       const [activePlan, reviewPlan, reviewTask] = await Promise.all([
         tx.studyPlan.findFirstOrThrow({
-          where: { userId: registered.user.id, status: 'ACTIVE' },
+          where: { userId: todayProjectionRegistered.user.id, status: 'ACTIVE' },
           orderBy: { createdAt: 'desc' },
         }),
-        tx.examReviewPlan.findUniqueOrThrow({ where: { sessionId: startedSession.id } }),
+        tx.examReviewPlan.findUniqueOrThrow({ where: { sessionId: todayProjectionSession.id } }),
         tx.studyTask.findUniqueOrThrow({ where: { id: exactTodayReviewProjection.taskId } }),
       ]);
+      const capacityTask = await tx.studyTask.findFirstOrThrow({
+        where: {
+          planId: activePlan.id,
+          scheduledDate: exactTodayReviewProjection.scheduledDate,
+          mode: { not: exactTodayReviewProjection.mode },
+        },
+        orderBy: { id: 'asc' },
+      });
+      await tx.studyTask.update({
+        where: { id: capacityTask.id },
+        data: { scheduledDate: capacityReliefDate.toISOString().slice(0, 10) },
+      });
       const taskCountBeforeProjection = await tx.studyTask.count({
         where: { planId: activePlan.id, scheduledDate: exactTodayReviewProjection.scheduledDate },
       });
@@ -1168,7 +1207,7 @@ async function main() {
         data: { scheduledDate: exactTodayReviewProjection.scheduledDate },
       });
       await tx.examReviewPlan.update({
-        where: { sessionId: startedSession.id },
+        where: { sessionId: todayProjectionSession.id },
         data: { days: synchronizedDays },
       });
       const taskCountAfterProjection = await tx.studyTask.count({
@@ -1182,9 +1221,9 @@ async function main() {
   await stop(activeApi);
   activeApi = startApi();
   await waitForHealth(activeApi);
-  const todayProjectionLogin = await postJson(`${apiUrl}/auth/login`, credentials);
-  studentHeaders = { Authorization: `Bearer ${todayProjectionLogin.accessToken}` };
-  const projectedTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
+  const todayProjectionLogin = await postJson(`${apiUrl}/auth/login`, todayProjectionCredentials);
+  const restartedTodayProjectionHeaders = { Authorization: `Bearer ${todayProjectionLogin.accessToken}` };
+  const projectedTodayPlan = await getJson(`${apiUrl}/today/plan`, restartedTodayProjectionHeaders);
   const projectedReviewTask = projectedTodayPlan.priorityTasks.find((task) => task.id === exactTodayReviewProjection.taskId);
   assert(projectedReviewTask?.id === exactTodayReviewProjection.taskId, 'today plan must project the exact generated review task ID after restart');
   assert(projectedReviewTask?.mode === exactTodayReviewProjection.mode, 'today plan must project the generated review task mode after restart');
@@ -1197,6 +1236,18 @@ async function main() {
     projectedTodayPlan.weekProgress.every((day) => day.taskCount <= 3),
     'today plan week progress must preserve the three-task daily capacity after restart',
   );
+  const sharedReviewPlanAfterProjectionPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const sharedReviewPlanAfterProjection = await sharedReviewPlanAfterProjectionPrisma.examReviewPlan.findUniqueOrThrow({
+      where: { sessionId: startedSession.id },
+    });
+    assert(
+      JSON.stringify(toExamReviewPlanResponse(sharedReviewPlanAfterProjection)) === JSON.stringify(persistedConcurrentSummary),
+      'today plan projection fixture must not mutate the concurrent review-plan summary',
+    );
+  } finally {
+    await sharedReviewPlanAfterProjectionPrisma.$disconnect();
+  }
   const bootstrapCredentials = {
     email: `integration.bootstrap.${Date.now()}@example.com`,
     password: 'ReliableTestPassword!408',
