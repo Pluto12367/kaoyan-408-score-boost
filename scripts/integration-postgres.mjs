@@ -1135,6 +1135,68 @@ async function main() {
   } finally {
     await reviewTaskPrisma.$disconnect();
   }
+  const exactTodayReviewProjection = {
+    taskId: examReviewPlan.days[0].taskId,
+    mode: '考后复盘',
+    scheduledDate: shanghaiStudyDateKey(new Date()),
+  };
+  const todayProjectionPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    await todayProjectionPrisma.$transaction(async (tx) => {
+      const [activePlan, reviewPlan, reviewTask] = await Promise.all([
+        tx.studyPlan.findFirstOrThrow({
+          where: { userId: registered.user.id, status: 'ACTIVE' },
+          orderBy: { createdAt: 'desc' },
+        }),
+        tx.examReviewPlan.findUniqueOrThrow({ where: { sessionId: startedSession.id } }),
+        tx.studyTask.findUniqueOrThrow({ where: { id: exactTodayReviewProjection.taskId } }),
+      ]);
+      const taskCountBeforeProjection = await tx.studyTask.count({
+        where: { planId: activePlan.id, scheduledDate: exactTodayReviewProjection.scheduledDate },
+      });
+      assert(taskCountBeforeProjection < 3, 'today plan projection fixture requires room for one generated review task');
+      assert(reviewTask.planId === activePlan.id && reviewTask.mode === exactTodayReviewProjection.mode, 'today plan projection fixture requires the generated review task in the active plan');
+      const synchronizedDays = reviewPlan.days.map((day) => day.taskId === exactTodayReviewProjection.taskId
+        ? { ...day, date: exactTodayReviewProjection.scheduledDate }
+        : day);
+      assert(
+        synchronizedDays.filter((day) => day.taskId === exactTodayReviewProjection.taskId && day.date === exactTodayReviewProjection.scheduledDate).length === 1,
+        'today plan projection fixture must update the matching review summary date exactly once',
+      );
+      await tx.studyTask.update({
+        where: { id: exactTodayReviewProjection.taskId },
+        data: { scheduledDate: exactTodayReviewProjection.scheduledDate },
+      });
+      await tx.examReviewPlan.update({
+        where: { sessionId: startedSession.id },
+        data: { days: synchronizedDays },
+      });
+      const taskCountAfterProjection = await tx.studyTask.count({
+        where: { planId: activePlan.id, scheduledDate: exactTodayReviewProjection.scheduledDate },
+      });
+      assert(taskCountAfterProjection <= 3, 'today plan projection fixture must preserve the three-task daily capacity');
+    });
+  } finally {
+    await todayProjectionPrisma.$disconnect();
+  }
+  await stop(activeApi);
+  activeApi = startApi();
+  await waitForHealth(activeApi);
+  const todayProjectionLogin = await postJson(`${apiUrl}/auth/login`, credentials);
+  studentHeaders = { Authorization: `Bearer ${todayProjectionLogin.accessToken}` };
+  const projectedTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
+  const projectedReviewTask = projectedTodayPlan.priorityTasks.find((task) => task.id === exactTodayReviewProjection.taskId);
+  assert(projectedReviewTask?.id === exactTodayReviewProjection.taskId, 'today plan must project the exact generated review task ID after restart');
+  assert(projectedReviewTask?.mode === exactTodayReviewProjection.mode, 'today plan must project the generated review task mode after restart');
+  assert(projectedReviewTask?.scheduledDate === exactTodayReviewProjection.scheduledDate, 'today plan must project the controlled generated review task date after restart');
+  assert(
+    projectedTodayPlan.priorityTasks.every((task) => ['answer', 'analysis', 'correctAnswer'].every((field) => !(field in task))),
+    'today plan review projection must not expose answer-key fields',
+  );
+  assert(
+    projectedTodayPlan.weekProgress.every((day) => day.taskCount <= 3),
+    'today plan week progress must preserve the three-task daily capacity after restart',
+  );
   const bootstrapCredentials = {
     email: `integration.bootstrap.${Date.now()}@example.com`,
     password: 'ReliableTestPassword!408',
@@ -1990,6 +2052,20 @@ function toExamReviewPlanResponse(row) {
     days: row.days,
     recommendation: row.recommendation,
   };
+}
+
+function shanghaiStudyDateKey(value) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(value);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  assert(year && month && day, 'Asia/Shanghai study date fixture requires a complete local date');
+  return `${year}-${month}-${day}`;
 }
 
 async function waitForAdvisoryLockWaiter(prisma, blockerPid, excludedPids, operationName) {
