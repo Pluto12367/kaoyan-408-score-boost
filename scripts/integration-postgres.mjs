@@ -1151,38 +1151,42 @@ async function main() {
     answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
   }, bootstrapHeaders);
   const onboardingRacePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
-  const bootstrapPlanCountBeforeGeneration = await onboardingRacePrisma.studyPlan.count({
-    where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' },
-  });
-  assert(bootstrapPlanCountBeforeGeneration === 0, 'a student without onboarding should have no active plan before the review/onboarding race');
+  const onboardingLockObserverPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   let releaseOnboardingLock = () => undefined;
-  let markOnboardingLockAcquired;
-  let markOnboardingLockFailed;
-  let onboardingLockHeld = false;
-  const onboardingLockRelease = new Promise((resolve) => {
-    releaseOnboardingLock = resolve;
-  });
-  const onboardingLockAcquired = new Promise((resolve, reject) => {
-    markOnboardingLockAcquired = resolve;
-    markOnboardingLockFailed = reject;
-  });
-  const onboardingLockTransaction = onboardingRacePrisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${bootstrapRegistered.user.id}))`;
-    onboardingLockHeld = true;
-    markOnboardingLockAcquired();
-    await onboardingLockRelease;
-  }, { maxWait: 5_000, timeout: 15_000 }).then(
-    () => ({ ok: true }),
-    (error) => {
-      if (!onboardingLockHeld) markOnboardingLockFailed(error);
-      return { ok: false, error };
-    },
-  );
+  let onboardingLockTransaction;
   let queuedOnboarding;
   let queuedReviewGeneration;
   let onboardingRaceFailure;
   try {
-    await onboardingLockAcquired;
+    const bootstrapPlanCountBeforeGeneration = await onboardingRacePrisma.studyPlan.count({
+      where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' },
+    });
+    assert(bootstrapPlanCountBeforeGeneration === 0, 'a student without onboarding should have no active plan before the review/onboarding race');
+    let markOnboardingLockAcquired;
+    let markOnboardingLockFailed;
+    let onboardingLockHeld = false;
+    const onboardingLockRelease = new Promise((resolve) => {
+      releaseOnboardingLock = resolve;
+    });
+    const onboardingLockAcquired = new Promise((resolve, reject) => {
+      markOnboardingLockAcquired = resolve;
+      markOnboardingLockFailed = reject;
+    });
+    onboardingLockTransaction = onboardingRacePrisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${bootstrapRegistered.user.id}))`;
+      const [lockOwner] = await tx.$queryRaw`SELECT pg_backend_pid() AS pid`;
+      assert(Number.isInteger(lockOwner?.pid), 'PostgreSQL advisory-lock owner query must return an integer PID');
+      onboardingLockHeld = true;
+      markOnboardingLockAcquired(lockOwner.pid);
+      await onboardingLockRelease;
+    }, { maxWait: 5_000, timeout: 15_000 }).then(
+      () => ({ ok: true }),
+      (error) => {
+        if (!onboardingLockHeld) markOnboardingLockFailed(error);
+        return { ok: false, error };
+      },
+    );
+    const onboardingLockOwnerPid = await onboardingLockAcquired;
     let onboardingSettledWhileLocked = false;
     let reviewSettledBehindOnboarding = false;
     queuedReviewGeneration = postJson(
@@ -1199,7 +1203,12 @@ async function main() {
         return { ok: false, error };
       },
     );
-    await delay(100);
+    const reviewLockWaiterPid = await waitForAdvisoryLockWaiter(
+      onboardingLockObserverPrisma,
+      onboardingLockOwnerPid,
+      [],
+      'review generation',
+    );
     queuedOnboarding = postJson(`${apiUrl}/onboarding/complete`, {
       examYear: new Date().getUTCFullYear() + 1,
       targetScore: 124,
@@ -1217,9 +1226,15 @@ async function main() {
         return { ok: false, error };
       },
     );
-    await delay(250);
+    const onboardingLockWaiterPid = await waitForAdvisoryLockWaiter(
+      onboardingLockObserverPrisma,
+      onboardingLockOwnerPid,
+      [reviewLockWaiterPid],
+      'onboarding',
+    );
     const onboardingWasBlocked = !onboardingSettledWhileLocked;
     const reviewWaitedForOnboarding = !reviewSettledBehindOnboarding;
+    assert(onboardingLockWaiterPid !== reviewLockWaiterPid, 'review generation and onboarding must use distinct PostgreSQL lock waiters');
     releaseOnboardingLock();
     const lockResult = await onboardingLockTransaction;
     if (!lockResult.ok) throw lockResult.error;
@@ -1270,6 +1285,11 @@ async function main() {
       'review-first onboarding must preserve all deterministic review task IDs',
     );
     assert(
+      reviewResult.value.days.length === activeDatesByTaskId.size
+        && reviewResult.value.days.every((day) => activeDatesByTaskId.get(day.taskId) === day.date),
+      'review-first response task IDs and dates must match active task dates',
+    );
+    assert(
       persistedReviewSummary.days.every((day) => activeDatesByTaskId.get(day.taskId) === day.date),
       'review-first onboarding must synchronize review summary dates with active task dates',
     );
@@ -1297,17 +1317,79 @@ async function main() {
     onboardingRaceFailure = error;
   } finally {
     releaseOnboardingLock();
-    const pendingOperations = [onboardingLockTransaction];
+    const pendingOperations = [];
+    if (onboardingLockTransaction) pendingOperations.push(onboardingLockTransaction);
     if (queuedOnboarding) pendingOperations.push(queuedOnboarding);
     if (queuedReviewGeneration) pendingOperations.push(queuedReviewGeneration);
-    await Promise.all(pendingOperations);
-    try {
-      await onboardingRacePrisma.$disconnect();
-    } catch (error) {
-      onboardingRaceFailure ??= error;
+    const pendingResults = await Promise.allSettled(pendingOperations);
+    const rejectedOperation = pendingResults.find((result) => result.status === 'rejected');
+    if (rejectedOperation) onboardingRaceFailure ??= rejectedOperation.reason;
+    const disconnectResults = await Promise.allSettled([
+      onboardingRacePrisma.$disconnect(),
+      onboardingLockObserverPrisma.$disconnect(),
+    ]);
+    const rejectedDisconnect = disconnectResults.find((result) => result.status === 'rejected');
+    if (rejectedDisconnect) {
+      onboardingRaceFailure ??= rejectedDisconnect.reason;
     }
   }
   if (onboardingRaceFailure) throw onboardingRaceFailure;
+
+  const completedReviewCredentials = {
+    email: `integration.completed-review.${Date.now()}@example.com`,
+    password: 'ReliableTestPassword!408',
+    name: 'Completed Review Student',
+  };
+  const completedReviewRegistered = await postJson(`${apiUrl}/auth/register`, completedReviewCredentials);
+  const completedReviewHeaders = { Authorization: `Bearer ${completedReviewRegistered.accessToken}` };
+  const completedReviewSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+    type: 'paper',
+    resourceId: 'integration-completed-review-onboarding',
+    questionIds: ['q-001'],
+  }, completedReviewHeaders);
+  await postJson(`${apiUrl}/sessions/practice/${completedReviewSession.id}/submit`, {
+    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
+  }, completedReviewHeaders);
+  const completedReviewPlan = await postJson(
+    `${apiUrl}/exam/review-tasks/${completedReviewSession.id}`,
+    {},
+    completedReviewHeaders,
+  );
+  const completedReviewTaskId = completedReviewPlan.days[0].taskId;
+  const completedReviewPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const completedReviewTask = await completedReviewPrisma.studyTask.update({
+      where: { id: completedReviewTaskId },
+      data: { status: 'completed', completed: true, completedAt: new Date() },
+    });
+    await postJson(`${apiUrl}/onboarding/complete`, {
+      examYear: new Date().getUTCFullYear() + 1,
+      targetScore: 124,
+      currentScore: 80,
+      remainingDays: 90,
+      dailyHours: 3,
+      weakestSubject: onboarding.weakestSubject,
+    }, completedReviewHeaders);
+    const [replacementPlan, persistedCompletedTask] = await Promise.all([
+      completedReviewPrisma.studyPlan.findFirstOrThrow({
+        where: { userId: completedReviewRegistered.user.id, status: 'ACTIVE' },
+        include: { tasks: { select: { id: true } } },
+      }),
+      completedReviewPrisma.studyTask.findUniqueOrThrow({
+        where: { id: completedReviewTaskId },
+        include: { plan: { select: { status: true } } },
+      }),
+    ]);
+    assert(
+      persistedCompletedTask.planId === completedReviewTask.planId
+        && completedReviewTask.planId !== replacementPlan.id
+        && persistedCompletedTask.plan.status === 'ARCHIVED'
+        && replacementPlan.tasks.every((task) => task.id !== completedReviewTaskId),
+      'completed review tasks must not be carried into the replacement active plan',
+    );
+  } finally {
+    await completedReviewPrisma.$disconnect();
+  }
   await expectPostStatus(`${apiUrl}/exam/review-tasks/${startedSession.id}`, {}, 403, bootstrapHeaders);
   await expectPostStatus(`${apiUrl}/tasks/${encodeURIComponent(examReviewPlan.days[0].taskId)}/start`, {}, 400, bootstrapHeaders);
   const rollbackSession = await postJson(`${apiUrl}/sessions/practice/start`, {
@@ -1924,6 +2006,31 @@ function toExamReviewPlanResponse(row) {
     days: row.days,
     recommendation: row.recommendation,
   };
+}
+
+async function waitForAdvisoryLockWaiter(prisma, blockerPid, excludedPids, operationName) {
+  const deadline = Date.now() + 5_000;
+  do {
+    const waiters = await prisma.$queryRaw`
+      SELECT waiter.pid
+      FROM pg_locks AS waiter
+      JOIN pg_locks AS blocker
+        ON blocker.locktype = waiter.locktype
+        AND blocker.database = waiter.database
+        AND blocker.classid = waiter.classid
+        AND blocker.objid = waiter.objid
+        AND blocker.objsubid = waiter.objsubid
+      WHERE blocker.pid = ${blockerPid}
+        AND blocker.locktype = 'advisory'
+        AND blocker.granted = true
+        AND waiter.granted = false
+      ORDER BY waiter.waitstart, waiter.pid
+    `;
+    const waiter = waiters.find((row) => Number.isInteger(row?.pid) && !excludedPids.includes(row.pid));
+    if (waiter) return waiter.pid;
+    await delay(10);
+  } while (Date.now() < deadline);
+  throw new Error(`${operationName} did not queue on the shared PostgreSQL advisory lock`);
 }
 
 function delay(ms) {
