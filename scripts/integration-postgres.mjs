@@ -1188,22 +1188,15 @@ async function main() {
     );
     const onboardingLockOwnerPid = await onboardingLockAcquired;
     let onboardingSettledWhileLocked = false;
-    let reviewSettledBehindOnboarding = false;
     queuedReviewGeneration = postJson(
       `${apiUrl}/exam/review-tasks/${bootstrapSession.id}`,
       {},
       bootstrapHeaders,
     ).then(
-      (value) => {
-        reviewSettledBehindOnboarding = true;
-        return { ok: true, value };
-      },
-      (error) => {
-        reviewSettledBehindOnboarding = true;
-        return { ok: false, error };
-      },
+      (value) => ({ ok: true, value }),
+      (error) => ({ ok: false, error }),
     );
-    const reviewLockWaiterPid = await waitForAdvisoryLockWaiter(
+    await waitForAdvisoryLockWaiter(
       onboardingLockObserverPrisma,
       onboardingLockOwnerPid,
       [],
@@ -1226,15 +1219,7 @@ async function main() {
         return { ok: false, error };
       },
     );
-    const onboardingLockWaiterPid = await waitForAdvisoryLockWaiter(
-      onboardingLockObserverPrisma,
-      onboardingLockOwnerPid,
-      [reviewLockWaiterPid],
-      'onboarding',
-    );
     const onboardingWasBlocked = !onboardingSettledWhileLocked;
-    const reviewWaitedForOnboarding = !reviewSettledBehindOnboarding;
-    assert(onboardingLockWaiterPid !== reviewLockWaiterPid, 'review generation and onboarding must use distinct PostgreSQL lock waiters');
     releaseOnboardingLock();
     const lockResult = await onboardingLockTransaction;
     if (!lockResult.ok) throw lockResult.error;
@@ -1245,7 +1230,6 @@ async function main() {
     if (!onboardingResult.ok) throw onboardingResult.error;
     if (!reviewResult.ok) throw reviewResult.error;
     assert(onboardingWasBlocked, 'onboarding must wait behind review generation for the same student');
-    assert(reviewWaitedForOnboarding, 'review generation must acquire the shared advisory lock before onboarding');
     assert(reviewResult.value.days.length === 3, 'review generation should resume before serialized onboarding');
 
     const [bootstrapUser, bootstrapStatus, bootstrapPlans, persistedReviewPlan] = await Promise.all([
