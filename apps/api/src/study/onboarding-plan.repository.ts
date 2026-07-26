@@ -59,6 +59,17 @@ export interface CompletedTaskMutation {
   futureTask: ScheduledStudyTaskState | null;
 }
 
+export function nearestAvailableStudyDate(
+  tasks: ReadonlyArray<Pick<ScheduledStudyTaskState, 'scheduledDate'>>,
+  scheduledDate: string,
+): string {
+  let targetDate = nextStudyDate(scheduledDate);
+  while (tasks.filter((task) => task.scheduledDate === targetDate).length >= 3) {
+    targetDate = nextStudyDate(targetDate);
+  }
+  return targetDate;
+}
+
 type StudyPlanWithTasks = Prisma.StudyPlanGetPayload<{
   include: { tasks: true };
 }>;
@@ -211,11 +222,7 @@ export class OnboardingPlanRepository {
       if (!plan || !task) return null;
       if (task.status === 'completed') throw new BadRequestException('Completed task cannot be postponed');
 
-      const dates = [...new Set(plan.tasks.map((item) => item.scheduledDate))].sort();
-      const targetDate = dates
-        .filter((date) => date > task.scheduledDate)
-        .find((date) => plan.tasks.filter((item) => item.scheduledDate === date).length < 3)
-        ?? nextStudyDate(dates.at(-1) ?? task.scheduledDate);
+      const targetDate = nearestAvailableStudyDate(plan.tasks, task.scheduledDate);
       const nextAvailableAt = new Date(`${targetDate}T00:00:00.000Z`);
       const updated = await tx.studyTask.update({
         where: { id: task.id },

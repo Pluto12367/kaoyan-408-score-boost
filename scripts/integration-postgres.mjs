@@ -1221,6 +1221,67 @@ async function main() {
   await stop(activeApi);
   activeApi = startApi();
   await waitForHealth(activeApi);
+  const restartedShanghaiDate = shanghaiStudyDateKey(new Date());
+  if (restartedShanghaiDate !== exactTodayReviewProjection.scheduledDate) {
+    const midnightProjectionPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+    try {
+      await midnightProjectionPrisma.$transaction(async (tx) => {
+        const [activePlan, reviewPlan, reviewTask] = await Promise.all([
+          tx.studyPlan.findFirstOrThrow({
+            where: { userId: todayProjectionRegistered.user.id, status: 'ACTIVE' },
+            orderBy: { createdAt: 'desc' },
+          }),
+          tx.examReviewPlan.findUniqueOrThrow({ where: { sessionId: todayProjectionSession.id } }),
+          tx.studyTask.findUniqueOrThrow({ where: { id: exactTodayReviewProjection.taskId } }),
+        ]);
+        const targetDateCount = await tx.studyTask.count({
+          where: { planId: activePlan.id, scheduledDate: restartedShanghaiDate },
+        });
+        assert(targetDateCount <= 3, 'midnight fixture correction requires a capacity-safe target date');
+        if (targetDateCount === 3) {
+          const capacityTask = await tx.studyTask.findFirstOrThrow({
+            where: {
+              planId: activePlan.id,
+              scheduledDate: restartedShanghaiDate,
+              id: { not: exactTodayReviewProjection.taskId },
+              mode: { not: exactTodayReviewProjection.mode },
+            },
+            orderBy: { id: 'asc' },
+          });
+          await tx.studyTask.update({
+            where: { id: capacityTask.id },
+            data: { scheduledDate: reviewTask.scheduledDate },
+          });
+        }
+        const synchronizedDays = reviewPlan.days.map((day) => day.taskId === exactTodayReviewProjection.taskId
+          ? { ...day, date: restartedShanghaiDate }
+          : day);
+        await tx.studyTask.update({
+          where: { id: exactTodayReviewProjection.taskId },
+          data: { scheduledDate: restartedShanghaiDate },
+        });
+        await tx.examReviewPlan.update({
+          where: { sessionId: todayProjectionSession.id },
+          data: { days: synchronizedDays },
+        });
+        const groupedDates = await tx.studyTask.groupBy({
+          by: ['scheduledDate'],
+          where: { planId: activePlan.id },
+          _count: { _all: true },
+        });
+        assert(
+          groupedDates.every((day) => day._count._all <= 3),
+          'midnight fixture correction must preserve the three-task daily capacity',
+        );
+      });
+      exactTodayReviewProjection.scheduledDate = restartedShanghaiDate;
+    } finally {
+      await midnightProjectionPrisma.$disconnect();
+    }
+    await stop(activeApi);
+    activeApi = startApi();
+    await waitForHealth(activeApi);
+  }
   const todayProjectionLogin = await postJson(`${apiUrl}/auth/login`, todayProjectionCredentials);
   const restartedTodayProjectionHeaders = { Authorization: `Bearer ${todayProjectionLogin.accessToken}` };
   const projectedTodayPlan = await getJson(`${apiUrl}/today/plan`, restartedTodayProjectionHeaders);
@@ -1455,9 +1516,20 @@ async function main() {
   const completedReviewTaskId = completedReviewPlan.days[0].taskId;
   const completedReviewPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   try {
-    const completedReviewTask = await completedReviewPrisma.studyTask.update({
+    const completedReviewResult = await postJson(
+      `${apiUrl}/study-tasks/${encodeURIComponent(completedReviewTaskId)}/complete`,
+      {
+        userId: completedReviewRegistered.user.id,
+        completedQuestionCount: completedReviewPlan.days[0].questionCount,
+        correctCount: completedReviewPlan.days[0].questionCount,
+        minutesSpent: completedReviewPlan.days[0].minutes,
+        selfRating: 4,
+      },
+      completedReviewHeaders,
+    );
+    assert(completedReviewResult.completed === true, 'completed-review regeneration requires a completed review task');
+    const completedReviewTask = await completedReviewPrisma.studyTask.findUniqueOrThrow({
       where: { id: completedReviewTaskId },
-      data: { status: 'completed', completed: true, completedAt: new Date() },
     });
     await postJson(`${apiUrl}/onboarding/complete`, {
       examYear: new Date().getUTCFullYear() + 1,
@@ -1467,14 +1539,32 @@ async function main() {
       dailyHours: 3,
       weakestSubject: onboarding.weakestSubject,
     }, completedReviewHeaders);
-    const [replacementPlan, persistedCompletedTask] = await Promise.all([
+    const regeneratedCompletedReviewPlan = await postJson(
+      `${apiUrl}/exam/review-tasks/${completedReviewSession.id}`,
+      {},
+      completedReviewHeaders,
+    );
+    const repeatedCompletedReviewPlan = await postJson(
+      `${apiUrl}/exam/review-tasks/${completedReviewSession.id}`,
+      {},
+      completedReviewHeaders,
+    );
+    const [replacementPlan, persistedCompletedTask, persistedCompletedReviewPlan] = await Promise.all([
       completedReviewPrisma.studyPlan.findFirstOrThrow({
         where: { userId: completedReviewRegistered.user.id, status: 'ACTIVE' },
-        include: { tasks: { select: { id: true } } },
+        include: {
+          tasks: {
+            where: { id: { startsWith: `exam-review-${completedReviewSession.id}-` } },
+            orderBy: { id: 'asc' },
+          },
+        },
       }),
       completedReviewPrisma.studyTask.findUniqueOrThrow({
         where: { id: completedReviewTaskId },
         include: { plan: { select: { status: true } } },
+      }),
+      completedReviewPrisma.examReviewPlan.findUniqueOrThrow({
+        where: { sessionId: completedReviewSession.id },
       }),
     ]);
     assert(
@@ -1484,6 +1574,124 @@ async function main() {
         && replacementPlan.tasks.every((task) => task.id !== completedReviewTaskId),
       'completed review tasks must not be carried into the replacement active plan',
     );
+    assert(
+      JSON.stringify({
+        id: persistedCompletedTask.id,
+        planId: persistedCompletedTask.planId,
+        knowledgePointId: persistedCompletedTask.knowledgePointId,
+        subject: persistedCompletedTask.subject,
+        chapter: persistedCompletedTask.chapter,
+        title: persistedCompletedTask.title,
+        mode: persistedCompletedTask.mode,
+        minutes: persistedCompletedTask.minutes,
+        questionCount: persistedCompletedTask.questionCount,
+        scheduledDate: persistedCompletedTask.scheduledDate,
+        priority: persistedCompletedTask.priority,
+        reason: persistedCompletedTask.reason,
+        nextAction: persistedCompletedTask.nextAction,
+        status: persistedCompletedTask.status,
+        postponeCount: persistedCompletedTask.postponeCount,
+        startedAt: persistedCompletedTask.startedAt,
+        nextAvailableAt: persistedCompletedTask.nextAvailableAt,
+        completedAt: persistedCompletedTask.completedAt,
+        completed: persistedCompletedTask.completed,
+      }) === JSON.stringify(completedReviewTask),
+      'regeneration must leave the completed review row immutable on its archived plan',
+    );
+    assert(
+      replacementPlan.tasks.length === 2
+        && replacementPlan.tasks.every((task) => task.status !== 'completed'),
+      'only non-completed deterministic review rows should belong to the active plan',
+    );
+    const persistedDatesByTaskId = new Map([
+      [persistedCompletedTask.id, persistedCompletedTask.scheduledDate],
+      ...replacementPlan.tasks.map((task) => [task.id, task.scheduledDate]),
+    ]);
+    assert(
+      regeneratedCompletedReviewPlan.days.every((day) => persistedDatesByTaskId.get(day.taskId) === day.date),
+      'regenerated summary dates must match historical completed and active review rows',
+    );
+    assert(
+      JSON.stringify(regeneratedCompletedReviewPlan) === JSON.stringify(repeatedCompletedReviewPlan),
+      'completed-review regeneration should be idempotent',
+    );
+    assert(
+      JSON.stringify(regeneratedCompletedReviewPlan) === JSON.stringify(toExamReviewPlanResponse(persistedCompletedReviewPlan)),
+      'completed-review regeneration response should equal the persisted summary',
+    );
+    const unrelatedCollisionSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+      type: 'paper',
+      resourceId: 'integration-unrelated-review-id-collision',
+      questionIds: ['q-001'],
+    }, completedReviewHeaders);
+    await postJson(`${apiUrl}/sessions/practice/${unrelatedCollisionSession.id}/submit`, {
+      answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
+    }, completedReviewHeaders);
+    const unrelatedCollisionTaskId = `exam-review-${unrelatedCollisionSession.id}-day-1`;
+    await completedReviewPrisma.studyTask.create({
+      data: deterministicCollisionTask(
+        unrelatedCollisionTaskId,
+        replacementPlan.id,
+        '2099-01-01',
+      ),
+    });
+    await expectPostStatus(
+      `${apiUrl}/exam/review-tasks/${unrelatedCollisionSession.id}`,
+      {},
+      400,
+      completedReviewHeaders,
+      'Post-exam review task ID belongs to another study plan',
+    );
+    const [unrelatedCollisionSummary, unrelatedCollisionTaskCount] = await Promise.all([
+      completedReviewPrisma.examReviewPlan.findUnique({ where: { sessionId: unrelatedCollisionSession.id } }),
+      completedReviewPrisma.studyTask.count({
+        where: { id: { startsWith: `exam-review-${unrelatedCollisionSession.id}-` } },
+      }),
+    ]);
+    assert(
+      unrelatedCollisionSummary === null && unrelatedCollisionTaskCount === 1,
+      'an unrelated deterministic ID collision must reject without partial review persistence',
+    );
+    await completedReviewPrisma.studyTask.delete({ where: { id: unrelatedCollisionTaskId } });
+
+    const foreignCollisionSession = await postJson(`${apiUrl}/sessions/practice/start`, {
+      type: 'paper',
+      resourceId: 'integration-foreign-review-id-collision',
+      questionIds: ['q-001'],
+    }, completedReviewHeaders);
+    await postJson(`${apiUrl}/sessions/practice/${foreignCollisionSession.id}/submit`, {
+      answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
+    }, completedReviewHeaders);
+    const foreignPlan = await completedReviewPrisma.studyPlan.findFirstOrThrow({
+      where: { userId: registered.user.id, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const foreignCollisionTaskId = `exam-review-${foreignCollisionSession.id}-day-1`;
+    await completedReviewPrisma.studyTask.create({
+      data: deterministicCollisionTask(
+        foreignCollisionTaskId,
+        foreignPlan.id,
+        '2099-01-02',
+      ),
+    });
+    await expectPostStatus(
+      `${apiUrl}/exam/review-tasks/${foreignCollisionSession.id}`,
+      {},
+      400,
+      completedReviewHeaders,
+      'Post-exam review task ID belongs to another study plan',
+    );
+    const [foreignCollisionSummary, foreignCollisionTaskCount] = await Promise.all([
+      completedReviewPrisma.examReviewPlan.findUnique({ where: { sessionId: foreignCollisionSession.id } }),
+      completedReviewPrisma.studyTask.count({
+        where: { id: { startsWith: `exam-review-${foreignCollisionSession.id}-` } },
+      }),
+    ]);
+    assert(
+      foreignCollisionSummary === null && foreignCollisionTaskCount === 1,
+      'a foreign deterministic ID collision must reject without partial review persistence',
+    );
+    await completedReviewPrisma.studyTask.delete({ where: { id: foreignCollisionTaskId } });
   } finally {
     await completedReviewPrisma.$disconnect();
   }
@@ -1601,6 +1809,88 @@ async function main() {
   } finally {
     await preservedReviewCheckPrisma.$disconnect();
   }
+  const postponeGapPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  let postponeGapTask;
+  let nearestEmptyPostponeDate;
+  try {
+    const postponeGapPlan = await postponeGapPrisma.studyPlan.findFirstOrThrow({
+      where: { userId: registered.user.id, status: 'ACTIVE' },
+      include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+      orderBy: { createdAt: 'desc' },
+    });
+    postponeGapTask = postponeGapPlan.tasks.find((task) =>
+      task.status === 'pending'
+      && task.mode !== '鑰冨悗澶嶇洏'
+      && !task.id.startsWith('exam-review-'),
+    );
+    assert(postponeGapTask, 'nearest-gap postponement regression requires a pending ordinary task');
+    const fixtureDate = new Date(`${postponeGapPlan.tasks.at(-1).scheduledDate}T00:00:00.000Z`);
+    fixtureDate.setUTCDate(fixtureDate.getUTCDate() + 2);
+    const postponeGapTaskDate = fixtureDate.toISOString().slice(0, 10);
+    fixtureDate.setUTCDate(fixtureDate.getUTCDate() + 1);
+    nearestEmptyPostponeDate = fixtureDate.toISOString().slice(0, 10);
+    fixtureDate.setUTCDate(fixtureDate.getUTCDate() + 1);
+    const laterRepresentedDate = fixtureDate.toISOString().slice(0, 10);
+    const controlledStartedAt = new Date(`${postponeGapTaskDate}T01:00:00.000Z`);
+    await postponeGapPrisma.$transaction([
+      postponeGapPrisma.studyTask.update({
+        where: { id: postponeGapTask.id },
+        data: {
+          scheduledDate: postponeGapTaskDate,
+          status: 'in_progress',
+          startedAt: controlledStartedAt,
+        },
+      }),
+      postponeGapPrisma.studyTask.create({
+        data: {
+          id: `integration-postpone-gap-marker-${startedSession.id}`,
+          planId: postponeGapPlan.id,
+          knowledgePointId: 'co-cache',
+          subject: 'computer-organization',
+          chapter: 'cache',
+          title: 'Nearest-gap postponement marker',
+          mode: 'focused-practice',
+          minutes: 20,
+          questionCount: 5,
+          scheduledDate: laterRepresentedDate,
+          priority: 'medium',
+          reason: 'PostgreSQL integration nearest-gap fixture',
+          nextAction: 'Complete the nearest-gap regression fixture',
+        },
+      }),
+    ]);
+    postponeGapTask = {
+      ...postponeGapTask,
+      scheduledDate: postponeGapTaskDate,
+      status: 'in_progress',
+      startedAt: controlledStartedAt,
+    };
+  } finally {
+    await postponeGapPrisma.$disconnect();
+  }
+  const postponedIntoGap = await postJson(
+    `${apiUrl}/tasks/${encodeURIComponent(postponeGapTask.id)}/postpone`,
+    {},
+    studentHeaders,
+  );
+  assert(
+    postponedIntoGap.rescheduledDate === nearestEmptyPostponeDate,
+    'postpone must choose the nearest empty calendar date before a later represented date',
+  );
+  const postponeGapCheckPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  try {
+    const persistedGapTask = await postponeGapCheckPrisma.studyTask.findUniqueOrThrow({
+      where: { id: postponeGapTask.id },
+    });
+    assert(
+      persistedGapTask.status === 'postponed'
+        && persistedGapTask.postponeCount === postponeGapTask.postponeCount + 1
+        && persistedGapTask.startedAt?.toISOString() === postponeGapTask.startedAt.toISOString(),
+      'nearest-gap postponement must preserve lifecycle fields outside the postpone mutation',
+    );
+  } finally {
+    await postponeGapCheckPrisma.$disconnect();
+  }
   const postponeCapacityPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   let forcedFullPostponeDates;
   let postponePlanId;
@@ -1685,7 +1975,8 @@ async function main() {
       task.status === 'pending'
       && task.mode !== '考后复盘'
       && !task.id.startsWith('exam-review-')
-      && !task.id.startsWith('integration-postpone-capacity-'),
+      && !task.id.startsWith('integration-postpone-capacity-')
+      && !task.id.startsWith('integration-postpone-gap-'),
     );
     assert(candidates.length >= 2, 'stale lifecycle regression requires two pending ordinary tasks');
     [staleStartTask, staleCompleteTask] = candidates;
@@ -1743,7 +2034,8 @@ async function main() {
       task.status === 'pending'
       && task.mode !== '考后复盘'
       && !task.id.startsWith('exam-review-')
-      && !task.id.startsWith('integration-postpone-capacity-'),
+      && !task.id.startsWith('integration-postpone-capacity-')
+      && !task.id.startsWith('integration-postpone-gap-'),
     );
     assert(candidates.length >= 3, 'review lifecycle races require three pending ordinary tasks');
     [raceStartTask, racePostponeTask, raceCompleteTask] = candidates;
@@ -2047,13 +2339,20 @@ async function deleteJson(url, headers = {}) {
   return response.json();
 }
 
-async function expectPostStatus(url, body, expectedStatus, headers = {}) {
+async function expectPostStatus(url, body, expectedStatus, headers = {}, expectedMessage) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },
     body: JSON.stringify(body),
   });
   assert(response.status === expectedStatus, `POST ${url} should return ${expectedStatus}, received ${response.status}`);
+  if (expectedMessage !== undefined) {
+    const responseBody = await response.json();
+    assert(
+      responseBody.message === expectedMessage,
+      `POST ${url} should return the expected non-disclosing error message`,
+    );
+  }
 }
 
 async function expectGetStatus(url, headers, expectedStatus) {
@@ -2102,6 +2401,24 @@ function toExamReviewPlanResponse(row) {
     weakPointTitles: row.weakPointTitles,
     days: row.days,
     recommendation: row.recommendation,
+  };
+}
+
+function deterministicCollisionTask(id, planId, scheduledDate) {
+  return {
+    id,
+    planId,
+    knowledgePointId: 'co-cache',
+    subject: 'computer-organization',
+    chapter: 'cache',
+    title: 'Unrelated deterministic ID collision',
+    mode: 'ordinary',
+    minutes: 20,
+    questionCount: 5,
+    scheduledDate,
+    priority: 'medium',
+    reason: 'PostgreSQL integration collision fixture',
+    nextAction: 'Reject this unrelated row',
   };
 }
 

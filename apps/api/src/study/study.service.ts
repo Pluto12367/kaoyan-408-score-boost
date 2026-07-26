@@ -25,6 +25,7 @@ import { RuntimeStateRepository } from './runtime-state.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
 import { ExamReviewPlanRepository, type ExamReviewPlanState } from './exam-review-plan.repository';
 import {
+  nearestAvailableStudyDate,
   OnboardingPlanRepository,
   type OnboardingProfileState,
   type ScheduledStudyTaskState,
@@ -838,11 +839,7 @@ export class StudyService implements OnModuleInit {
         };
       }
       const plan = this.sevenDayPlansByUser.get(userId)!;
-      const dates = [...new Set(plan.tasks.map((task) => task.scheduledDate))].sort();
-      let targetDate = dates
-        .filter((date) => date > scheduled.scheduledDate)
-        .find((date) => plan.tasks.filter((task) => task.scheduledDate === date).length < 3);
-      if (!targetDate) targetDate = nextStudyDateKey(dates.at(-1) ?? scheduled.scheduledDate);
+      const targetDate = nearestAvailableStudyDate(plan.tasks, scheduled.scheduledDate);
       scheduled.postponeCount += 1;
       scheduled.status = 'postponed';
       scheduled.scheduledDate = targetDate;
@@ -3441,12 +3438,6 @@ function dateKeyFromOffset(offset: number) {
   const date = new Date(`${todayKey()}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + offset);
   return date.toISOString().slice(0, 10);
-}
-
-function nextStudyDateKey(date: string) {
-  const value = new Date(`${date}T00:00:00.000Z`);
-  value.setUTCDate(value.getUTCDate() + 1);
-  return value.toISOString().slice(0, 10);
 }
 
 function validateOnboardingInput(input: {
