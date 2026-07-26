@@ -1150,32 +1150,11 @@ async function main() {
   await postJson(`${apiUrl}/sessions/practice/${bootstrapSession.id}/submit`, {
     answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
   }, bootstrapHeaders);
-  const bootstrapPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
-  try {
-    const bootstrapPlanCountBeforeGeneration = await bootstrapPrisma.studyPlan.count({
-      where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' },
-    });
-    assert(bootstrapPlanCountBeforeGeneration === 0, 'a student without onboarding should have no active plan before review generation');
-    const bootstrapReviewPlan = await postJson(`${apiUrl}/exam/review-tasks/${bootstrapSession.id}`, {}, bootstrapHeaders);
-    assert(bootstrapReviewPlan.days.length === 3, 'a student without onboarding should receive review tasks');
-    const [bootstrapUser, bootstrapPlans] = await Promise.all([
-      bootstrapPrisma.user.findUniqueOrThrow({ where: { id: bootstrapRegistered.user.id } }),
-      bootstrapPrisma.studyPlan.findMany({ where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' } }),
-    ]);
-    assert(bootstrapPlans.length === 1, 'review generation without onboarding should bootstrap exactly one active plan');
-    assert(bootstrapUser.onboardingCompletedAt === null && bootstrapUser.trialStatus === 'INVITED', 'review plan bootstrap must not complete onboarding or activate the trial');
-  } finally {
-    await bootstrapPrisma.$disconnect();
-  }
-  const onboardingRaceSession = await postJson(`${apiUrl}/sessions/practice/start`, {
-    type: 'paper',
-    resourceId: 'integration-onboarding-review-race',
-    questionIds: ['q-001'],
-  }, bootstrapHeaders);
-  await postJson(`${apiUrl}/sessions/practice/${onboardingRaceSession.id}/submit`, {
-    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 60 }],
-  }, bootstrapHeaders);
   const onboardingRacePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const bootstrapPlanCountBeforeGeneration = await onboardingRacePrisma.studyPlan.count({
+    where: { userId: bootstrapRegistered.user.id, status: 'ACTIVE' },
+  });
+  assert(bootstrapPlanCountBeforeGeneration === 0, 'a student without onboarding should have no active plan before the review/onboarding race');
   let releaseOnboardingLock = () => undefined;
   let markOnboardingLockAcquired;
   let markOnboardingLockFailed;
@@ -1206,6 +1185,21 @@ async function main() {
     await onboardingLockAcquired;
     let onboardingSettledWhileLocked = false;
     let reviewSettledBehindOnboarding = false;
+    queuedReviewGeneration = postJson(
+      `${apiUrl}/exam/review-tasks/${bootstrapSession.id}`,
+      {},
+      bootstrapHeaders,
+    ).then(
+      (value) => {
+        reviewSettledBehindOnboarding = true;
+        return { ok: true, value };
+      },
+      (error) => {
+        reviewSettledBehindOnboarding = true;
+        return { ok: false, error };
+      },
+    );
+    await delay(100);
     queuedOnboarding = postJson(`${apiUrl}/onboarding/complete`, {
       examYear: new Date().getUTCFullYear() + 1,
       targetScore: 124,
@@ -1223,21 +1217,6 @@ async function main() {
         return { ok: false, error };
       },
     );
-    await delay(100);
-    queuedReviewGeneration = postJson(
-      `${apiUrl}/exam/review-tasks/${onboardingRaceSession.id}`,
-      {},
-      bootstrapHeaders,
-    ).then(
-      (value) => {
-        reviewSettledBehindOnboarding = true;
-        return { ok: true, value };
-      },
-      (error) => {
-        reviewSettledBehindOnboarding = true;
-        return { ok: false, error };
-      },
-    );
     await delay(250);
     const onboardingWasBlocked = !onboardingSettledWhileLocked;
     const reviewWaitedForOnboarding = !reviewSettledBehindOnboarding;
@@ -1250,10 +1229,70 @@ async function main() {
     ]);
     if (!onboardingResult.ok) throw onboardingResult.error;
     if (!reviewResult.ok) throw reviewResult.error;
-    assert(onboardingWasBlocked, 'onboarding plan replacement must acquire the shared advisory lock');
-    assert(reviewWaitedForOnboarding, 'review generation must wait for the complete onboarding operation');
-    assert(onboardingResult.value.sevenDayPlan.days.length === 7, 'serialized onboarding should still return its seven-day plan');
-    assert(reviewResult.value.days.length === 3, 'review generation should resume after serialized onboarding');
+    assert(onboardingWasBlocked, 'onboarding must wait behind review generation for the same student');
+    assert(reviewWaitedForOnboarding, 'review generation must acquire the shared advisory lock before onboarding');
+    assert(reviewResult.value.days.length === 3, 'review generation should resume before serialized onboarding');
+
+    const [bootstrapUser, bootstrapStatus, bootstrapPlans, persistedReviewPlan] = await Promise.all([
+      onboardingRacePrisma.user.findUniqueOrThrow({ where: { id: bootstrapRegistered.user.id } }),
+      getJson(`${apiUrl}/onboarding/status`, bootstrapHeaders),
+      onboardingRacePrisma.studyPlan.findMany({
+        where: { userId: bootstrapRegistered.user.id },
+        include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+        orderBy: { createdAt: 'asc' },
+      }),
+      onboardingRacePrisma.examReviewPlan.findUniqueOrThrow({
+        where: { sessionId: bootstrapSession.id },
+      }),
+    ]);
+    const activePlans = bootstrapPlans.filter((plan) => plan.status === 'ACTIVE');
+    const activePlan = activePlans[0];
+    const expectedReviewTaskIds = Array.from(
+      { length: 3 },
+      (_, index) => `exam-review-${bootstrapSession.id}-day-${index + 1}`,
+    );
+    const activeReviewTasks = activePlan?.tasks.filter((task) => expectedReviewTaskIds.includes(task.id)) ?? [];
+    const persistedReviewSummary = toExamReviewPlanResponse(persistedReviewPlan);
+    const activeDatesByTaskId = new Map(activeReviewTasks.map((task) => [task.id, task.scheduledDate]));
+    const activeTaskCountsByDate = activePlan?.tasks.reduce((counts, task) => {
+      counts.set(task.scheduledDate, (counts.get(task.scheduledDate) ?? 0) + 1);
+      return counts;
+    }, new Map()) ?? new Map();
+    const onboardingTaskCountsByDate = new Map(
+      onboardingResult.value.sevenDayPlan.days.map((day) => [day.date, day.taskCount]),
+    );
+
+    assert(activePlans.length === 1, 'review-first onboarding must leave exactly one active plan');
+    assert(bootstrapPlans.length === 2 && bootstrapPlans.filter((plan) => plan.status === 'ARCHIVED').length === 1, 'review-first onboarding must replace the fallback plan exactly once');
+    assert(activeReviewTasks.length === 3, 'review-first onboarding must carry exactly three deterministic review rows into the active plan');
+    assert(
+      expectedReviewTaskIds.every((taskId) => activeReviewTasks.some((task) => task.id === taskId)),
+      'review-first onboarding must preserve all deterministic review task IDs',
+    );
+    assert(
+      persistedReviewSummary.days.every((day) => activeDatesByTaskId.get(day.taskId) === day.date),
+      'review-first onboarding must synchronize review summary dates with active task dates',
+    );
+    assert(
+      [...activeTaskCountsByDate.values()].every((count) => count <= 3),
+      'review-first onboarding must preserve daily task capacity',
+    );
+    assert(
+      onboardingTaskCountsByDate.size === activeTaskCountsByDate.size
+        && [...activeTaskCountsByDate].every(([date, count]) => onboardingTaskCountsByDate.get(date) === count),
+      'review-first onboarding must return the persisted merged schedule',
+    );
+    assert(
+      bootstrapUser.onboardingCompletedAt?.toISOString() === onboardingResult.value.completedAt
+        && bootstrapUser.trialStatus === 'ACTIVE'
+        && bootstrapUser.targetScore === 124
+        && bootstrapUser.currentScore === 80
+        && bootstrapUser.remainingDays === 90
+        && bootstrapUser.dailyHours === 3
+        && bootstrapStatus.completed === true
+        && bootstrapStatus.profile?.completedAt === onboardingResult.value.completedAt,
+      'the single onboarding request must persist one matching profile and trial activation',
+    );
   } catch (error) {
     onboardingRaceFailure = error;
   } finally {

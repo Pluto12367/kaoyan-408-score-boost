@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { TrialStatus, type Prisma } from '@prisma/client';
-import type { Subject } from '@kaoyan408/shared';
+import { mergePostExamTasks, type Subject } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ScheduledTaskStatus = 'pending' | 'in_progress' | 'postponed' | 'completed';
@@ -59,6 +59,10 @@ export interface CompletedTaskMutation {
   futureTask: ScheduledStudyTaskState | null;
 }
 
+type StudyPlanWithTasks = Prisma.StudyPlanGetPayload<{
+  include: { tasks: true };
+}>;
+
 @Injectable()
 export class OnboardingPlanRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -95,25 +99,35 @@ export class OnboardingPlanRepository {
     });
     for (const row of rows) {
       if (plans.has(row.userId)) continue;
-      plans.set(row.userId, {
-        id: row.id,
-        userId: row.userId,
-        phase: row.phase,
-        targetScore: row.targetScore,
-        remainingDays: row.remainingDays,
-        dailyHours: row.dailyHours,
-        checkpoint: row.checkpoint,
-        startDate: row.tasks[0]?.scheduledDate ?? row.createdAt.toISOString().slice(0, 10),
-        tasks: row.tasks.map((task) => this.mapTask(task)),
-      });
+      plans.set(row.userId, this.mapPlan(row));
     }
     return { profiles, plans };
   }
 
-  async saveOnboarding(userId: string, profile: OnboardingProfileState, plan: SevenDayPlanState) {
-    if (!this.enabled) return;
-    await this.prisma.$transaction(async (tx) => {
+  async saveOnboarding(
+    userId: string,
+    profile: OnboardingProfileState,
+    plan: SevenDayPlanState,
+  ): Promise<SevenDayPlanState> {
+    if (!this.enabled) return plan;
+    return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+      const activePlans = await tx.studyPlan.findMany({
+        where: { userId, status: 'ACTIVE' },
+        include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+        orderBy: { createdAt: 'desc' },
+      });
+      const reviewTasks = activePlans
+        .flatMap((activePlan) => activePlan.tasks)
+        .filter((task) =>
+          task.status !== 'completed'
+          && (task.mode === '考后复盘' || task.id.startsWith('exam-review-')),
+        )
+        .map((task) => this.mapTask(task));
+      const mergedTasks = mergePostExamTasks(plan.tasks, reviewTasks);
+      const reviewTaskIds = new Set(reviewTasks.map((task) => task.id));
+      const mergedReviewTasks = mergedTasks.filter((task) => reviewTaskIds.has(task.id));
+
       await tx.user.update({
         where: { id: userId },
         data: {
@@ -126,7 +140,7 @@ export class OnboardingPlanRepository {
         data: { trialStatus: TrialStatus.ACTIVE },
       });
       await tx.studyPlan.updateMany({ where: { userId, status: 'ACTIVE' }, data: { status: 'ARCHIVED' } });
-      await tx.studyPlan.create({
+      const created = await tx.studyPlan.create({
         data: {
           id: plan.id,
           userId,
@@ -136,25 +150,51 @@ export class OnboardingPlanRepository {
           dailyHours: plan.dailyHours,
           checkpoint: plan.checkpoint,
           tasks: {
-            create: plan.tasks.map((task) => ({
-              id: task.id,
-              knowledgePointId: task.knowledgePointId,
-              subject: task.subject,
-              chapter: task.chapter,
-              title: task.title,
-              mode: task.mode,
-              minutes: task.minutes,
-              questionCount: task.questionCount,
-              scheduledDate: task.scheduledDate,
-              priority: task.priority,
-              reason: task.reason,
-              nextAction: task.nextAction,
-              status: task.status,
-              postponeCount: task.postponeCount,
-            })),
+            create: mergedTasks
+              .filter((task) => !reviewTaskIds.has(task.id))
+              .map((task) => this.taskData(task)),
           },
         },
+        select: { id: true },
       });
+
+      for (const task of mergedReviewTasks) {
+        await tx.studyTask.update({
+          where: { id: task.id },
+          data: { planId: created.id, scheduledDate: task.scheduledDate },
+        });
+      }
+
+      const reviewDatesByTaskId = new Map(
+        mergedReviewTasks.map((task) => [task.id, task.scheduledDate]),
+      );
+      if (reviewDatesByTaskId.size > 0) {
+        const reviewPlans = await tx.examReviewPlan.findMany({ where: { userId } });
+        for (const reviewPlan of reviewPlans) {
+          const days = reviewPlan.days as unknown as Array<Record<string, unknown>>;
+          if (!Array.isArray(days)) continue;
+          let changed = false;
+          const synchronizedDays = days.map((day) => {
+            const taskId = typeof day.taskId === 'string' ? day.taskId : '';
+            const date = reviewDatesByTaskId.get(taskId);
+            if (!date || day.date === date) return day;
+            changed = true;
+            return { ...day, date };
+          });
+          if (changed) {
+            await tx.examReviewPlan.update({
+              where: { id: reviewPlan.id },
+              data: { days: synchronizedDays as Prisma.InputJsonValue },
+            });
+          }
+        }
+      }
+
+      const persisted = await tx.studyPlan.findUniqueOrThrow({
+        where: { id: created.id },
+        include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+      });
+      return this.mapPlan(persisted);
     });
   }
 
@@ -291,6 +331,43 @@ export class OnboardingPlanRepository {
       startedAt: task.startedAt?.toISOString(),
       nextAvailableAt: task.nextAvailableAt?.toISOString(),
       completedAt: task.completedAt?.toISOString(),
+    };
+  }
+
+  private mapPlan(plan: StudyPlanWithTasks): SevenDayPlanState {
+    return {
+      id: plan.id,
+      userId: plan.userId,
+      phase: plan.phase,
+      targetScore: plan.targetScore,
+      remainingDays: plan.remainingDays,
+      dailyHours: plan.dailyHours,
+      checkpoint: plan.checkpoint,
+      startDate: plan.tasks[0]?.scheduledDate ?? plan.createdAt.toISOString().slice(0, 10),
+      tasks: plan.tasks.map((task) => this.mapTask(task)),
+    };
+  }
+
+  private taskData(task: ScheduledStudyTaskState) {
+    return {
+      id: task.id,
+      knowledgePointId: task.knowledgePointId,
+      subject: task.subject,
+      chapter: task.chapter,
+      title: task.title,
+      mode: task.mode,
+      minutes: task.minutes,
+      questionCount: task.questionCount,
+      scheduledDate: task.scheduledDate,
+      priority: task.priority,
+      reason: task.reason,
+      nextAction: task.nextAction,
+      status: task.status,
+      postponeCount: task.postponeCount,
+      startedAt: task.startedAt ? new Date(task.startedAt) : undefined,
+      nextAvailableAt: task.nextAvailableAt ? new Date(task.nextAvailableAt) : undefined,
+      completedAt: task.completedAt ? new Date(task.completedAt) : undefined,
+      completed: task.status === 'completed',
     };
   }
 }

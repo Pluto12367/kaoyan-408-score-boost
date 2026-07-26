@@ -704,14 +704,14 @@ export class StudyService implements OnModuleInit {
     };
     const diagnostic = await this.applyDiagnosticProfile(userId, profile);
     const initialPlan = this.buildSevenDayPlan(userId);
-    await this.onboardingPlanRepository.saveOnboarding(userId, profile, initialPlan);
+    const persistedPlan = await this.onboardingPlanRepository.saveOnboarding(userId, profile, initialPlan);
     this.onboardingProfiles.set(userId, profile);
-    this.sevenDayPlansByUser.set(userId, initialPlan);
+    this.sevenDayPlansByUser.set(userId, persistedPlan);
 
     return {
       ...profile,
       stage: diagnostic.stage,
-      sevenDayPlan: this.getSevenDayPlanSummary(initialPlan),
+      sevenDayPlan: this.getSevenDayPlanSummary(persistedPlan),
       todayPlan: this.getTodayPlan(userId),
     };
   }
