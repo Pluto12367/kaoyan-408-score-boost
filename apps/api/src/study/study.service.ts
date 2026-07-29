@@ -5,6 +5,7 @@ import {
   buildStudyPlan,
   classifyMistake,
   computeWeaknessReport,
+  postExamTaskId,
   type DiagnosticProfile,
   type KnowledgePoint,
   type PracticeRecord,
@@ -24,6 +25,7 @@ import { RuntimeStateRepository } from './runtime-state.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
 import { ExamReviewPlanRepository, type ExamReviewPlanState } from './exam-review-plan.repository';
 import {
+  nearestAvailableStudyDate,
   OnboardingPlanRepository,
   type OnboardingProfileState,
   type ScheduledStudyTaskState,
@@ -655,6 +657,7 @@ export class StudyService implements OnModuleInit {
 
   private readonly onboardingProfiles = new Map<string, OnboardingProfileState>();
   private readonly sevenDayPlansByUser = new Map<string, SevenDayPlanState>();
+  private readonly planMutationTails = new Map<string, Promise<void>>();
   private readonly postponedTasks = new Map<string, { userId: string; postponeCount: number; nextAvailableAt: string }>();
   private readonly startedTasks = new Set<string>();
 
@@ -679,6 +682,17 @@ export class StudyService implements OnModuleInit {
     dailyHours: number;
     weakestSubject: Subject;
   }) {
+    return this.withPlanMutation(userId, () => this.completeOnboardingUnlocked(userId, input));
+  }
+
+  private async completeOnboardingUnlocked(userId: string, input: {
+    examYear?: number;
+    targetScore: number;
+    currentScore: number;
+    remainingDays: number;
+    dailyHours: number;
+    weakestSubject: Subject;
+  }) {
     validateOnboardingInput(input);
     const profile = {
       examYear: input.examYear,
@@ -691,14 +705,14 @@ export class StudyService implements OnModuleInit {
     };
     const diagnostic = await this.applyDiagnosticProfile(userId, profile);
     const initialPlan = this.buildSevenDayPlan(userId);
-    await this.onboardingPlanRepository.saveOnboarding(userId, profile, initialPlan);
+    const persistedPlan = await this.onboardingPlanRepository.saveOnboarding(userId, profile, initialPlan);
     this.onboardingProfiles.set(userId, profile);
-    this.sevenDayPlansByUser.set(userId, initialPlan);
+    this.sevenDayPlansByUser.set(userId, persistedPlan);
 
     return {
       ...profile,
       stage: diagnostic.stage,
-      sevenDayPlan: this.getSevenDayPlanSummary(initialPlan),
+      sevenDayPlan: this.getSevenDayPlanSummary(persistedPlan),
       todayPlan: this.getTodayPlan(userId),
     };
   }
@@ -776,6 +790,10 @@ export class StudyService implements OnModuleInit {
   }
 
   async startTask(userId: string, taskId: string) {
+    return this.withPlanMutation(userId, () => this.startTaskUnlocked(userId, taskId));
+  }
+
+  private async startTaskUnlocked(userId: string, taskId: string) {
     const scheduled = this.findScheduledTask(userId, taskId);
     if (!scheduled) {
       const fallback = this.generatePlan(userId).dailyTasks.find((task) => task.id === taskId);
@@ -784,27 +802,48 @@ export class StudyService implements OnModuleInit {
       return { taskId, status: 'in_progress', startedAt: new Date().toISOString(), message: `已开始 ${fallback.title}。` };
     }
     if (scheduled.status === 'completed') throw new BadRequestException('Completed task cannot be started again');
+    if (this.onboardingPlanRepository.enabled) {
+      const persisted = await this.onboardingPlanRepository.startTask(
+        userId,
+        taskId,
+        scheduled.startedAt ?? new Date().toISOString(),
+      );
+      if (!persisted) throw new BadRequestException(`Study task ${taskId} was not found`);
+      Object.assign(scheduled, persisted);
+      return { taskId, status: persisted.status, startedAt: persisted.startedAt, message: `已开始 ${persisted.title}。` };
+    }
     scheduled.status = 'in_progress';
     scheduled.startedAt = scheduled.startedAt ?? new Date().toISOString();
     scheduled.nextAvailableAt = undefined;
-    await this.onboardingPlanRepository.saveTask(userId, scheduled);
     return { taskId, status: scheduled.status, startedAt: scheduled.startedAt, message: `已开始 ${scheduled.title}。` };
   }
 
   async postponeTask(userId: string, taskId: string) {
+    return this.withPlanMutation(userId, () => this.postponeTaskUnlocked(userId, taskId));
+  }
+
+  private async postponeTaskUnlocked(userId: string, taskId: string) {
     const scheduled = this.findScheduledTask(userId, taskId);
     if (scheduled) {
       if (scheduled.status === 'completed') throw new BadRequestException('Completed task cannot be postponed');
+      if (this.onboardingPlanRepository.enabled) {
+        const persisted = await this.onboardingPlanRepository.postponeTask(userId, taskId);
+        if (!persisted) throw new BadRequestException(`Study task ${taskId} was not found`);
+        Object.assign(scheduled, persisted);
+        return {
+          taskId,
+          postponeCount: persisted.postponeCount,
+          nextAvailableAt: persisted.nextAvailableAt,
+          rescheduledDate: persisted.scheduledDate,
+          message: `任务已重新安排到 ${persisted.scheduledDate}，今日计划已自动重排。`,
+        };
+      }
       const plan = this.sevenDayPlansByUser.get(userId)!;
-      const dates = [...new Set(plan.tasks.map((task) => task.scheduledDate))].sort();
-      const currentIndex = Math.max(0, dates.indexOf(scheduled.scheduledDate));
-      let targetDate = dates.slice(currentIndex + 1).find((date) => plan.tasks.filter((task) => task.scheduledDate === date).length < 4);
-      if (!targetDate) targetDate = dateKeyFromOffset(Math.max(1, dates.length));
+      const targetDate = nearestAvailableStudyDate(plan.tasks, scheduled.scheduledDate);
       scheduled.postponeCount += 1;
       scheduled.status = 'postponed';
       scheduled.scheduledDate = targetDate;
       scheduled.nextAvailableAt = `${targetDate}T00:00:00.000Z`;
-      await this.onboardingPlanRepository.saveTask(userId, scheduled);
       return {
         taskId,
         postponeCount: scheduled.postponeCount,
@@ -1981,6 +2020,16 @@ export class StudyService implements OnModuleInit {
     selfRating?: number;
   } = {}) {
     const userId = input.userId ?? this.student.id;
+    return this.withPlanMutation(userId, () => this.completeStudyTaskUnlocked(taskId, input, userId));
+  }
+
+  private async completeStudyTaskUnlocked(taskId: string, input: {
+    userId?: string;
+    completedQuestionCount?: number;
+    correctCount?: number;
+    minutesSpent?: number;
+    selfRating?: number;
+  }, userId: string) {
     const plan = this.generatePlan(userId);
     const scheduledTask = this.findScheduledTask(userId, taskId);
     const task = scheduledTask ?? plan.dailyTasks.find((item) => item.id === taskId);
@@ -2026,26 +2075,54 @@ export class StudyService implements OnModuleInit {
 
     let nextDayAdjustment: { taskId: string; scheduledDate: string; questionCount: number; mode: string } | null = null;
     if (scheduledTask) {
-      scheduledTask.status = 'completed';
-      scheduledTask.completedAt = completedAt;
-      scheduledTask.nextAvailableAt = undefined;
-      await this.onboardingPlanRepository.saveTask(userId, scheduledTask);
-
-      const futureTask = this.sevenDayPlansByUser.get(userId)?.tasks
-        .filter((item) => item.knowledgePointId === task.knowledgePointId && item.scheduledDate > scheduledTask.scheduledDate && item.status !== 'completed')
-        .sort((left, right) => left.scheduledDate.localeCompare(right.scheduledDate))[0];
-      if (futureTask) {
-        futureTask.questionCount = adjustment.tomorrowQuestionTarget;
-        futureTask.mode = adjustment.intensity === 'increase' ? '进阶训练' : adjustment.intensity === 'decrease' ? '概念复盘' : futureTask.mode;
-        futureTask.reason = adjustment.reasons.join(' ');
-        futureTask.nextAction = adjustment.nextActions[0];
-        await this.onboardingPlanRepository.saveTask(userId, futureTask);
-        nextDayAdjustment = {
-          taskId: futureTask.id,
-          scheduledDate: futureTask.scheduledDate,
-          questionCount: futureTask.questionCount,
-          mode: futureTask.mode,
-        };
+      if (this.onboardingPlanRepository.enabled) {
+        const persisted = await this.onboardingPlanRepository.completeTask(userId, taskId, completedAt, {
+          questionCount: adjustment.tomorrowQuestionTarget,
+          intensity: adjustment.intensity,
+          reason: adjustment.reasons.join(' '),
+          nextAction: adjustment.nextActions[0],
+        });
+        if (!persisted) throw new BadRequestException(`Study task ${taskId} was not found`);
+        Object.assign(scheduledTask, persisted.task);
+        const cachedFuture = persisted.futureTask
+          ? this.findScheduledTask(userId, persisted.futureTask.id)
+          : undefined;
+        if (cachedFuture && persisted.futureTask) Object.assign(cachedFuture, persisted.futureTask);
+        if (persisted.futureTask) {
+          nextDayAdjustment = {
+            taskId: persisted.futureTask.id,
+            scheduledDate: persisted.futureTask.scheduledDate,
+            questionCount: persisted.futureTask.questionCount,
+            mode: persisted.futureTask.mode,
+          };
+        }
+      } else {
+        scheduledTask.status = 'completed';
+        scheduledTask.completedAt = completedAt;
+        scheduledTask.nextAvailableAt = undefined;
+        const futureTask = this.sevenDayPlansByUser.get(userId)?.tasks
+          .filter((item) =>
+            item.knowledgePointId === task.knowledgePointId
+            && item.scheduledDate > scheduledTask.scheduledDate
+            && item.status !== 'completed'
+            && item.mode !== '考后复盘'
+            && !item.id.startsWith('exam-review-'),
+          )
+          .sort((left, right) => left.scheduledDate.localeCompare(right.scheduledDate))[0];
+        if (!futureTask) {
+          nextDayAdjustment = null;
+        } else {
+          futureTask.questionCount = adjustment.tomorrowQuestionTarget;
+          futureTask.mode = adjustment.intensity === 'increase' ? '进阶训练' : adjustment.intensity === 'decrease' ? '概念复盘' : futureTask.mode;
+          futureTask.reason = adjustment.reasons.join(' ');
+          futureTask.nextAction = adjustment.nextActions[0];
+          nextDayAdjustment = {
+            taskId: futureTask.id,
+            scheduledDate: futureTask.scheduledDate,
+            questionCount: futureTask.questionCount,
+            mode: futureTask.mode,
+          };
+        }
       }
     }
 
@@ -2571,6 +2648,23 @@ export class StudyService implements OnModuleInit {
     return this.sevenDayPlansByUser.get(userId)?.tasks.find((task) => task.id === taskId);
   }
 
+  private async withPlanMutation<T>(userId: string, operation: () => Promise<T>): Promise<T> {
+    const previous = this.planMutationTails.get(userId) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const tail = previous.catch(() => undefined).then(() => current);
+    this.planMutationTails.set(userId, tail);
+    await previous.catch(() => undefined);
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.planMutationTails.get(userId) === tail) this.planMutationTails.delete(userId);
+    }
+  }
+
   generatePlan(userId = this.student.id) {
     const student = this.getStudent(userId);
     const plan = buildStudyPlan({
@@ -2652,7 +2746,7 @@ export class StudyService implements OnModuleInit {
     const weakQuality = accuracyRate < 65 || selfRating <= 2;
     const slowQuality = speedRatio > 1.2;
     const strongQuality = accuracyRate >= 85 && selfRating >= 4 && !slowQuality;
-    const intensity = strongQuality ? 'increase' : weakQuality ? 'decrease' : 'hold';
+    const intensity: 'increase' | 'decrease' | 'hold' = strongQuality ? 'increase' : weakQuality ? 'decrease' : 'hold';
     const tomorrowQuestionTarget = intensity === 'increase'
       ? task.questionCount + 4
       : intensity === 'decrease'
@@ -3041,7 +3135,7 @@ export class StudyService implements OnModuleInit {
     }
 
     // Knowledge point losses
-    const pointLosses = new Map<string, { title: string; subject: string; wrongCount: number }>();
+    const pointLosses = new Map<string, { knowledgePointId: string; title: string; subject: string; wrongCount: number }>();
     const lostQuestionIds = [
       ...records.filter((record) => !record.correct).map((record) => record.questionId),
       ...session.questionIds.filter((questionId) => !isAnswered(session.answers[questionId])),
@@ -3052,7 +3146,7 @@ export class StudyService implements OnModuleInit {
       if (!pointId) continue;
       const point = this.knowledgePoints.find((k) => k.id === pointId);
       const key = pointId;
-      const existing = pointLosses.get(key) ?? { title: point?.title ?? key, subject: point?.subject ?? '未分类', wrongCount: 0 };
+      const existing = pointLosses.get(key) ?? { knowledgePointId: key, title: point?.title ?? key, subject: point?.subject ?? '未分类', wrongCount: 0 };
       existing.wrongCount += 1;
       pointLosses.set(key, existing);
     }
@@ -3099,55 +3193,88 @@ export class StudyService implements OnModuleInit {
   }
 
   async generatePostExamReviewTasks(sessionId: string, userId: string) {
+    return this.withPlanMutation(userId, () => this.generatePostExamReviewTasksUnlocked(sessionId, userId));
+  }
+
+  private async generatePostExamReviewTasksUnlocked(sessionId: string, userId: string) {
     const existingPlan = this.examReviewPlans.get(sessionId);
     if (existingPlan) {
       if (existingPlan.userId !== userId) throw new ForbiddenException('You can only access your own exam review plan');
-      return existingPlan;
     }
     const report = this.getExamReport(sessionId, userId);
     const localToday = new Date(`${todayKey()}T00:00:00.000Z`);
+    const fallbackPoint = [...this.knowledgePoints]
+      .sort((left, right) => right.importance - left.importance || right.frequency - left.frequency)[0];
+    if (!fallbackPoint) throw new BadRequestException('No knowledge point is available for post-exam review');
 
-    // Generate 3-day review plan focused on weak knowledge points
     const days = Array.from({ length: 3 }, (_, index) => {
       const date = new Date(localToday);
       date.setUTCDate(localToday.getUTCDate() + index + 1);
-      const focus = report.knowledgePointLosses[index]
-        ?? report.knowledgePointLosses[0]
-        ?? { title: '408 高频考点', subject: '综合' };
+      const loss = report.knowledgePointLosses[index] ?? report.knowledgePointLosses[0];
+      const point = loss
+        ? this.knowledgePoints.find((item) => item.id === loss.knowledgePointId) ?? fallbackPoint
+        : fallbackPoint;
 
       return {
         dayIndex: index + 1,
         date: date.toISOString().slice(0, 10),
-        focus: focus.title,
-        subject: focus.subject,
+        taskId: postExamTaskId(sessionId, index + 1),
+        knowledgePointId: point.id,
+        focus: point.title,
+        subject: point.subject,
         questionCount: index === 0 ? 15 : index === 1 ? 12 : 8,
         minutes: index === 0 ? 90 : index === 1 ? 60 : 45,
         tasks: [
-          index === 0 ? `复盘 ${focus.title} 的错题，写出每道题的错因。` : '',
-          index <= 1 ? `完成 ${focus.title} 同考点专项训练。` : '',
+          index === 0 ? `复盘 ${point.title} 的错题，写出每道题的错因。` : '',
+          index <= 1 ? `完成 ${point.title} 同考点专项训练。` : '',
           `限时完成 ${index === 0 ? 15 : index === 1 ? 12 : 8} 题，目标正确率 ${70 + index * 5}% 以上。`,
         ].filter(Boolean),
       };
     });
 
-    const weakPointTitles = report.knowledgePointLosses.slice(0, 3).map((p) => p.title);
+    const summaryDraft: ExamReviewPlanState = existingPlan
+      ? { ...existingPlan, days: [...existingPlan.days] }
+      : {
+        userId,
+        examSessionId: sessionId,
+        generatedAt: new Date().toISOString(),
+        examAccuracyRate: report.summary.accuracyRate,
+        weakPointTitles: report.knowledgePointLosses.length
+          ? report.knowledgePointLosses.slice(0, 3).map((point) => point.title)
+          : [fallbackPoint.title],
+        days: [],
+        recommendation: report.summary.accuracyRate >= 80
+          ? '本次考试表现较好，重点保持限时训练节奏，巩固已掌握考点。'
+          : report.summary.accuracyRate >= 60
+            ? '本次考试处于中间水平，优先复盘错题知识点，再做同考点专项训练。'
+            : '基础还存在明显短板，建议暂停新题，先回到高频考点的概念和例题。',
+      };
 
-    const plan: ExamReviewPlanState = {
-      userId,
-      examSessionId: sessionId,
-      generatedAt: new Date().toISOString(),
-      examAccuracyRate: report.summary.accuracyRate,
-      weakPointTitles,
-      days,
-      recommendation: report.summary.accuracyRate >= 80
-        ? '本次考试表现较好，重点保持限时训练节奏，巩固已掌握考点。'
-        : report.summary.accuracyRate >= 60
-          ? '本次考试处于中间水平，优先复盘错题知识点，再做同考点专项训练。'
-          : '基础还存在明显短板，建议暂停新题，先回到高频考点的概念和例题。',
-    };
-    this.examReviewPlans.set(sessionId, plan);
-    await this.examReviewPlanRepository.save(plan);
-    return plan;
+    const reviewPlan = { ...summaryDraft, days };
+    const reviewTasks: ScheduledStudyTaskState[] = days.map((day) => ({
+      id: day.taskId,
+      knowledgePointId: day.knowledgePointId,
+      subject: day.subject as Subject,
+      chapter: this.knowledgePoints.find((point) => point.id === day.knowledgePointId)!.chapter,
+      title: `考后复盘：${day.focus}`,
+      mode: '考后复盘',
+      minutes: day.minutes,
+      questionCount: day.questionCount,
+      scheduledDate: day.date,
+      priority: '高',
+      reason: `来源考试 ${sessionId}，正确率 ${reviewPlan.examAccuracyRate}%。`,
+      nextAction: day.tasks.join('；'),
+      status: 'pending',
+      postponeCount: 0,
+    }));
+    const persisted = await this.examReviewPlanRepository.saveActionablePlan({
+      reviewPlan,
+      reviewTasks,
+      fallbackPlan: this.sevenDayPlansByUser.get(userId) ?? this.buildSevenDayPlan(userId),
+    });
+    this.examReviewPlans.set(sessionId, persisted.reviewPlan);
+    this.sevenDayPlansByUser.set(userId, persisted.studyPlan);
+    return persisted.reviewPlan;
   }
 
   getExamScoreHistory(userId: string) {

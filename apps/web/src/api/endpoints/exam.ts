@@ -21,7 +21,7 @@ export interface ExamReport {
     subject: string; totalQuestions: number; correctCount: number;
     accuracyRate: number; totalTimeSec: number; avgTimeSec: number;
   }>;
-  knowledgePointLosses: Array<{ title: string; subject: string; wrongCount: number }>;
+  knowledgePointLosses: Array<{ knowledgePointId: string; title: string; subject: string; wrongCount: number }>;
   unansweredQuestions: Array<{ questionId: string; stem: string }>;
 }
 
@@ -29,7 +29,7 @@ export interface PostExamReviewTasks {
   userId: string; examSessionId: string; generatedAt: string;
   examAccuracyRate: number; weakPointTitles: string[];
   days: Array<{
-    dayIndex: number; date: string; focus: string; subject: string;
+    dayIndex: number; date: string; taskId: string; knowledgePointId: string; focus: string; subject: string;
     questionCount: number; minutes: number; tasks: string[];
   }>;
   recommendation: string;
