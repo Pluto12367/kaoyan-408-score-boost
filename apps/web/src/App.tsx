@@ -863,6 +863,34 @@ paperId: paper.id,
     : sessionUser?.role === 'admin'
       ? roleWorkspace.adminMetrics.data?.source
       : dashboardOverview.overview.data?.source;
+  const hasAuthenticatedSession = isStaticDemoMode() || Boolean(authSession?.refreshToken);
+  const shouldShowAuthGate = !hasAuthenticatedSession;
+
+  if (shouldShowAuthGate) {
+    return (
+      <main className="app-shell auth-shell">
+        <section className="auth-gate">
+          <div className="auth-brand">
+            <p className="eyebrow">408 Score Boost</p>
+            <h1>计算机考研 408 提分系统</h1>
+            <p>登录后同步学习计划、练习记录、错题复盘和测评报告。新同学可以先注册学生账号。</p>
+          </div>
+          <AccountPanel
+            user={sessionUser}
+            hasRefreshToken={Boolean(authSession?.refreshToken)}
+            authMode={authMode}
+            status={authStatus}
+            staticDemoMode={isStaticDemoMode()}
+            showDemoRoles={isStaticDemoMode() || import.meta.env.DEV}
+            onSubmit={handleAccountSubmit}
+            onToggleMode={() => setAuthMode((current) => current === 'login' ? 'register' : 'login')}
+            onLogout={() => void handleLogout()}
+            onRoleSwitch={(role) => void handleRoleSwitch(role)}
+          />
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
