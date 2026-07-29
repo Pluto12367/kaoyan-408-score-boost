@@ -863,7 +863,7 @@ paperId: paper.id,
     : sessionUser?.role === 'admin'
       ? roleWorkspace.adminMetrics.data?.source
       : dashboardOverview.overview.data?.source;
-  const hasAuthenticatedSession = isStaticDemoMode() || Boolean(authSession?.refreshToken);
+  const hasAuthenticatedSession = Boolean(authSession?.refreshToken || authSession?.accessToken || authSession?.token || sessionUser);
   const shouldShowAuthGate = !hasAuthenticatedSession;
 
   if (shouldShowAuthGate) {

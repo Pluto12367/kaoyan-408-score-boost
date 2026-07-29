@@ -13,6 +13,7 @@ import {
   refreshAuthSession,
   logoutAccount,
 } from '../api/endpoints/auth';
+import { isStaticDemoMode } from '../api/env';
 import { roleLabel } from '../constants';
 
 export function useAuth() {
@@ -87,6 +88,14 @@ export function useAuth() {
       setAuthStatus(`已切换为${roleLabel[session.user.role]}：${session.user.name}。`);
       return 'connected' as const;
     } catch {
+      if (isStaticDemoMode() || import.meta.env.DEV) {
+        const session = createStaticDemoSession(role);
+        setActiveAuthSession(session);
+        setAuthSession(session);
+        setSessionUser(session.user);
+        setAuthStatus(`${roleLabel[session.user.role]} ${session.user.name} 演示身份已启用。`);
+        return 'mock' as const;
+      }
       setAuthStatus('身份切换失败，当前仍使用本地演示身份。');
       return 'mock' as const;
     }
@@ -131,5 +140,24 @@ export function useAuth() {
     handleLogout,
     applyAuthenticatedSession,
     clearAccountSession,
+  };
+}
+
+function createStaticDemoSession(role: UserRole): AuthSession {
+  const names: Record<UserRole, string> = {
+    student: '林同学',
+    teacher: '王老师',
+    admin: '管理员',
+  };
+
+  return {
+    token: `static-demo-${role}`,
+    accessToken: `static-demo-${role}`,
+    expiresIn: 60 * 60,
+    user: {
+      id: role === 'student' ? 'u-001' : `${role}-001`,
+      name: names[role],
+      role,
+    },
   };
 }

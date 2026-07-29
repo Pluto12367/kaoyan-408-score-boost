@@ -12,5 +12,6 @@ test('App renders an authentication-first gate before the main workspace', async
   assert.notEqual(returnIndex, -1, 'App should return the auth gate before the workspace');
   assert.notEqual(navigationIndex, -1, 'App should still render role navigation for authenticated users');
   assert.ok(returnIndex < navigationIndex, 'the auth gate must run before workspace navigation renders');
-  assert.match(source, /isStaticDemoMode\(\) \|\| Boolean\(authSession\?\.refreshToken\)/);
+  assert.match(source, /Boolean\(authSession\?\.refreshToken \|\| authSession\?\.accessToken \|\| authSession\?\.token \|\| sessionUser\)/);
+  assert.equal(source.includes('const hasAuthenticatedSession = isStaticDemoMode() ||'), false);
 });
