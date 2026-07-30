@@ -146,12 +146,12 @@ test('production backup tooling writes verifiable archives and isolates restore 
   assert.match(restoreScript, /network_name="kaoyan408-restore-network-\$restore_id"/);
   assert.match(restoreScript, /docker network create "\$network_name"/);
   assert.match(restoreScript, /docker run -d[\s\S]*?--name "\$container_name"[\s\S]*?--network "\$network_name"/);
-  assert.match(restoreScript, /docker exec -e PGPASSWORD="\$restore_password" "\$container_name"\s+\\\n  pg_restore --exit-on-error/);
+  assert.match(restoreScript, /docker exec -e PGPASSWORD="\$restore_password" "\$container_name"\s+\\\r?\n  pg_restore --exit-on-error/);
   assert.match(restoreScript, /trap cleanup EXIT/);
   assert.match(restoreScript, /network_created=false/);
   assert.match(restoreScript, /container_created=false/);
-  assert.match(restoreScript, /docker network create "\$network_name"[^\n]*\nnetwork_created=true/);
-  assert.match(restoreScript, /postgres:16-alpine >\/dev\/null\ncontainer_created=true/);
+  assert.match(restoreScript, /docker network create "\$network_name"[^\r\n]*\r?\nnetwork_created=true/);
+  assert.match(restoreScript, /postgres:16-alpine >\/dev\/null\r?\ncontainer_created=true/);
   assert.match(restoreScript, /if \[ "\$container_created" = true \]; then\s+docker rm -f "\$container_name"/);
   assert.match(restoreScript, /if \[ "\$network_created" = true \]; then\s+docker network rm "\$network_name"/);
   assert.doesNotMatch(restoreScript, /compose\.production/);
