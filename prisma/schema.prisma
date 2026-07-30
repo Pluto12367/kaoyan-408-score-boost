@@ -13,6 +13,11 @@ enum UserRole {
   ADMIN
 }
 
+enum AccountStatus {
+  ACTIVE
+  DISABLED
+}
+
 enum TrialStatus {
   INVITED
   ACTIVE
@@ -45,6 +50,8 @@ model User {
   passwordHash          String?
   name                  String
   role                  UserRole
+  accountStatus         AccountStatus                 @default(ACTIVE)
+  mustChangePassword    Boolean                       @default(false)
   trialStatus           TrialStatus                   @default(INVITED)
   targetSchool          String?
   targetScore           Int?
@@ -70,6 +77,8 @@ model User {
   feedbackSubmissions   FeedbackSubmission[]
   authorizedStudents    TeacherStudentAuthorization[] @relation("AuthorizedTeacher")
   authorizedTeachers    TeacherStudentAuthorization[] @relation("AuthorizedStudent")
+  createdInvitations    InvitationCode[]              @relation("CreatedInvitations")
+  invitationRedemptions InvitationRedemption[]
 }
 
 model FeedbackSubmission {
@@ -115,6 +124,51 @@ model OperationLog {
   @@index([userId, createdAt])
   @@index([method, path, createdAt])
   @@index([statusCode, createdAt])
+}
+
+model InvitationCode {
+  id          String                 @id @default(cuid())
+  codeHash    String                 @unique
+  codePrefix  String
+  label       String
+  maxUses     Int
+  usedCount   Int                    @default(0)
+  startsAt    DateTime               @default(now())
+  expiresAt   DateTime
+  disabledAt  DateTime?
+  createdById String
+  createdAt   DateTime               @default(now())
+  createdBy   User                   @relation("CreatedInvitations", fields: [createdById], references: [id])
+  redemptions InvitationRedemption[]
+
+  @@index([expiresAt, disabledAt])
+}
+
+model InvitationRedemption {
+  id               String         @id @default(cuid())
+  invitationCodeId String
+  userId           String
+  redeemedAt       DateTime       @default(now())
+  invitationCode   InvitationCode @relation(fields: [invitationCodeId], references: [id], onDelete: Restrict)
+  user             User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([invitationCodeId, userId])
+  @@index([userId])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  result     String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
 }
 
 model LearningSession {

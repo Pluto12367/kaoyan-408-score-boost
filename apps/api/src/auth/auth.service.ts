@@ -6,12 +6,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { UserRole as PrismaUserRole } from '@prisma/client';
-import { createHmac, randomBytes, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
-
-const scrypt = promisify(scryptCallback);
+import { hashPassword, validatePassword, verifyPassword } from './password';
 const accessTokenLifetimeSec = 15 * 60;
 const refreshTokenLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 
@@ -164,33 +162,12 @@ const demoUsers: Record<UserRole, UserProfile> = {
   admin: { id: 'admin-001', name: '管理员', role: 'admin' },
 };
 
-async function hashPassword(password: string) {
-  const salt = randomBytes(16);
-  const derived = await scrypt(password, salt, 64) as Buffer;
-  return `scrypt$${salt.toString('base64url')}$${derived.toString('base64url')}`;
-}
-
-async function verifyPassword(password: string, stored: string) {
-  const [algorithm, saltValue, hashValue] = stored.split('$');
-  if (algorithm !== 'scrypt' || !saltValue || !hashValue) return false;
-  const expected = Buffer.from(hashValue, 'base64url');
-  const actual = await scrypt(password, Buffer.from(saltValue, 'base64url'), expected.length) as Buffer;
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
 function normalizeEmail(value?: string) {
   const email = value?.trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
     throw new BadRequestException('A valid email is required');
   }
   return email;
-}
-
-function validatePassword(value?: string) {
-  if (!value || value.length < 8 || value.length > 128) {
-    throw new BadRequestException('Password must contain 8 to 128 characters');
-  }
-  return value;
 }
 
 function encodeJson(value: object) {
