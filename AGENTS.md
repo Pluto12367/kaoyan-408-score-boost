@@ -17,4 +17,4 @@ This applies to new features, behavior changes, bug fixes, scripts, deployment w
 Pure read-only investigation, status reporting, running existing commands, or documentation-only edits do not require this check.
 
 For the longer checklist, see `docs/development/open-source-reference-check.md`.
-
+For a short pre-coding checklist, see `docs/development/pre-coding-checklist.md`.
