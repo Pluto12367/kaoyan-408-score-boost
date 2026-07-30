@@ -3,6 +3,9 @@ import type { AdminMetrics, AdminUserManagement, FeedbackList, ReviewQueue, Syst
 import { ModuleInlineUnavailable, ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
 import { riskLabel, reviewStatusLabel, roleLabel, trialStatusLabel } from '../../constants';
 import type { ModuleResource } from '../../hooks/moduleResource';
+import { InvitationManagementPanel } from './InvitationManagementPanel';
+import { ManagedUserCreationPanel } from './ManagedUserCreationPanel';
+import { StudentAccountActions } from './StudentAccountActions';
 import { TeacherAuthorizationPanel } from './TeacherAuthorizationPanel';
 
 interface AdminWorkspaceProps {
@@ -24,6 +27,9 @@ interface AdminWorkspaceProps {
   onGrantTeacherAuthorization: (teacherId: string, studentId: string) => Promise<void>;
   onRevokeTeacherAuthorization: (teacherId: string, studentId: string) => Promise<void>;
   onUpdateTrialStatus: (userId: string, trialStatus: 'invited' | 'active' | 'completed' | 'follow_up') => void;
+  onSetAccountStatus: (userId: string, accountStatus: 'active' | 'disabled') => Promise<void>;
+  onCreateTemporaryPassword: (userId: string) => Promise<void>;
+  onCreateManagedUser: (input: { email: string; name: string; role: 'teacher' | 'admin' }) => Promise<string | null>;
   onApproveReviewItem: (itemId: string) => void;
   onMarkReviewItemNeedsRecheck: (itemId: string) => void;
   onApplySprintConfig: () => void;
@@ -83,6 +89,9 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         <ModuleUnavailable id="admin" title="运营指标" resource={props.metrics} onRetry={props.onRetryMetrics} />
       )}
 
+      <InvitationManagementPanel />
+      <ManagedUserCreationPanel onCreateManagedUser={props.onCreateManagedUser} />
+
       {users ? (
         <section className="panel admin-users-panel">
           <div className="panel-heading">
@@ -106,6 +115,11 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
                   <small>{user.targetSchool ?? '平台账号'} · 最近活跃 {user.lastActiveAt}</small>
                 </div>
                 <p>{user.nextAction}</p>
+                <StudentAccountActions
+                  user={user}
+                  onSetStatus={props.onSetAccountStatus}
+                  onCreateTemporaryPassword={props.onCreateTemporaryPassword}
+                />
                 {user.role === 'student' ? (
                   <label className="trial-status-control">
                     <span>内测状态</span>

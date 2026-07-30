@@ -16,6 +16,10 @@ import type {
   TeacherStudentAuthorization,
   TeacherStudentAuthorizationList,
   FeedbackItem,
+  AdminInvitationList,
+  CreatedInvitation,
+  AdminManagedUser,
+  ManagedUserCreationResult,
 } from '../types';
 
 // All student-facing endpoints use fetchWithAuth — Phase 1 requires auth on every endpoint.
@@ -126,6 +130,58 @@ export async function updateAdminUserTrialStatus(input: { userId: string; trialS
     body: JSON.stringify({ trialStatus: input.trialStatus }),
   });
   if (!response.ok) throw new Error(`Admin user trial status update failed with ${response.status}`);
+  return response.json();
+}
+
+export async function fetchAdminInvitations(): Promise<AdminInvitationList> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/invitations`);
+  if (!response.ok) throw new Error(`Admin invitation request failed with ${response.status}`);
+  return response.json();
+}
+
+export async function createAdminInvitation(input: { label: string; maxUses: number; startsAt?: string; expiresAt: string }): Promise<CreatedInvitation> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/invitations`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Admin invitation creation failed with ${response.status}`);
+  return response.json();
+}
+
+export async function disableAdminInvitation(invitationId: string) {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/invitations/${encodeURIComponent(invitationId)}/disable`, {
+    method: 'POST',
+  });
+  if (!response.ok) throw new Error(`Admin invitation disable failed with ${response.status}`);
+  return response.json();
+}
+
+export async function disableAdminUser(userId: string): Promise<AdminManagedUser> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/users/${encodeURIComponent(userId)}/disable`, { method: 'POST' });
+  if (!response.ok) throw new Error(`Admin user disable failed with ${response.status}`);
+  return response.json();
+}
+
+export async function restoreAdminUser(userId: string): Promise<AdminManagedUser> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/users/${encodeURIComponent(userId)}/restore`, { method: 'POST' });
+  if (!response.ok) throw new Error(`Admin user restore failed with ${response.status}`);
+  return response.json();
+}
+
+export async function createTemporaryPassword(userId: string): Promise<{ user: AdminManagedUser; temporaryPassword: string }> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/users/${encodeURIComponent(userId)}/temporary-password`, { method: 'POST' });
+  if (!response.ok) throw new Error(`Temporary password request failed with ${response.status}`);
+  return response.json();
+}
+
+export async function createManagedUser(input: { email: string; name: string; role: 'teacher' | 'admin' }): Promise<ManagedUserCreationResult> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/users`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Managed user creation failed with ${response.status}`);
   return response.json();
 }
 

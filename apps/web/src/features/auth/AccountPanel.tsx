@@ -11,6 +11,7 @@ interface AccountPanelProps {
   staticDemoMode: boolean;
   showDemoRoles: boolean;
   onSubmit: FormEventHandler<HTMLFormElement>;
+  onPasswordChangeSubmit: FormEventHandler<HTMLFormElement>;
   onToggleMode: () => void;
   onLogout: () => void;
   onRoleSwitch: (role: UserRole) => void;
@@ -30,18 +31,50 @@ export function AccountPanel(props: AccountPanelProps) {
         ) : null}
       </div>
       <p className="task-status">{props.status} {permissionHint[role]}</p>
+      {props.user?.mustChangePassword ? (
+        <form className="account-form" onSubmit={props.onPasswordChangeSubmit}>
+          <label>
+            <span>当前临时密码</span>
+            <input name="currentPassword" type="password" autoComplete="current-password" required minLength={8} maxLength={128} />
+          </label>
+          <label>
+            <span>新密码</span>
+            <input name="newPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={128} />
+          </label>
+          <label>
+            <span>确认新密码</span>
+            <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={128} />
+          </label>
+          <div className="account-actions">
+            <button type="submit">修改密码</button>
+            <button type="button" className="secondary-action" onClick={props.onLogout}>退出登录</button>
+          </div>
+        </form>
+      ) : null}
       {!props.hasRefreshToken && !props.staticDemoMode ? (
         <form className="account-form" onSubmit={props.onSubmit}>
           {props.authMode === 'register' ? (
-            <label>
-              <span>姓名</span>
-              <input name="name" autoComplete="name" required maxLength={40} />
-            </label>
+            <>
+              <label>
+                <span>邀请码</span>
+                <input name="inviteCode" autoComplete="one-time-code" required minLength={6} maxLength={128} />
+              </label>
+              <label>
+                <span>姓名</span>
+                <input name="name" autoComplete="name" required maxLength={40} />
+              </label>
+            </>
           ) : null}
           <label>
             <span>邮箱</span>
             <input name="email" type="email" autoComplete="email" required />
           </label>
+          {props.authMode === 'register' ? (
+            <label>
+              <span>确认密码</span>
+              <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={128} />
+            </label>
+          ) : null}
           <label>
             <span>密码</span>
             <input

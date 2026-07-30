@@ -20,6 +20,11 @@ export interface AuthSession {
   user: UserProfile;
 }
 
+export interface ChangePasswordInput {
+  currentPassword: string;
+  newPassword: string;
+}
+
 export interface DiagnosticInput {
   targetScore: number;
   currentScore: number;
@@ -393,6 +398,32 @@ export interface AdminManagedUser {
   targetSchool?: string;
   lastActiveAt: string;
   nextAction: string;
+}
+
+export interface AdminInvitation {
+  id: string;
+  codePrefix: string;
+  label: string;
+  maxUses: number;
+  usedCount: number;
+  startsAt: string;
+  expiresAt: string;
+  disabledAt?: string | null;
+  createdAt: string;
+  status: 'available' | 'not_started' | 'expired' | 'disabled' | 'exhausted';
+}
+
+export interface AdminInvitationList {
+  invitations: AdminInvitation[];
+}
+
+export interface CreatedInvitation extends AdminInvitation {
+  code: string;
+}
+
+export interface ManagedUserCreationResult {
+  user: AdminManagedUser;
+  temporaryPassword: string;
 }
 
 export interface AdminUserManagement {

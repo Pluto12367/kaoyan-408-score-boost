@@ -12,6 +12,7 @@ import {
   registerAccount,
   refreshAuthSession,
   logoutAccount,
+  changePassword,
 } from '../api/endpoints/auth';
 import { isStaticDemoMode } from '../api/env';
 import { roleLabel } from '../constants';
@@ -108,10 +109,16 @@ export function useAuth() {
     const email = String(form.get('email') ?? '');
     const password = String(form.get('password') ?? '');
     const name = String(form.get('name') ?? '');
+    const inviteCode = String(form.get('inviteCode') ?? '');
+    const confirmPassword = String(form.get('confirmPassword') ?? '');
     setAuthStatus(authMode === 'register' ? '正在创建账号...' : '正在登录...');
     try {
+      if (authMode === 'register' && password !== confirmPassword) {
+        setAuthStatus('两次输入的密码不一致。');
+        return;
+      }
       const session = authMode === 'register'
-        ? await registerAccount({ email, password, name })
+        ? await registerAccount({ inviteCode, email, password, name })
         : await loginAccount({ email, password });
       applyAuthenticatedSession(session, `${roleLabel[session.user.role]} ${session.user.name} 已登录。`);
       formElement.reset();
@@ -119,6 +126,27 @@ export function useAuth() {
       setAuthStatus(error instanceof Error ? error.message : '登录失败，请稍后重试。');
     }
   }, [authMode]);
+
+  const handlePasswordChangeSubmit = useCallback(async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const currentPassword = String(form.get('currentPassword') ?? '');
+    const newPassword = String(form.get('newPassword') ?? '');
+    const confirmPassword = String(form.get('confirmPassword') ?? '');
+    if (newPassword !== confirmPassword) {
+      setAuthStatus('两次输入的新密码不一致。');
+      return;
+    }
+    setAuthStatus('正在修改临时密码...');
+    try {
+      const session = await changePassword({ currentPassword, newPassword });
+      applyAuthenticatedSession(session, '密码已修改，可以继续使用系统。');
+      formElement.reset();
+    } catch (error) {
+      setAuthStatus(error instanceof Error ? error.message : '修改密码失败，请重试。');
+    }
+  }, []);
 
   const handleLogout = useCallback(async () => {
     const refreshToken = authSession?.refreshToken;
@@ -137,6 +165,7 @@ export function useAuth() {
     setAuthStatus,
     handleRoleSwitch,
     handleAccountSubmit,
+    handlePasswordChangeSubmit,
     handleLogout,
     applyAuthenticatedSession,
     clearAccountSession,
