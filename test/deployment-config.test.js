@@ -131,6 +131,24 @@ test('production backup tooling writes verifiable archives and isolates restore 
   assert.match(cronInstaller, /docker compose --env-file \.env\.production -f compose\.production\.yml --profile tools run --rm backup/);
 });
 
+test('Tencent IP deployment and rollback scripts preserve database volumes while using backup and health gates', () => {
+  const deployScriptPath = new URL('../deploy/tencent-ip/deploy.sh', import.meta.url);
+  const rollbackScriptPath = new URL('../deploy/tencent-ip/rollback.sh', import.meta.url);
+
+  assert.ok(existsSync(deployScriptPath), 'deploy.sh must exist');
+  assert.ok(existsSync(rollbackScriptPath), 'rollback.sh must exist');
+
+  const deployScript = readFileSync(deployScriptPath, 'utf8');
+  const rollbackScript = readFileSync(rollbackScriptPath, 'utf8');
+
+  assert.match(deployScript, /docker compose .* config/);
+  assert.match(deployScript, /--profile tools run --rm backup/);
+  assert.match(deployScript, /up -d --build --wait/);
+  assert.match(deployScript, /curl .*\/health/);
+  assert.doesNotMatch(deployScript, /down -v/);
+  assert.doesNotMatch(rollbackScript, /down -v/);
+});
+
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {
   assert.doesNotMatch(deploymentWorkflow, /actions\/checkout@v4/);
   assert.doesNotMatch(deploymentWorkflow, /actions\/setup-node@v4/);

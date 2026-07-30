@@ -44,3 +44,14 @@ The topology exposes only the gateway on host port 80. The application and datab
 | Linux `crontab(5)` | https://man7.org/linux/man-pages/man5/crontab.5.html | `/etc/cron.d` entries are system jobs and include an explicit user field after the schedule. | Yes: install a root-owned `03:15` job with an absolute working directory, an explicit `root` field, an append-only backup log, and mode `0644`. |
 
 The drill deliberately uses a separate Docker network and a unique temporary container name. It validates restored Prisma tables with `psql`; cleanup is bound to `EXIT` so no restore target survives either success or failure. No external source code is copied; these documented patterns are reimplemented in this repository.
+
+## Task 5 deployment, upgrade, and rollback addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| Docker Compose `up` command | https://docs.docker.com/reference/cli/docker/compose/up/ | `--wait` waits for running or healthy services and `--build` builds images before startup; existing containers are recreated while mounted volumes are preserved. | Yes: validate the rendered Compose model, then run `up -d --build --wait` and independently poll the gateway health endpoint. |
+| Docker Engine on Ubuntu | https://docs.docker.com/engine/install/ubuntu/ | Install Docker Engine and the Compose plugin from Docker's official Ubuntu instructions, rather than an unverified curl installer. | Yes: the operator guide links to this official installation entry point and checks both Docker and Compose before deployment. |
+| Tencent Cloud Lighthouse firewall | https://cloud.tencent.com/document/product/1207/44577/ | Lighthouse firewall rules control inbound traffic; default public sources are broad, so rules should use least privilege and allow a single address or CIDR where possible. | Yes: expose only TCP 80 publicly and limit TCP 22 to the administrator IP/CIDR; do not expose database or application ports. |
+| Git `switch` | https://git-scm.com/docs/git-switch | `git switch --detach <commit>` inspects an exact commit; switching can discard changes if forced, so a safe rollback must reject a dirty worktree and verify the target first. | Yes: rollback records the current commit, switches only after clean-tree and commit checks, and restores that recorded commit if rebuilding or health checks fail. |
+
+The rollback workflow deliberately does not run a destructive volume command and does not attempt to reverse database migrations. A database backup precedes both deployment and rollback when the production database is healthy. No external source code is copied; command sequencing is reimplemented for this repository's Compose topology.
