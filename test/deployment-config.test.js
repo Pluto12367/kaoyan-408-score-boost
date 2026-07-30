@@ -74,6 +74,7 @@ test('production Compose exposes only the gateway and uses production-safe appli
   assert.match(productionCompose, /restart:\s+unless-stopped/g);
   assert.match(productionCompose, /ALLOW_DEMO_AUTH:\s+"false"/);
   assert.match(productionCompose, /ALLOW_INSECURE_HTTP_IP:\s+"true"/);
+  assert.match(productionCompose, /VITE_API_BASE_URL:\s+"\/api"/);
 });
 
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {

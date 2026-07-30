@@ -30,6 +30,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
       JWT_SECRET: ${JWT_SECRET}
       WEB_ORIGIN: http://${PUBLIC_IP}
+      VITE_API_BASE_URL: "/api"
       ALLOW_DEMO_AUTH: "false"
       ALLOW_INSECURE_HTTP_IP: "true"
       AUDIT_LOG_RETENTION_DAYS: "90"
