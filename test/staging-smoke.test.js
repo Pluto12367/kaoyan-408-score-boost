@@ -16,6 +16,7 @@ test('staging smoke configuration requires an HTTPS API and dedicated credential
       STAGING_API_URL: 'http://api.example.com',
       STAGING_SMOKE_EMAIL: 'smoke@example.com',
       STAGING_SMOKE_PASSWORD: 'ReliablePassword!408',
+      STAGING_SMOKE_INVITATION: 'invite-smoke-code',
     }),
     /must use HTTPS/,
   );
@@ -25,11 +26,13 @@ test('staging smoke configuration requires an HTTPS API and dedicated credential
     STAGING_WEB_ORIGIN: 'https://web.example.com/',
     STAGING_SMOKE_EMAIL: 'smoke@example.com',
     STAGING_SMOKE_PASSWORD: 'ReliablePassword!408',
+    STAGING_SMOKE_INVITATION: 'invite-smoke-code',
   }), {
     apiUrl: 'https://api.example.com',
     webOrigin: 'https://web.example.com',
     email: 'smoke@example.com',
     password: 'ReliablePassword!408',
+    invitationCode: 'invite-smoke-code',
   });
 });
 
@@ -66,7 +69,17 @@ test('staging smoke verifies the authenticated persistence path without exposing
     if (requestUrl.pathname === '/auth/demo-login') return jsonResponse(403, { message: 'Forbidden' });
     if (requestUrl.pathname === '/auth/login') {
       loginCount += 1;
+      if (loginCount === 1) return jsonResponse(401, { message: 'Not registered' });
       return jsonResponse(200, {
+        accessToken: token,
+        refreshToken: 'private-refresh-token',
+        user: { id: 'student-smoke', role: 'student' },
+      });
+    }
+    if (requestUrl.pathname === '/auth/register') {
+      if (!body.inviteCode) return jsonResponse(400, { message: 'Invite code required' });
+      assert.equal(body.inviteCode, 'invite-smoke-code');
+      return jsonResponse(201, {
         accessToken: token,
         refreshToken: 'private-refresh-token',
         user: { id: 'student-smoke', role: 'student' },
@@ -114,6 +127,7 @@ test('staging smoke verifies the authenticated persistence path without exposing
     webOrigin: 'https://web.example.com',
     email: 'smoke@example.com',
     password,
+    invitationCode: 'invite-smoke-code',
   }, {
     fetchImpl,
     log: (message) => messages.push(message),
@@ -123,9 +137,10 @@ test('staging smoke verifies the authenticated persistence path without exposing
   assert.equal(result.dataSource, 'postgresql');
   assert.equal(result.persistedTargetScore, 126);
   assert.equal(result.persistedCompletedTaskId, 'task-1');
-  assert.equal(result.checks, 8);
-  assert.equal(loginCount, 2, 'the smoke path must log in again before checking persistence');
+  assert.equal(result.checks, 10);
+  assert.equal(loginCount, 2, 'the smoke path must retry login after invitation registration');
   assert.equal(calls.some((call) => call.url.includes('userId=forged-student')), true);
+  assert.equal(calls.some((call) => call.url.endsWith('/auth/register') && call.body?.inviteCode === 'invite-smoke-code'), true);
   assert.equal(calls.some((call) => call.url.endsWith('/auth/demo-login')), true);
   assert.equal(calls.filter((call) => call.method === 'OPTIONS').length, 2);
   assert.equal(calls.every((call) => call.url.startsWith('https://api.example.com/')), true);
