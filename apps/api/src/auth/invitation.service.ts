@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, UserRole as PrismaUserRole } from '@prisma/client';
 import { createHmac, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditEventService } from '../operations/audit-event.service';
 import { hashPassword, validatePassword } from './password';
 import { invitationAvailability } from './invitation-policy';
 import type { RegisterAccountDto } from './dto/register-account.dto';
@@ -21,7 +22,10 @@ export interface CreatedInvitation {
 
 @Injectable()
 export class InvitationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditEventService,
+  ) {}
 
   async create(input: { label?: string; maxUses?: number; expiresAt?: string | Date; startsAt?: string | Date }, actorId: string) {
     const code = randomBytes(18).toString('base64url');
@@ -49,7 +53,63 @@ export class InvitationService {
         createdById: actorId,
       },
     });
+    await this.audit.record({
+      actorId,
+      action: 'invitation.create',
+      targetType: 'invitation',
+      targetId: invitation.id,
+      result: 'success',
+      metadata: { label, maxUses, codePrefix: invitation.codePrefix },
+    });
     return { ...this.toCreatedInvitation(invitation), code };
+  }
+
+  async list() {
+    const invitations = await this.prisma.invitationCode.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    return {
+      invitations: invitations.map((invitation) => ({
+        id: invitation.id,
+        codePrefix: invitation.codePrefix,
+        label: invitation.label,
+        maxUses: invitation.maxUses,
+        usedCount: invitation.usedCount,
+        startsAt: invitation.startsAt,
+        expiresAt: invitation.expiresAt,
+        disabledAt: invitation.disabledAt,
+        createdAt: invitation.createdAt,
+        status: invitationAvailability(invitation),
+      })),
+    };
+  }
+
+  async disable(id: string, actorId: string) {
+    const invitation = await this.prisma.invitationCode.update({
+      where: { id },
+      data: { disabledAt: new Date() },
+    });
+    await this.audit.record({
+      actorId,
+      action: 'invitation.disable',
+      targetType: 'invitation',
+      targetId: id,
+      result: 'success',
+      metadata: { codePrefix: invitation.codePrefix },
+    });
+    return {
+      id: invitation.id,
+      codePrefix: invitation.codePrefix,
+      label: invitation.label,
+      maxUses: invitation.maxUses,
+      usedCount: invitation.usedCount,
+      startsAt: invitation.startsAt,
+      expiresAt: invitation.expiresAt,
+      disabledAt: invitation.disabledAt,
+      createdAt: invitation.createdAt,
+      status: invitationAvailability(invitation),
+    };
   }
 
   async registerStudent(input: RegisterAccountDto) {
@@ -80,7 +140,7 @@ export class InvitationService {
         });
         if (claimed.count !== 1) throw new BadRequestException('邀请码已用完，请联系管理员');
 
-        return tx.user.create({
+        const user = await tx.user.create({
           data: {
             email: normalized.email,
             passwordHash,
@@ -91,6 +151,17 @@ export class InvitationService {
             invitationRedemptions: { create: { invitationCodeId: invitation.id } },
           },
         });
+        await tx.auditEvent.create({
+          data: {
+            action: 'invitation.redeem',
+            targetType: 'invitation',
+            targetId: invitation.id,
+            result: 'success',
+            metadata: { codePrefix: invitation.codePrefix },
+            actorId: user.id,
+          },
+        });
+        return user;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
