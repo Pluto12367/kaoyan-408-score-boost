@@ -17,10 +17,21 @@ read_env_value() {
 wait_for_gateway() {
   deadline=$(( $(date +%s) + 60 ))
   while :; do
-    if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1/health >/dev/null; then
+    now=$(date +%s)
+    remaining=$((deadline - now))
+    if [ "$remaining" -le 0 ]; then
+      return 1
+    fi
+    curl_timeout=2
+    if [ "$remaining" -lt "$curl_timeout" ]; then
+      curl_timeout=$remaining
+    fi
+    if curl -fsS --connect-timeout 1 --max-time "$curl_timeout" http://127.0.0.1/health >/dev/null; then
       return 0
     fi
-    if [ "$(date +%s)" -ge "$deadline" ]; then
+    now=$(date +%s)
+    remaining=$((deadline - now))
+    if [ "$remaining" -le 0 ]; then
       return 1
     fi
     sleep 1
@@ -111,7 +122,7 @@ if [ -n "$postgres_container" ]; then
 
   echo 'Creating a database backup before deployment...'
   docker compose --env-file .env.production -f compose.production.yml --profile tools run --rm backup
-elif [ -n "$(docker volume ls --filter 'label=com.docker.compose.volume=postgres_data' -q)" ]; then
+elif [ -n "$(docker volume ls --filter 'label=com.docker.compose.project=kaoyan408' --filter 'label=com.docker.compose.volume=postgres_data' -q)" ]; then
   echo 'A PostgreSQL data volume exists without a discoverable PostgreSQL container; refusing first-deployment path.' >&2
   exit 1
 else

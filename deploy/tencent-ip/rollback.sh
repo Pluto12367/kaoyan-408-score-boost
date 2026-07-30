@@ -12,10 +12,21 @@ cd "$script_dir/../.."
 wait_for_gateway() {
   deadline=$(( $(date +%s) + 60 ))
   while :; do
-    if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1/health >/dev/null; then
+    now=$(date +%s)
+    remaining=$((deadline - now))
+    if [ "$remaining" -le 0 ]; then
+      return 1
+    fi
+    curl_timeout=2
+    if [ "$remaining" -lt "$curl_timeout" ]; then
+      curl_timeout=$remaining
+    fi
+    if curl -fsS --connect-timeout 1 --max-time "$curl_timeout" http://127.0.0.1/health >/dev/null; then
       return 0
     fi
-    if [ "$(date +%s)" -ge "$deadline" ]; then
+    now=$(date +%s)
+    remaining=$((deadline - now))
+    if [ "$remaining" -le 0 ]; then
       return 1
     fi
     sleep 1

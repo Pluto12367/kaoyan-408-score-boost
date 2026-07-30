@@ -32,6 +32,25 @@ function composeServiceBlock(compose, serviceName) {
   return match[0];
 }
 
+function assertHealthLoopHonorsRemainingDeadline(script, scriptName) {
+  const healthLoop = script.match(/wait_for_gateway\(\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(healthLoop, `${scriptName} must define wait_for_gateway`);
+  assert.match(healthLoop, /deadline=\$\(\( \$\(date \+%s\) \+ 60 \)\)/);
+  assert.match(healthLoop, /now=\$\(date \+%s\)/);
+  assert.match(healthLoop, /remaining=\$\(\(deadline - now\)\)/);
+  assert.match(healthLoop, /if \[ "\$remaining" -le 0 \]; then[\s\S]*?return 1/);
+  assert.match(healthLoop, /curl_timeout=2[\s\S]*?curl_timeout=\$remaining/);
+  assert.match(healthLoop, /curl -fsS --connect-timeout 1 --max-time "\$curl_timeout" http:\/\/127\.0\.0\.1\/health/);
+
+  const firstDeadlineCheck = healthLoop.indexOf('if [ "$remaining" -le 0 ]');
+  const curlIndex = healthLoop.indexOf('curl -fsS');
+  const secondNow = healthLoop.indexOf('now=$(date +%s)', curlIndex);
+  const secondDeadlineCheck = healthLoop.indexOf('if [ "$remaining" -le 0 ]', curlIndex);
+  const sleepIndex = healthLoop.indexOf('sleep 1');
+  assert.ok(firstDeadlineCheck >= 0 && firstDeadlineCheck < curlIndex, `${scriptName} must check the deadline before curl`);
+  assert.ok(secondNow >= 0 && secondDeadlineCheck > secondNow && secondDeadlineCheck < sleepIndex, `${scriptName} must recheck the deadline before sleeping`);
+}
+
 test('Railway uses the repository Dockerfile with production health and restart policy', () => {
   assert.match(railwayConfig, /builder\s*=\s*"DOCKERFILE"/);
   assert.match(railwayConfig, /dockerfilePath\s*=\s*"Dockerfile"/);
@@ -77,6 +96,7 @@ test('web gateway builds a static SPA and proxies the same-origin API', () => {
 });
 
 test('production Compose exposes only the gateway and uses production-safe application settings', () => {
+  assert.match(productionCompose, /^name:\s*kaoyan408$/m);
   assert.match(productionCompose, /gateway:/);
   assert.match(productionCompose, /"80:80"/);
   assert.match(productionCompose, /app:/);
@@ -151,7 +171,7 @@ test('Tencent IP deployment scripts preserve database volumes, validate producti
 
   assert.match(deployScript, /docker compose .* config/);
   assert.match(deployScript, /ps --all -q postgres/);
-  assert.match(deployScript, /docker volume ls --filter 'label=com\.docker\.compose\.volume=postgres_data' -q/);
+  assert.match(deployScript, /docker volume ls --filter 'label=com\.docker\.compose\.project=kaoyan408' --filter 'label=com\.docker\.compose\.volume=postgres_data' -q/);
   assert.match(deployScript, /--profile tools run --rm backup/);
   assert.match(deployScript, /up -d --build --wait/);
   assert.match(deployScript, /POSTGRES_USER/);
@@ -161,9 +181,7 @@ test('Tencent IP deployment scripts preserve database volumes, validate producti
   assert.match(deployScript, /BACKUP_RETENTION_DAYS/);
   assert.match(deployScript, /generate-a-base64url-password/);
   assert.match(deployScript, /generate-a-random-secret/);
-  assert.match(deployScript, /date \+%s/);
-  assert.match(deployScript, /deadline=\$\(\(.*\+ 60\s*\)\)/);
-  assert.match(deployScript, /curl -fsS --connect-timeout 1 --max-time 2 http:\/\/127\.0\.0\.1\/health/);
+  assertHealthLoopHonorsRemainingDeadline(deployScript, 'deploy.sh');
   assert.doesNotMatch(deployScript, /down -v/);
 });
 
@@ -177,11 +195,17 @@ test('Tencent IP rollback verifies the target before backing up and restores a h
   assert.match(rollbackScript, /trap restore_original EXIT/);
   assert.match(rollbackScript, /git switch --detach "\$target_commit"/);
   assert.match(rollbackScript, /git switch --detach "\$original_commit"/);
-  assert.match(rollbackScript, /date \+%s/);
-  assert.match(rollbackScript, /curl -fsS --connect-timeout 1 --max-time 2 http:\/\/127\.0\.0\.1\/health/);
-  assert.match(rollbackScript, /database migrations are not rolled back automatically/);
+  assertHealthLoopHonorsRemainingDeadline(rollbackScript, 'rollback.sh');
   assert.ok(
-    rollbackScript.indexOf('--profile tools run --rm backup') < rollbackScript.indexOf('original_commit='),
+    (rollbackScript.match(/database migrations are not rolled back automatically/g)?.length ?? 0) >= 2,
+    'rollback must warn before switching and during automatic recovery',
+  );
+  const backupIndex = rollbackScript.indexOf('--profile tools run --rm backup');
+  const originalCommitIndex = rollbackScript.indexOf('original_commit=');
+  assert.ok(backupIndex >= 0, 'rollback must invoke the backup tool');
+  assert.ok(originalCommitIndex >= 0, 'rollback must record the original commit');
+  assert.ok(
+    backupIndex < originalCommitIndex,
     'rollback must create the backup before recording and switching versions',
   );
   assert.ok(

@@ -65,3 +65,12 @@ The rollback workflow deliberately does not run a destructive volume command and
 | curl time limits | https://curl.se/docs/manpage.html | `--connect-timeout` limits connection establishment and `--max-time` bounds the complete transfer. | Yes: every health request is individually bounded and the retry loop also has a wall-clock deadline. |
 
 These fixes are reimplemented in POSIX shell and this Compose file; no external source code is copied. The guide now distinguishes the current HTTP-only image from the future, separately implemented HTTPS topology instead of implying that an environment-variable change adds TLS.
+
+## Task 5 fix round 2 addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| Compose top-level `name` | https://docs.docker.com/reference/compose-file/version-and-name/ | A top-level `name` defines the project name instead of inheriting an unstable directory name. | Yes: production uses the stable `kaoyan408` project name. |
+| Compose volume labels | https://docs.docker.com/reference/compose-file/volumes/ | Compose applies both `com.docker.compose.project` and `com.docker.compose.volume` labels to named volumes. | Yes: the pre-deployment data-volume guard requires both labels, so another Compose project's volume cannot block this production project. |
+
+The health-loop refinement checks the wall-clock deadline before each request and constrains each curl transfer to the remaining budget. No external source code is copied.
