@@ -19,6 +19,14 @@ const stagingSmokeWorkflow = readFileSync(
   'utf8',
 );
 
+function composeServiceBlock(compose, serviceName) {
+  const match = compose.match(
+    new RegExp(`^  ${serviceName}:\\n[\\s\\S]*?(?=^  [A-Za-z0-9_-]+:|^volumes:)`, 'm'),
+  );
+  assert.ok(match, `${serviceName} service block must exist`);
+  return match[0];
+}
+
 test('Railway uses the repository Dockerfile with production health and restart policy', () => {
   assert.match(railwayConfig, /builder\s*=\s*"DOCKERFILE"/);
   assert.match(railwayConfig, /dockerfilePath\s*=\s*"Dockerfile"/);
@@ -89,18 +97,36 @@ test('production backup tooling writes verifiable archives and isolates restore 
   const backupScript = readFileSync(backupScriptPath, 'utf8');
   const cronInstaller = readFileSync(cronInstallerPath, 'utf8');
   const restoreScript = readFileSync(restoreScriptPath, 'utf8');
+  const backupService = composeServiceBlock(productionCompose, 'backup');
 
-  assert.match(productionCompose, /backup:/);
-  assert.match(productionCompose, /image:\s*postgres:16-alpine/);
-  assert.match(productionCompose, /profiles:\s*\["tools"\]/);
-  assert.match(productionCompose, /backup\.sh:\/usr\/local\/bin\/backup\.sh:ro/);
-  assert.match(productionCompose, /\.\/backups:\/backups/);
+  assert.match(backupService, /image:\s*postgres:16-alpine/);
+  assert.match(backupService, /profiles:\s*\["tools"\]/);
+  assert.match(backupService, /backup\.sh:\/usr\/local\/bin\/backup\.sh:ro/);
+  assert.match(backupService, /\.\/backups:\/backups/);
+  assert.match(backupService, /depends_on:\s+postgres:\s+condition:\s+service_healthy/);
   assert.match(backupScript, /pg_dump/);
-  assert.match(backupScript, /sha256sum/);
+  assert.match(backupScript, /cd "\$backup_dir" && sha256sum/);
+  assert.doesNotMatch(backupScript, /sha256sum "\$backup_path"/);
   assert.match(backupScript, /BACKUP_RETENTION_DAYS/);
   assert.match(backupScript, /-delete/);
-  assert.match(restoreScript, /pg_restore/);
+  assert.match(restoreScript, /restore_id="\$\(date -u .*\)-\$\$"/);
+  assert.match(restoreScript, /container_name="kaoyan408-restore-drill-\$restore_id"/);
+  assert.match(restoreScript, /network_name="kaoyan408-restore-network-\$restore_id"/);
+  assert.match(restoreScript, /docker network create "\$network_name"/);
+  assert.match(restoreScript, /docker run -d[\s\S]*?--name "\$container_name"[\s\S]*?--network "\$network_name"/);
+  assert.match(restoreScript, /docker exec -e PGPASSWORD="\$restore_password" "\$container_name"\s+\\\n  pg_restore --exit-on-error/);
   assert.match(restoreScript, /trap cleanup EXIT/);
+  assert.match(restoreScript, /network_created=false/);
+  assert.match(restoreScript, /container_created=false/);
+  assert.match(restoreScript, /docker network create "\$network_name"[^\n]*\nnetwork_created=true/);
+  assert.match(restoreScript, /postgres:16-alpine >\/dev\/null\ncontainer_created=true/);
+  assert.match(restoreScript, /if \[ "\$container_created" = true \]; then\s+docker rm -f "\$container_name"/);
+  assert.match(restoreScript, /if \[ "\$network_created" = true \]; then\s+docker network rm "\$network_name"/);
+  assert.doesNotMatch(restoreScript, /compose\.production/);
+  assert.doesNotMatch(restoreScript, /DATABASE_URL/);
+  assert.doesNotMatch(restoreScript, /PGHOST=postgres/);
+  assert.doesNotMatch(restoreScript, /postgres_data/);
+  assert.doesNotMatch(restoreScript, /(?:docker compose|docker exec)\s+postgres[\s\S]*pg_restore/);
   assert.match(cronInstaller, /15 3 \* \* \* root/);
   assert.match(cronInstaller, /docker compose --env-file \.env\.production -f compose\.production\.yml --profile tools run --rm backup/);
 });

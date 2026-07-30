@@ -21,14 +21,21 @@ network_name="kaoyan408-restore-network-$restore_id"
 restore_user=restore_user
 restore_password=restore_password
 restore_db=restore_db
+network_created=false
+container_created=false
 
 cleanup() {
-  docker rm -f "$container_name" >/dev/null 2>&1 || true
-  docker network rm "$network_name" >/dev/null 2>&1 || true
+  if [ "$container_created" = true ]; then
+    docker rm -f "$container_name" >/dev/null 2>&1 || true
+  fi
+  if [ "$network_created" = true ]; then
+    docker network rm "$network_name" >/dev/null 2>&1 || true
+  fi
 }
 trap cleanup EXIT
 
 docker network create "$network_name" >/dev/null
+network_created=true
 docker run -d --rm \
   --name "$container_name" \
   --network "$network_name" \
@@ -36,6 +43,7 @@ docker run -d --rm \
   -e POSTGRES_PASSWORD="$restore_password" \
   -e POSTGRES_DB="$restore_db" \
   postgres:16-alpine >/dev/null
+container_created=true
 
 attempt=0
 until docker exec "$container_name" pg_isready -U "$restore_user" -d "$restore_db" >/dev/null 2>&1; do

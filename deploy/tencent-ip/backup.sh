@@ -16,7 +16,8 @@ mkdir -p "$backup_dir"
 
 timestamp=$(date -u +%Y%m%dT%H%M%SZ)
 backup_path="$backup_dir/kaoyan408-$timestamp.dump"
-checksum_path="$backup_path.sha256"
+backup_name=$(basename "$backup_path")
+checksum_path="$backup_dir/$backup_name.sha256"
 
 pg_dump --format=custom --file="$backup_path"
 
@@ -25,7 +26,7 @@ if [ ! -s "$backup_path" ]; then
   exit 1
 fi
 
-sha256sum "$backup_path" > "$checksum_path"
+(cd "$backup_dir" && sha256sum "$backup_name" > "$(basename "$checksum_path")")
 
 find "$backup_dir" -maxdepth 1 -type f -name 'kaoyan408-*.dump' -mtime +"$retention_days" -delete
 find "$backup_dir" -maxdepth 1 -type f -name 'kaoyan408-*.dump.sha256' -mtime +"$retention_days" -delete
