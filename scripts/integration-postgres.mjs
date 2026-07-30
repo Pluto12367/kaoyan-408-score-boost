@@ -111,7 +111,7 @@ async function main() {
   const registered = await postJson(`${apiUrl}/auth/register`, { ...credentials, inviteCode: primaryInvite.code });
   assert(registered.user.email === undefined && registered.user.role === 'student', 'registration should return a safe student profile');
   assert(registered.accessToken && registered.refreshToken, 'registration should issue access and refresh tokens');
-  const loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
+  let loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(loggedIn.user.id === registered.user.id, 'password login should return the registered user');
   let studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
   let initial = await waitForOverview(studentHeaders);
@@ -333,6 +333,36 @@ async function main() {
   assert(adminUsers.source === 'postgresql', 'admin user management should report the real PostgreSQL source');
   assert(registeredAdminUser?.name === credentials.name, 'admin user management should list the real registered student');
   assert(registeredAdminUser?.trialStatus === 'active', 'completing onboarding should activate the student trial');
+  const disabledUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/disable`, {}, adminHeaders);
+  assert(disabledUser.accountStatus === 'disabled', 'admin must disable the student');
+  await expectPostStatus(`${apiUrl}/auth/login`, credentials, 403);
+  await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken }, 401);
+  await expectGetStatus(`${apiUrl}/dashboard/overview`, studentHeaders, 403);
+  const restoredUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/restore`, {}, adminHeaders);
+  assert(restoredUser.accountStatus === 'active', 'admin must restore the student');
+  loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
+  studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
+  const temporaryPasswordResult = await postJson(`${apiUrl}/admin/users/${registered.user.id}/temporary-password`, {}, adminHeaders);
+  assert(temporaryPasswordResult.temporaryPassword.length >= 16, 'admin temporary password response must include the one-time password');
+  const temporaryLogin = await postJson(`${apiUrl}/auth/login`, {
+    email: credentials.email,
+    password: temporaryPasswordResult.temporaryPassword,
+  });
+  assert(temporaryLogin.user.mustChangePassword === true, 'temporary password login must require password change');
+  const temporaryHeaders = { Authorization: `Bearer ${temporaryLogin.accessToken}` };
+  await expectGetStatus(`${apiUrl}/dashboard/overview`, temporaryHeaders, 403);
+  const changedPasswordSession = await postJson(`${apiUrl}/auth/change-password`, {
+    currentPassword: temporaryPasswordResult.temporaryPassword,
+    newPassword: 'ChangedReliablePassword!408',
+  }, temporaryHeaders);
+  assert(changedPasswordSession.user.mustChangePassword === false, 'password change must clear the forced-change flag');
+  await expectPostStatus(`${apiUrl}/auth/login`, credentials, 401);
+  credentials.password = 'ChangedReliablePassword!408';
+  loggedIn = await postJson(`${apiUrl}/auth/login`, {
+    email: credentials.email,
+    password: credentials.password,
+  });
+  studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
   assert(adminUsers.users.some((user) => user.id === teacherSession.user.id && user.role === 'teacher' && user.trialStatus === 'active'), 'admin user management should list active teacher accounts');
   assert(adminUsers.users.some((user) => user.id === adminSession.user.id && user.role === 'admin' && user.trialStatus === 'active'), 'admin user management should list active administrator accounts');
   const followUpUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/trial-status`, {

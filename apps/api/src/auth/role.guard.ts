@@ -13,15 +13,15 @@ export class RoleGuard implements CanActivate {
     private readonly authenticatedUsers: AuthenticatedUserRegistry,
   ) {}
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext) {
     const allowedRoles = this.reflector.getAllAndOverride<UserRole[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
     if (!allowedRoles?.length) return true;
 
-    const request = context.switchToHttp().getRequest<{ headers: { authorization?: string }; user?: unknown }>();
-    request.user = this.authService.requireRole(request.headers.authorization, allowedRoles);
+    const request = context.switchToHttp().getRequest<{ headers: { authorization?: string }; user?: unknown; url?: string }>();
+    request.user = await this.authService.requireRole(request.headers.authorization, allowedRoles, request.url ?? '');
     this.authenticatedUsers.remember(request.user as UserProfile);
     return true;
   }

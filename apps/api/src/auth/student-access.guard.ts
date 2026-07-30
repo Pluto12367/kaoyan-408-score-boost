@@ -7,6 +7,7 @@ export interface AuthenticatedRequest {
   params?: Record<string, unknown>;
   query?: Record<string, unknown>;
   body?: Record<string, unknown>;
+  url?: string;
   user?: UserProfile;
 }
 
@@ -14,9 +15,9 @@ export interface AuthenticatedRequest {
 export class StudentAccessGuard implements CanActivate {
   constructor(private readonly authService: AuthService) {}
 
-  canActivate(context: ExecutionContext) {
+  async canActivate(context: ExecutionContext) {
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
-    const user = this.authService.requireRole(request.headers.authorization, ['student', 'admin']);
+    const user = await this.authService.requireRole(request.headers.authorization, ['student', 'admin'], request.url ?? '');
     const requestedUserId = readRequestedUserId(request);
 
     if (user.role === 'student' && requestedUserId && requestedUserId !== user.id) {

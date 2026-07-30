@@ -14,6 +14,8 @@ export interface UserProfile {
   id: string;
   name: string;
   role: UserRole;
+  accountStatus?: 'active' | 'disabled';
+  mustChangePassword?: boolean;
   targetSchool?: string;
   targetScore?: number;
   currentScore?: number;

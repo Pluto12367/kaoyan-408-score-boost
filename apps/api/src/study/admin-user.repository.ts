@@ -8,6 +8,8 @@ export interface ManagedUserRecord {
   id: string;
   name: string;
   role: 'student' | 'teacher' | 'admin';
+  accountStatus: 'active' | 'disabled';
+  mustChangePassword: boolean;
   trialStatus: TrialStatus;
   stage?: string;
   targetScore?: number;
@@ -44,6 +46,8 @@ export class AdminUserRepository {
         id: user.id,
         name: user.name,
         role: toRole(user.role),
+        accountStatus: user.accountStatus.toLowerCase() as 'active' | 'disabled',
+        mustChangePassword: user.mustChangePassword,
         trialStatus: fromPrismaStatus(user.trialStatus),
         stage: user.studyStage ?? undefined,
         targetScore: user.targetScore ?? undefined,

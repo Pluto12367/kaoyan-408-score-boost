@@ -9,7 +9,7 @@ import { UserRole as PrismaUserRole } from '@prisma/client';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { verifyPassword } from './password';
+import { hashPassword, validatePassword, verifyPassword } from './password';
 import { InvitationService } from './invitation.service';
 const accessTokenLifetimeSec = 15 * 60;
 const refreshTokenLifetimeMs = 30 * 24 * 60 * 60 * 1000;
@@ -39,6 +39,7 @@ export class AuthService {
     if (!user?.passwordHash || !await verifyPassword(input.password ?? '', user.passwordHash)) {
       throw new UnauthorizedException('Email or password is incorrect');
     }
+    this.assertActiveAccount(user);
     return this.createSession(user);
   }
 
@@ -52,6 +53,7 @@ export class AuthService {
     if (!stored || stored.revokedAt || stored.expiresAt.getTime() <= Date.now()) {
       throw new UnauthorizedException('Refresh token is invalid or expired');
     }
+    this.assertActiveAccount(stored.user);
     const revoked = await this.prisma.refreshToken.updateMany({
       where: { id: stored.id, revokedAt: null, expiresAt: { gt: new Date() } },
       data: { revokedAt: new Date() },
@@ -78,14 +80,62 @@ export class AuthService {
     return { token: accessToken, accessToken, expiresIn: accessTokenLifetimeSec, user };
   }
 
-  requireRole(authorization: string | undefined, allowedRoles: UserRole[]) {
+  async requireRole(authorization: string | undefined, allowedRoles: UserRole[], path = '') {
     const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
     if (!token) throw new UnauthorizedException('Bearer access token is required');
     const payload = this.verifyAccessToken(token);
     if (!allowedRoles.includes(payload.role)) {
       throw new ForbiddenException('Current role cannot access this resource');
     }
-    return { id: payload.sub, name: payload.name, role: payload.role } satisfies UserProfile;
+    const account = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { accountStatus: true, mustChangePassword: true },
+    });
+    if (account) {
+      if (account.accountStatus !== 'ACTIVE') throw new ForbiddenException('账号已停用');
+      if (account.mustChangePassword && !isPasswordChangeAllowedPath(path)) {
+        throw new ForbiddenException({ code: 'PASSWORD_CHANGE_REQUIRED', message: '必须先修改临时密码' });
+      }
+      return {
+        id: payload.sub,
+        name: payload.name,
+        role: payload.role,
+        accountStatus: account.accountStatus.toLowerCase() as 'active' | 'disabled',
+        mustChangePassword: account.mustChangePassword,
+      } satisfies UserProfile;
+    }
+    if (process.env.ALLOW_DEMO_AUTH === 'true') {
+      return { id: payload.sub, name: payload.name, role: payload.role } satisfies UserProfile;
+    }
+    throw new ForbiddenException('账号不存在或已停用');
+  }
+
+  async changePassword(userId: string, currentPassword?: string, newPassword?: string) {
+    this.requireDatabase();
+    const newPasswordValue = validatePassword(newPassword);
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user?.passwordHash || !await verifyPassword(currentPassword ?? '', user.passwordHash)) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+    this.assertActiveAccount(user);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const changed = await tx.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: await hashPassword(newPasswordValue),
+          mustChangePassword: false,
+        },
+      });
+      await tx.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      await tx.auditEvent.create({
+        data: { actorId: userId, action: 'account.temporary_password', targetType: 'user', targetId: userId, result: 'success' },
+      });
+      return changed;
+    });
+    return this.createSession(updated);
   }
 
   private async createSession(user: {
@@ -141,6 +191,10 @@ export class AuthService {
   private requireDatabase() {
     if (!process.env.DATABASE_URL) throw new ServiceUnavailableException('Account authentication requires PostgreSQL');
   }
+
+  private assertActiveAccount(user: { accountStatus?: string }) {
+    if (user.accountStatus === 'DISABLED') throw new ForbiddenException('账号已停用');
+  }
 }
 
 interface AccessTokenPayload {
@@ -188,10 +242,17 @@ function isUserRole(value: string): value is UserRole {
   return value === 'student' || value === 'teacher' || value === 'admin';
 }
 
+function isPasswordChangeAllowedPath(path: string) {
+  const normalized = path.split('?')[0];
+  return normalized.endsWith('/auth/change-password') || normalized.endsWith('/auth/logout');
+}
+
 function toUserProfile(user: {
   id: string;
   name: string;
   role: PrismaUserRole;
+  accountStatus?: string;
+  mustChangePassword?: boolean;
   targetSchool: string | null;
   targetScore: number | null;
   currentScore: number | null;
@@ -207,5 +268,7 @@ function toUserProfile(user: {
     currentScore: user.currentScore ?? undefined,
     dailyHours: user.dailyHours ?? undefined,
     remainingDays: user.remainingDays ?? undefined,
+    accountStatus: user.accountStatus?.toLowerCase() as 'active' | 'disabled' | undefined,
+    mustChangePassword: user.mustChangePassword,
   };
 }

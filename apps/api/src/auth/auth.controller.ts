@@ -1,8 +1,12 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import type { UserRole } from '@kaoyan408/shared';
 import { AuthService } from './auth.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { RegisterAccountDto } from './dto/register-account.dto';
+import { CurrentUser } from './current-user.decorator';
+import { RoleGuard } from './role.guard';
+import { Roles } from './roles.decorator';
 
 @Controller('auth')
 export class AuthController {
@@ -28,6 +32,13 @@ export class AuthController {
   @Post('logout')
   logout(@Body('refreshToken') refreshToken?: string) {
     return this.authService.logout(refreshToken);
+  }
+
+  @Post('change-password')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  changePassword(@CurrentUser() user: { id: string }, @Body() input: ChangePasswordDto) {
+    return this.authService.changePassword(user.id, input.currentPassword, input.newPassword);
   }
 
   @Post('demo-login')

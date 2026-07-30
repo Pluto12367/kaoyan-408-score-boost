@@ -385,6 +385,8 @@ export interface AdminManagedUser {
   id: string;
   name: string;
   role: 'student' | 'teacher' | 'admin';
+  accountStatus?: 'active' | 'disabled';
+  mustChangePassword?: boolean;
   trialStatus: TrialStatus;
   stage?: string;
   targetScore?: number;
