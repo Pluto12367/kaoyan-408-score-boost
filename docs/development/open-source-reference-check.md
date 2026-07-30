@@ -34,3 +34,4 @@
 - 本项目采用方式：
 ```
 
+如需留下更完整的记录，可复制 `docs/development/open-source-reference-note-template.md`。
