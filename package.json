@@ -37,6 +37,7 @@
     "users:create-admin": "node scripts/create-teacher-user.mjs --role admin",
     "smoke:migration": "npm run build:api && npm run build:web && node scripts/smoke-migration.mjs",
     "smoke:staging": "node scripts/staging-smoke.mjs",
+    "smoke:production-compose": "node scripts/smoke-production-compose.mjs",
     "db:test:up": "docker compose -f compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f compose.test.yml down -v",
     "test:integration:postgres": "npm run build:api && node scripts/integration-postgres.mjs",

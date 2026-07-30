@@ -82,3 +82,14 @@ The health-loop refinement checks the wall-clock deadline before each request an
 | Docker Compose `config` | https://docs.docker.com/reference/cli/docker/compose/config/ | `config --format json` renders the resolved Compose data model in JSON, including its effective project identity. | Yes: deployment validates the normal Compose configuration and reads the resolved JSON `name` before applying a project-scoped volume label filter. |
 
 The fixed top-level `name` is removed to preserve the project identity derived by existing deployment directories. The script parses the first JSON `name`, rejects an empty or unsafe value without printing Compose output, and uses that exact resolved name only in Docker's project-label filter. No external source code is copied.
+
+## Task 6 production Compose smoke addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| Docker Compose project name | https://docs.docker.com/compose/how-tos/project-name/ | `-p` gives each Compose run an explicit, isolated project identity, with the command-line value taking highest precedence. | Yes: every smoke Compose command carries one generated project name so it cannot select the default deployment project. |
+| Docker Compose `restart` | https://docs.docker.com/reference/cli/docker/compose/restart/ | Restart selected project services without recreating or removing their named volumes. | Yes: the persistence gate restarts the isolated smoke project and verifies the registered account afterward. |
+| Docker Compose `run` and `exec` | https://docs.docker.com/reference/cli/docker/compose/run/ | One-off commands can run against a selected Compose project; service ports are not published by default for `run`. | Yes: backup remains a one-off profiled service, while administrator provisioning executes inside the already isolated app container. |
+| Node.js `child_process.spawn` | https://nodejs.org/api/child_process.html#child_processspawncommand-args-options | Argument arrays avoid shell interpolation, streams can be captured, and a child environment can be explicitly scoped. | Yes: Docker commands use `spawn` without a shell, capture child output, and pass random credentials through environment variables rather than loggable command text. |
+
+The smoke runner adopts unique resource identity, bounded child-process execution, captured output, restart-in-place, and cleanup limited to its generated project. It does not copy reference source code and deliberately avoids selecting or removing any default production project.

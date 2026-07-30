@@ -23,6 +23,7 @@ const stagingSmokeWorkflow = readFileSync(
   new URL('../.github/workflows/staging-smoke.yml', import.meta.url),
   'utf8',
 );
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 function composeServiceBlock(compose, serviceName) {
   const match = compose.match(
@@ -268,4 +269,29 @@ test('staging smoke is manual and reads credentials only from GitHub secrets', (
   assert.match(stagingSmokeWorkflow, /STAGING_SMOKE_EMAIL:\s*\$\{\{ secrets\.STAGING_SMOKE_EMAIL \}\}/);
   assert.match(stagingSmokeWorkflow, /STAGING_SMOKE_PASSWORD:\s*\$\{\{ secrets\.STAGING_SMOKE_PASSWORD \}\}/);
   assert.match(stagingSmokeWorkflow, /run: npm run smoke:staging/);
+});
+
+test('production Compose smoke is isolated, cleans only its own project, and never logs secrets', () => {
+  const smokePath = new URL('../scripts/smoke-production-compose.mjs', import.meta.url);
+  assert.equal(
+    packageJson.scripts['smoke:production-compose'],
+    'node scripts/smoke-production-compose.mjs',
+  );
+  assert.ok(existsSync(smokePath), 'production Compose smoke script must exist');
+
+  const smoke = readFileSync(smokePath, 'utf8');
+  assert.match(smoke, /smoke-[a-z0-9-]*\$\{randomUUID\(\)/);
+  assert.match(smoke, /'-p', projectName/);
+  assert.match(smoke, /finally\s*\{/);
+  assert.match(smoke, /'down', '--volumes', '--remove-orphans'/);
+  const cleanupBlock = smoke.match(/finally\s*\{[\s\S]*?^\}/m)?.[0] ?? '';
+  assert.match(cleanupBlock, /'down', '--volumes', '--remove-orphans'/);
+  assert.match(cleanupBlock, /printSummary\(status\)/, 'PASS must only be reported after isolated project cleanup succeeds');
+  assert.match(smoke, /stdio:\s*\['ignore', 'pipe', 'pipe'\]/);
+  assert.match(smoke, /randomBytes/);
+  assert.match(smoke, /await mkdir\(backupDirectory, \{ mode: 0o777 \}\)/);
+  assert.match(smoke, /AbortSignal\.timeout/);
+  assert.doesNotMatch(smoke, /console\.(?:log|error)\([^)]*(?:password|inviteCode|accessToken|refreshToken|DATABASE_URL)/i);
+  assert.doesNotMatch(smoke, /exec(?:Sync)?\(/);
+  assert.doesNotMatch(smoke, /shell:\s*true/);
 });
