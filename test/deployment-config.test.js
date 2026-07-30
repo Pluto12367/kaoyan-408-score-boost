@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 'utf8');
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
 const webDockerfile = readFileSync(new URL('../Dockerfile.web', import.meta.url), 'utf8');
+const productionCompose = readFileSync(new URL('../compose.production.yml', import.meta.url), 'utf8');
 const gatewayConfig = readFileSync(
   new URL('../deploy/tencent-ip/nginx.conf', import.meta.url),
   'utf8',
@@ -60,6 +61,19 @@ test('web gateway builds a static SPA and proxies the same-origin API', () => {
   assert.match(gatewayConfig, /location = \/health/);
   assert.match(gatewayConfig, /try_files \$uri \$uri\/ \/index\.html/);
   assert.match(gatewayConfig, /client_max_body_size 10m/);
+});
+
+test('production Compose exposes only the gateway and uses production-safe application settings', () => {
+  assert.match(productionCompose, /gateway:/);
+  assert.match(productionCompose, /"80:80"/);
+  assert.match(productionCompose, /app:/);
+  assert.match(productionCompose, /postgres:/);
+  assert.doesNotMatch(productionCompose, /"3000:3000"/);
+  assert.doesNotMatch(productionCompose, /"5432:5432"/);
+  assert.match(productionCompose, /postgres_data:\/var\/lib\/postgresql\/data/);
+  assert.match(productionCompose, /restart:\s+unless-stopped/g);
+  assert.match(productionCompose, /ALLOW_DEMO_AUTH:\s+"false"/);
+  assert.match(productionCompose, /ALLOW_INSECURE_HTTP_IP:\s+"true"/);
 });
 
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {

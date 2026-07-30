@@ -24,3 +24,12 @@
 - Temporary HTTP exception: only `ALLOW_INSECURE_HTTP_IP=true` with a root `http://` IPv4 `WEB_ORIGIN` and same-origin `VITE_API_BASE_URL=/api` is valid. HTTP domains, paths, query strings, fragments, other API paths, and every configuration without the explicit flag remain rejected.
 
 No external source code is copied; these patterns are reimplemented in this repository's validators.
+
+## Task 3 production Compose topology addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| Docker Compose startup order | https://docs.docker.com/compose/how-tos/startup-order/ | `depends_on.condition: service_healthy` waits for a declared health check, while ordinary startup order only waits until a container runs. | Yes: `app` waits for PostgreSQL and `gateway` waits for the app health check. |
+| PostgreSQL Docker Official Image | https://hub.docker.com/_/postgres | For PostgreSQL 17 and earlier, mount persistent data at `/var/lib/postgresql/data`; the official image's initialization variables only apply to a fresh data directory. | Yes: PostgreSQL 16 uses the named `postgres_data` volume at that exact path and its documented initialization variables. |
+
+The topology exposes only the gateway on host port 80. The application and database remain on Compose's internal network. No source code was copied; the documented configuration patterns are reimplemented for this repository.
