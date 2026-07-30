@@ -12,6 +12,9 @@ export function isAllowedIpPilotOrigin(value: string, allowInsecureHttpIp: boole
     const url = new URL(value);
     return url.protocol === 'http:'
       && isIpv4Hostname(url.hostname)
+      && url.port === ''
+      && !url.username
+      && !url.password
       && url.pathname === '/'
       && !url.search
       && !url.hash;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEnvironment } from '../scripts/validate-environment.mjs';
+import { isAllowedIpPilotOrigin, validateEnvironment } from '../scripts/validate-environment.mjs';
 
 const production = {
   NODE_ENV: 'production',
@@ -67,4 +67,18 @@ test('rejects HTTP IPv4 unless the temporary pilot flag is explicit', () => {
     VITE_API_BASE_URL: '/api',
   });
   assert.ok(errors.some((error) => error.includes('WEB_ORIGIN')));
+});
+
+test('rejects an HTTP IPv4 pilot origin with a non-default port', () => {
+  const errors = validateEnvironment({
+    ...production,
+    WEB_ORIGIN: 'http://203.0.113.10:3000',
+    VITE_API_BASE_URL: '/api',
+    ALLOW_INSECURE_HTTP_IP: 'true',
+  });
+  assert.ok(errors.some((error) => error.includes('WEB_ORIGIN')));
+});
+
+test('rejects an HTTP IPv4 pilot origin with URL userinfo', () => {
+  assert.equal(isAllowedIpPilotOrigin('http://user:password@203.0.113.10', true), false);
 });
