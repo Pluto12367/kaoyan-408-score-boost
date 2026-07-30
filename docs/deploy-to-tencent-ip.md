@@ -66,7 +66,9 @@ ls -l .env.production
 在项目根目录执行：
 
 ```sh
-chmod +x deploy/tencent-ip/deploy.sh deploy/tencent-ip/rollback.sh
+chmod +x deploy/tencent-ip/backup.sh deploy/tencent-ip/deploy.sh \
+  deploy/tencent-ip/install-backup-cron.sh deploy/tencent-ip/rollback.sh \
+  deploy/tencent-ip/verify-restore.sh
 ./deploy/tencent-ip/deploy.sh
 ```
 
@@ -83,11 +85,14 @@ read -rsp '输入管理员独立强密码：' admin_password; echo
 app_container=$(docker compose --env-file .env.production -f compose.production.yml ps -q app)
 docker cp scripts/user-provisioning.mjs "$app_container":/app/user-provisioning.mjs
 docker cp scripts/create-teacher-user.mjs "$app_container":/app/create-first-admin.mjs
-docker compose --env-file .env.production -f compose.production.yml exec app \
+printf '%s\n' "$admin_password" |
+  docker compose --env-file .env.production -f compose.production.yml exec -T app \
   node /app/create-first-admin.mjs --role admin \
-  --email admin@example.com --name '系统管理员' --password "$admin_password"
+  --email admin@example.com --name '系统管理员' --password-stdin
 unset admin_password
 ```
+
+`-T` 明确关闭容器伪终端，创建脚本只从这条管道的标准输入读取一行密码；密码不会出现在 `docker` 或 `node` 的命令行参数中。不要删掉 `-T`，也不要把密码改回 `--password` 参数。
 
 登录 `http://服务器公网IP` 后，进入管理员工作区的“邀请码管理”：填写批次名称、可用次数（封闭体验建议按实际人数）和过期时间，创建后**立即**复制完整邀请码。完整邀请码只显示一次。把邀请码发给受邀学生；学生在注册页输入邀请码、姓名、邮箱和自己的密码后，完成个人学习资料与题目练习。管理员应逐一确认学生能登录、能完成一次练习，并在管理员面板看到该学生。
 
@@ -191,24 +196,42 @@ curl -fsS http://127.0.0.1/health
      - /etc/letsencrypt/live/exam.example.com:/etc/nginx/certs:ro
    ```
 
-3. 在专用 HTTPS Compose 覆盖配置中为网关发布 443（当前 `compose.production.yml` 不应直接照抄为 TLS）：
+3. 新建专用的 `compose.https.yml` 覆盖配置，为网关发布 443（当前 `compose.production.yml` 不应直接照抄为 TLS）：
 
    ```yaml
    services:
+     app:
+       environment:
+         VITE_API_BASE_URL: "https://exam.example.com/api"
      gateway:
        ports:
          - "80:80"
          - "443:443"
    ```
 
+   这里的 `app.environment.VITE_API_BASE_URL` 是 API 启动安全校验所需的 HTTPS 绝对地址；前端仍由网关以同源 `/api` 路径转发。将这段完整配置保存为 `compose.https.yml`。
+
 4. 在腾讯云防火墙中开放 TCP 443，并保留 TCP 80 用于 HTTPS 重定向；SSH 22 仍只允许管理员 IP/CIDR。完成验收后，再关闭旧 IP 入口。
-5. 在 `.env.production` 设置下面两项，然后用 `docker compose --env-file .env.production -f compose.production.yml config` 检查最终值：
+5. 在 `.env.production` 设置下面两项：
 
    ```dotenv
    WEB_ORIGIN=https://exam.example.com
    ALLOW_INSECURE_HTTP_IP=false
    ```
 
-6. 验收证书链、HTTP→HTTPS 重定向、`https://域名/health`、管理员和学生登录、邀请码注册、重启后的服务状态及回滚路径；通过后再将正式域名交给更大范围用户。
+6. 从配置检查开始，所有 HTTPS Compose 操作都必须同时带基础文件和覆盖文件。下面给出配置、启动、备份，以及切换到已验证 commit 后重建回滚版本的完整命令；不要在 HTTPS 部署中改回只传一个 `-f`：
+
+   ```sh
+   docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml config
+   docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml up -d --build --wait
+   docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml --profile tools run --rm backup
+
+   git switch --detach <已验证的commit>
+   docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml up -d --build --wait
+   ```
+
+   正式实施 TLS 前，还要把现有自动部署、定时备份和安全回滚脚本改造成始终传入同一个 override 的版本并单独测试；在完成前，不要把当前 HTTP 专用的 `deploy.sh`、cron 或 `rollback.sh` 直接用于 HTTPS。
+
+7. 验收证书链、HTTP→HTTPS 重定向、`https://域名/health`、管理员和学生登录、邀请码注册、重启后的服务状态及回滚路径；通过后再将正式域名交给更大范围用户。
 
 不要在 HTTP 与 HTTPS 之间混用同一组账户密码；临时公网 IP 体验结束后，应撤销体验邀请码、关闭旧 IP 入口，并保留可验证的备份。

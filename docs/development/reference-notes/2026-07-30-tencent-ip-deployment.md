@@ -70,7 +70,7 @@ These fixes are reimplemented in POSIX shell and this Compose file; no external 
 
 | Source | Link | Useful pattern | Adopted? |
 | --- | --- | --- | --- |
-| Compose top-level `name` | https://docs.docker.com/reference/compose-file/version-and-name/ | A top-level `name` defines the project name instead of inheriting an unstable directory name. | Yes: production uses the stable `kaoyan408` project name. |
+| Compose top-level `name` | https://docs.docker.com/reference/compose-file/version-and-name/ | A top-level `name` overrides the directory-derived project identity. | No: it was considered in round 2, then removed in round 3 because changing an existing deployment's Compose identity would orphan its expected containers and volume selection. |
 | Compose volume labels | https://docs.docker.com/reference/compose-file/volumes/ | Compose applies both `com.docker.compose.project` and `com.docker.compose.volume` labels to named volumes. | Yes: the pre-deployment data-volume guard requires both labels, so another Compose project's volume cannot block this production project. |
 
 The health-loop refinement checks the wall-clock deadline before each request and constrains each curl transfer to the remaining budget. No external source code is copied.
@@ -93,3 +93,13 @@ The fixed top-level `name` is removed to preserve the project identity derived b
 | Node.js `child_process.spawn` | https://nodejs.org/api/child_process.html#child_processspawncommand-args-options | Argument arrays avoid shell interpolation, streams can be captured, and a child environment can be explicitly scoped. | Yes: Docker commands use `spawn` without a shell, capture child output, and pass random credentials through environment variables rather than loggable command text. |
 
 The smoke runner adopts unique resource identity, bounded child-process execution, captured output, restart-in-place, and cleanup limited to its generated project. It does not copy reference source code and deliberately avoids selecting or removing any default production project.
+
+## Final review safety addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| IANA IPv4 Special-Purpose Address Space | https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml | The registry's globally-reachable property distinguishes public unicast candidates from private, shared, loopback, link-local, documentation, benchmarking, multicast, and reserved blocks. | Yes: the HTTP pilot uses an offline allow-by-exclusion check for the registry's non-global ranges, with explicit boundary tests; it performs no DNS or network lookup. |
+| Node.js `net.isIP` | https://nodejs.org/api/net.html#netisipinput | IPv4 input should use strict dotted-decimal syntax instead of permissive URL-number forms. | Yes: the TypeScript, JavaScript, and POSIX-shell validators reject leading-zero and non-four-octet forms before applying range rules. |
+| Git `update-index --chmod` | https://git-scm.com/docs/git-update-index | Git's executable bit can be set in the index even on filesystems that do not preserve POSIX execute permissions. | Yes: all five operational shell scripts are tracked as `100755`, while the guide consistently invokes them directly. |
+
+The implementation mirrors the same range decisions in TypeScript, JavaScript, and POSIX `awk` without copying reference source. Administrator provisioning uses one non-TTY stdin line so the password is absent from process arguments, and the future HTTPS override supplies the API process with an absolute HTTPS API URL.

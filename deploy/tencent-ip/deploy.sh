@@ -14,6 +14,31 @@ read_env_value() {
   sed -n -E "s/^[[:space:]]*$variable_name[[:space:]]*=[[:space:]]*([^[:space:]#]+)[[:space:]]*(#.*)?$/\\1/p" .env.production | tail -n 1
 }
 
+is_globally_reachable_ipv4() {
+  printf '%s\n' "$1" | awk -F. '
+    NF != 4 { exit 1 }
+    {
+      for (index = 1; index <= 4; index += 1) {
+        if ($index !~ /^(0|[1-9][0-9]?[0-9]?)$/ || $index > 255) exit 1
+      }
+      first = $1 + 0
+      second = $2 + 0
+      third = $3 + 0
+      if (first == 0 || first == 10 || (first == 100 && second >= 64 && second <= 127) ||
+          first == 127 || (first == 169 && second == 254) ||
+          (first == 172 && second >= 16 && second <= 31) ||
+          (first == 192 && second == 0 && (third == 0 || third == 2)) ||
+          (first == 192 && second == 88 && third == 99) ||
+          (first == 192 && second == 168) ||
+          (first == 198 && second >= 18 && second <= 19) ||
+          (first == 198 && second == 51 && third == 100) ||
+          (first == 203 && second == 0 && third == 113) ||
+          (first >= 224 && first <= 239) || first >= 240) exit 1
+      exit 0
+    }
+  '
+}
+
 wait_for_gateway() {
   deadline=$(( $(date +%s) + 60 ))
   while :; do
@@ -70,7 +95,7 @@ POSTGRES_DB=$(read_env_value POSTGRES_DB)
 JWT_SECRET=$(read_env_value JWT_SECRET)
 BACKUP_RETENTION_DAYS=$(read_env_value BACKUP_RETENTION_DAYS)
 
-if [ -z "$PUBLIC_IP" ] || ! printf '%s\n' "$PUBLIC_IP" | awk -F. 'NF == 4 { for (index = 1; index <= 4; index += 1) if ($index !~ /^[0-9]+$/ || $index > 255) exit 1; exit 0 } { exit 1 }'; then
+if [ -z "$PUBLIC_IP" ] || ! is_globally_reachable_ipv4 "$PUBLIC_IP"; then
   invalid_env PUBLIC_IP
 fi
 

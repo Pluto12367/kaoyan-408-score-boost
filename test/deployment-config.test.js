@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 'utf8');
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
@@ -112,6 +113,8 @@ test('production Compose exposes only the gateway and uses production-safe appli
   assert.match(productionCompose, /VITE_API_BASE_URL:\s+"\/api"/);
   assert.match(productionEnvTemplate, /WEB_ORIGIN=/);
   assert.match(productionEnvTemplate, /ALLOW_INSECURE_HTTP_IP=false/);
+  assert.match(productionEnvTemplate, /^PUBLIC_IP=replace-with-server-public-ip$/m);
+  assert.doesNotMatch(productionEnvTemplate, /203\.0\.113\./);
 });
 
 test('production backup tooling writes verifiable archives and isolates restore drills', () => {
@@ -185,8 +188,44 @@ test('Tencent IP deployment scripts preserve database volumes, validate producti
   assert.match(deployScript, /BACKUP_RETENTION_DAYS/);
   assert.match(deployScript, /generate-a-base64url-password/);
   assert.match(deployScript, /generate-a-random-secret/);
+  assert.match(deployScript, /is_globally_reachable_ipv4/);
+  assert.match(deployScript, /100.*64.*127/);
+  assert.match(deployScript, /172.*16.*31/);
+  assert.match(deployScript, /192.*88.*99/);
+  assert.match(deployScript, /198.*18.*19/);
+  assert.match(deployScript, /224.*240/);
   assertHealthLoopHonorsRemainingDeadline(deployScript, 'deploy.sh');
   assert.doesNotMatch(deployScript, /down -v/);
+});
+
+test('Tencent IP operational scripts are executable in Git and the guide uses direct execution', () => {
+  const scriptPaths = [
+    'deploy/tencent-ip/backup.sh',
+    'deploy/tencent-ip/deploy.sh',
+    'deploy/tencent-ip/install-backup-cron.sh',
+    'deploy/tencent-ip/rollback.sh',
+    'deploy/tencent-ip/verify-restore.sh',
+  ];
+  const stagedEntries = execFileSync(
+    'git',
+    ['ls-files', '--stage', '--', ...scriptPaths],
+    { cwd: new URL('..', import.meta.url), encoding: 'utf8' },
+  ).trim().split(/\r?\n/);
+
+  assert.equal(stagedEntries.length, scriptPaths.length);
+  for (const entry of stagedEntries) {
+    assert.match(entry, /^100755 /);
+  }
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/deploy\.sh/);
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/rollback\.sh/);
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/install-backup-cron\.sh/);
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/verify-restore\.sh/);
+});
+
+test('first administrator provisioning keeps the password off command arguments', () => {
+  assert.match(deploymentGuide, /\|\s*docker compose[\s\S]*?exec -T app/);
+  assert.match(deploymentGuide, /--password-stdin/);
+  assert.doesNotMatch(deploymentGuide, /--password\s+["']?\$admin_password/);
 });
 
 test('Tencent IP rollback verifies the target before backing up and restores a healthy original application on failure', () => {
@@ -232,6 +271,12 @@ test('HTTPS guide describes a future topology instead of implying the HTTP pilot
   assert.match(deploymentGuide, /80.*重定向/);
   assert.match(deploymentGuide, /只读挂载/);
   assert.match(deploymentGuide, /"443:443"/);
+  assert.match(deploymentGuide, /app:[\s\S]*?VITE_API_BASE_URL:\s*"https:\/\/exam\.example\.com\/api"/);
+  assert.match(deploymentGuide, /compose\.https\.yml/);
+  assert.match(deploymentGuide, /-f compose\.production\.yml -f compose\.https\.yml config/);
+  assert.match(deploymentGuide, /-f compose\.production\.yml -f compose\.https\.yml up/);
+  assert.match(deploymentGuide, /-f compose\.production\.yml -f compose\.https\.yml --profile tools run --rm backup/);
+  assert.match(deploymentGuide, /git switch --detach[\s\S]*?-f compose\.production\.yml -f compose\.https\.yml up/);
   assert.match(deploymentGuide, /ALLOW_INSECURE_HTTP_IP=false/);
   assert.match(deploymentGuide, /关闭旧 IP 入口/);
 });
@@ -289,6 +334,10 @@ test('production Compose smoke is isolated, cleans only its own project, and nev
   assert.match(cleanupBlock, /printSummary\(status\)/, 'PASS must only be reported after isolated project cleanup succeeds');
   assert.match(smoke, /stdio:\s*\['ignore', 'pipe', 'pipe'\]/);
   assert.match(smoke, /randomBytes/);
+  assert.match(smoke, /PUBLIC_IP=1\.1\.1\.1/);
+  assert.match(smoke, /WEB_ORIGIN=http:\/\/1\.1\.1\.1/);
+  assert.doesNotMatch(smoke, /PUBLIC_IP=127\.0\.0\.1/);
+  assert.match(smoke, /request\('http:\/\/127\.0\.0\.1\//);
   assert.match(smoke, /await mkdir\(backupDirectory, \{ mode: 0o777 \}\)/);
   assert.match(smoke, /AbortSignal\.timeout/);
   assert.doesNotMatch(smoke, /console\.(?:log|error)\([^)]*(?:password|inviteCode|accessToken|refreshToken|DATABASE_URL)/i);
