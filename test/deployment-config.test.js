@@ -96,7 +96,7 @@ test('web gateway builds a static SPA and proxies the same-origin API', () => {
 });
 
 test('production Compose exposes only the gateway and uses production-safe application settings', () => {
-  assert.match(productionCompose, /^name:\s*kaoyan408$/m);
+  assert.doesNotMatch(productionCompose, /^name:\s*\S+/m);
   assert.match(productionCompose, /gateway:/);
   assert.match(productionCompose, /"80:80"/);
   assert.match(productionCompose, /app:/);
@@ -170,8 +170,11 @@ test('Tencent IP deployment scripts preserve database volumes, validate producti
   const rollbackScript = readFileSync(rollbackScriptPath, 'utf8');
 
   assert.match(deployScript, /docker compose .* config/);
+  assert.match(deployScript, /docker compose --env-file \.env\.production -f compose\.production\.yml config --format json/);
+  assert.match(deployScript, /compose_project=\$\(printf '%s\\n' "\$compose_config" \| sed -n -E .*"name".*\| sed -n '1p'\)/);
+  assert.match(deployScript, /Could not determine the Compose project name/);
   assert.match(deployScript, /ps --all -q postgres/);
-  assert.match(deployScript, /docker volume ls --filter 'label=com\.docker\.compose\.project=kaoyan408' --filter 'label=com\.docker\.compose\.volume=postgres_data' -q/);
+  assert.match(deployScript, /docker volume ls --filter "label=com\.docker\.compose\.project=\$compose_project" --filter 'label=com\.docker\.compose\.volume=postgres_data' -q/);
   assert.match(deployScript, /--profile tools run --rm backup/);
   assert.match(deployScript, /up -d --build --wait/);
   assert.match(deployScript, /POSTGRES_USER/);
@@ -196,9 +199,15 @@ test('Tencent IP rollback verifies the target before backing up and restores a h
   assert.match(rollbackScript, /git switch --detach "\$target_commit"/);
   assert.match(rollbackScript, /git switch --detach "\$original_commit"/);
   assertHealthLoopHonorsRemainingDeadline(rollbackScript, 'rollback.sh');
-  assert.ok(
-    (rollbackScript.match(/database migrations are not rolled back automatically/g)?.length ?? 0) >= 2,
-    'rollback must warn before switching and during automatic recovery',
+  const recoveryStart = rollbackScript.indexOf('restore_original() {');
+  const recoveryEnd = rollbackScript.indexOf('trap restore_original EXIT');
+  assert.ok(recoveryStart >= 0, 'rollback must define automatic recovery');
+  assert.ok(recoveryEnd > recoveryStart, 'rollback must install the recovery trap after defining it');
+  const recoveryFunction = rollbackScript.slice(recoveryStart, recoveryEnd);
+  assert.match(
+    recoveryFunction,
+    /database migrations are not rolled back automatically/,
+    'automatic recovery must repeat the migration warning',
   );
   const backupIndex = rollbackScript.indexOf('--profile tools run --rm backup');
   const originalCommitIndex = rollbackScript.indexOf('original_commit=');

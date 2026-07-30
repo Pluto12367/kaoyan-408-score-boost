@@ -110,6 +110,14 @@ if [ "$BACKUP_RETENTION_DAYS" -lt 1 ] || [ "$BACKUP_RETENTION_DAYS" -gt 365 ]; t
 fi
 
 docker compose --env-file .env.production -f compose.production.yml config >/dev/null
+compose_config=$(docker compose --env-file .env.production -f compose.production.yml config --format json)
+compose_project=$(printf '%s\n' "$compose_config" | sed -n -E 's/^[[:space:]]*"name":[[:space:]]*"([^"]+)"[[:space:]]*,?[[:space:]]*$/\1/p' | sed -n '1p')
+case "$compose_project" in
+  ''|*[!a-z0-9_-]*)
+    echo 'Could not determine the Compose project name.' >&2
+    exit 1
+    ;;
+esac
 
 postgres_container=$(docker compose --env-file .env.production -f compose.production.yml ps --all -q postgres)
 if [ -n "$postgres_container" ]; then
@@ -122,7 +130,7 @@ if [ -n "$postgres_container" ]; then
 
   echo 'Creating a database backup before deployment...'
   docker compose --env-file .env.production -f compose.production.yml --profile tools run --rm backup
-elif [ -n "$(docker volume ls --filter 'label=com.docker.compose.project=kaoyan408' --filter 'label=com.docker.compose.volume=postgres_data' -q)" ]; then
+elif [ -n "$(docker volume ls --filter "label=com.docker.compose.project=$compose_project" --filter 'label=com.docker.compose.volume=postgres_data' -q)" ]; then
   echo 'A PostgreSQL data volume exists without a discoverable PostgreSQL container; refusing first-deployment path.' >&2
   exit 1
 else

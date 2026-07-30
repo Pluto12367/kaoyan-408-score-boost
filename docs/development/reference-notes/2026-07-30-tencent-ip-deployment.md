@@ -74,3 +74,11 @@ These fixes are reimplemented in POSIX shell and this Compose file; no external 
 | Compose volume labels | https://docs.docker.com/reference/compose-file/volumes/ | Compose applies both `com.docker.compose.project` and `com.docker.compose.volume` labels to named volumes. | Yes: the pre-deployment data-volume guard requires both labels, so another Compose project's volume cannot block this production project. |
 
 The health-loop refinement checks the wall-clock deadline before each request and constrains each curl transfer to the remaining budget. No external source code is copied.
+
+## Task 5 fix round 3 addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| Docker Compose `config` | https://docs.docker.com/reference/cli/docker/compose/config/ | `config --format json` renders the resolved Compose data model in JSON, including its effective project identity. | Yes: deployment validates the normal Compose configuration and reads the resolved JSON `name` before applying a project-scoped volume label filter. |
+
+The fixed top-level `name` is removed to preserve the project identity derived by existing deployment directories. The script parses the first JSON `name`, rejects an empty or unsafe value without printing Compose output, and uses that exact resolved name only in Docker's project-label filter. No external source code is copied.
