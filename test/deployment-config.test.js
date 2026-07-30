@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 'utf8');
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
@@ -75,6 +75,34 @@ test('production Compose exposes only the gateway and uses production-safe appli
   assert.match(productionCompose, /ALLOW_DEMO_AUTH:\s+"false"/);
   assert.match(productionCompose, /ALLOW_INSECURE_HTTP_IP:\s+"true"/);
   assert.match(productionCompose, /VITE_API_BASE_URL:\s+"\/api"/);
+});
+
+test('production backup tooling writes verifiable archives and isolates restore drills', () => {
+  const backupScriptPath = new URL('../deploy/tencent-ip/backup.sh', import.meta.url);
+  const cronInstallerPath = new URL('../deploy/tencent-ip/install-backup-cron.sh', import.meta.url);
+  const restoreScriptPath = new URL('../deploy/tencent-ip/verify-restore.sh', import.meta.url);
+
+  assert.ok(existsSync(backupScriptPath), 'backup.sh must exist');
+  assert.ok(existsSync(cronInstallerPath), 'install-backup-cron.sh must exist');
+  assert.ok(existsSync(restoreScriptPath), 'verify-restore.sh must exist');
+
+  const backupScript = readFileSync(backupScriptPath, 'utf8');
+  const cronInstaller = readFileSync(cronInstallerPath, 'utf8');
+  const restoreScript = readFileSync(restoreScriptPath, 'utf8');
+
+  assert.match(productionCompose, /backup:/);
+  assert.match(productionCompose, /image:\s*postgres:16-alpine/);
+  assert.match(productionCompose, /profiles:\s*\["tools"\]/);
+  assert.match(productionCompose, /backup\.sh:\/usr\/local\/bin\/backup\.sh:ro/);
+  assert.match(productionCompose, /\.\/backups:\/backups/);
+  assert.match(backupScript, /pg_dump/);
+  assert.match(backupScript, /sha256sum/);
+  assert.match(backupScript, /BACKUP_RETENTION_DAYS/);
+  assert.match(backupScript, /-delete/);
+  assert.match(restoreScript, /pg_restore/);
+  assert.match(restoreScript, /trap cleanup EXIT/);
+  assert.match(cronInstaller, /15 3 \* \* \* root/);
+  assert.match(cronInstaller, /docker compose --env-file \.env\.production -f compose\.production\.yml --profile tools run --rm backup/);
 });
 
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {
