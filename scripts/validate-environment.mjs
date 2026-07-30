@@ -2,6 +2,26 @@ import { readFileSync } from 'node:fs';
 
 const placeholders = /replace-me|replace-with|example\.com|user:password|your-/i;
 
+function isIpv4Hostname(hostname) {
+  const parts = hostname.split('.');
+  return parts.length === 4
+    && parts.every((part) => /^\d{1,3}$/.test(part) && Number(part) <= 255);
+}
+
+export function isAllowedIpPilotOrigin(value, allowInsecureHttpIp) {
+  if (!allowInsecureHttpIp) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:'
+      && isIpv4Hostname(url.hostname)
+      && url.pathname === '/'
+      && !url.search
+      && !url.hash;
+  } catch {
+    return false;
+  }
+}
+
 function readEnvFile(path) {
   const values = {};
   for (const rawLine of readFileSync(path, 'utf8').split(/\r?\n/)) {
@@ -46,9 +66,15 @@ export function validateEnvironment(values) {
     }
     if (values.ALLOW_DEMO_AUTH !== 'false') errors.push('ALLOW_DEMO_AUTH must be false outside development.');
     if (values.VITE_ALLOW_MOCK === 'true') errors.push('VITE_ALLOW_MOCK cannot be enabled outside development.');
-    for (const key of ['WEB_ORIGIN', 'VITE_API_BASE_URL']) {
-      const urls = (values[key] ?? '').split(',').map((value) => value.trim()).filter(Boolean);
-      if (urls.some((url) => !url.startsWith('https://'))) errors.push(`${key} must use HTTPS outside development.`);
+    const isIpPilot = isAllowedIpPilotOrigin(
+      values.WEB_ORIGIN ?? '',
+      values.ALLOW_INSECURE_HTTP_IP === 'true',
+    ) && values.VITE_API_BASE_URL === '/api';
+    if (!isIpPilot) {
+      for (const key of ['WEB_ORIGIN', 'VITE_API_BASE_URL']) {
+        const urls = (values[key] ?? '').split(',').map((value) => value.trim()).filter(Boolean);
+        if (urls.some((url) => !url.startsWith('https://'))) errors.push(`${key} must use HTTPS outside development.`);
+      }
     }
   }
 

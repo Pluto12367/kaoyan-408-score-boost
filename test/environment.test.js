@@ -39,3 +39,32 @@ test('rejects an invalid frontend public base path', () => {
   const errors = validateEnvironment({ ...production, VITE_PUBLIC_BASE_PATH: 'kaoyan-408' });
   assert.ok(errors.some((error) => error.includes('VITE_PUBLIC_BASE_PATH')));
 });
+
+test('accepts an explicitly enabled HTTP IPv4 pilot with a same-origin API path', () => {
+  const errors = validateEnvironment({
+    ...production,
+    WEB_ORIGIN: 'http://203.0.113.10',
+    VITE_API_BASE_URL: '/api',
+    ALLOW_INSECURE_HTTP_IP: 'true',
+  });
+  assert.deepEqual(errors, []);
+});
+
+test('does not let the pilot flag weaken ordinary HTTP domains', () => {
+  const errors = validateEnvironment({
+    ...production,
+    WEB_ORIGIN: 'http://study.example.net',
+    VITE_API_BASE_URL: '/api',
+    ALLOW_INSECURE_HTTP_IP: 'true',
+  });
+  assert.ok(errors.some((error) => error.includes('WEB_ORIGIN')));
+});
+
+test('rejects HTTP IPv4 unless the temporary pilot flag is explicit', () => {
+  const errors = validateEnvironment({
+    ...production,
+    WEB_ORIGIN: 'http://203.0.113.10',
+    VITE_API_BASE_URL: '/api',
+  });
+  assert.ok(errors.some((error) => error.includes('WEB_ORIGIN')));
+});
