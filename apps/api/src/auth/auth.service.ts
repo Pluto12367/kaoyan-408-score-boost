@@ -9,30 +9,25 @@ import { UserRole as PrismaUserRole } from '@prisma/client';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { UserProfile, UserRole } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
-import { hashPassword, validatePassword, verifyPassword } from './password';
+import { verifyPassword } from './password';
+import { InvitationService } from './invitation.service';
 const accessTokenLifetimeSec = 15 * 60;
 const refreshTokenLifetimeMs = 30 * 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly invitations: InvitationService,
+  ) {}
 
-  async register(input: { email?: string; password?: string; name?: string }) {
+  async register(input: { inviteCode?: string; email?: string; password?: string; name?: string }) {
     this.requireDatabase();
-    const email = normalizeEmail(input.email);
-    const password = validatePassword(input.password);
-    const name = input.name?.trim();
-    if (!name || name.length > 40) throw new BadRequestException('Name is required and must not exceed 40 characters');
-
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) throw new BadRequestException('Email is already registered');
-    const user = await this.prisma.user.create({
-      data: {
-        email,
-        passwordHash: await hashPassword(password),
-        name,
-        role: PrismaUserRole.STUDENT,
-      },
+    const user = await this.invitations.registerStudent({
+      inviteCode: input.inviteCode ?? '',
+      email: input.email ?? '',
+      password: input.password ?? '',
+      name: input.name ?? '',
     });
     return this.createSession(user);
   }
