@@ -28,7 +28,7 @@ const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.me
 
 function composeServiceBlock(compose, serviceName) {
   const match = compose.match(
-    new RegExp(`^  ${serviceName}:\\n[\\s\\S]*?(?=^  [A-Za-z0-9_-]+:|^volumes:)`, 'm'),
+    new RegExp(`^  ${serviceName}:\\r?\\n[\\s\\S]*?(?=^  [A-Za-z0-9_-]+:|^volumes:)`, 'm'),
   );
   assert.ok(match, `${serviceName} service block must exist`);
   return match[0];

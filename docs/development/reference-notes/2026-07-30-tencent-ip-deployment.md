@@ -103,3 +103,12 @@ The smoke runner adopts unique resource identity, bounded child-process executio
 | Git `update-index --chmod` | https://git-scm.com/docs/git-update-index | Git's executable bit can be set in the index even on filesystems that do not preserve POSIX execute permissions. | Yes: all five operational shell scripts are tracked as `100755`, while the guide consistently invokes them directly. |
 
 The implementation mirrors the same range decisions in TypeScript, JavaScript, and POSIX `awk` without copying reference source. Administrator provisioning uses one non-TTY stdin line so the password is absent from process arguments, and the future HTTPS override supplies the API process with an absolute HTTPS API URL.
+
+## Windows merge verification addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| Git `gitattributes` line endings | https://git-scm.com/docs/gitattributes | A text file can be stored with LF in Git and checked out with CRLF according to `core.autocrlf` or `eol`. | Yes: the Compose service-block contract accepts both LF and CRLF after a YAML service header, so the same tracked configuration is testable in Linux and Windows worktrees. |
+| JavaScript regular expressions | https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Regular_expressions | Multiline anchors select line boundaries, while explicit `\r?` is needed when a pattern must tolerate both CRLF and LF content. | Yes: the focused helper changes only the service-header newline matcher and retains the existing structural boundaries. |
+
+No external source code was copied. The failure was reproduced only after the fast-forward merge caused Git to materialize the already-identical YAML blob with Windows CRLF line endings.
