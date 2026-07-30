@@ -6,6 +6,11 @@ const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
 const webDockerfile = readFileSync(new URL('../Dockerfile.web', import.meta.url), 'utf8');
 const productionCompose = readFileSync(new URL('../compose.production.yml', import.meta.url), 'utf8');
+const productionEnvTemplate = readFileSync(
+  new URL('../deploy/tencent-ip/.env.production.example', import.meta.url),
+  'utf8',
+);
+const deploymentGuide = readFileSync(new URL('../docs/deploy-to-tencent-ip.md', import.meta.url), 'utf8');
 const gatewayConfig = readFileSync(
   new URL('../deploy/tencent-ip/nginx.conf', import.meta.url),
   'utf8',
@@ -81,8 +86,11 @@ test('production Compose exposes only the gateway and uses production-safe appli
   assert.match(productionCompose, /postgres_data:\/var\/lib\/postgresql\/data/);
   assert.match(productionCompose, /restart:\s+unless-stopped/g);
   assert.match(productionCompose, /ALLOW_DEMO_AUTH:\s+"false"/);
-  assert.match(productionCompose, /ALLOW_INSECURE_HTTP_IP:\s+"true"/);
+  assert.match(productionCompose, /WEB_ORIGIN:\s*\$\{WEB_ORIGIN:-http:\/\/\$\{PUBLIC_IP\}\}/);
+  assert.match(productionCompose, /ALLOW_INSECURE_HTTP_IP:\s*\$\{ALLOW_INSECURE_HTTP_IP:-true\}/);
   assert.match(productionCompose, /VITE_API_BASE_URL:\s+"\/api"/);
+  assert.match(productionEnvTemplate, /WEB_ORIGIN=/);
+  assert.match(productionEnvTemplate, /ALLOW_INSECURE_HTTP_IP=false/);
 });
 
 test('production backup tooling writes verifiable archives and isolates restore drills', () => {
@@ -131,7 +139,7 @@ test('production backup tooling writes verifiable archives and isolates restore 
   assert.match(cronInstaller, /docker compose --env-file \.env\.production -f compose\.production\.yml --profile tools run --rm backup/);
 });
 
-test('Tencent IP deployment and rollback scripts preserve database volumes while using backup and health gates', () => {
+test('Tencent IP deployment scripts preserve database volumes, validate production secrets, and use bounded health gates', () => {
   const deployScriptPath = new URL('../deploy/tencent-ip/deploy.sh', import.meta.url);
   const rollbackScriptPath = new URL('../deploy/tencent-ip/rollback.sh', import.meta.url);
 
@@ -142,11 +150,56 @@ test('Tencent IP deployment and rollback scripts preserve database volumes while
   const rollbackScript = readFileSync(rollbackScriptPath, 'utf8');
 
   assert.match(deployScript, /docker compose .* config/);
+  assert.match(deployScript, /ps --all -q postgres/);
+  assert.match(deployScript, /docker volume ls --filter 'label=com\.docker\.compose\.volume=postgres_data' -q/);
   assert.match(deployScript, /--profile tools run --rm backup/);
   assert.match(deployScript, /up -d --build --wait/);
-  assert.match(deployScript, /curl .*\/health/);
+  assert.match(deployScript, /POSTGRES_USER/);
+  assert.match(deployScript, /POSTGRES_PASSWORD/);
+  assert.match(deployScript, /POSTGRES_DB/);
+  assert.match(deployScript, /JWT_SECRET/);
+  assert.match(deployScript, /BACKUP_RETENTION_DAYS/);
+  assert.match(deployScript, /generate-a-base64url-password/);
+  assert.match(deployScript, /generate-a-random-secret/);
+  assert.match(deployScript, /date \+%s/);
+  assert.match(deployScript, /deadline=\$\(\(.*\+ 60\s*\)\)/);
+  assert.match(deployScript, /curl -fsS --connect-timeout 1 --max-time 2 http:\/\/127\.0\.0\.1\/health/);
   assert.doesNotMatch(deployScript, /down -v/);
+});
+
+test('Tencent IP rollback verifies the target before backing up and restores a healthy original application on failure', () => {
+  const rollbackScript = readFileSync(new URL('../deploy/tencent-ip/rollback.sh', import.meta.url), 'utf8');
+
   assert.doesNotMatch(rollbackScript, /down -v/);
+  assert.match(rollbackScript, /git rev-parse --verify "\$1\^\{commit\}"/);
+  assert.match(rollbackScript, /git status --porcelain --untracked-files=all/);
+  assert.match(rollbackScript, /original_commit=\$\(git rev-parse --verify HEAD\)/);
+  assert.match(rollbackScript, /trap restore_original EXIT/);
+  assert.match(rollbackScript, /git switch --detach "\$target_commit"/);
+  assert.match(rollbackScript, /git switch --detach "\$original_commit"/);
+  assert.match(rollbackScript, /date \+%s/);
+  assert.match(rollbackScript, /curl -fsS --connect-timeout 1 --max-time 2 http:\/\/127\.0\.0\.1\/health/);
+  assert.match(rollbackScript, /database migrations are not rolled back automatically/);
+  assert.ok(
+    rollbackScript.indexOf('--profile tools run --rm backup') < rollbackScript.indexOf('original_commit='),
+    'rollback must create the backup before recording and switching versions',
+  );
+  assert.ok(
+    rollbackScript.indexOf('database migrations are not rolled back automatically')
+      < rollbackScript.indexOf('git switch --detach "$target_commit"'),
+    'rollback must warn about migrations before changing application code',
+  );
+});
+
+test('HTTPS guide describes a future topology instead of implying the HTTP pilot gains TLS from environment values alone', () => {
+  assert.match(deploymentGuide, /当前镜像只公开 80 端口/);
+  assert.match(deploymentGuide, /不能只改环境变量获得 HTTPS/);
+  assert.match(deploymentGuide, /443 ssl/);
+  assert.match(deploymentGuide, /80.*重定向/);
+  assert.match(deploymentGuide, /只读挂载/);
+  assert.match(deploymentGuide, /"443:443"/);
+  assert.match(deploymentGuide, /ALLOW_INSECURE_HTTP_IP=false/);
+  assert.match(deploymentGuide, /关闭旧 IP 入口/);
 });
 
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {

@@ -173,8 +173,42 @@ curl -fsS http://127.0.0.1/health
 
 三个服务应为运行状态，PostgreSQL 和应用应健康；再用浏览器访问 `http://服务器公网IP`，用一个测试学生账号完成登录与练习。若服务未启动，先查第 5 节日志，再核对 Docker 服务是否已启用。
 
-## 9. 从临时 HTTP 迁移到正式 HTTPS
+## 9. 从临时 HTTP 迁移到正式 HTTPS（未来工作）
 
-当你拥有正式域名、完成必要备案并准备好 HTTPS 证书后，应先在测试环境验证域名、证书、反向代理和回调地址。随后把 `.env.production` 中的 `WEB_ORIGIN` 改为 `https://你的域名`，将 `ALLOW_INSECURE_HTTP_IP` 改为 `false`，并按新的 HTTPS 部署方案更新网关与防火墙。确认 HTTPS 健康检查和登录正常后再运行部署脚本。
+**当前镜像只公开 80 端口，不能只改环境变量获得 HTTPS。** 本手册没有提供已验证的 TLS 网关配置，也没有引入自动申请证书的工具。完成域名备案、获得证书并在测试环境验证前，请保持当前封闭 HTTP 体验的范围，不要声称网站已启用 HTTPS。
 
-不要在 HTTP 与 HTTPS 之间混用同一组账户密码；临时公网 IP 体验结束后，应撤销体验邀请码、关闭 HTTP 入口，并保留可验证的备份。
+未来的 HTTPS 变更必须作为一次单独的、可回滚的配置发布，同时完成以下项目：
+
+1. 新建并测试 Nginx 配置：443 使用 `ssl` 和证书，80 端口只做重定向到 HTTPS；不得把应用或 PostgreSQL 端口直接暴露到公网。
+
+   ```nginx
+   listen 443 ssl;
+   ```
+2. 将证书和私钥以只读挂载方式提供给网关容器，例如：
+
+   ```yaml
+   volumes:
+     - /etc/letsencrypt/live/exam.example.com:/etc/nginx/certs:ro
+   ```
+
+3. 在专用 HTTPS Compose 覆盖配置中为网关发布 443（当前 `compose.production.yml` 不应直接照抄为 TLS）：
+
+   ```yaml
+   services:
+     gateway:
+       ports:
+         - "80:80"
+         - "443:443"
+   ```
+
+4. 在腾讯云防火墙中开放 TCP 443，并保留 TCP 80 用于 HTTPS 重定向；SSH 22 仍只允许管理员 IP/CIDR。完成验收后，再关闭旧 IP 入口。
+5. 在 `.env.production` 设置下面两项，然后用 `docker compose --env-file .env.production -f compose.production.yml config` 检查最终值：
+
+   ```dotenv
+   WEB_ORIGIN=https://exam.example.com
+   ALLOW_INSECURE_HTTP_IP=false
+   ```
+
+6. 验收证书链、HTTP→HTTPS 重定向、`https://域名/health`、管理员和学生登录、邀请码注册、重启后的服务状态及回滚路径；通过后再将正式域名交给更大范围用户。
+
+不要在 HTTP 与 HTTPS 之间混用同一组账户密码；临时公网 IP 体验结束后，应撤销体验邀请码、关闭旧 IP 入口，并保留可验证的备份。

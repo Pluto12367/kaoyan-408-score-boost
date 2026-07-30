@@ -55,3 +55,13 @@ The drill deliberately uses a separate Docker network and a unique temporary con
 | Git `switch` | https://git-scm.com/docs/git-switch | `git switch --detach <commit>` inspects an exact commit; switching can discard changes if forced, so a safe rollback must reject a dirty worktree and verify the target first. | Yes: rollback records the current commit, switches only after clean-tree and commit checks, and restores that recorded commit if rebuilding or health checks fail. |
 
 The rollback workflow deliberately does not run a destructive volume command and does not attempt to reverse database migrations. A database backup precedes both deployment and rollback when the production database is healthy. No external source code is copied; command sequencing is reimplemented for this repository's Compose topology.
+
+## Task 5 fix round 1 addendum
+
+| Source | Link | Useful pattern | Adopted? |
+| --- | --- | --- | --- |
+| Docker Compose interpolation | https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/ | `${VAR:-default}` allows a checked-in Compose file to retain a safe HTTP-pilot default while allowing an explicit production environment value to override it. | Yes: `WEB_ORIGIN` and `ALLOW_INSECURE_HTTP_IP` are interpolated from `.env.production`, with the current pilot defaults kept only as defaults. |
+| Docker volume list | https://docs.docker.com/reference/cli/docker/volume/ls/ | `docker volume ls --filter label=<key>=<value> -q` finds volumes by labels rather than guessing a generated project-prefix name. | Yes: deployment refuses the first-deployment path if a Compose-labeled `postgres_data` volume exists without a discoverable PostgreSQL container. |
+| curl time limits | https://curl.se/docs/manpage.html | `--connect-timeout` limits connection establishment and `--max-time` bounds the complete transfer. | Yes: every health request is individually bounded and the retry loop also has a wall-clock deadline. |
+
+These fixes are reimplemented in POSIX shell and this Compose file; no external source code is copied. The guide now distinguishes the current HTTP-only image from the future, separately implemented HTTPS topology instead of implying that an environment-variable change adds TLS.

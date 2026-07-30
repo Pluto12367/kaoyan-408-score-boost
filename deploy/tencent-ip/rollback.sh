@@ -9,6 +9,19 @@ fi
 script_dir=$(CDPATH= cd "$(dirname "$0")" && pwd -P)
 cd "$script_dir/../.."
 
+wait_for_gateway() {
+  deadline=$(( $(date +%s) + 60 ))
+  while :; do
+    if curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1/health >/dev/null; then
+      return 0
+    fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
   echo 'Docker Engine and the Compose plugin are required.' >&2
   exit 1
@@ -35,28 +48,19 @@ if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
 fi
 
 docker compose --env-file .env.production -f compose.production.yml config >/dev/null
+echo 'Important: database migrations are not rolled back automatically.' >&2
 echo 'Creating a database backup before rollback...'
 docker compose --env-file .env.production -f compose.production.yml --profile tools run --rm backup
 
 original_commit=$(git rev-parse --verify HEAD)
 rollback_complete=false
 
-wait_for_gateway() {
-  attempt=0
-  until curl -fsS http://127.0.0.1/health >/dev/null; do
-    attempt=$((attempt + 1))
-    if [ "$attempt" -ge 60 ]; then
-      return 1
-    fi
-    sleep 1
-  done
-}
-
 restore_original() {
   status=$?
   trap - EXIT
 
   if [ "$rollback_complete" != true ]; then
+    echo 'Important: database migrations are not rolled back automatically.' >&2
     echo "Rollback failed; restoring original commit $original_commit and rebuilding its application image..." >&2
     git switch --detach "$original_commit" || echo 'Could not restore the original commit automatically.' >&2
     if docker compose --env-file .env.production -f compose.production.yml config >/dev/null \
@@ -84,5 +88,4 @@ fi
 rollback_complete=true
 trap - EXIT
 echo "Rollback succeeded at commit $target_commit."
-echo 'Important: database migrations are not rolled back automatically.'
 docker compose --env-file .env.production -f compose.production.yml ps
