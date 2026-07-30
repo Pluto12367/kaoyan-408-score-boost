@@ -4,6 +4,11 @@ import { readFileSync } from 'node:fs';
 
 const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 'utf8');
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
+const webDockerfile = readFileSync(new URL('../Dockerfile.web', import.meta.url), 'utf8');
+const gatewayConfig = readFileSync(
+  new URL('../deploy/tencent-ip/nginx.conf', import.meta.url),
+  'utf8',
+);
 const deploymentWorkflow = readFileSync(
   new URL('../.github/workflows/deploy-pages.yml', import.meta.url),
   'utf8',
@@ -44,6 +49,17 @@ test('production image uses supported Node and applies Prisma migrations before 
     2,
     'OpenSSL must be installed in both build and runtime stages for Prisma',
   );
+});
+
+test('web gateway builds a static SPA and proxies the same-origin API', () => {
+  assert.match(webDockerfile, /^FROM node:22-alpine AS builder$/m);
+  assert.match(webDockerfile, /ARG VITE_API_BASE_URL=\/api/);
+  assert.match(webDockerfile, /^FROM nginx:1\.27-alpine$/m);
+  assert.match(gatewayConfig, /location \/api\//);
+  assert.match(gatewayConfig, /proxy_pass http:\/\/app:3000\//);
+  assert.match(gatewayConfig, /location = \/health/);
+  assert.match(gatewayConfig, /try_files \$uri \$uri\/ \/index\.html/);
+  assert.match(gatewayConfig, /client_max_body_size 10m/);
 });
 
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {
