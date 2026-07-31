@@ -150,8 +150,8 @@ async function assertVersionedWriteBehavior() {
     behaviorPrisma = new PrismaClient({ datasourceUrl: behaviorDatabaseUrl });
     process.env.DATABASE_URL = behaviorDatabaseUrl;
 
-    const { QuestionsService } = require('../apps/api/dist/questions/questions.service.js');
-    const { PracticeRecordRepository } = require('../apps/api/dist/study/practice-record.repository.js');
+    const { QuestionsService } = require(join(root, 'apps/api/dist/apps/api/src/questions/questions.service.js'));
+    const { PracticeRecordRepository } = require(join(root, 'apps/api/dist/apps/api/src/study/practice-record.repository.js'));
     await behaviorPrisma.knowledgePoint.createMany({
       data: [
         knowledgePoint('co-cache', 'Cache'),

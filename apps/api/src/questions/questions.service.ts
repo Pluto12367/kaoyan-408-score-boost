@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { Difficulty, QuestionType, type Prisma } from '@prisma/client';
-import { computeContentFingerprint, requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
+import { requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
+import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { PrismaService } from '../prisma/prisma.service';
 

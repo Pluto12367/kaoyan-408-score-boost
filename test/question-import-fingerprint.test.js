@@ -3,7 +3,8 @@ import test from 'node:test';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { computeContentFingerprint, questionFingerprintPayload } = require('../packages/shared/dist/questionImport.js');
+const { questionFingerprintPayload } = require('../packages/shared/dist/questionImport.js');
+const { computeContentFingerprint } = require('../packages/shared/dist/questionImport.server.js');
 
 test('question fingerprint uses one canonical payload and stable SHA-256 test vector', () => {
   const question = {

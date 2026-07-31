@@ -12,7 +12,7 @@ import type {
   Question,
   UserProfile,
 } from '@kaoyan408/shared';
-import { computeContentFingerprint } from '@kaoyan408/shared';
+import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()

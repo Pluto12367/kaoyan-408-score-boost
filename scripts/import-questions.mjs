@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PrismaClient, Difficulty, QuestionType, Subject } from '@prisma/client';
-import { computeContentFingerprint } from '@kaoyan408/shared';
+import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
 
 const DEFAULT_FILE = 'kaoyan-408-content-starter/imports/starter-40-questions.csv';
 

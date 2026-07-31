@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { Question } from './domain';
 
 export type QuestionFingerprintInput = Pick<
@@ -19,8 +18,4 @@ export function questionFingerprintPayload(question: QuestionFingerprintInput) {
     year: question.year ?? null,
     expectedTimeSec: question.expectedTimeSec,
   };
-}
-
-export function computeContentFingerprint(question: QuestionFingerprintInput): string {
-  return createHash('sha256').update(JSON.stringify(questionFingerprintPayload(question))).digest('hex');
 }
