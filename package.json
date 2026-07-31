@@ -13,6 +13,7 @@
     "prestart": "npm run build:web",
     "postinstall": "npm run build:shared",
     "verify:ui": "node scripts/verify-ui.mjs",
+    "verify:api-build-layout": "npm run build:api && node scripts/verify-api-build-layout.mjs",
     "validate:env": "node scripts/validate-environment.mjs",
     "validate:env:development": "node scripts/validate-environment.mjs --file .env.development.example",
     "prod:config": "docker compose --env-file .env.production -f compose.production.yml config",
@@ -20,7 +21,7 @@
     "prod:status": "docker compose --env-file .env.production -f compose.production.yml ps",
     "prod:logs": "docker compose --env-file .env.production -f compose.production.yml logs --tail=200",
     "check:local": "node --test && node scripts/verify-ui.mjs",
-    "predeploy": "npm run build:shared && node --test",
+    "predeploy": "npm test && npm run verify:api-build-layout",
     "build:shared": "npm run build -w packages/shared",
     "dev:web": "npm run dev -w apps/web",
     "dev:api": "npm run start:dev -w apps/api",
@@ -41,6 +42,6 @@
     "db:test:up": "docker compose -f compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f compose.test.yml down -v",
     "test:integration:postgres": "npm run build:api && node scripts/integration-postgres.mjs",
-    "check:release": "npm test && npm run build:api && npm run build:web && npm run smoke:migration"
+    "check:release": "npm test && npm run verify:api-build-layout && npm run build:web && npm run smoke:migration"
   }
 }
