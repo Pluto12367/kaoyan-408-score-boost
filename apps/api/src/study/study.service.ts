@@ -2576,6 +2576,7 @@ export class StudyService implements OnModuleInit {
   private toAdminManagedUser(user: ManagedUserRecord): AdminManagedUser {
     return {
       id: user.id,
+      email: user.email,
       name: user.name,
       role: user.role,
       trialStatus: user.trialStatus,
@@ -3544,6 +3545,7 @@ export interface AssessmentHistoryItem {
 
 export interface AdminManagedUser {
   id: string;
+  email?: string;
   name: string;
   role: 'student' | 'teacher' | 'admin';
   trialStatus: TrialStatus;

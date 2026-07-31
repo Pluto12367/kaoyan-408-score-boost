@@ -109,7 +109,11 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
           <div className="admin-users-list">
             {users.users.map((user) => (
               <article key={user.id}>
-                <div><strong>{user.name}</strong><span>{roleLabel[user.role]} · {trialStatusLabel[user.trialStatus]}</span></div>
+                <div>
+                  <strong>{user.name}</strong>
+                  <small className="admin-user-email">{user.email ?? '未设置邮箱'}</small>
+                  <span>{roleLabel[user.role]} · {trialStatusLabel[user.trialStatus]}</span>
+                </div>
                 <div>
                   <span>{user.stage ?? '账号管理'}{user.targetScore ? ` · 目标 ${user.targetScore} 分` : ''}</span>
                   <small>{user.targetSchool ?? '平台账号'} · 最近活跃 {user.lastActiveAt}</small>
