@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import { Difficulty, QuestionType, type Prisma } from '@prisma/client';
-import { requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
+import { computeContentFingerprint, requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -320,21 +319,6 @@ function toSharedQuestion(row: {
     year: row.year ?? undefined,
     expectedTimeSec: row.expectedTimeSec,
   };
-}
-
-function computeContentFingerprint(question: Question): string {
-  return createHash('sha256').update(JSON.stringify({
-    stem: question.stem,
-    options: question.options,
-    answer: question.answer,
-    analysis: question.analysis,
-    knowledgePointIds: question.knowledgePointIds,
-    difficulty: question.difficulty,
-    type: question.type,
-    source: question.source,
-    year: question.year ?? null,
-    expectedTimeSec: question.expectedTimeSec,
-  })).digest('hex');
 }
 
 function toPrismaDifficulty(value: Question['difficulty']): Difficulty {

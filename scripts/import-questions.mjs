@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { PrismaClient, Difficulty, QuestionType, Subject } from '@prisma/client';
+import { computeContentFingerprint } from '@kaoyan408/shared';
 
 const DEFAULT_FILE = 'kaoyan-408-content-starter/imports/starter-40-questions.csv';
 
@@ -160,21 +160,6 @@ function toQuestionWrite(question) {
     year: question.year,
     expectedTimeSec: question.expectedTimeSec,
   };
-}
-
-function computeContentFingerprint(question) {
-  return createHash('sha256').update(JSON.stringify({
-    stem: question.stem,
-    options: question.options,
-    answer: question.answer,
-    analysis: question.analysis,
-    knowledgePointIds: question.knowledgePointIds,
-    difficulty: question.difficulty,
-    type: question.type,
-    source: question.source,
-    year: question.year ?? null,
-    expectedTimeSec: question.expectedTimeSec,
-  })).digest('hex');
 }
 
 function validateRows(inputRows) {

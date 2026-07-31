@@ -109,7 +109,10 @@ CREATE TABLE "QuestionImportAsset" (
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT "QuestionImportAsset_pkey" PRIMARY KEY ("id"),
-  CONSTRAINT "QuestionImportAsset_exactly_one_owner_check" CHECK (num_nonnulls("candidateId", "questionId") = 1)
+  CONSTRAINT "QuestionImportAsset_scope_owner_check" CHECK (
+    ("scope" = 'temporary' AND "questionId" IS NULL)
+    OR ("scope" = 'permanent' AND "questionId" IS NOT NULL AND "candidateId" IS NULL)
+  )
 );
 
 CREATE TABLE "QuestionImportConfirmation" (

@@ -415,6 +415,7 @@ model QuestionImportAsset {
   byteSize     Int
   pageNumber   Int?
   sourceRegion Json?
+  /// Temporary assets may have no candidate yet; permanent assets must be promoted to questionId by SQL constraint.
   candidateId  String?
   questionId   String?
   expiresAt    DateTime?

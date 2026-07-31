@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { createHash } from 'node:crypto';
 import {
   Difficulty,
   QuestionType,
@@ -13,6 +12,7 @@ import type {
   Question,
   UserProfile,
 } from '@kaoyan408/shared';
+import { computeContentFingerprint } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -77,40 +77,30 @@ export class PracticeRecordRepository {
     }
 
     for (const question of input.questions) {
-      await this.prisma.question.upsert({
-        where: { id: question.id },
-        create: {
-          id: question.id,
-          family: { create: {} },
-          versionNumber: 1,
-          isCurrent: true,
-          contentFingerprint: computeContentFingerprint(question),
-          stem: question.stem,
-          options: question.options,
-          answer: question.answer,
-          analysis: question.analysis,
-          difficulty: mapDifficulty(question.difficulty),
-          type: mapQuestionType(question.type),
-          source: question.source,
-          year: question.year,
-          expectedTimeSec: question.expectedTimeSec,
-        },
-        update: {
-          stem: question.stem,
-          options: question.options,
-          answer: question.answer,
-          analysis: question.analysis,
-          difficulty: mapDifficulty(question.difficulty),
-          type: mapQuestionType(question.type),
-          source: question.source,
-          year: question.year,
-          expectedTimeSec: question.expectedTimeSec,
-        },
-      });
-      await this.prisma.questionKnowledgePoint.deleteMany({ where: { questionId: question.id } });
-      await this.prisma.questionKnowledgePoint.createMany({
-        data: question.knowledgePointIds.map((knowledgePointId) => ({ questionId: question.id, knowledgePointId })),
-        skipDuplicates: true,
+      await this.prisma.$transaction(async (tx) => {
+        const existing = await tx.question.findUnique({ where: { id: question.id }, select: { id: true } });
+        if (existing) return;
+        await tx.question.create({
+          data: {
+            id: question.id,
+            family: { create: {} },
+            versionNumber: 1,
+            isCurrent: true,
+            contentFingerprint: computeContentFingerprint(question),
+            stem: question.stem,
+            options: question.options,
+            answer: question.answer,
+            analysis: question.analysis,
+            difficulty: mapDifficulty(question.difficulty),
+            type: mapQuestionType(question.type),
+            source: question.source,
+            year: question.year,
+            expectedTimeSec: question.expectedTimeSec,
+            knowledgePoints: {
+              create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
+            },
+          },
+        });
       });
     }
 
@@ -226,21 +216,6 @@ function mapQuestionType(type: Question['type']): QuestionType {
   if (type === '综合题') return QuestionType.COMPREHENSIVE;
   if (type === '判断题') return QuestionType.JUDGEMENT;
   return QuestionType.SINGLE_CHOICE;
-}
-
-function computeContentFingerprint(question: Question): string {
-  return createHash('sha256').update(JSON.stringify({
-    stem: question.stem,
-    options: question.options,
-    answer: question.answer,
-    analysis: question.analysis,
-    knowledgePointIds: question.knowledgePointIds,
-    difficulty: question.difficulty,
-    type: question.type,
-    source: question.source,
-    year: question.year ?? null,
-    expectedTimeSec: question.expectedTimeSec,
-  })).digest('hex');
 }
 
 function mapMistakeReason(value: string | null): MistakeReason | null {
