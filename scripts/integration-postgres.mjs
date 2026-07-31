@@ -332,6 +332,10 @@ async function main() {
   const registeredAdminUser = adminUsers.users.find((user) => user.id === registered.user.id);
   assert(adminUsers.source === 'postgresql', 'admin user management should report the real PostgreSQL source');
   assert(registeredAdminUser?.name === credentials.name, 'admin user management should list the real registered student');
+  assert(
+    registeredAdminUser?.email === credentials.email,
+    'admin user management should expose the registered email only through the admin contract',
+  );
   assert(registeredAdminUser?.trialStatus === 'active', 'completing onboarding should activate the student trial');
   const disabledUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/disable`, {}, adminHeaders);
   assert(disabledUser.accountStatus === 'disabled', 'admin must disable the student');

@@ -6,6 +6,7 @@ export type TrialStatus = 'invited' | 'active' | 'completed' | 'follow_up';
 
 export interface ManagedUserRecord {
   id: string;
+  email?: string;
   name: string;
   role: 'student' | 'teacher' | 'admin';
   accountStatus: 'active' | 'disabled';
@@ -44,6 +45,7 @@ export class AdminUserRepository {
       ].filter((value): value is Date => Boolean(value)).sort((a, b) => b.getTime() - a.getTime())[0];
       return {
         id: user.id,
+        email: user.email ?? undefined,
         name: user.name,
         role: toRole(user.role),
         accountStatus: user.accountStatus.toLowerCase() as 'active' | 'disabled',

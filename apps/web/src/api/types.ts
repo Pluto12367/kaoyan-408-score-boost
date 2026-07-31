@@ -388,6 +388,7 @@ export type TrialStatus = 'invited' | 'active' | 'completed' | 'follow_up';
 
 export interface AdminManagedUser {
   id: string;
+  email?: string;
   name: string;
   role: 'student' | 'teacher' | 'admin';
   accountStatus?: 'active' | 'disabled';
