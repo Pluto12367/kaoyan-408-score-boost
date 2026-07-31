@@ -189,6 +189,11 @@ test('Tencent IP deployment scripts preserve database volumes, validate producti
   assert.match(deployScript, /generate-a-base64url-password/);
   assert.match(deployScript, /generate-a-random-secret/);
   assert.match(deployScript, /is_globally_reachable_ipv4/);
+  assert.doesNotMatch(
+    deployScript,
+    /\bindex\s*=/,
+    'portable AWK must not assign to the built-in index function name',
+  );
   assert.match(deployScript, /100.*64.*127/);
   assert.match(deployScript, /172.*16.*31/);
   assert.match(deployScript, /192.*88.*99/);

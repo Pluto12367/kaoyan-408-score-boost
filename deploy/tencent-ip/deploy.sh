@@ -18,8 +18,8 @@ is_globally_reachable_ipv4() {
   printf '%s\n' "$1" | awk -F. '
     NF != 4 { exit 1 }
     {
-      for (index = 1; index <= 4; index += 1) {
-        if ($index !~ /^(0|[1-9][0-9]?[0-9]?)$/ || $index > 255) exit 1
+      for (octet = 1; octet <= 4; octet += 1) {
+        if ($octet !~ /^(0|[1-9][0-9]?[0-9]?)$/ || $octet > 255) exit 1
       }
       first = $1 + 0
       second = $2 + 0
