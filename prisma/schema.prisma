@@ -44,6 +44,54 @@ enum QuestionType {
   JUDGEMENT
 }
 
+enum QuestionImportFileType {
+  pdf
+  xlsx
+  csv
+}
+
+enum QuestionImportBatchStatus {
+  uploaded
+  queued
+  parsing
+  parsing_partial_failure
+  review
+  partially_imported
+  completed
+  failed
+  cancelled
+  expired
+}
+
+enum QuestionImportCandidateStatus {
+  pending_review
+  needs_edit
+  duplicate_suspected
+  approved
+  ignored
+  parse_failed
+  imported
+}
+
+enum QuestionImportJobState {
+  queued
+  running
+  succeeded
+  failed
+  cancelled
+}
+
+enum QuestionImportDuplicateAction {
+  skip
+  create
+  new_version
+}
+
+enum QuestionImportAssetScope {
+  temporary
+  permanent
+}
+
 model User {
   id                    String                        @id @default(cuid())
   email                 String?                       @unique
@@ -224,6 +272,11 @@ model KnowledgePoint {
 
 model Question {
   id                   String                   @id @default(cuid())
+  familyId             String
+  versionNumber        Int                      @default(1)
+  isCurrent            Boolean                  @default(true)
+  contentFingerprint   String
+  importBatchId        String?
   stem                 String
   options              String[]
   answer               String
@@ -237,8 +290,156 @@ model Question {
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]
   reviewSchedules      ReviewSchedule[]
+  family               QuestionFamily           @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  importBatch          QuestionImportBatch?     @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
+  importCandidates     QuestionImportCandidate[] @relation("ImportedQuestionCandidate")
+  importAssets         QuestionImportAsset[]
   createdAt            DateTime                 @default(now())
   updatedAt            DateTime                 @updatedAt
+
+  @@unique([familyId, versionNumber])
+  @@index([isCurrent, createdAt])
+  @@index([contentFingerprint, isCurrent])
+}
+
+model QuestionFamily {
+  id               String                   @id @default(cuid())
+  versions         Question[]
+  targetCandidates QuestionImportCandidate[]
+  createdAt        DateTime                 @default(now())
+}
+
+model QuestionImportBatch {
+  id                  String                       @id @default(cuid())
+  uploadedById        String
+  originalFileName    String
+  originalStorageKey  String
+  fileSha256          String
+  fileType            QuestionImportFileType
+  source              String
+  rightsConfirmed     Boolean
+  rightsConfirmedAt   DateTime?
+  status              QuestionImportBatchStatus    @default(uploaded)
+  statusCounts        Json                         @default("{}")
+  providerSummary     Json?
+  costSummary         Json?
+  expiresAt           DateTime
+  completedAt         DateTime?
+  failedAt            DateTime?
+  revision            Int                          @default(0)
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+  jobs                QuestionImportJob[]
+  candidates          QuestionImportCandidate[]
+  assets              QuestionImportAsset[]
+  confirmations       QuestionImportConfirmation[]
+  questions           Question[]
+
+  @@index([uploadedById, createdAt])
+  @@index([fileSha256, status])
+  @@index([status, expiresAt])
+}
+
+model QuestionImportJob {
+  id             String                 @id @default(cuid())
+  batchId        String
+  pageStart      Int
+  pageEnd        Int
+  provider       String
+  externalTaskId String?
+  attempt        Int                    @default(0)
+  retryAt        DateTime?
+  state          QuestionImportJobState @default(queued)
+  quality        Json?
+  cost           Json?
+  error          Json?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  batch          QuestionImportBatch    @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  candidates     QuestionImportCandidate[]
+
+  @@index([batchId, state, retryAt])
+  @@index([externalTaskId])
+}
+
+model QuestionImportCandidate {
+  id                String                        @id @default(cuid())
+  batchId           String
+  jobId             String?
+  stem              String
+  options           String[]
+  answer            String
+  analysis          String
+  difficulty        Difficulty
+  type              QuestionType
+  source            String
+  year              Int?
+  expectedTimeSec   Int                           @default(100)
+  knowledgePointIds String[]
+  formulas          Json                          @default("[]")
+  warnings          Json                          @default("[]")
+  pageNumber        Int?
+  sourceRegion      Json?
+  contentFingerprint String
+  targetFamilyId    String?
+  status            QuestionImportCandidateStatus @default(pending_review)
+  duplicateAction   QuestionImportDuplicateAction @default(skip)
+  reviewMetadata    Json?
+  reviewedById      String?
+  reviewedAt        DateTime?
+  revision          Int                           @default(0)
+  importedQuestionId String?
+  createdAt         DateTime                      @default(now())
+  updatedAt         DateTime                      @updatedAt
+  batch             QuestionImportBatch           @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  job               QuestionImportJob?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  targetFamily      QuestionFamily?                @relation(fields: [targetFamilyId], references: [id], onDelete: Restrict)
+  importedQuestion  Question?                      @relation("ImportedQuestionCandidate", fields: [importedQuestionId], references: [id], onDelete: Restrict)
+  assets            QuestionImportAsset[]
+
+  @@index([batchId, status, createdAt])
+  @@index([contentFingerprint, status])
+  @@index([targetFamilyId])
+  @@index([jobId])
+}
+
+model QuestionImportAsset {
+  id           String                   @id @default(cuid())
+  batchId      String
+  scope        QuestionImportAssetScope @default(temporary)
+  storageKey   String                   @unique
+  sha256       String
+  mediaType    String
+  byteSize     Int
+  pageNumber   Int?
+  sourceRegion Json?
+  candidateId  String?
+  questionId   String?
+  expiresAt    DateTime?
+  promotedAt   DateTime?
+  createdAt    DateTime                 @default(now())
+  batch        QuestionImportBatch      @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  candidate    QuestionImportCandidate? @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  question     Question?                @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  @@index([batchId, scope, expiresAt])
+  @@index([candidateId])
+  @@index([questionId])
+  @@index([sha256])
+}
+
+model QuestionImportConfirmation {
+  id             String              @id @default(cuid())
+  batchId        String
+  idempotencyKey String              @unique
+  actorId        String
+  result         Json
+  createdAt      DateTime            @default(now())
+  batch          QuestionImportBatch @relation(fields: [batchId], references: [id], onDelete: Restrict)
+
+  @@index([batchId, createdAt])
 }
 
 model QuestionKnowledgePoint {

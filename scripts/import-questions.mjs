@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { resolve } from 'node:path';
 import { PrismaClient, Difficulty, QuestionType, Subject } from '@prisma/client';
 
@@ -92,6 +93,7 @@ try {
     for (const question of questions) {
       const existing = await tx.question.findFirst({
         where: {
+          isCurrent: true,
           stem: question.stem,
           source: question.source,
           year: question.year,
@@ -107,14 +109,19 @@ try {
       if (existing) {
         await tx.question.update({
           where: { id: existing.id },
-          data: toQuestionWrite(question),
+          data: { isCurrent: false },
         });
-        await tx.questionKnowledgePoint.deleteMany({ where: { questionId: existing.id } });
-        await tx.questionKnowledgePoint.createMany({
-          data: question.knowledgePointIds.map((knowledgePointId) => ({
-            questionId: existing.id,
-            knowledgePointId,
-          })),
+        await tx.question.create({
+          data: {
+            ...toQuestionWrite(question),
+            familyId: existing.familyId,
+            versionNumber: existing.versionNumber + 1,
+            isCurrent: true,
+            contentFingerprint: computeContentFingerprint(question),
+            knowledgePoints: {
+              create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
+            },
+          },
         });
         updated += 1;
         continue;
@@ -123,6 +130,10 @@ try {
       await tx.question.create({
         data: {
           ...toQuestionWrite(question),
+          family: { create: {} },
+          versionNumber: 1,
+          isCurrent: true,
+          contentFingerprint: computeContentFingerprint(question),
           knowledgePoints: {
             create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
           },
@@ -149,6 +160,21 @@ function toQuestionWrite(question) {
     year: question.year,
     expectedTimeSec: question.expectedTimeSec,
   };
+}
+
+function computeContentFingerprint(question) {
+  return createHash('sha256').update(JSON.stringify({
+    stem: question.stem,
+    options: question.options,
+    answer: question.answer,
+    analysis: question.analysis,
+    knowledgePointIds: question.knowledgePointIds,
+    difficulty: question.difficulty,
+    type: question.type,
+    source: question.source,
+    year: question.year ?? null,
+    expectedTimeSec: question.expectedTimeSec,
+  })).digest('hex');
 }
 
 function validateRows(inputRows) {

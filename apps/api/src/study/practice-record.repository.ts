@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import {
   Difficulty,
   QuestionType,
@@ -80,6 +81,10 @@ export class PracticeRecordRepository {
         where: { id: question.id },
         create: {
           id: question.id,
+          family: { create: {} },
+          versionNumber: 1,
+          isCurrent: true,
+          contentFingerprint: computeContentFingerprint(question),
           stem: question.stem,
           options: question.options,
           answer: question.answer,
@@ -221,6 +226,21 @@ function mapQuestionType(type: Question['type']): QuestionType {
   if (type === '综合题') return QuestionType.COMPREHENSIVE;
   if (type === '判断题') return QuestionType.JUDGEMENT;
   return QuestionType.SINGLE_CHOICE;
+}
+
+function computeContentFingerprint(question: Question): string {
+  return createHash('sha256').update(JSON.stringify({
+    stem: question.stem,
+    options: question.options,
+    answer: question.answer,
+    analysis: question.analysis,
+    knowledgePointIds: question.knowledgePointIds,
+    difficulty: question.difficulty,
+    type: question.type,
+    source: question.source,
+    year: question.year ?? null,
+    expectedTimeSec: question.expectedTimeSec,
+  })).digest('hex');
 }
 
 function mapMistakeReason(value: string | null): MistakeReason | null {

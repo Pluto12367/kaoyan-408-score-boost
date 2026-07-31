@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
+import { createHash } from 'node:crypto';
 import { Difficulty, QuestionType, type Prisma } from '@prisma/client';
 import { requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
 import { CreateQuestionDto } from './dto/create-question.dto';
@@ -48,30 +49,21 @@ export class QuestionsService implements OnModuleInit {
 
   async onModuleInit() {
     if (!this.persistenceEnabled) return;
-    const [rows, reviewState] = await Promise.all([
-      this.prisma.question.findMany({
-        include: { knowledgePoints: true },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.runtimeState.findUnique({ where: { key: 'questionReviewItems' } }),
-    ]);
+    const reviewState = await this.prisma.runtimeState.findUnique({ where: { key: 'questionReviewItems' } });
     if (Array.isArray(reviewState?.value)) {
       this.reviewItems.splice(0, this.reviewItems.length, ...(reviewState.value as unknown as ReviewItem[]));
     }
-    if (rows.length === 0) return;
-    this.questions.splice(0, this.questions.length, ...rows.map((row) => ({
-      id: row.id,
-      stem: row.stem,
-      options: row.options,
-      answer: row.answer,
-      analysis: row.analysis,
-      knowledgePointIds: row.knowledgePoints.map((item) => item.knowledgePointId),
-      difficulty: fromPrismaDifficulty(row.difficulty),
-      type: fromPrismaQuestionType(row.type),
-      source: row.source,
-      year: row.year ?? undefined,
-      expectedTimeSec: row.expectedTimeSec,
-    })));
+    await this.refreshFromDatabase();
+  }
+
+  async refreshFromDatabase(): Promise<void> {
+    if (!this.persistenceEnabled) return;
+    const rows = await this.prisma.question.findMany({
+      where: { isCurrent: true },
+      include: { knowledgePoints: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    this.questions.splice(0, this.questions.length, ...rows.map(toSharedQuestion));
   }
 
   registerKnowledgePoint(point: { id: string; subject: string; chapter: string }) {
@@ -128,6 +120,10 @@ export class QuestionsService implements OnModuleInit {
       await this.prisma.question.create({
         data: {
           id: question.id,
+          family: { create: {} },
+          versionNumber: 1,
+          isCurrent: true,
+          contentFingerprint: computeContentFingerprint(question),
           stem: question.stem,
           options: question.options,
           answer: question.answer,
@@ -169,6 +165,7 @@ export class QuestionsService implements OnModuleInit {
     const current = this.questions[index];
     const question = requireQuestionKnowledgePoint<Question>({
       ...current,
+      id: this.persistenceEnabled ? nextQuestionId(this.questions) : current.id,
       stem: input.stem?.trim() ?? current.stem,
       options: input.options ? input.options.map((option) => option.trim()).filter(Boolean) : current.options,
       answer: input.answer ?? current.answer,
@@ -182,10 +179,22 @@ export class QuestionsService implements OnModuleInit {
     });
 
     if (this.persistenceEnabled) {
-      await this.prisma.$transaction([
-        this.prisma.question.update({
+      await this.prisma.$transaction(async (tx) => {
+        const persisted = await tx.question.findUniqueOrThrow({
           where: { id: questionId },
+          select: { familyId: true, versionNumber: true },
+        });
+        await tx.question.update({
+          where: { id: questionId },
+          data: { isCurrent: false },
+        });
+        await tx.question.create({
           data: {
+            id: question.id,
+            familyId: persisted.familyId,
+            versionNumber: persisted.versionNumber + 1,
+            isCurrent: true,
+            contentFingerprint: computeContentFingerprint(question),
             stem: question.stem,
             options: question.options,
             answer: question.answer,
@@ -195,13 +204,12 @@ export class QuestionsService implements OnModuleInit {
             source: question.source,
             year: question.year,
             expectedTimeSec: question.expectedTimeSec,
+            knowledgePoints: {
+              create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
+            },
           },
-        }),
-        this.prisma.questionKnowledgePoint.deleteMany({ where: { questionId } }),
-        this.prisma.questionKnowledgePoint.createMany({
-          data: question.knowledgePointIds.map((knowledgePointId) => ({ questionId, knowledgePointId })),
-        }),
-      ]);
+        });
+      });
     }
     this.questions[index] = question;
     return question;
@@ -284,6 +292,49 @@ function nextQuestionId(questions: Question[]) {
     return Math.max(max, match ? Number(match[1]) : 0);
   }, 0) + 1;
   return `q-${String(next).padStart(3, '0')}`;
+}
+
+function toSharedQuestion(row: {
+  id: string;
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  knowledgePoints: { knowledgePointId: string }[];
+  difficulty: Difficulty;
+  type: QuestionType;
+  source: string;
+  year: number | null;
+  expectedTimeSec: number;
+}): Question {
+  return {
+    id: row.id,
+    stem: row.stem,
+    options: row.options,
+    answer: row.answer,
+    analysis: row.analysis,
+    knowledgePointIds: row.knowledgePoints.map((item) => item.knowledgePointId),
+    difficulty: fromPrismaDifficulty(row.difficulty),
+    type: fromPrismaQuestionType(row.type),
+    source: row.source,
+    year: row.year ?? undefined,
+    expectedTimeSec: row.expectedTimeSec,
+  };
+}
+
+function computeContentFingerprint(question: Question): string {
+  return createHash('sha256').update(JSON.stringify({
+    stem: question.stem,
+    options: question.options,
+    answer: question.answer,
+    analysis: question.analysis,
+    knowledgePointIds: question.knowledgePointIds,
+    difficulty: question.difficulty,
+    type: question.type,
+    source: question.source,
+    year: question.year ?? null,
+    expectedTimeSec: question.expectedTimeSec,
+  })).digest('hex');
 }
 
 function toPrismaDifficulty(value: Question['difficulty']): Difficulty {
