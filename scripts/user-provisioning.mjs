@@ -27,6 +27,32 @@ export async function verifyProvisionedPassword(password, stored) {
   return expected.length === actual.length && timingSafeEqual(expected, actual);
 }
 
+export function resolveProvisionedPasswordInput({
+  password,
+  passwordStdin = false,
+  stdinIsTTY = false,
+  stdinText,
+  readStdin,
+}) {
+  if (password && passwordStdin) {
+    throw new Error('Use either --password or --password-stdin, not both.');
+  }
+  if (!passwordStdin) return password;
+  if (stdinIsTTY) {
+    throw new Error('--password-stdin requires non-TTY stdin; pipe exactly one password line.');
+  }
+
+  const input = stdinText ?? readStdin?.();
+  if (typeof input !== 'string') {
+    throw new Error('--password-stdin did not receive a password line.');
+  }
+  const value = input.replace(/\r?\n$/, '');
+  if (/[\r\n]/.test(value)) {
+    throw new Error('--password-stdin accepts exactly one line.');
+  }
+  return value;
+}
+
 function normalizeEmail(value) {
   const email = value?.trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {

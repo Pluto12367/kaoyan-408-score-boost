@@ -73,7 +73,7 @@ export function App() {
   const {
     authSession, sessionUser, authMode, authStatus,
     setAuthSession, setSessionUser, setAuthMode, setAuthStatus,
-    handleRoleSwitch, handleAccountSubmit, handleLogout,
+    handleRoleSwitch, handleAccountSubmit, handlePasswordChangeSubmit, handleLogout,
   } = useAuth();
 
   const authKey = authSession?.accessToken ?? authSession?.token;
@@ -864,7 +864,7 @@ paperId: paper.id,
       ? roleWorkspace.adminMetrics.data?.source
       : dashboardOverview.overview.data?.source;
   const hasAuthenticatedSession = Boolean(authSession?.refreshToken || authSession?.accessToken || authSession?.token || sessionUser);
-  const shouldShowAuthGate = !hasAuthenticatedSession;
+  const shouldShowAuthGate = !hasAuthenticatedSession || Boolean(sessionUser?.mustChangePassword);
 
   if (shouldShowAuthGate) {
     return (
@@ -883,6 +883,7 @@ paperId: paper.id,
             staticDemoMode={isStaticDemoMode()}
             showDemoRoles={isStaticDemoMode() || import.meta.env.DEV}
             onSubmit={handleAccountSubmit}
+            onPasswordChangeSubmit={handlePasswordChangeSubmit}
             onToggleMode={() => setAuthMode((current) => current === 'login' ? 'register' : 'login')}
             onLogout={() => void handleLogout()}
             onRoleSwitch={(role) => void handleRoleSwitch(role)}
@@ -966,6 +967,7 @@ paperId: paper.id,
           staticDemoMode={isStaticDemoMode()}
           showDemoRoles={isStaticDemoMode() || import.meta.env.DEV}
           onSubmit={handleAccountSubmit}
+          onPasswordChangeSubmit={handlePasswordChangeSubmit}
           onToggleMode={() => setAuthMode((current) => current === 'login' ? 'register' : 'login')}
           onLogout={() => void onLogout()}
           onRoleSwitch={(role) => void onRoleSwitch(role)}
@@ -1017,6 +1019,9 @@ paperId: paper.id,
             onGrantTeacherAuthorization={roleWorkspace.grantAuthorization}
             onRevokeTeacherAuthorization={roleWorkspace.revokeAuthorization}
             onUpdateTrialStatus={adminActions.updateTrialStatus}
+            onSetAccountStatus={adminActions.setAccountStatus}
+            onCreateTemporaryPassword={adminActions.createUserTemporaryPassword}
+            onCreateManagedUser={adminActions.createInternalUser}
             onApproveReviewItem={adminActions.approveItem}
             onMarkReviewItemNeedsRecheck={adminActions.markNeedsRecheck}
             onApplySprintConfig={handleApplySprintConfig}

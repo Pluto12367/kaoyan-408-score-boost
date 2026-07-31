@@ -1,0 +1,16 @@
+.git
+.github
+.worktrees
+.superpowers
+node_modules
+**/node_modules
+npm-debug.log*
+*.log
+*.bak
+coverage
+test
+backups
+kaoyan-408-content-starter
+assets
+.env
+.env.*

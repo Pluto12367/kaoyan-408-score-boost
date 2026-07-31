@@ -1,5 +1,10 @@
 import { PrismaClient, TrialStatus, UserRole } from '@prisma/client';
-import { hashProvisionedPassword, validateProvisionedUserInput } from './user-provisioning.mjs';
+import { readFileSync } from 'node:fs';
+import {
+  hashProvisionedPassword,
+  resolveProvisionedPasswordInput,
+  validateProvisionedUserInput,
+} from './user-provisioning.mjs';
 
 const flags = parseFlags(process.argv.slice(2));
 const role = flags.role ?? 'teacher';
@@ -10,7 +15,12 @@ if (!['teacher', 'admin'].includes(role)) {
 
 const input = validateProvisionedUserInput({
   email: flags.email,
-  password: flags.password,
+  password: resolveProvisionedPasswordInput({
+    password: flags.password,
+    passwordStdin: flags['password-stdin'] === true,
+    stdinIsTTY: process.stdin.isTTY,
+    readStdin: () => readFileSync(0, 'utf8'),
+  }),
   name: flags.name ?? (role === 'admin' ? '管理员' : '教研老师'),
 });
 
@@ -59,6 +69,10 @@ function parseFlags(args) {
     const arg = args[index];
     if (!arg.startsWith('--')) continue;
     const [rawKey, inlineValue] = arg.slice(2).split('=', 2);
+    if (rawKey === 'password-stdin' && inlineValue == null) {
+      values[rawKey] = true;
+      continue;
+    }
     values[rawKey] = inlineValue ?? args[index + 1];
     if (inlineValue == null) index += 1;
   }

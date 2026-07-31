@@ -4,6 +4,7 @@ export function readStagingSmokeConfig(env = process.env) {
   const apiUrl = required(env.STAGING_API_URL, 'STAGING_API_URL');
   const email = required(env.STAGING_SMOKE_EMAIL, 'STAGING_SMOKE_EMAIL');
   const password = required(env.STAGING_SMOKE_PASSWORD, 'STAGING_SMOKE_PASSWORD');
+  const invitationCode = required(env.STAGING_SMOKE_INVITATION, 'STAGING_SMOKE_INVITATION');
   const webOrigin = (env.STAGING_WEB_ORIGIN || defaultOrigin).trim();
 
   const parsedApiUrl = parseUrl(apiUrl, 'STAGING_API_URL');
@@ -17,6 +18,7 @@ export function readStagingSmokeConfig(env = process.env) {
     webOrigin: trimTrailingSlash(parsedWebOrigin.href),
     email: email.toLowerCase(),
     password,
+    invitationCode,
   };
 }
 
@@ -52,10 +54,23 @@ export async function runStagingSmoke(config, options = {}) {
     body: JSON.stringify({ email: config.email, password: config.password }),
   });
   if (sessionResponse.status === 401) {
+    const rejectedRegistration = await request(fetchImpl, `${apiUrl}/auth/register`, {
+      method: 'POST',
+      headers: jsonHeaders(),
+      body: JSON.stringify({
+        email: config.email,
+        password: config.password,
+        name: 'Staging Smoke Student',
+      }),
+    });
+    ensure(rejectedRegistration.status === 400, 'registration without invitation must be rejected');
+    checkpoint('registration rejects missing invitation');
+
     sessionResponse = await request(fetchImpl, `${apiUrl}/auth/register`, {
       method: 'POST',
       headers: jsonHeaders(),
       body: JSON.stringify({
+        inviteCode: config.invitationCode,
         email: config.email,
         password: config.password,
         name: 'Staging Smoke Student',
@@ -151,7 +166,7 @@ export async function runStagingSmoke(config, options = {}) {
     dataSource: restored.source,
     persistedTargetScore: restored.student.targetScore,
     persistedCompletedTaskId: restoredTask.id,
-    checks: 8,
+    checks: 10,
   };
 }
 

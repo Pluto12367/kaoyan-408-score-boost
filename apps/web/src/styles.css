@@ -926,6 +926,38 @@ button {
   grid-column: 1 / -1;
 }
 
+.admin-inline-form {
+  align-items: end;
+}
+
+.admin-secret-box {
+  display: grid;
+  grid-template-columns: minmax(120px, auto) 1fr auto;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+}
+
+.admin-secret-box span {
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-secret-box code {
+  overflow-wrap: anywhere;
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.compact-actions {
+  justify-content: flex-start;
+}
+
 .demo-role-actions {
   display: flex;
   align-items: center;

@@ -5,25 +5,10 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { AppModule } from './app.module';
 import { OperationLogService } from './operations/operation-log.service';
+import { validatePublicEnvironment } from './public-environment';
 
 interface AuthenticatedRequest extends IncomingMessage {
   user?: { id: string; role: string };
-}
-
-function validatePublicEnvironment() {
-  const errors: string[] = [];
-  const required = ['DATABASE_URL', 'JWT_SECRET', 'WEB_ORIGIN'];
-  const placeholders = /replace-me|replace-with|example\.com|user:password|your-/i;
-  for (const key of required) {
-    const value = process.env[key] ?? '';
-    if (!value) errors.push(`${key} is required`);
-    if (placeholders.test(value)) errors.push(`${key} contains a placeholder value`);
-  }
-  if ((process.env.JWT_SECRET?.length ?? 0) < 32) errors.push('JWT_SECRET must be at least 32 characters');
-  if (process.env.ALLOW_DEMO_AUTH !== 'false') errors.push('ALLOW_DEMO_AUTH must be false');
-  const origins = (process.env.WEB_ORIGIN ?? '').split(',').filter(Boolean);
-  if (origins.some((origin) => !origin.trim().startsWith('https://'))) errors.push('WEB_ORIGIN must use HTTPS');
-  return errors;
 }
 
 async function bootstrap() {
@@ -31,7 +16,7 @@ async function bootstrap() {
 
   // Production safety checks
   if (process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'staging') {
-    const errors = validatePublicEnvironment();
+    const errors = validatePublicEnvironment(process.env);
     if (errors.length > 0) {
       logger.error(`Unsafe environment configuration: ${errors.join('; ')}`);
       process.exit(1);

@@ -1,9 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 'utf8');
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
+const webDockerfile = readFileSync(new URL('../Dockerfile.web', import.meta.url), 'utf8');
+const productionCompose = readFileSync(new URL('../compose.production.yml', import.meta.url), 'utf8');
+const productionEnvTemplate = readFileSync(
+  new URL('../deploy/tencent-ip/.env.production.example', import.meta.url),
+  'utf8',
+);
+const deploymentGuide = readFileSync(new URL('../docs/deploy-to-tencent-ip.md', import.meta.url), 'utf8');
+const gatewayConfig = readFileSync(
+  new URL('../deploy/tencent-ip/nginx.conf', import.meta.url),
+  'utf8',
+);
 const deploymentWorkflow = readFileSync(
   new URL('../.github/workflows/deploy-pages.yml', import.meta.url),
   'utf8',
@@ -12,6 +24,34 @@ const stagingSmokeWorkflow = readFileSync(
   new URL('../.github/workflows/staging-smoke.yml', import.meta.url),
   'utf8',
 );
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
+function composeServiceBlock(compose, serviceName) {
+  const match = compose.match(
+    new RegExp(`^  ${serviceName}:\\r?\\n[\\s\\S]*?(?=^  [A-Za-z0-9_-]+:|^volumes:)`, 'm'),
+  );
+  assert.ok(match, `${serviceName} service block must exist`);
+  return match[0];
+}
+
+function assertHealthLoopHonorsRemainingDeadline(script, scriptName) {
+  const healthLoop = script.match(/wait_for_gateway\(\) \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(healthLoop, `${scriptName} must define wait_for_gateway`);
+  assert.match(healthLoop, /deadline=\$\(\( \$\(date \+%s\) \+ 60 \)\)/);
+  assert.match(healthLoop, /now=\$\(date \+%s\)/);
+  assert.match(healthLoop, /remaining=\$\(\(deadline - now\)\)/);
+  assert.match(healthLoop, /if \[ "\$remaining" -le 0 \]; then[\s\S]*?return 1/);
+  assert.match(healthLoop, /curl_timeout=2[\s\S]*?curl_timeout=\$remaining/);
+  assert.match(healthLoop, /curl -fsS --connect-timeout 1 --max-time "\$curl_timeout" http:\/\/127\.0\.0\.1\/health/);
+
+  const firstDeadlineCheck = healthLoop.indexOf('if [ "$remaining" -le 0 ]');
+  const curlIndex = healthLoop.indexOf('curl -fsS');
+  const secondNow = healthLoop.indexOf('now=$(date +%s)', curlIndex);
+  const secondDeadlineCheck = healthLoop.indexOf('if [ "$remaining" -le 0 ]', curlIndex);
+  const sleepIndex = healthLoop.indexOf('sleep 1');
+  assert.ok(firstDeadlineCheck >= 0 && firstDeadlineCheck < curlIndex, `${scriptName} must check the deadline before curl`);
+  assert.ok(secondNow >= 0 && secondDeadlineCheck > secondNow && secondDeadlineCheck < sleepIndex, `${scriptName} must recheck the deadline before sleeping`);
+}
 
 test('Railway uses the repository Dockerfile with production health and restart policy', () => {
   assert.match(railwayConfig, /builder\s*=\s*"DOCKERFILE"/);
@@ -44,6 +84,201 @@ test('production image uses supported Node and applies Prisma migrations before 
     2,
     'OpenSSL must be installed in both build and runtime stages for Prisma',
   );
+});
+
+test('web gateway builds a static SPA and proxies the same-origin API', () => {
+  assert.match(webDockerfile, /^FROM node:22-alpine AS builder$/m);
+  assert.match(webDockerfile, /ARG VITE_API_BASE_URL=\/api/);
+  assert.match(webDockerfile, /^FROM nginx:1\.27-alpine$/m);
+  assert.match(gatewayConfig, /location \/api\//);
+  assert.match(gatewayConfig, /proxy_pass http:\/\/app:3000\//);
+  assert.match(gatewayConfig, /location = \/health/);
+  assert.match(gatewayConfig, /try_files \$uri \$uri\/ \/index\.html/);
+  assert.match(gatewayConfig, /client_max_body_size 10m/);
+});
+
+test('production Compose exposes only the gateway and uses production-safe application settings', () => {
+  assert.doesNotMatch(productionCompose, /^name:\s*\S+/m);
+  assert.match(productionCompose, /gateway:/);
+  assert.match(productionCompose, /"80:80"/);
+  assert.match(productionCompose, /app:/);
+  assert.match(productionCompose, /postgres:/);
+  assert.doesNotMatch(productionCompose, /"3000:3000"/);
+  assert.doesNotMatch(productionCompose, /"5432:5432"/);
+  assert.match(productionCompose, /postgres_data:\/var\/lib\/postgresql\/data/);
+  assert.match(productionCompose, /restart:\s+unless-stopped/g);
+  assert.match(productionCompose, /ALLOW_DEMO_AUTH:\s+"false"/);
+  assert.match(productionCompose, /WEB_ORIGIN:\s*\$\{WEB_ORIGIN:-http:\/\/\$\{PUBLIC_IP\}\}/);
+  assert.match(productionCompose, /ALLOW_INSECURE_HTTP_IP:\s*\$\{ALLOW_INSECURE_HTTP_IP:-true\}/);
+  assert.match(productionCompose, /VITE_API_BASE_URL:\s+"\/api"/);
+  assert.match(productionEnvTemplate, /WEB_ORIGIN=/);
+  assert.match(productionEnvTemplate, /ALLOW_INSECURE_HTTP_IP=false/);
+  assert.match(productionEnvTemplate, /^PUBLIC_IP=replace-with-server-public-ip$/m);
+  assert.doesNotMatch(productionEnvTemplate, /203\.0\.113\./);
+});
+
+test('production backup tooling writes verifiable archives and isolates restore drills', () => {
+  const backupScriptPath = new URL('../deploy/tencent-ip/backup.sh', import.meta.url);
+  const cronInstallerPath = new URL('../deploy/tencent-ip/install-backup-cron.sh', import.meta.url);
+  const restoreScriptPath = new URL('../deploy/tencent-ip/verify-restore.sh', import.meta.url);
+
+  assert.ok(existsSync(backupScriptPath), 'backup.sh must exist');
+  assert.ok(existsSync(cronInstallerPath), 'install-backup-cron.sh must exist');
+  assert.ok(existsSync(restoreScriptPath), 'verify-restore.sh must exist');
+
+  const backupScript = readFileSync(backupScriptPath, 'utf8');
+  const cronInstaller = readFileSync(cronInstallerPath, 'utf8');
+  const restoreScript = readFileSync(restoreScriptPath, 'utf8');
+  const backupService = composeServiceBlock(productionCompose, 'backup');
+
+  assert.match(backupService, /image:\s*postgres:16-alpine/);
+  assert.match(backupService, /profiles:\s*\["tools"\]/);
+  assert.match(backupService, /backup\.sh:\/usr\/local\/bin\/backup\.sh:ro/);
+  assert.match(backupService, /\.\/backups:\/backups/);
+  assert.match(backupService, /depends_on:\s+postgres:\s+condition:\s+service_healthy/);
+  assert.match(backupScript, /pg_dump/);
+  assert.match(backupScript, /cd "\$backup_dir" && sha256sum/);
+  assert.doesNotMatch(backupScript, /sha256sum "\$backup_path"/);
+  assert.match(backupScript, /BACKUP_RETENTION_DAYS/);
+  assert.match(backupScript, /-delete/);
+  assert.match(restoreScript, /restore_id="\$\(date -u .*\)-\$\$"/);
+  assert.match(restoreScript, /container_name="kaoyan408-restore-drill-\$restore_id"/);
+  assert.match(restoreScript, /network_name="kaoyan408-restore-network-\$restore_id"/);
+  assert.match(restoreScript, /docker network create "\$network_name"/);
+  assert.match(restoreScript, /docker run -d[\s\S]*?--name "\$container_name"[\s\S]*?--network "\$network_name"/);
+  assert.match(restoreScript, /docker exec -e PGPASSWORD="\$restore_password" "\$container_name"\s+\\\r?\n  pg_restore --exit-on-error/);
+  assert.match(restoreScript, /trap cleanup EXIT/);
+  assert.match(restoreScript, /network_created=false/);
+  assert.match(restoreScript, /container_created=false/);
+  assert.match(restoreScript, /docker network create "\$network_name"[^\r\n]*\r?\nnetwork_created=true/);
+  assert.match(restoreScript, /postgres:16-alpine >\/dev\/null\r?\ncontainer_created=true/);
+  assert.match(restoreScript, /if \[ "\$container_created" = true \]; then\s+docker rm -f "\$container_name"/);
+  assert.match(restoreScript, /if \[ "\$network_created" = true \]; then\s+docker network rm "\$network_name"/);
+  assert.doesNotMatch(restoreScript, /compose\.production/);
+  assert.doesNotMatch(restoreScript, /DATABASE_URL/);
+  assert.doesNotMatch(restoreScript, /PGHOST=postgres/);
+  assert.doesNotMatch(restoreScript, /postgres_data/);
+  assert.doesNotMatch(restoreScript, /(?:docker compose|docker exec)\s+postgres[\s\S]*pg_restore/);
+  assert.match(cronInstaller, /15 3 \* \* \* root/);
+  assert.match(cronInstaller, /docker compose --env-file \.env\.production -f compose\.production\.yml --profile tools run --rm backup/);
+});
+
+test('Tencent IP deployment scripts preserve database volumes, validate production secrets, and use bounded health gates', () => {
+  const deployScriptPath = new URL('../deploy/tencent-ip/deploy.sh', import.meta.url);
+  const rollbackScriptPath = new URL('../deploy/tencent-ip/rollback.sh', import.meta.url);
+
+  assert.ok(existsSync(deployScriptPath), 'deploy.sh must exist');
+  assert.ok(existsSync(rollbackScriptPath), 'rollback.sh must exist');
+
+  const deployScript = readFileSync(deployScriptPath, 'utf8');
+  const rollbackScript = readFileSync(rollbackScriptPath, 'utf8');
+
+  assert.match(deployScript, /docker compose .* config/);
+  assert.match(deployScript, /docker compose --env-file \.env\.production -f compose\.production\.yml config --format json/);
+  assert.match(deployScript, /compose_project=\$\(printf '%s\\n' "\$compose_config" \| sed -n -E .*"name".*\| sed -n '1p'\)/);
+  assert.match(deployScript, /Could not determine the Compose project name/);
+  assert.match(deployScript, /ps --all -q postgres/);
+  assert.match(deployScript, /docker volume ls --filter "label=com\.docker\.compose\.project=\$compose_project" --filter 'label=com\.docker\.compose\.volume=postgres_data' -q/);
+  assert.match(deployScript, /--profile tools run --rm backup/);
+  assert.match(deployScript, /up -d --build --wait/);
+  assert.match(deployScript, /POSTGRES_USER/);
+  assert.match(deployScript, /POSTGRES_PASSWORD/);
+  assert.match(deployScript, /POSTGRES_DB/);
+  assert.match(deployScript, /JWT_SECRET/);
+  assert.match(deployScript, /BACKUP_RETENTION_DAYS/);
+  assert.match(deployScript, /generate-a-base64url-password/);
+  assert.match(deployScript, /generate-a-random-secret/);
+  assert.match(deployScript, /is_globally_reachable_ipv4/);
+  assert.match(deployScript, /100.*64.*127/);
+  assert.match(deployScript, /172.*16.*31/);
+  assert.match(deployScript, /192.*88.*99/);
+  assert.match(deployScript, /198.*18.*19/);
+  assert.match(deployScript, /224.*240/);
+  assertHealthLoopHonorsRemainingDeadline(deployScript, 'deploy.sh');
+  assert.doesNotMatch(deployScript, /down -v/);
+});
+
+test('Tencent IP operational scripts are executable in Git and the guide uses direct execution', () => {
+  const scriptPaths = [
+    'deploy/tencent-ip/backup.sh',
+    'deploy/tencent-ip/deploy.sh',
+    'deploy/tencent-ip/install-backup-cron.sh',
+    'deploy/tencent-ip/rollback.sh',
+    'deploy/tencent-ip/verify-restore.sh',
+  ];
+  const stagedEntries = execFileSync(
+    'git',
+    ['ls-files', '--stage', '--', ...scriptPaths],
+    { cwd: new URL('..', import.meta.url), encoding: 'utf8' },
+  ).trim().split(/\r?\n/);
+
+  assert.equal(stagedEntries.length, scriptPaths.length);
+  for (const entry of stagedEntries) {
+    assert.match(entry, /^100755 /);
+  }
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/deploy\.sh/);
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/rollback\.sh/);
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/install-backup-cron\.sh/);
+  assert.match(deploymentGuide, /\.\/deploy\/tencent-ip\/verify-restore\.sh/);
+});
+
+test('first administrator provisioning keeps the password off command arguments', () => {
+  assert.match(deploymentGuide, /\|\s*docker compose[\s\S]*?exec -T app/);
+  assert.match(deploymentGuide, /--password-stdin/);
+  assert.doesNotMatch(deploymentGuide, /--password\s+["']?\$admin_password/);
+});
+
+test('Tencent IP rollback verifies the target before backing up and restores a healthy original application on failure', () => {
+  const rollbackScript = readFileSync(new URL('../deploy/tencent-ip/rollback.sh', import.meta.url), 'utf8');
+
+  assert.doesNotMatch(rollbackScript, /down -v/);
+  assert.match(rollbackScript, /git rev-parse --verify "\$1\^\{commit\}"/);
+  assert.match(rollbackScript, /git status --porcelain --untracked-files=all/);
+  assert.match(rollbackScript, /original_commit=\$\(git rev-parse --verify HEAD\)/);
+  assert.match(rollbackScript, /trap restore_original EXIT/);
+  assert.match(rollbackScript, /git switch --detach "\$target_commit"/);
+  assert.match(rollbackScript, /git switch --detach "\$original_commit"/);
+  assertHealthLoopHonorsRemainingDeadline(rollbackScript, 'rollback.sh');
+  const recoveryStart = rollbackScript.indexOf('restore_original() {');
+  const recoveryEnd = rollbackScript.indexOf('trap restore_original EXIT');
+  assert.ok(recoveryStart >= 0, 'rollback must define automatic recovery');
+  assert.ok(recoveryEnd > recoveryStart, 'rollback must install the recovery trap after defining it');
+  const recoveryFunction = rollbackScript.slice(recoveryStart, recoveryEnd);
+  assert.match(
+    recoveryFunction,
+    /database migrations are not rolled back automatically/,
+    'automatic recovery must repeat the migration warning',
+  );
+  const backupIndex = rollbackScript.indexOf('--profile tools run --rm backup');
+  const originalCommitIndex = rollbackScript.indexOf('original_commit=');
+  assert.ok(backupIndex >= 0, 'rollback must invoke the backup tool');
+  assert.ok(originalCommitIndex >= 0, 'rollback must record the original commit');
+  assert.ok(
+    backupIndex < originalCommitIndex,
+    'rollback must create the backup before recording and switching versions',
+  );
+  assert.ok(
+    rollbackScript.indexOf('database migrations are not rolled back automatically')
+      < rollbackScript.indexOf('git switch --detach "$target_commit"'),
+    'rollback must warn about migrations before changing application code',
+  );
+});
+
+test('HTTPS guide describes a future topology instead of implying the HTTP pilot gains TLS from environment values alone', () => {
+  assert.match(deploymentGuide, /当前镜像只公开 80 端口/);
+  assert.match(deploymentGuide, /不能只改环境变量获得 HTTPS/);
+  assert.match(deploymentGuide, /443 ssl/);
+  assert.match(deploymentGuide, /80.*重定向/);
+  assert.match(deploymentGuide, /只读挂载/);
+  assert.match(deploymentGuide, /"443:443"/);
+  assert.match(deploymentGuide, /app:[\s\S]*?VITE_API_BASE_URL:\s*"https:\/\/exam\.example\.com\/api"/);
+  assert.match(deploymentGuide, /compose\.https\.yml/);
+  assert.match(deploymentGuide, /-f compose\.production\.yml -f compose\.https\.yml config/);
+  assert.match(deploymentGuide, /-f compose\.production\.yml -f compose\.https\.yml up/);
+  assert.match(deploymentGuide, /-f compose\.production\.yml -f compose\.https\.yml --profile tools run --rm backup/);
+  assert.match(deploymentGuide, /git switch --detach[\s\S]*?-f compose\.production\.yml -f compose\.https\.yml up/);
+  assert.match(deploymentGuide, /ALLOW_INSECURE_HTTP_IP=false/);
+  assert.match(deploymentGuide, /关闭旧 IP 入口/);
 });
 
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {
@@ -79,4 +314,33 @@ test('staging smoke is manual and reads credentials only from GitHub secrets', (
   assert.match(stagingSmokeWorkflow, /STAGING_SMOKE_EMAIL:\s*\$\{\{ secrets\.STAGING_SMOKE_EMAIL \}\}/);
   assert.match(stagingSmokeWorkflow, /STAGING_SMOKE_PASSWORD:\s*\$\{\{ secrets\.STAGING_SMOKE_PASSWORD \}\}/);
   assert.match(stagingSmokeWorkflow, /run: npm run smoke:staging/);
+});
+
+test('production Compose smoke is isolated, cleans only its own project, and never logs secrets', () => {
+  const smokePath = new URL('../scripts/smoke-production-compose.mjs', import.meta.url);
+  assert.equal(
+    packageJson.scripts['smoke:production-compose'],
+    'node scripts/smoke-production-compose.mjs',
+  );
+  assert.ok(existsSync(smokePath), 'production Compose smoke script must exist');
+
+  const smoke = readFileSync(smokePath, 'utf8');
+  assert.match(smoke, /smoke-[a-z0-9-]*\$\{randomUUID\(\)/);
+  assert.match(smoke, /'-p', projectName/);
+  assert.match(smoke, /finally\s*\{/);
+  assert.match(smoke, /'down', '--volumes', '--remove-orphans'/);
+  const cleanupBlock = smoke.match(/finally\s*\{[\s\S]*?^\}/m)?.[0] ?? '';
+  assert.match(cleanupBlock, /'down', '--volumes', '--remove-orphans'/);
+  assert.match(cleanupBlock, /printSummary\(status\)/, 'PASS must only be reported after isolated project cleanup succeeds');
+  assert.match(smoke, /stdio:\s*\['ignore', 'pipe', 'pipe'\]/);
+  assert.match(smoke, /randomBytes/);
+  assert.match(smoke, /PUBLIC_IP=1\.1\.1\.1/);
+  assert.match(smoke, /WEB_ORIGIN=http:\/\/1\.1\.1\.1/);
+  assert.doesNotMatch(smoke, /PUBLIC_IP=127\.0\.0\.1/);
+  assert.match(smoke, /request\('http:\/\/127\.0\.0\.1\//);
+  assert.match(smoke, /await mkdir\(backupDirectory, \{ mode: 0o777 \}\)/);
+  assert.match(smoke, /AbortSignal\.timeout/);
+  assert.doesNotMatch(smoke, /console\.(?:log|error)\([^)]*(?:password|inviteCode|accessToken|refreshToken|DATABASE_URL)/i);
+  assert.doesNotMatch(smoke, /exec(?:Sync)?\(/);
+  assert.doesNotMatch(smoke, /shell:\s*true/);
 });

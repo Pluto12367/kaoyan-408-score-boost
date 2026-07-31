@@ -1,11 +1,15 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import {
   approveReviewItem,
+  createManagedUser,
+  createTemporaryPassword,
+  disableAdminUser,
   fetchAdminMetrics,
   fetchAdminUsers,
   fetchReviewQueue,
   isStaticDemoMode,
   markReviewItemNeedsRecheck,
+  restoreAdminUser,
   updateAdminUserTrialStatus,
   type AdminMetrics,
   type AdminUserManagement,
@@ -99,5 +103,56 @@ export function useAdminWorkspaceActions(options: AdminWorkspaceActionsOptions) 
     }
   }
 
-  return { reviewStatus, userStatus, approveItem, markNeedsRecheck, updateTrialStatus };
+  async function setAccountStatus(userId: string, accountStatus: 'active' | 'disabled') {
+    setUserStatus(accountStatus === 'disabled' ? '正在停用账号...' : '正在恢复账号...');
+    try {
+      if (accountStatus === 'disabled') await disableAdminUser(userId);
+      else await restoreAdminUser(userId);
+      options.setUsers(await fetchAdminUsers());
+      options.setApiState('connected');
+      setUserStatus(accountStatus === 'disabled' ? '账号已停用，旧会话已失效。' : '账号已恢复。');
+    } catch {
+      setUserStatus('账号状态更新失败，请重试。');
+      options.setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
+  async function createUserTemporaryPassword(userId: string) {
+    setUserStatus('正在生成临时密码...');
+    try {
+      const result = await createTemporaryPassword(userId);
+      options.setUsers(await fetchAdminUsers());
+      options.setApiState('connected');
+      setUserStatus(`临时密码：${result.temporaryPassword}`);
+    } catch {
+      setUserStatus('临时密码生成失败，请重试。');
+      options.setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
+  async function createInternalUser(input: { email: string; name: string; role: 'teacher' | 'admin' }) {
+    setUserStatus('正在创建内部账号...');
+    try {
+      const result = await createManagedUser(input);
+      options.setUsers(await fetchAdminUsers());
+      options.setApiState('connected');
+      setUserStatus(`${result.user.name} 已创建，必须使用临时密码首次登录并改密。`);
+      return result.temporaryPassword;
+    } catch {
+      setUserStatus('内部账号创建失败，请重试。');
+      options.setApiState(isMockAllowed() ? 'mock' : 'error');
+      return null;
+    }
+  }
+
+  return {
+    reviewStatus,
+    userStatus,
+    approveItem,
+    markNeedsRecheck,
+    updateTrialStatus,
+    setAccountStatus,
+    createUserTemporaryPassword,
+    createInternalUser,
+  };
 }

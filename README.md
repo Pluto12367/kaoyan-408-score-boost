@@ -27,6 +27,10 @@ npm run check:local
 - `assets/render-desktop.png`
 - `assets/render-mobile.png`
 
+### Tencent Cloud Lighthouse small-pilot deployment
+
+The current recommended route for a 10–20 person temporary public-IP pilot—including deployment, backup, upgrade, and rollback—is the [Tencent Cloud deployment guide](docs/deploy-to-tencent-ip.md). It uses temporary HTTP only; do not reuse passwords or handle highly sensitive data before moving to a registered domain and HTTPS.
+
 ## 部署
 
 前端构建产物位于 `apps/web/dist`：

@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
+import { createHmac, randomBytes } from 'node:crypto';
 import { once } from 'node:events';
 import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,6 +10,7 @@ const root = process.cwd();
 const apiUrl = 'http://127.0.0.1:3200';
 const databaseUrl = process.env.TEST_DATABASE_URL
   ?? 'postgresql://postgres:postgres@127.0.0.1:55432/kaoyan408_test?schema=public';
+const integrationJwtSecret = 'integration-test-jwt-secret-with-more-than-32-characters';
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 let activeApi;
 
@@ -67,20 +69,49 @@ async function main() {
   await migrationPrisma.knowledgePoint.deleteMany({
     where: { id: { startsWith: 'legacy-review-point-' } },
   });
+  const invitationAdmin = await ensureInvitationAdmin(migrationPrisma);
+  const primaryInvite = await createIntegrationInvitation(migrationPrisma, invitationAdmin.id, {
+    maxUses: 20,
+    label: 'primary integration registration',
+  });
+  const oneUseInvite = await createIntegrationInvitation(migrationPrisma, invitationAdmin.id, {
+    maxUses: 1,
+    label: 'single use race registration',
+  });
   await migrationPrisma.$disconnect();
 
   activeApi = startApi();
   await waitForHealth(activeApi);
+
+  const raceAttempts = await Promise.allSettled([
+    postJson(`${apiUrl}/auth/register`, {
+      inviteCode: oneUseInvite.code,
+      email: `invite.race.a.${Date.now()}@example.com`,
+      password: 'ReliableTestPassword!408',
+      name: '邀请码并发测试 A',
+    }),
+    postJson(`${apiUrl}/auth/register`, {
+      inviteCode: oneUseInvite.code,
+      email: `invite.race.b.${Date.now()}@example.com`,
+      password: 'ReliableTestPassword!408',
+      name: '邀请码并发测试 B',
+    }),
+  ]);
+  assert(raceAttempts.filter((item) => item.status === 'fulfilled').length === 1, 'one-use invitation must create exactly one account');
+  const racePrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const storedRaceInvite = await racePrisma.invitationCode.findUnique({ where: { id: oneUseInvite.id } });
+  assert(storedRaceInvite?.usedCount === 1, 'invitation count must remain one');
+  await racePrisma.$disconnect();
 
   const credentials = {
     email: `integration.student.${Date.now()}@example.com`,
     password: 'ReliableTestPassword!408',
     name: '集成测试学生',
   };
-  const registered = await postJson(`${apiUrl}/auth/register`, credentials);
+  const registered = await postJson(`${apiUrl}/auth/register`, { ...credentials, inviteCode: primaryInvite.code });
   assert(registered.user.email === undefined && registered.user.role === 'student', 'registration should return a safe student profile');
   assert(registered.accessToken && registered.refreshToken, 'registration should issue access and refresh tokens');
-  const loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
+  let loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(loggedIn.user.id === registered.user.id, 'password login should return the registered user');
   let studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
   let initial = await waitForOverview(studentHeaders);
@@ -263,7 +294,7 @@ async function main() {
     password: 'ExternalFeedbackPassword!408',
     name: '外部反馈测试学生',
   };
-  const externalStudent = await postJson(`${apiUrl}/auth/register`, externalCredentials);
+  const externalStudent = await postJson(`${apiUrl}/auth/register`, { ...externalCredentials, inviteCode: primaryInvite.code });
   const externalStudentHeaders = { Authorization: `Bearer ${externalStudent.accessToken}` };
   await prisma.feedbackSubmission.create({
     data: {
@@ -302,6 +333,36 @@ async function main() {
   assert(adminUsers.source === 'postgresql', 'admin user management should report the real PostgreSQL source');
   assert(registeredAdminUser?.name === credentials.name, 'admin user management should list the real registered student');
   assert(registeredAdminUser?.trialStatus === 'active', 'completing onboarding should activate the student trial');
+  const disabledUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/disable`, {}, adminHeaders);
+  assert(disabledUser.accountStatus === 'disabled', 'admin must disable the student');
+  await expectPostStatus(`${apiUrl}/auth/login`, credentials, 403);
+  await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken }, 401);
+  await expectGetStatus(`${apiUrl}/dashboard/overview`, studentHeaders, 403);
+  const restoredUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/restore`, {}, adminHeaders);
+  assert(restoredUser.accountStatus === 'active', 'admin must restore the student');
+  loggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
+  studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
+  const temporaryPasswordResult = await postJson(`${apiUrl}/admin/users/${registered.user.id}/temporary-password`, {}, adminHeaders);
+  assert(temporaryPasswordResult.temporaryPassword.length >= 16, 'admin temporary password response must include the one-time password');
+  const temporaryLogin = await postJson(`${apiUrl}/auth/login`, {
+    email: credentials.email,
+    password: temporaryPasswordResult.temporaryPassword,
+  });
+  assert(temporaryLogin.user.mustChangePassword === true, 'temporary password login must require password change');
+  const temporaryHeaders = { Authorization: `Bearer ${temporaryLogin.accessToken}` };
+  await expectGetStatus(`${apiUrl}/dashboard/overview`, temporaryHeaders, 403);
+  const changedPasswordSession = await postJson(`${apiUrl}/auth/change-password`, {
+    currentPassword: temporaryPasswordResult.temporaryPassword,
+    newPassword: 'ChangedReliablePassword!408',
+  }, temporaryHeaders);
+  assert(changedPasswordSession.user.mustChangePassword === false, 'password change must clear the forced-change flag');
+  await expectPostStatus(`${apiUrl}/auth/login`, credentials, 401);
+  credentials.password = 'ChangedReliablePassword!408';
+  loggedIn = await postJson(`${apiUrl}/auth/login`, {
+    email: credentials.email,
+    password: credentials.password,
+  });
+  studentHeaders = { Authorization: `Bearer ${loggedIn.accessToken}` };
   assert(adminUsers.users.some((user) => user.id === teacherSession.user.id && user.role === 'teacher' && user.trialStatus === 'active'), 'admin user management should list active teacher accounts');
   assert(adminUsers.users.some((user) => user.id === adminSession.user.id && user.role === 'admin' && user.trialStatus === 'active'), 'admin user management should list active administrator accounts');
   const followUpUser = await postJson(`${apiUrl}/admin/users/${registered.user.id}/trial-status`, {
@@ -1140,7 +1201,7 @@ async function main() {
     password: 'ReliableTestPassword!408',
     name: 'Today Plan Projection Student',
   };
-  const todayProjectionRegistered = await postJson(`${apiUrl}/auth/register`, todayProjectionCredentials);
+  const todayProjectionRegistered = await postJson(`${apiUrl}/auth/register`, { ...todayProjectionCredentials, inviteCode: primaryInvite.code });
   const todayProjectionHeaders = { Authorization: `Bearer ${todayProjectionRegistered.accessToken}` };
   const todayProjectionSession = await postJson(`${apiUrl}/sessions/practice/start`, {
     type: 'paper',
@@ -1314,7 +1375,7 @@ async function main() {
     password: 'ReliableTestPassword!408',
     name: '未引导复盘学生',
   };
-  const bootstrapRegistered = await postJson(`${apiUrl}/auth/register`, bootstrapCredentials);
+  const bootstrapRegistered = await postJson(`${apiUrl}/auth/register`, { ...bootstrapCredentials, inviteCode: primaryInvite.code });
   const bootstrapHeaders = { Authorization: `Bearer ${bootstrapRegistered.accessToken}` };
   const bootstrapSession = await postJson(`${apiUrl}/sessions/practice/start`, {
     type: 'paper',
@@ -1498,7 +1559,7 @@ async function main() {
     password: 'ReliableTestPassword!408',
     name: 'Completed Review Student',
   };
-  const completedReviewRegistered = await postJson(`${apiUrl}/auth/register`, completedReviewCredentials);
+  const completedReviewRegistered = await postJson(`${apiUrl}/auth/register`, { ...completedReviewCredentials, inviteCode: primaryInvite.code });
   const completedReviewHeaders = { Authorization: `Bearer ${completedReviewRegistered.accessToken}` };
   const completedReviewSession = await postJson(`${apiUrl}/sessions/practice/start`, {
     type: 'paper',
@@ -2148,6 +2209,41 @@ async function main() {
   activeApi = undefined;
 }
 
+async function ensureInvitationAdmin(prisma) {
+  return prisma.user.upsert({
+    where: { id: 'integration-invitation-admin' },
+    update: {},
+    create: {
+      id: 'integration-invitation-admin',
+      email: 'integration.invitation.admin@example.com',
+      name: 'Integration Invitation Admin',
+      role: 'ADMIN',
+      trialStatus: 'ACTIVE',
+      accountStatus: 'ACTIVE',
+    },
+  });
+}
+
+async function createIntegrationInvitation(prisma, createdById, { maxUses, label }) {
+  const code = randomBytes(18).toString('base64url');
+  const invitation = await prisma.invitationCode.create({
+    data: {
+      codeHash: hashInvitationCode(code),
+      codePrefix: code.slice(0, 6),
+      label,
+      maxUses,
+      startsAt: new Date(Date.now() - 60_000),
+      expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      createdById,
+    },
+  });
+  return { id: invitation.id, code };
+}
+
+function hashInvitationCode(code) {
+  return createHmac('sha256', integrationJwtSecret).update(code.trim()).digest('hex');
+}
+
 async function prepareLegacyFeedbackMigrationFixture() {
   const resetPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   await resetPrisma.$executeRawUnsafe('DROP SCHEMA IF EXISTS "public" CASCADE');
@@ -2256,7 +2352,7 @@ function startApi() {
       PORT: '3200',
       WEB_ORIGIN: 'http://127.0.0.1:5173',
       DATABASE_URL: databaseUrl,
-      JWT_SECRET: 'integration-test-jwt-secret-with-more-than-32-characters',
+      JWT_SECRET: integrationJwtSecret,
       ALLOW_DEMO_AUTH: 'true',
     },
     stdio: ['ignore', 'pipe', 'pipe'],

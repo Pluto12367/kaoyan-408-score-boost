@@ -1,5 +1,5 @@
 import { API_BASE_URL } from '../client';
-import type { AuthSession, UserRole } from '../types';
+import type { AuthSession, ChangePasswordInput, UserRole } from '../types';
 
 export async function loginAsRole(role: UserRole): Promise<AuthSession> {
   const response = await fetch(`${API_BASE_URL}/auth/demo-login`, {
@@ -11,7 +11,7 @@ export async function loginAsRole(role: UserRole): Promise<AuthSession> {
   return response.json() as Promise<AuthSession>;
 }
 
-export async function registerAccount(input: { email: string; password: string; name: string }): Promise<AuthSession> {
+export async function registerAccount(input: { inviteCode: string; email: string; password: string; name: string }): Promise<AuthSession> {
   return requestAuthSession('/auth/register', input);
 }
 
@@ -31,6 +31,10 @@ export async function logoutAccount(refreshToken?: string): Promise<void> {
     body: JSON.stringify({ refreshToken }),
   });
   if (!response.ok) throw new Error(`Logout failed with ${response.status}`);
+}
+
+export async function changePassword(input: ChangePasswordInput): Promise<AuthSession> {
+  return requestAuthSession('/auth/change-password', input);
 }
 
 async function requestAuthSession(path: string, body: object): Promise<AuthSession> {
