@@ -9,6 +9,11 @@
     ".": "./dist/index.js",
     "./questionImport.server": "./dist/questionImport.server.js"
   },
+  "typesVersions": {
+    "*": {
+      "questionImport.server": ["dist/questionImport.server.d.ts"]
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json"
   },

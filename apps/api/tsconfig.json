@@ -10,9 +10,6 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "paths": {
-      "@kaoyan408/shared/questionImport.server": ["../../packages/shared/src/questionImport.server.ts"]
-    },
     "incremental": true,
     "strict": true,
     "skipLibCheck": true
