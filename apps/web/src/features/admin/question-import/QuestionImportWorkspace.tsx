@@ -15,6 +15,7 @@ export function QuestionImportWorkspace() {
   const mounted = useRef(true); const polling = useRef(false); const pollTimer = useRef<ReturnType<typeof setTimeout>>();
   const stopPolling = useCallback(() => { polling.current = false; if (pollTimer.current) clearTimeout(pollTimer.current); pollTimer.current = undefined; }, []);
   const startPolling = useCallback((initialBatches: QuestionImportBatchSummary[]) => {
+    if (!mounted.current) return;
     if (!initialBatches.some((batch) => active.has(batch.status)) || polling.current) return;
     polling.current = true; let step = 0;
     const poll = async () => { try { const latest = await listQuestionImports(); if (!mounted.current || !polling.current) return; setBatches(latest.items); if (!latest.items.some((batch) => active.has(batch.status))) { stopPolling(); return; } pollTimer.current = setTimeout(() => void poll(), [2000, 4000, 10000][Math.min(step++, 2)]); } catch (reason) { if (mounted.current) setError(reason instanceof Error ? reason.message : '轮询失败'); stopPolling(); } };
@@ -22,7 +23,7 @@ export function QuestionImportWorkspace() {
   }, [stopPolling]);
   const loadBatches = useCallback(async () => { const page = await listQuestionImports(); if (!mounted.current) return page.items; setBatches(page.items); setSelectedId((current) => current ?? page.items[0]?.id); return page.items; }, []);
   const refreshCandidates = useCallback(async () => { if (!selectedId) return; const page = await listImportCandidates(selectedId, candidatePage); if (!mounted.current) return; setCandidates(page.items); setCandidateTotal(page.total); }, [candidatePage, selectedId]);
-  useEffect(() => { mounted.current = true; void loadBatches().then(startPolling).catch((reason) => setError(reason instanceof Error ? reason.message : '无法读取导入批次')); return () => { mounted.current = false; stopPolling(); }; }, [loadBatches, startPolling, stopPolling]);
+  useEffect(() => { mounted.current = true; void loadBatches().then((batches) => { if (mounted.current) startPolling(batches); }).catch((reason) => setError(reason instanceof Error ? reason.message : '无法读取导入批次')); return () => { mounted.current = false; stopPolling(); }; }, [loadBatches, startPolling, stopPolling]);
   useEffect(() => { setCandidatePage(1); if (!selectedId) return; void getQuestionImport(selectedId).then(setDetail).catch((reason) => setError(String(reason))); }, [selectedId]);
   useEffect(() => { void refreshCandidates().catch((reason) => setError(String(reason))); }, [refreshCandidates]);
   async function submit(file: File, metadata: CreateImportMetadata) { try { await createQuestionImport(file, metadata); localStorage.setItem(defaultsKey, JSON.stringify({ source: metadata.source, year: metadata.year, defaultSubject: metadata.defaultSubject, defaultChapter: metadata.defaultChapter })); const batches = await loadBatches(); startPolling(batches); } catch (reason) { setError(reason instanceof Error ? reason.message : '上传失败'); } }

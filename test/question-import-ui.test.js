@@ -21,9 +21,10 @@ test('admin question-import workspace exposes the operational review contract', 
   assert.match(workspace, /clearTimeout/);
   assert.match(workspace, /useRef/);
   assert.match(workspace, /startPolling/);
-  assert.match(workspace, /\.then\(startPolling\)/);
+  assert.match(workspace, /const startPolling[\s\S]*?=> \{\s*if \(!mounted\.current\) return;/);
+  assert.match(workspace, /loadBatches\(\)\.then\(\(batches\) => \{\s*if \(mounted\.current\) startPolling\(batches\);\s*\}\)/);
   assert.match(workspace, /startPolling\(batches\)/);
-  assert.match(workspace, /mounted\.current = true;[\s\S]*?loadBatches\(\)\.then\(startPolling\)/);
+  assert.match(workspace, /mounted\.current = true;[\s\S]*?loadBatches\(\)\.then/);
   assert.match(workspace, /listImportCandidates\(selectedId, candidatePage\)/);
   assert.match(workspace, /getQuestionImport\(selectedId\)/);
   assert.match(upload, /accept="\.xlsx,\.csv,\.pdf"/);
