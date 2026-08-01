@@ -41,7 +41,7 @@ export class MineruProvider implements DocumentParserProvider {
   }
 
   async submit(input: ProviderInput): Promise<{ externalTaskId: string }> {
-    if (!this.token) throw new PdfParserNotConfiguredError();
+    this.assertConfigured();
     const externalTaskId = `mineru-${randomUUID()}`;
     const task: Task = { input, promise: Promise.resolve() };
     task.promise = (async () => {
@@ -53,6 +53,10 @@ export class MineruProvider implements DocumentParserProvider {
     })();
     this.tasks.set(externalTaskId, task);
     return { externalTaskId };
+  }
+
+  assertConfigured(): void {
+    if (!this.token) throw new PdfParserNotConfiguredError();
   }
 
   async poll(externalTaskId: string): Promise<ProviderPollResult> {

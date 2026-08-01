@@ -65,17 +65,20 @@ test('MinerU receives an existing private split PDF path and persists raw artifa
   await writeFile(join(temporaryDirectory, id), '%PDF-1.7\n');
   const storage = new ImportStorageService({ dataDirectory: root, temporaryDirectory, incomingDirectory, permanentDirectory, maxPdfBytes: 1024, maxTableBytes: 1024, temporaryQuotaBytes: 1024, diskStopPercent: 80 });
   let source;
+  const split = await storage.createProviderSplitArtifact(`temporary/${id}`, 4, 6);
   const provider = new MineruProvider('test-token', {
-    resolveSource: (job) => storage.resolveTemporaryPdfPath(job.storageKey),
+    resolveSource: (job) => storage.resolveProviderSplitPdfPath(job.storageKey, job.pageStart, job.pageEnd),
     persistRaw: (result) => storage.putProviderArtifacts(result),
     createClient: () => ({ extract: async (path) => { source = path; return { taskId: 'task-2', state: 'done', filename: 'split.pdf', contentList: [], images: [], _zipBytes: Uint8Array.from([1]) }; } }),
   });
-  const taskId = (await provider.submit(input)).externalTaskId;
+  const taskId = (await provider.submit({ ...input, storageKey: split.storageKey, pageStart: 4, pageEnd: 6 })).externalTaskId;
   await provider.poll(taskId);
   const document = await provider.fetchResult(taskId);
 
   assert.notEqual(source, input.storageKey);
+  assert.notEqual(source, join(temporaryDirectory, id));
   assert.equal(existsSync(source), true);
+  assert.deepEqual(await storage.readProviderSplitMetadata(split.storageKey), { pageStart: 4, pageEnd: 6 });
   assert.match(document.rawResultKey, /^provider\/[a-f0-9-]{36}\.json$/u);
 });
 

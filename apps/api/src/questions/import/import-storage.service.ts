@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, Optional, PayloadTooLargeException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { lstat, mkdir, open, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants, createReadStream } from 'node:fs';
+import { copyFile, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, posix, relative, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createInflateRaw } from 'node:zlib';
@@ -134,6 +134,41 @@ export class ImportStorageService {
     return filePath;
   }
 
+  /** Creates a distinct, private document-provider artifact for one planned page range. */
+  async createProviderSplitArtifact(sourceStorageKey: string, pageStart: number, pageEnd: number): Promise<{ storageKey: string; pageStart: number; pageEnd: number }> {
+    if (!Number.isInteger(pageStart) || !Number.isInteger(pageEnd) || pageStart < 1 || pageEnd < pageStart) throw new BadRequestException('Document split page range is invalid');
+    const sourcePath = await this.resolveTemporaryPdfPath(sourceStorageKey);
+    const splitDirectory = await this.providerSplitDirectory();
+    const splitId = randomUUID();
+    const splitPath = resolve(splitDirectory, `${splitId}.pdf`);
+    const metadataPath = resolve(splitDirectory, `${splitId}.json`);
+    await copyFile(sourcePath, splitPath, constants.COPYFILE_EXCL);
+    try {
+      await writeFile(metadataPath, JSON.stringify({ pageStart, pageEnd }), { flag: 'wx', mode: 0o600 });
+    } catch (error) {
+      await rm(splitPath, { force: true });
+      throw error;
+    }
+    return { storageKey: `provider-split/${splitId}`, pageStart, pageEnd };
+  }
+
+  /** Resolves only a server-created split artifact and verifies its planned page range. */
+  async resolveProviderSplitPdfPath(storageKey: string, pageStart: number, pageEnd: number): Promise<string> {
+    const { filePath, metadata } = await this.providerSplitPaths(storageKey);
+    if (metadata.pageStart !== pageStart || metadata.pageEnd !== pageEnd) throw new BadRequestException('Document split page range does not match its provider job');
+    const file = await lstat(filePath);
+    if (!file.isFile() || file.isSymbolicLink() || file.size <= 0 || file.size > this.config.maxPdfBytes) throw new BadRequestException('Document split PDF is unavailable');
+    const prefix = Buffer.alloc(5);
+    const handle = await open(filePath, 'r');
+    try { await handle.read(prefix, 0, prefix.length, 0); } finally { await handle.close(); }
+    if (prefix.toString('ascii') !== '%PDF-') throw new BadRequestException('PDF signature is invalid');
+    return filePath;
+  }
+
+  async readProviderSplitMetadata(storageKey: string): Promise<{ pageStart: number; pageEnd: number }> {
+    return (await this.providerSplitPaths(storageKey)).metadata;
+  }
+
   /** Persists unexposed provider JSON and optional ZIP bytes under private storage. */
   async putProviderArtifacts<T extends object & { _zipBytes?: Uint8Array | null }>(result: T): Promise<string> {
     const artifactDirectory = resolve(this.config.temporaryDirectory, 'provider');
@@ -164,6 +199,29 @@ export class ImportStorageService {
     const filePath = resolve(this.config.temporaryDirectory, match[1]);
     await this.assertTrustedParent(this.config.temporaryDirectory, filePath);
     return filePath;
+  }
+
+  private async providerSplitDirectory(): Promise<string> {
+    const directory = resolve(this.config.temporaryDirectory, 'provider-splits');
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    await this.assertTrustedParent(this.config.temporaryDirectory, directory);
+    return directory;
+  }
+
+  private async providerSplitPaths(storageKey: string): Promise<{ filePath: string; metadata: { pageStart: number; pageEnd: number } }> {
+    const match = /^provider-split\/([a-f0-9-]{36})$/u.exec(storageKey);
+    if (!match) throw new BadRequestException('Document split storage key is invalid');
+    const directory = await this.providerSplitDirectory();
+    const filePath = resolve(directory, `${match[1]}.pdf`);
+    const metadataPath = resolve(directory, `${match[1]}.json`);
+    await this.assertTrustedParent(directory, filePath);
+    await this.assertTrustedParent(directory, metadataPath);
+    let metadata: unknown;
+    try { metadata = JSON.parse(await readFile(metadataPath, 'utf8')); } catch { throw new BadRequestException('Document split metadata is unavailable'); }
+    if (!metadata || typeof metadata !== 'object' || !Number.isInteger((metadata as { pageStart?: unknown }).pageStart) || !Number.isInteger((metadata as { pageEnd?: unknown }).pageEnd)) throw new BadRequestException('Document split metadata is invalid');
+    const { pageStart, pageEnd } = metadata as { pageStart: number; pageEnd: number };
+    if (pageStart < 1 || pageEnd < pageStart) throw new BadRequestException('Document split metadata is invalid');
+    return { filePath, metadata: { pageStart, pageEnd } };
   }
 
   private async hashAndValidate(path: string, fileType: ImportFileType): Promise<string> {

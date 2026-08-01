@@ -239,9 +239,11 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processDocumentJob(job: ClaimedJob): Promise<DocumentJobResult> {
+    this.documentProvider.assertConfigured();
+    const split = await this.storage.createProviderSplitArtifact(job.originalStorageKey, job.pageStart, job.pageEnd);
     const submitted = await this.documentProvider.submit({
       jobId: job.id,
-      storageKey: job.originalStorageKey,
+      storageKey: split.storageKey,
       fileName: job.originalFileName,
       pageStart: job.pageStart,
       pageEnd: job.pageEnd,
