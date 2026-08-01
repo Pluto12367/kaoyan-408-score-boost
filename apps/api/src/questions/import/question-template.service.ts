@@ -22,7 +22,7 @@ export class QuestionTemplateService {
       sheet.getCell(`A${row}`).dataValidation = validation(SUBJECTS);
       sheet.getCell(`D${row}`).dataValidation = validation(TYPES);
       sheet.getCell(`E${row}`).dataValidation = validation(DIFFICULTIES);
-      sheet.getCell(`K${row}`).dataValidation = validation(ANSWERS);
+      sheet.getCell(`O${row}`).dataValidation = validation(ANSWERS);
     }
 
     const instructions = workbook.addWorksheet('填写说明');

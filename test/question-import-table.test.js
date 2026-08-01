@@ -7,8 +7,8 @@ const ExcelJS = require('exceljs');
 const { TableImportParser } = require('../apps/api/dist/questions/import/table-import.parser.js');
 const { QuestionTemplateService } = require('../apps/api/dist/questions/import/question-template.service.js');
 
-const headers = ['科目', '章节', '知识点', '题型', '难度', '题干', '选项 A', '选项 B', '选项 C', '选项 D', '正确答案', '答案解析', '来源', '年份', '建议答题时间（秒）'];
-const row = ['操作系统', '进程管理', '进程同步与互斥', '选择题', '中等', '哪个内容包含逗号, 仍是题干？', '进程同步', '磁盘调度', '地址转换', '文件分配', 'A', '解析', '合法原创资料', '2026', '90'];
+const headers = ['科目', '章节', '知识点', '题型', '难度', '题干', '选项 A', '选项 B', '选项 C', '选项 D', '选项 E', '选项 F', '选项 G', '选项 H', '正确答案', '答案解析', '来源', '年份', '建议答题时间（秒）'];
+const row = ['操作系统', '进程管理', '进程同步与互斥', '选择题', '中等', '哪个内容包含逗号, 仍是题干？', '进程同步', '磁盘调度', '地址转换', '文件分配', '段页式存储', '请求分页', '文件索引', '虚拟设备', 'H', '解析', '合法原创资料', '2026', '90'];
 
 async function workbookBuffer(rows = [row]) {
   const workbook = new ExcelJS.Workbook();
@@ -21,13 +21,15 @@ async function workbookBuffer(rows = [row]) {
 test('parses xlsx and UTF-8 BOM CSV quoted commas into the same source row fields', async () => {
   const parser = new TableImportParser();
   const xlsx = await parser.parse(await workbookBuffer(), 'questions.xlsx');
-  const csv = await parser.parse(Buffer.from(`\uFEFF${headers.join(',')}\r\n操作系统,进程管理,进程同步与互斥,选择题,中等,"哪个内容包含逗号, 仍是题干？",进程同步,磁盘调度,地址转换,文件分配,A,解析,合法原创资料,2026,90`, 'utf8'), 'questions.csv');
+  const csv = await parser.parse(Buffer.from(`\uFEFF${headers.join(',')}\r\n操作系统,进程管理,进程同步与互斥,选择题,中等,"哪个内容包含逗号, 仍是题干？",进程同步,磁盘调度,地址转换,文件分配,段页式存储,请求分页,文件索引,虚拟设备,H,解析,合法原创资料,2026,90`, 'utf8'), 'questions.csv');
 
   assert.equal(xlsx.issues.length, 0);
   assert.equal(csv.issues.length, 0);
   assert.deepEqual(xlsx.rows, csv.rows);
   assert.equal(xlsx.rows[0].rowNumber, 2);
   assert.equal(xlsx.rows[0].values.题干, '哪个内容包含逗号, 仍是题干？');
+  assert.equal(xlsx.rows[0].values.知识点, '进程同步与互斥');
+  assert.equal(xlsx.rows[0].values['选项 H'], '虚拟设备');
 });
 
 test('rejects legacy xls input and tables over 1000 data rows', async () => {
@@ -54,6 +56,34 @@ test('reports a formula without a cached result instead of evaluating it', async
   assert.ok(result.issues.some((issue) => issue.code === 'FORMULA_VALUE_UNAVAILABLE'));
 });
 
+test('uses cached shared-formula results and rejects an uncached shared formula', async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('题库导入');
+  sheet.addRow(headers);
+  const master = sheet.addRow(row);
+  master.getCell(6).value = { formula: '1+1', result: 2, shareType: 'shared', ref: 'F2:F4' };
+  const cached = sheet.addRow(row);
+  cached.getCell(6).value = { sharedFormula: 'F2', result: 'cached' };
+  const uncached = sheet.addRow(row);
+  uncached.getCell(6).value = { sharedFormula: 'F2' };
+  const result = await new TableImportParser().parse(Buffer.from(await workbook.xlsx.writeBuffer()), 'shared-formula.xlsx');
+
+  assert.equal(result.rows[0].values.题干, 2);
+  assert.equal(result.rows[1].values.题干, 'cached');
+  assert.ok(result.issues.some((issue) => issue.code === 'FORMULA_VALUE_UNAVAILABLE'));
+});
+
+test('rejects invalid quote placement in CSV fields', async () => {
+  const parser = new TableImportParser();
+  const afterClosingQuote = await parser.parse(Buffer.from(`${headers.join(',')}\r\n"a"b`, 'utf8'), 'bad-after-quote.csv');
+  const unquotedQuote = await parser.parse(Buffer.from(`${headers.join(',')}\r\na"b`, 'utf8'), 'bad-unquoted-quote.csv');
+
+  assert.deepEqual(afterClosingQuote.rows, []);
+  assert.ok(afterClosingQuote.issues.some((issue) => issue.code === 'INVALID_CSV'));
+  assert.deepEqual(unquotedQuote.rows, []);
+  assert.ok(unquotedQuote.issues.some((issue) => issue.code === 'INVALID_CSV'));
+});
+
 test('builds a workbook template with import and instruction sheets plus validation lists', async () => {
   const buffer = await new QuestionTemplateService().buildXlsx();
   const workbook = new ExcelJS.Workbook();
@@ -63,8 +93,9 @@ test('builds a workbook template with import and instruction sheets plus validat
   assert.ok(sheet);
   assert.ok(workbook.getWorksheet('填写说明'));
   assert.deepEqual(sheet.getRow(1).values.slice(1), headers);
+  assert.equal(sheet.getCell('N1').value, '选项 H');
   assert.equal(sheet.getCell('A2').dataValidation.type, 'list');
   assert.equal(sheet.getCell('D2').dataValidation.type, 'list');
   assert.equal(sheet.getCell('E2').dataValidation.type, 'list');
-  assert.equal(sheet.getCell('K2').dataValidation.type, 'list');
+  assert.equal(sheet.getCell('O2').dataValidation.type, 'list');
 });

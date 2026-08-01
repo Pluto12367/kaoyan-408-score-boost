@@ -44,9 +44,19 @@ const TYPE_VALUES = new Set<CandidateQuestionDraft['type']>(['选择题', '综�
 const DIFFICULTY_VALUES = new Set<CandidateQuestionDraft['difficulty']>(['基础', '中等', '困难']);
 const OPTION_LETTERS = 'ABCDEFGH';
 
+function formulaResult(value: unknown): { value: unknown; unavailable: boolean } {
+  if (value && typeof value === 'object' && ('formula' in value || 'sharedFormula' in value)) {
+    return 'result' in value && value.result !== undefined && value.result !== null
+      ? { value: value.result, unavailable: false }
+      : { value: undefined, unavailable: true };
+  }
+  return { value, unavailable: false };
+}
+
 function normalizedText(value: unknown): string {
-  if (value === undefined || value === null) return '';
-  return String(value).normalize('NFKC').replace(/\s+/gu, ' ').trim();
+  const cached = formulaResult(value);
+  if (cached.value === undefined || cached.value === null) return '';
+  return String(cached.value).normalize('NFKC').replace(/\s+/gu, ' ').trim();
 }
 
 function field(raw: CandidateRawValues, ...names: string[]): unknown {
@@ -109,10 +119,7 @@ export function normalizeCandidateDraft(
 ): { value?: CandidateQuestionDraft; issues: ImportWarning[] } {
   const issues: ImportWarning[] = [];
   for (const value of Object.values(raw)) {
-    if (
-      value && typeof value === 'object' && 'formula' in value
-      && (!('result' in value) || value.result === undefined || value.result === null)
-    ) {
+    if (formulaResult(value).unavailable) {
       warning(issues, 'FORMULA_VALUE_UNAVAILABLE', undefined, '公式没有可用的缓存结果。', '请粘贴公式计算后的值，而不是公式。');
       break;
     }
@@ -127,6 +134,7 @@ export function normalizeCandidateDraft(
     .split('')
     .map((letter) => optionValue(field(raw, `选项 ${letter}`, `选项${letter}`, `option${letter}`, `option ${letter}`), letter));
   const presentOptions = options.filter(Boolean);
+  const lastOptionIndex = options.reduce((last, option, index) => option ? index : last, -1);
 
   if (!stem) warning(issues, 'MISSING_STEM', 'stem', '题干不能为空。', '请填写题干。');
   if (!TYPE_VALUES.has(type)) warning(issues, 'UNKNOWN_TYPE', 'type', '题型不在允许范围内。', '请选择选择题、综合题或判断题。');
@@ -137,10 +145,19 @@ export function normalizeCandidateDraft(
     if (presentOptions.length < 2 || presentOptions.length > 8) {
       warning(issues, 'INVALID_OPTION_COUNT', 'options', '选择题必须有 2 至 8 个非空选项。', '补充或删除选项后重试。');
     }
-    const allowedAnswers = OPTION_LETTERS.slice(0, presentOptions.length);
-    if (!/^[A-H]$/u.test(answer) || !allowedAnswers.includes(answer)) {
+    if (lastOptionIndex >= 0 && options.slice(0, lastOptionIndex + 1).some((option) => !option)) {
+      warning(issues, 'OPTION_GAP', 'options', '选择题选项必须从 A 开始连续填写。', '请补齐中间空缺的选项，或将后续选项前移。');
+    }
+    const answerIndex = OPTION_LETTERS.indexOf(answer);
+    if (!/^[A-H]$/u.test(answer) || answerIndex < 0 || !options[answerIndex]) {
       warning(issues, 'INVALID_ANSWER', 'answer', '正确答案必须对应一个已填写的选项。', '填写 A 到 H 中的一个选项字母。');
     }
+  }
+
+  const knowledgePointIds = valuesAsList(field(raw, '知识点 ID', '知识点ID', 'knowledgePointIds'));
+  const knowledgePointNames = valuesAsList(field(raw, '知识点', 'knowledgePointNames'));
+  if (knowledgePointNames.length > 0 && knowledgePointIds.length === 0) {
+    warning(issues, 'UNMAPPED_KNOWLEDGE_POINT', 'knowledgePointIds', '知识点名称尚未映射为系统 ID。', '请由 API 完成知识点名称映射后再规范化。');
   }
 
   const yearText = normalizedText(field(raw, '年份', 'year'));
@@ -157,10 +174,9 @@ export function normalizeCandidateDraft(
 
   if (issues.some((issue) => issue.severity === 'error')) return { issues };
 
-  const knowledgePointIds = valuesAsList(field(raw, '知识点 ID', '知识点ID', 'knowledgePointIds'));
   const value: CandidateQuestionDraft = {
     stem,
-    options: type === '选择题' ? presentOptions : [],
+    options: type === '选择题' ? options.slice(0, lastOptionIndex + 1) : [],
     answer,
     analysis,
     type,

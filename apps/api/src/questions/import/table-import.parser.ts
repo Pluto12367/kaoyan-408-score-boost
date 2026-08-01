@@ -4,7 +4,8 @@ import type { ImportWarning } from '@kaoyan408/shared';
 export const QUESTION_IMPORT_SHEET = '题库导入';
 export const QUESTION_IMPORT_HEADERS = [
   '科目', '章节', '知识点', '题型', '难度', '题干', '选项 A', '选项 B',
-  '选项 C', '选项 D', '正确答案', '答案解析', '来源', '年份', '建议答题时间（秒）',
+  '选项 C', '选项 D', '选项 E', '选项 F', '选项 G', '选项 H',
+  '正确答案', '答案解析', '来源', '年份', '建议答题时间（秒）',
 ] as const;
 
 const MAX_DATA_ROWS = 1000;
@@ -22,40 +23,65 @@ function parseCsv(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let value = '';
-  let quoted = false;
+  let state: 'unquoted' | 'quoted' | 'postQuote' = 'unquoted';
+
+  const finishField = () => {
+    row.push(value);
+    value = '';
+    state = 'unquoted';
+  };
+  const finishRow = () => {
+    finishField();
+    rows.push(row);
+    row = [];
+  };
 
   for (let index = 0; index < text.length; index += 1) {
     const character = text[index];
-    if (quoted) {
+    if (state === 'quoted') {
       if (character === '"') {
         if (text[index + 1] === '"') {
           value += '"';
           index += 1;
         } else {
-          quoted = false;
+          state = 'postQuote';
         }
       } else {
         value += character;
       }
       continue;
     }
-    if (character === '"' && value.length === 0) {
-      quoted = true;
+
+    if (state === 'postQuote') {
+      if (character === ',') finishField();
+      else if (character === '\n') finishRow();
+      else if (character === '\r' && text[index + 1] === '\n') {
+        finishRow();
+        index += 1;
+      } else {
+        throw new Error('CSV_INVALID_POST_QUOTE');
+      }
+      continue;
+    }
+
+    if (character === '"') {
+      if (value.length > 0) throw new Error('CSV_QUOTE_IN_UNQUOTED_FIELD');
+      state = 'quoted';
     } else if (character === ',') {
-      row.push(value);
-      value = '';
+      finishField();
     } else if (character === '\n') {
-      row.push(value);
-      rows.push(row);
-      row = [];
-      value = '';
-    } else if (character !== '\r') {
+      finishRow();
+    } else if (character === '\r') {
+      if (text[index + 1] !== '\n') throw new Error('CSV_INVALID_LINE_ENDING');
+      finishRow();
+      index += 1;
+    } else {
       value += character;
     }
   }
-  if (quoted) throw new Error('CSV_UNTERMINATED_QUOTE');
+  if (state === 'quoted') throw new Error('CSV_UNTERMINATED_QUOTE');
   if (value.length > 0 || row.length > 0) {
-    row.push(value);
+    finishField();
     rows.push(row);
   }
   return rows;
@@ -66,7 +92,7 @@ function hasValue(value: unknown): boolean {
 }
 
 function safeCellValue(value: ExcelJS.CellValue): { value?: unknown; formulaUnavailable?: boolean } {
-  if (value && typeof value === 'object' && 'formula' in value) {
+  if (value && typeof value === 'object' && ('formula' in value || 'sharedFormula' in value)) {
     return 'result' in value && value.result !== undefined && value.result !== null
       ? { value: value.result }
       : { formulaUnavailable: true };

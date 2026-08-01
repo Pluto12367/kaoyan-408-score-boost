@@ -9,7 +9,7 @@ const { computeContentFingerprint } = require('../packages/shared/dist/questionI
 const validRow = {
   科目: ' 操作系统 ',
   章节: '进程管理',
-  知识点: '进程同步与互斥',
+  '知识点 ID': 'kp-os-sync',
   题型: '选择题',
   难度: '中等',
   题干: '  PV 操作的主要用途是？ ',
@@ -66,4 +66,45 @@ test('retains formula and asset placeholders in a valid draft', () => {
   assert.equal(result.value.stem, '计算 $\\frac{1}{2}$ [asset:diagram-1] 的值。');
   assert.deepEqual(result.value.formulas, [{ latex: '\\frac{1}{2}' }]);
   assert.deepEqual(result.value.assetIds, ['asset-1']);
+});
+
+test('rejects a gap between choice option letters instead of compacting later options', () => {
+  const result = normalizeCandidateDraft({ ...validRow, '选项 B': '', 正确答案: 'C' }, { rowNumber: 10 });
+
+  assert.equal(result.value, undefined);
+  assert.ok(result.issues.some((issue) => issue.code === 'OPTION_GAP'));
+});
+
+test('uses cached spreadsheet formula results including zero and false', () => {
+  const zero = normalizeCandidateDraft({ ...validRow, 题干: { formula: '1-1', result: 0 } }, { rowNumber: 11 });
+  const bool = normalizeCandidateDraft({ ...validRow, 题干: { formula: '1=2', result: false } }, { rowNumber: 12 });
+
+  assert.equal(zero.value?.stem, '0');
+  assert.equal(bool.value?.stem, 'false');
+  assert.equal(zero.issues.length, 0);
+  assert.equal(bool.issues.length, 0);
+});
+
+test('reports a knowledge-point name until the API maps it to IDs', () => {
+  const { ['知识点 ID']: _mappedId, ...rowWithName } = validRow;
+  const result = normalizeCandidateDraft({ ...rowWithName, 知识点: '进程同步与互斥' }, { rowNumber: 13 });
+
+  assert.equal(result.value, undefined);
+  assert.ok(result.issues.some((issue) => issue.code === 'UNMAPPED_KNOWLEDGE_POINT'));
+});
+
+test('keeps contiguous options E through H and answer H semantics', () => {
+  const result = normalizeCandidateDraft({
+    ...validRow,
+    '选项 E': '段页式存储',
+    '选项 F': '请求分页',
+    '选项 G': '文件索引',
+    '选项 H': '虚拟设备',
+    正确答案: 'H',
+  }, { rowNumber: 14 });
+
+  assert.ok(result.value);
+  assert.equal(result.value.options.length, 8);
+  assert.equal(result.value.options[7], '虚拟设备');
+  assert.equal(result.value.answer, 'H');
 });
