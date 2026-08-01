@@ -41,18 +41,22 @@ test('storage validates extension and content signatures without trusting client
   assert.match(storage, /\.xlsx/);
   assert.match(storage, /\.csv/);
   assert.match(storage, /%PDF-/);
-  assert.match(storage, /JSZip\.loadAsync/);
+  assert.match(storage, /createReadStream/);
+  assert.match(storage, /\bopen\(/);
   assert.match(storage, /readCentralDirectory/);
+  assert.match(storage, /readExactly/);
   assert.match(storage, /TextDecoder\('utf-8', \{ fatal: true \}\)/);
   assert.match(storage, /NUL|\\0|0x00/);
   assert.match(storage, /createHash\('sha256'\)/);
   assert.match(storage, /relative\(/);
   assert.doesNotMatch(storage, /mimetype|mimeType/);
+  assert.doesNotMatch(storage, /JSZip|readFile/);
   assert.doesNotMatch(storage, /removeIncomingIfSafe[\s\S]*\(pdf\|xlsx\|csv\)/);
 });
 
 test('batch service creates pending work transactionally and protects retry and audit metadata', async () => {
   const service = await source('apps/api/src/questions/import/import-batch.service.ts');
+  const auditService = await source('apps/api/src/operations/audit-event.service.ts');
   const dto = await source('apps/api/src/questions/import/dto/create-import-batch.dto.ts');
 
   assert.match(dto, /source!:\s*string/);
@@ -66,7 +70,9 @@ test('batch service creates pending work transactionally and protects retry and 
   assert.match(service, /Math\.min\([^\n]*MAX_PAGE_SIZE/);
   assert.match(service, /updateMany/);
   assert.match(service, /attempt:\s*\{\s*increment:\s*1\s*\}/);
-  assert.match(service, /tx\.auditEvent\.create/);
+  assert.match(service, /AuditEventService/);
+  assert.match(service, /auditEvents\.record\([\s\S]*, tx\)/);
+  assert.match(auditService, /\(tx \?\? this\.prisma\)\.auditEvent\.create/);
   assert.doesNotMatch(service, /stem\s*:/);
   assert.match(service, /fileSha256/);
   assert.match(service, /byteSize/);

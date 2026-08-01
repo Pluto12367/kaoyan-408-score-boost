@@ -1,10 +1,9 @@
-import { BadRequestException, Injectable, PayloadTooLargeException } from '@nestjs/common';
-import JSZip from 'jszip';
+import { BadRequestException, Inject, Injectable, Optional, PayloadTooLargeException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, readFile, realpath, rename, rm, stat } from 'node:fs/promises';
+import { lstat, open, realpath, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
-import { loadImportConfig, type ImportConfig } from './import-config';
+import { loadImportConfig, QUESTION_IMPORT_CONFIG, type ImportConfig } from './import-config';
 
 export type ImportFileType = 'pdf' | 'xlsx' | 'csv';
 
@@ -15,6 +14,7 @@ const SERVER_FILE_NAME = /^[a-f0-9-]{36}$/u;
 const MAX_ZIP_ENTRIES = 1_000;
 const MAX_XLSX_EXPANDED_BYTES = 100 * 1024 * 1024;
 const MAX_XLSX_ENTRY_BYTES = 20 * 1024 * 1024;
+const MAX_ZIP_CENTRAL_BYTES = 1024 * 1024;
 
 function isContained(parent: string, candidate: string): boolean {
   const remainder = relative(parent, candidate);
@@ -39,7 +39,7 @@ function readUInt32(buffer: Buffer, offset: number): number {
 export class ImportStorageService {
   private readonly config: ImportConfig;
 
-  constructor(config: ImportConfig = loadImportConfig()) { this.config = config; }
+  constructor(@Optional() @Inject(QUESTION_IMPORT_CONFIG) config?: ImportConfig) { this.config = config ?? loadImportConfig(); }
 
   async putIncoming(file: UploadedImportFile): Promise<StoredImportFile> {
     const incomingPath = resolve(file.path);
@@ -120,13 +120,23 @@ export class ImportStorageService {
   }
 
   private async assertXlsx(path: string): Promise<void> {
-    const buffer = await readFile(path);
-    const entries = this.readCentralDirectory(buffer);
-    if (!entries.has('[Content_Types].xml') || !entries.has('xl/workbook.xml')) throw new BadRequestException('XLSX workbook structure is invalid');
     try {
-      const zip = await JSZip.loadAsync(buffer, { createFolders: false, checkCRC32: false });
-      for (const entry of Object.values(zip.files)) {
-        if (entry.dir || !entries.has(entry.name) || entry.unsafeOriginalName?.includes('..')) throw new BadRequestException('XLSX contains an unsafe path');
+      const handle = await open(path, 'r');
+      try {
+        const size = (await handle.stat()).size;
+        const tailSize = Math.min(size, 65_557);
+        const tail = await this.readExactly(handle, tailSize, size - tailSize);
+        const eocd = this.findEocd(tail);
+        const entryCount = tail.readUInt16LE(eocd + 10);
+        const directorySize = readUInt32(tail, eocd + 12);
+        const directoryOffset = readUInt32(tail, eocd + 16);
+        if (entryCount === 0 || entryCount > MAX_ZIP_ENTRIES || directorySize === 0 || directorySize > MAX_ZIP_CENTRAL_BYTES || directoryOffset + directorySize > size) {
+          throw new BadRequestException('XLSX ZIP exceeds safe directory limits');
+        }
+        const entries = this.readCentralDirectory(await this.readExactly(handle, directorySize, directoryOffset), entryCount);
+        if (entries.get('[Content_Types].xml') !== false || entries.get('xl/workbook.xml') !== false) throw new BadRequestException('XLSX workbook structure is invalid');
+      } finally {
+        await handle.close();
       }
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
@@ -134,34 +144,45 @@ export class ImportStorageService {
     }
   }
 
-  private readCentralDirectory(buffer: Buffer): Set<string> {
+  private findEocd(buffer: Buffer): number {
     let eocd = -1;
-    for (let index = buffer.length - 22; index >= Math.max(0, buffer.length - 65_557); index -= 1) {
-      if (readUInt32(buffer, index) === 0x06054b50) { eocd = index; break; }
-    }
+    for (let index = buffer.length - 22; index >= 0; index -= 1) if (readUInt32(buffer, index) === 0x06054b50) { eocd = index; break; }
     if (eocd < 0) throw new BadRequestException('XLSX ZIP central directory is missing');
-    const entryCount = buffer.readUInt16LE(eocd + 10);
-    const directorySize = readUInt32(buffer, eocd + 12);
-    let offset = readUInt32(buffer, eocd + 16);
-    if (entryCount === 0 || entryCount > MAX_ZIP_ENTRIES || offset + directorySize > buffer.length) throw new BadRequestException('XLSX ZIP exceeds safe directory limits');
-    const entries = new Set<string>();
+    if (eocd + 22 > buffer.length) throw new BadRequestException('XLSX ZIP EOCD is truncated');
+    return eocd;
+  }
+
+  private readCentralDirectory(buffer: Buffer, entryCount: number): Map<string, boolean> {
+    let offset = 0;
+    const entries = new Map<string, boolean>();
     let expandedBytes = 0;
     for (let index = 0; index < entryCount; index += 1) {
+      if (offset + 46 > buffer.length) throw new BadRequestException('XLSX central directory entry is truncated');
       if (readUInt32(buffer, offset) !== 0x02014b50) throw new BadRequestException('XLSX central directory entry is invalid');
       const compressed = readUInt32(buffer, offset + 20);
       const expanded = readUInt32(buffer, offset + 24);
       const nameLength = buffer.readUInt16LE(offset + 28);
       const extraLength = buffer.readUInt16LE(offset + 30);
       const commentLength = buffer.readUInt16LE(offset + 32);
+      const entryEnd = offset + 46 + nameLength + extraLength + commentLength;
+      if (entryEnd > buffer.length) throw new BadRequestException('XLSX central directory entry is truncated');
       if (expanded === 0xffffffff || compressed === 0xffffffff || expanded > MAX_XLSX_ENTRY_BYTES || expanded > compressed * 100 + 1) throw new BadRequestException('XLSX entry exceeds safe expansion limits');
       expandedBytes += expanded;
       if (expandedBytes > MAX_XLSX_EXPANDED_BYTES) throw new BadRequestException('XLSX exceeds safe expanded size limits');
-      const name = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(offset + 46, offset + 46 + nameLength));
+      let name: string;
+      try { name = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(offset + 46, offset + 46 + nameLength)); } catch { throw new BadRequestException('XLSX path encoding is invalid'); }
       if (!name || name.includes('\\') || name.startsWith('/') || name.split('/').includes('..')) throw new BadRequestException('XLSX contains an unsafe path');
-      entries.add(name);
-      offset += 46 + nameLength + extraLength + commentLength;
+      entries.set(name, name.endsWith('/'));
+      offset = entryEnd;
     }
     return entries;
+  }
+
+  private async readExactly(handle: Awaited<ReturnType<typeof open>>, length: number, position: number): Promise<Buffer> {
+    const output = Buffer.alloc(length);
+    const { bytesRead } = await handle.read(output, 0, length, position);
+    if (bytesRead !== length) throw new BadRequestException('XLSX ZIP is truncated');
+    return output;
   }
 
   private async assertIncomingFile(path: string, filename: string, ownedBasename: string) {

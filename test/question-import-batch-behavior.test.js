@@ -23,7 +23,8 @@ test('rolls back batch creation when its in-transaction audit write fails', asyn
     },
   };
 
-  await assert.rejects(new ImportBatchService(prisma).create('admin-1', input, upload), /audit unavailable/);
+  const audits = { record: async (_input, passedTx) => passedTx.auditEvent.create({}) };
+  await assert.rejects(new ImportBatchService(prisma, audits).create('admin-1', input, upload), /audit unavailable/);
   assert.deepEqual(committed, []);
 });
 
@@ -43,6 +44,6 @@ test('rejects a mixed retry set before claiming any job', async () => {
   };
   const prisma = { $transaction: async (fn) => fn(tx) };
 
-  await assert.rejects(new ImportBatchService(prisma).retry('admin-1', 'batch-1', ['failed-job', 'other-batch']), /Every retry job/);
+  await assert.rejects(new ImportBatchService(prisma, { record: async () => undefined }).retry('admin-1', 'batch-1', ['failed-job', 'other-batch']), /Every retry job/);
   assert.equal(claimed, false);
 });

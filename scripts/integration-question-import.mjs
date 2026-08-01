@@ -26,6 +26,8 @@ async function main() {
   await createLegacyFixture(prisma);
   await applyQuestionImportMigration(prisma);
   await assertLegacyQuestionMigration(prisma);
+  await applyHardeningMigration(prisma);
+  await assertUpgradeMigration(prisma);
   await assertAssetLifecycleConstraint(prisma);
   await assertVersionedWriteBehavior();
 
@@ -57,6 +59,7 @@ async function createLegacyFixture(client) {
     'CREATE TABLE "WrongQuestionReview" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id"), "questionId" TEXT NOT NULL REFERENCES "Question"("id"))',
     'CREATE TABLE "ReviewSchedule" ("id" TEXT PRIMARY KEY, "userId" TEXT NOT NULL REFERENCES "User"("id"), "questionId" TEXT NOT NULL REFERENCES "Question"("id"))',
     "INSERT INTO \"User\" (\"id\") VALUES ('legacy-user')",
+    "INSERT INTO \"User\" (\"id\") VALUES ('admin')",
     "INSERT INTO \"KnowledgePoint\" (\"id\") VALUES ('legacy-point')",
     `INSERT INTO "Question" ("id", "stem", "options", "answer", "analysis", "difficulty", "type", "source")
       VALUES ('legacy-question', 'legacy stem', ARRAY['A', 'B'], 'A', 'legacy analysis', 'MEDIUM', 'SINGLE_CHOICE', 'legacy source')`,
@@ -69,10 +72,36 @@ async function createLegacyFixture(client) {
 }
 
 async function applyQuestionImportMigration(client) {
-  const migration = await readFile(join(root, 'prisma/migrations/20260731120000_question_document_import/migration.sql'), 'utf8');
+  await applyMigration(client, '20260731120000_question_document_import');
+}
+
+async function applyHardeningMigration(client) {
+  await applyMigration(client, '20260801090000_harden_question_import_batches');
+}
+
+async function applyMigration(client, name) {
+  const migration = await readFile(join(root, `prisma/migrations/${name}/migration.sql`), 'utf8');
   for (const statement of migration.split(/;\s*(?:\r?\n|$)/)) {
     if (statement.trim()) await client.$executeRawUnsafe(statement);
   }
+}
+
+async function assertUpgradeMigration(client) {
+  await client.$executeRawUnsafe(`INSERT INTO "QuestionImportBatch" (
+    "id", "uploadedById", "originalFileName", "originalStorageKey", "fileSha256", "fileType", "source", "rightsConfirmed", "expiresAt", "updatedAt", "title", "year", "defaultSubject", "defaultChapter", "pageRange"
+  ) VALUES ('upgrade-batch', 'admin', 'upgrade.csv', 'incoming/upgrade.csv', 'upgrade-sha', 'csv', 'upgrade source', true, CURRENT_TIMESTAMP + INTERVAL '30 days', CURRENT_TIMESTAMP, 'upgrade title', 2026, 'COMPUTER_ORGANIZATION', 'cache', '1-2')`);
+  await client.$executeRawUnsafe(`INSERT INTO "QuestionImportJob" (
+    "id", "batchId", "pageStart", "pageEnd", "provider", "updatedAt"
+  ) VALUES ('upgrade-job', 'upgrade-batch', 1, 1, 'table-parser', CURRENT_TIMESTAMP)`);
+  const [job] = await client.$queryRawUnsafe('SELECT "state" FROM "QuestionImportJob" WHERE "id" = \'upgrade-job\'');
+  assert.equal(job.state, 'pending', 'upgraded jobs must default to pending');
+
+  await assertRejects(
+    () => client.$executeRawUnsafe(`INSERT INTO "QuestionImportBatch" (
+      "id", "uploadedById", "originalFileName", "originalStorageKey", "fileSha256", "fileType", "source", "rightsConfirmed", "expiresAt", "updatedAt"
+    ) VALUES ('unknown-uploader', 'missing-user', 'unknown.csv', 'incoming/unknown.csv', 'unknown-sha', 'csv', 'source', true, CURRENT_TIMESTAMP + INTERVAL '30 days', CURRENT_TIMESTAMP)`),
+    'the follow-on uploader foreign key must reject unknown uploaders',
+  );
 }
 
 async function assertLegacyQuestionMigration(client) {
@@ -152,6 +181,8 @@ async function assertVersionedWriteBehavior() {
 
     const { QuestionsService } = require(join(root, 'apps/api/dist/questions/questions.service.js'));
     const { PracticeRecordRepository } = require(join(root, 'apps/api/dist/study/practice-record.repository.js'));
+    const { AuditEventService } = require(join(root, 'apps/api/dist/operations/audit-event.service.js'));
+    const { ImportBatchService } = require(join(root, 'apps/api/dist/questions/import/import-batch.service.js'));
     await behaviorPrisma.knowledgePoint.createMany({
       data: [
         knowledgePoint('co-cache', 'Cache'),
@@ -207,10 +238,69 @@ async function assertVersionedWriteBehavior() {
     assert.equal(await behaviorPrisma.reviewSchedule.count({ where: { questionId: seedQuestion.id } }), 1);
 
     await assertCliVersions(behaviorPrisma, behaviorDatabaseUrl);
+    await assertImportBatchTransactions(behaviorPrisma, AuditEventService, ImportBatchService);
   } finally {
     await behaviorPrisma?.$disconnect();
     await admin.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${behaviorSchema}" CASCADE`);
   }
+}
+
+async function assertImportBatchTransactions(client, AuditEventService, ImportBatchService) {
+  await client.user.create({ data: { id: 'import-admin', name: 'Import Admin', role: 'ADMIN' } });
+  const realAudits = new AuditEventService(client);
+  let failAudit = true;
+  const audits = {
+    record: async (input, tx) => {
+      await realAudits.record(input, tx);
+      if (failAudit) throw new Error('simulated audit persistence failure');
+    },
+  };
+  const batches = new ImportBatchService(client, audits);
+  const input = { source: 'integration upload', rightsConfirmed: true, title: 'transaction fixture' };
+  const file = {
+    storageKey: 'incoming/transaction-fixture.csv', originalFileName: 'transaction-fixture.csv',
+    fileSha256: 'transaction-fixture-sha', fileType: 'csv', byteSize: 42,
+  };
+
+  await assertRejects(
+    () => batches.create('import-admin', input, file),
+    'an audit failure must roll back the batch and its queued job',
+  );
+  assert.equal(await client.questionImportBatch.count({ where: { originalStorageKey: file.storageKey } }), 0);
+  assert.equal(await client.questionImportJob.count(), 0);
+  assert.equal(await client.auditEvent.count({ where: { action: 'question_import.upload' } }), 0);
+
+  failAudit = false;
+  const created = await batches.create('import-admin', input, file);
+  const batch = await client.questionImportBatch.findUniqueOrThrow({
+    where: { id: created.batchId }, include: { jobs: true },
+  });
+  assert.equal(batch.status, 'queued');
+  assert.equal(batch.jobs.length, 1);
+  assert.equal(batch.jobs[0].state, 'pending');
+  assert.equal(await client.auditEvent.count({ where: { action: 'question_import.upload', targetId: batch.id } }), 1);
+
+  await client.questionImportJob.update({ where: { id: batch.jobs[0].id }, data: { state: 'failed' } });
+  const retried = await batches.retry('import-admin', batch.id, [batch.jobs[0].id]);
+  assert.equal(retried.retriedJobs, 1);
+  const afterRetry = await client.questionImportJob.findUniqueOrThrow({ where: { id: batch.jobs[0].id } });
+  assert.equal(afterRetry.state, 'queued');
+  assert.equal(afterRetry.attempt, 1);
+  await assertRejects(
+    () => batches.retry('import-admin', batch.id, [batch.jobs[0].id]),
+    'a queued job must not be retryable a second time',
+  );
+
+  const cancelled = await batches.cancel('import-admin', batch.id);
+  assert.equal(cancelled.status, 'cancelled');
+  const afterCancel = await client.questionImportBatch.findUniqueOrThrow({ where: { id: batch.id }, include: { jobs: true } });
+  assert.equal(afterCancel.status, 'cancelled');
+  assert.equal(afterCancel.jobs[0].state, 'cancelled');
+  await assertRejects(
+    () => batches.retry('import-admin', batch.id, [batch.jobs[0].id]),
+    'cancelled batches must not accept retries',
+  );
+  assert.equal(await client.auditEvent.count({ where: { action: { in: ['question_import.retry', 'question_import.cancel'] }, targetId: batch.id } }), 2);
 }
 
 async function assertCliVersions(client, databaseUrl) {

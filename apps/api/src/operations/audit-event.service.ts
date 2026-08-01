@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from '@prisma/client';
 
 export type AuditAction =
   | 'invitation.create'
@@ -30,7 +31,9 @@ export interface AuditEventInput {
 export class AuditEventService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(input: AuditEventInput) {
-    await this.prisma.auditEvent.create({ data: input });
+  async record(input: AuditEventInput, tx?: Prisma.TransactionClient) {
+    const metadata = input.metadata && Object.fromEntries(Object.entries(input.metadata)
+      .filter(([, value]) => ['string', 'number', 'boolean'].includes(typeof value)));
+    await (tx ?? this.prisma).auditEvent.create({ data: { ...input, metadata } });
   }
 }

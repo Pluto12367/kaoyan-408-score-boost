@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
+import { AuditEventService, type AuditEventInput } from '../../operations/audit-event.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { CreateImportBatchDto } from './dto/create-import-batch.dto';
 import type { StoredImportFile } from './import-storage.service';
@@ -8,11 +9,9 @@ const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
 const IMPORT_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 
-type AuditInput = { actorId?: string; action: string; targetId?: string; result: 'success' | 'rejected' | 'failed'; metadata?: Record<string, string | number | boolean> };
-
 @Injectable()
 export class ImportBatchService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly auditEvents: AuditEventService) {}
 
   async create(actorId: string, input: CreateImportBatchDto, file: StoredImportFile) {
     if (input.rightsConfirmed !== true) throw new BadRequestException('rightsConfirmed must be explicitly true');
@@ -89,7 +88,7 @@ export class ImportBatchService {
   async recordRejection(actorId: string | undefined, file: { size?: number; originalname?: string } | undefined) {
     const extension = file?.originalname ? file.originalname.slice(file.originalname.lastIndexOf('.') + 1).toLowerCase() : '';
     const fileType = extension === 'pdf' || extension === 'xlsx' || extension === 'csv' ? extension : 'unknown';
-    await this.prisma.auditEvent.create({ data: { actorId, action: 'question_import.reject', targetType: 'question_import', result: 'rejected', metadata: { fileType, byteSize: file?.size ?? 0, status: 'rejected' } } });
+    await this.auditEvents.record({ actorId, action: 'question_import.reject', targetType: 'question_import', result: 'rejected', metadata: { fileType, byteSize: file?.size ?? 0, status: 'rejected' } });
   }
 
   private async countStates(tx: Prisma.TransactionClient, batchId: string): Promise<Prisma.InputJsonObject> {
@@ -97,7 +96,7 @@ export class ImportBatchService {
     return Object.fromEntries(groups.map((group) => [group.state, group._count._all])) as Prisma.InputJsonObject;
   }
 
-  private async recordInTransaction(tx: Prisma.TransactionClient, input: AuditInput) {
-    await tx.auditEvent.create({ data: { actorId: input.actorId, action: input.action, targetType: 'question_import', targetId: input.targetId, result: input.result, metadata: input.metadata } });
+  private async recordInTransaction(tx: Prisma.TransactionClient, input: Omit<AuditEventInput, 'targetType'>) {
+    await this.auditEvents.record({ ...input, targetType: 'question_import' }, tx);
   }
 }
