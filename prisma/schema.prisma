@@ -74,6 +74,7 @@ enum QuestionImportCandidateStatus {
 }
 
 enum QuestionImportJobState {
+  pending
   queued
   running
   succeeded
@@ -317,6 +318,11 @@ model QuestionImportBatch {
   fileSha256          String
   fileType            QuestionImportFileType
   source              String
+  title               String?
+  year                Int?
+  defaultSubject      String?
+  defaultChapter      String?
+  pageRange           String?
   rightsConfirmed     Boolean
   rightsConfirmedAt   DateTime?
   status              QuestionImportBatchStatus    @default(uploaded)

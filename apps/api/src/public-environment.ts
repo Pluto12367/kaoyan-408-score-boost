@@ -1,3 +1,5 @@
+import { isAbsolute } from 'node:path';
+
 const placeholders = /replace-me|replace-with|example\.com|user:password|your-/i;
 const httpIpv4Origin = /^http:\/\/((?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3})\/?$/;
 
@@ -44,6 +46,9 @@ export function validatePublicEnvironment(values: NodeJS.ProcessEnv): string[] {
   }
   if ((values.JWT_SECRET?.length ?? 0) < 32) errors.push('JWT_SECRET must be at least 32 characters');
   if (values.ALLOW_DEMO_AUTH !== 'false') errors.push('ALLOW_DEMO_AUTH must be false');
+  if (values.QUESTION_IMPORT_DATA_DIR && !isAbsolute(values.QUESTION_IMPORT_DATA_DIR)) {
+    errors.push('QUESTION_IMPORT_DATA_DIR must be an absolute private path');
+  }
 
   const isIpPilot = isAllowedIpPilotOrigin(
     values.WEB_ORIGIN ?? '',

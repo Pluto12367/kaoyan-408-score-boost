@@ -1,4 +1,5 @@
 import * as ExcelJS from 'exceljs';
+import { Injectable } from '@nestjs/common';
 import { QUESTION_IMPORT_HEADERS, QUESTION_IMPORT_SHEET } from './table-import.parser';
 
 const SUBJECTS = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
@@ -10,6 +11,7 @@ function validation(values: string[]) {
   return { type: 'list' as const, allowBlank: true, formulae: [`"${values.join(',')}"`] };
 }
 
+@Injectable()
 export class QuestionTemplateService {
   async buildXlsx(): Promise<Buffer> {
     const workbook = new ExcelJS.Workbook();

@@ -2,7 +2,7 @@
 CREATE TYPE "QuestionImportFileType" AS ENUM ('pdf', 'xlsx', 'csv');
 CREATE TYPE "QuestionImportBatchStatus" AS ENUM ('uploaded', 'queued', 'parsing', 'parsing_partial_failure', 'review', 'partially_imported', 'completed', 'failed', 'cancelled', 'expired');
 CREATE TYPE "QuestionImportCandidateStatus" AS ENUM ('pending_review', 'needs_edit', 'duplicate_suspected', 'approved', 'ignored', 'parse_failed', 'imported');
-CREATE TYPE "QuestionImportJobState" AS ENUM ('queued', 'running', 'succeeded', 'failed', 'cancelled');
+CREATE TYPE "QuestionImportJobState" AS ENUM ('pending', 'queued', 'running', 'succeeded', 'failed', 'cancelled');
 CREATE TYPE "QuestionImportDuplicateAction" AS ENUM ('skip', 'create', 'new_version');
 CREATE TYPE "QuestionImportAssetScope" AS ENUM ('temporary', 'permanent');
 
@@ -22,6 +22,11 @@ CREATE TABLE "QuestionImportBatch" (
   "fileSha256" TEXT NOT NULL,
   "fileType" "QuestionImportFileType" NOT NULL,
   "source" TEXT NOT NULL,
+  "title" TEXT,
+  "year" INTEGER,
+  "defaultSubject" TEXT,
+  "defaultChapter" TEXT,
+  "pageRange" TEXT,
   "rightsConfirmed" BOOLEAN NOT NULL,
   "rightsConfirmedAt" TIMESTAMP(3),
   "status" "QuestionImportBatchStatus" NOT NULL DEFAULT 'uploaded',
@@ -47,7 +52,7 @@ CREATE TABLE "QuestionImportJob" (
   "externalTaskId" TEXT,
   "attempt" INTEGER NOT NULL DEFAULT 0,
   "retryAt" TIMESTAMP(3),
-  "state" "QuestionImportJobState" NOT NULL DEFAULT 'queued',
+  "state" "QuestionImportJobState" NOT NULL DEFAULT 'pending',
   "quality" JSONB,
   "cost" JSONB,
   "error" JSONB,

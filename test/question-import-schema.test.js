@@ -14,4 +14,10 @@ test('schema keeps immutable question versions and resumable import state', asyn
   assert.match(schema, /model QuestionImportCandidate\s*\{/);
   assert.match(schema, /model QuestionImportAsset\s*\{/);
   assert.match(schema, /model QuestionImportConfirmation\s*\{/);
+  assert.match(schema, /enum QuestionImportJobState\s*\{\s*pending\s/);
+  assert.match(schema, /title\s+String\?/);
+  assert.match(schema, /year\s+Int\?/);
+  assert.match(schema, /defaultSubject\s+String\?/);
+  assert.match(schema, /defaultChapter\s+String\?/);
+  assert.match(schema, /pageRange\s+String\?/);
 });

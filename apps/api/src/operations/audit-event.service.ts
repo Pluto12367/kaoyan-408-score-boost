@@ -11,7 +11,11 @@ export type AuditAction =
   | 'account.create_managed'
   | 'question_import.preview'
   | 'question_import.confirm'
-  | 'question_import.disable';
+  | 'question_import.disable'
+  | 'question_import.upload'
+  | 'question_import.reject'
+  | 'question_import.cancel'
+  | 'question_import.retry';
 
 export interface AuditEventInput {
   actorId?: string;
