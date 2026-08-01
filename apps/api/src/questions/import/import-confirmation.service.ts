@@ -31,10 +31,8 @@ export class ImportConfirmationService {
     if (candidateIds.length === 0 || !idempotencyKey || idempotencyKey.length > 255) {
       throw new BadRequestException('candidateIds and idempotencyKey are required');
     }
-    await this.prisma.questionImportConfirmation.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - CONFIRMATION_TTL_MS) } } });
     const existing = await this.prisma.questionImportConfirmation.findUnique({ where: { idempotencyKey } });
     if (existing) return this.replayOrReject(existing, batchId, candidateIds);
-    await this.recomputeFingerprints(batchId, candidateIds);
 
     let result: ImportConfirmationResult | undefined;
     for (let attempt = 0; attempt < MAX_SERIALIZATION_ATTEMPTS; attempt += 1) {
@@ -55,20 +53,6 @@ export class ImportConfirmationService {
     return result;
   }
 
-  private async recomputeFingerprints(batchId: string, candidateIds: string[]): Promise<void> {
-    const candidates = await this.prisma.questionImportCandidate.findMany({ where: { batchId, id: { in: candidateIds } } });
-    if (candidates.length !== candidateIds.length) throw new BadRequestException('Every candidate must belong to the requested batch');
-    for (const candidate of candidates) {
-      const contentFingerprint = fingerprintFor(candidate);
-      const duplicate = await this.prisma.question.findFirst({
-        where: { contentFingerprint, isCurrent: true }, select: { familyId: true },
-      });
-      await this.prisma.questionImportCandidate.update({
-        where: { id: candidate.id }, data: { contentFingerprint, targetFamilyId: duplicate?.familyId ?? candidate.targetFamilyId },
-      });
-    }
-  }
-
   private async confirmInTransaction(batchId: string, candidateIds: string[], idempotencyKey: string, actorId: string) {
     return this.prisma.$transaction(async (tx) => {
       await lockBatch(tx, batchId);
@@ -77,13 +61,14 @@ export class ImportConfirmationService {
       await lockCandidates(tx, candidateIds);
       const candidates = await tx.questionImportCandidate.findMany({ where: { batchId, id: { in: candidateIds } } });
       if (candidates.length !== candidateIds.length) throw new BadRequestException('Every candidate must belong to the requested batch');
-      for (const candidate of candidates) this.validateCandidate(candidate);
+      const refreshedCandidates = await this.recomputeFingerprints(tx, candidates);
+      for (const candidate of refreshedCandidates) this.validateCandidate(candidate);
 
       const result: Omit<ImportConfirmationResult, 'confirmationId'> = {
         batchId, importedCandidateIds: [], skippedCandidateIds: [], questionIds: [],
       };
-      for (const candidate of candidates.sort((a, b) => a.id.localeCompare(b.id))) {
-        if (candidate.duplicateAction === 'skip' && candidate.targetFamilyId) {
+      for (const candidate of refreshedCandidates.sort((a, b) => a.id.localeCompare(b.id))) {
+        if (candidate.duplicateAction === 'skip') {
           await tx.questionImportCandidate.update({ where: { id: candidate.id }, data: { status: 'imported', reviewedAt: new Date() } });
           result.skippedCandidateIds.push(candidate.id);
           continue;
@@ -103,7 +88,7 @@ export class ImportConfirmationService {
       const storedResult = { ...result, confirmationId: confirmation.id, candidateIds };
       await tx.questionImportConfirmation.update({ where: { id: confirmation.id }, data: { result: storedResult } });
       const statusCounts = await countStatuses(tx, batchId);
-      const outstanding = Object.entries(statusCounts).some(([status, count]) => status !== QuestionImportCandidateStatus.imported && Number(count) > 0);
+      const outstanding = Object.entries(statusCounts).some(([status, count]) => !isTerminalCandidateStatus(status) && Number(count) > 0);
       await tx.questionImportBatch.update({
         where: { id: batchId }, data: { statusCounts, status: outstanding ? 'partially_imported' : 'completed', revision: { increment: 1 } },
       });
@@ -113,6 +98,28 @@ export class ImportConfirmationService {
       }, tx);
       return storedResult;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, maxWait: 5_000, timeout: 10_000 });
+  }
+
+  private async recomputeFingerprints(
+    tx: Prisma.TransactionClient,
+    candidates: QuestionImportCandidate[],
+  ): Promise<QuestionImportCandidate[]> {
+    const fingerprints = [...new Set(candidates.map(fingerprintFor))].sort();
+    for (const fingerprint of fingerprints) {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${fingerprint}))::text AS "locked"`;
+    }
+    const refreshed: QuestionImportCandidate[] = [];
+    for (const candidate of candidates) {
+      const contentFingerprint = fingerprintFor(candidate);
+      const duplicate = await tx.question.findFirst({
+        where: { contentFingerprint, isCurrent: true }, select: { familyId: true },
+      });
+      refreshed.push(await tx.questionImportCandidate.update({
+        where: { id: candidate.id },
+        data: { contentFingerprint, targetFamilyId: duplicate?.familyId ?? candidate.targetFamilyId },
+      }));
+    }
+    return refreshed;
   }
 
   private validateCandidate(candidate: QuestionImportCandidate): void {
@@ -140,7 +147,10 @@ export class ImportConfirmationService {
     return question.id;
   }
 
-  private replayOrReject(existing: { batchId: string; result: Prisma.JsonValue }, batchId: string, candidateIds: string[]): ImportConfirmationResult {
+  private replayOrReject(existing: { batchId: string; result: Prisma.JsonValue; createdAt: Date }, batchId: string, candidateIds: string[]): ImportConfirmationResult {
+    if (existing.createdAt.getTime() < Date.now() - CONFIRMATION_TTL_MS) {
+      throw new ConflictException('Idempotency key has expired');
+    }
     const result = existing.result as Record<string, unknown>;
     const storedIds = Array.isArray(result.candidateIds) ? result.candidateIds : [];
     if (existing.batchId !== batchId || !sameIds(storedIds, candidateIds)) {
@@ -190,6 +200,10 @@ function normalizeCandidateIds(value: unknown): string[] {
 
 function sameIds(stored: unknown[], candidateIds: string[]): boolean {
   return stored.length === candidateIds.length && [...stored].map(String).sort().every((id, index) => id === candidateIds[index]);
+}
+
+function isTerminalCandidateStatus(status: string): boolean {
+  return status === QuestionImportCandidateStatus.imported || status === QuestionImportCandidateStatus.ignored;
 }
 
 function isPrismaCode(error: unknown, code: string): boolean {

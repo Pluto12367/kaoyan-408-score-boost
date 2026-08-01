@@ -510,7 +510,7 @@ async function assertImportConfirmation(client, services, audits) {
   assert.deepEqual(second, first, 'the same idempotency key must return the stored confirmation result');
   const [newCandidate, skippedCandidate, createdCandidate, versionCandidate] = await Promise.all(candidates.map((candidate) => client.questionImportCandidate.findUniqueOrThrow({ where: { id: candidate.id } })));
   assert.equal(skippedCandidate.importedQuestionId, null, 'duplicate candidates default to skip');
-  assert.ok(newCandidate.importedQuestionId, 'new candidate must create a question');
+  assert.equal(newCandidate.importedQuestionId, null, 'skip must import a candidate without creating a question');
   assert.ok(createdCandidate.importedQuestionId, 'explicit create must create an independent question');
   const old = await client.question.findUniqueOrThrow({ where: { id: oldQuestion.id } });
   const updated = await client.question.findUniqueOrThrow({ where: { id: versionCandidate.importedQuestionId } });
@@ -528,6 +528,73 @@ async function assertImportConfirmation(client, services, audits) {
   const concurrentInputs = [randomUUID(), randomUUID()].map((idempotencyKey) => ({ candidateIds: [concurrentCandidate.id], idempotencyKey }));
   const outcomes = await Promise.allSettled(concurrentInputs.map((request) => confirmation.confirm(batch.id, request, 'worker-admin')));
   assert.equal(outcomes.filter((outcome) => outcome.status === 'fulfilled').length, 1, 'only one confirmation may import a candidate');
+
+  await assertConfirmationSkipAndTerminalStates(client, confirmation);
+  await assertExpiredConfirmationKeyIsRejected(client, confirmation);
+  await assertConcurrentExactDuplicateSkips(client, confirmation);
+}
+
+async function assertConfirmationSkipAndTerminalStates(client, confirmation) {
+  const batch = await confirmationBatch(client, 'terminal-confirm.csv');
+  await client.questionImportCandidate.create({
+    data: confirmationCandidate(batch.id, 'ignored terminal candidate', 'ignored'),
+  });
+  const candidate = await client.questionImportCandidate.create({
+    data: confirmationCandidate(batch.id, 'skip terminal candidate', 'approved'),
+  });
+  await confirmation.confirm(batch.id, { candidateIds: [candidate.id], idempotencyKey: randomUUID() }, 'worker-admin');
+  const [stored, refreshed] = await Promise.all([
+    client.questionImportCandidate.findUniqueOrThrow({ where: { id: candidate.id } }),
+    client.questionImportBatch.findUniqueOrThrow({ where: { id: batch.id } }),
+  ]);
+  assert.equal(stored.importedQuestionId, null, 'a non-duplicate skip must not create a question');
+  assert.equal(refreshed.status, 'completed', 'ignored and imported candidates are terminal batch states');
+}
+
+async function assertExpiredConfirmationKeyIsRejected(client, confirmation) {
+  const batch = await confirmationBatch(client, 'expired-key.csv');
+  const candidate = await client.questionImportCandidate.create({ data: confirmationCandidate(batch.id, 'expired key candidate', 'approved') });
+  const idempotencyKey = randomUUID();
+  await client.questionImportConfirmation.create({
+    data: {
+      batchId: batch.id, idempotencyKey, actorId: 'worker-admin', createdAt: new Date(Date.now() - (31 * 86_400_000)),
+      result: { batchId: batch.id, candidateIds: [candidate.id], importedCandidateIds: [], skippedCandidateIds: [], questionIds: [] },
+    },
+  });
+  await assertRejects(
+    () => confirmation.confirm(batch.id, { candidateIds: [candidate.id], idempotencyKey }, 'worker-admin'),
+    'expired idempotency keys must be rejected instead of being deleted and reused',
+  );
+}
+
+async function assertConcurrentExactDuplicateSkips(client, confirmation) {
+  const [firstBatch, secondBatch] = await Promise.all([confirmationBatch(client, 'exact-a.csv'), confirmationBatch(client, 'exact-b.csv')]);
+  const first = await client.questionImportCandidate.create({ data: confirmationCandidate(firstBatch.id, 'same exact candidate', 'approved') });
+  const second = await client.questionImportCandidate.create({ data: confirmationCandidate(secondBatch.id, 'same exact candidate', 'approved') });
+  const outcomes = await Promise.allSettled([
+    confirmation.confirm(firstBatch.id, { candidateIds: [first.id], idempotencyKey: randomUUID() }, 'worker-admin'),
+    confirmation.confirm(secondBatch.id, { candidateIds: [second.id], idempotencyKey: randomUUID() }, 'worker-admin'),
+  ]);
+  assert.equal(outcomes.filter((outcome) => outcome.status === 'fulfilled').length, 2, 'concurrent duplicate skips should both resolve');
+  assert.equal(await client.question.count({ where: { stem: 'same exact candidate', isCurrent: true } }), 0, 'concurrent exact duplicate skips must not create independent current questions');
+}
+
+async function confirmationBatch(client, originalFileName) {
+  return client.questionImportBatch.create({
+    data: {
+      uploadedById: 'worker-admin', originalFileName, originalStorageKey: `temporary/${randomUUID()}`,
+      fileSha256: randomBytes(32).toString('hex'), fileType: 'csv', source: 'integration source', rightsConfirmed: true,
+      rightsConfirmedAt: new Date(), status: 'review', expiresAt: new Date(Date.now() + 86_400_000),
+    },
+  });
+}
+
+function confirmationCandidate(batchId, stem, status) {
+  return {
+    batchId, stem, options: ['A', 'B'], answer: 'A', analysis: `${stem} analysis`, difficulty: 'MEDIUM', type: 'SINGLE_CHOICE',
+    source: 'integration source', expectedTimeSec: 90, knowledgePointIds: ['co-cache'], formulas: [], warnings: [],
+    contentFingerprint: randomBytes(32).toString('hex'), status, duplicateAction: 'skip',
+  };
 }
 
 async function assertClaimCancelLockOrder(client, services, storage, parser, validation, audits, batchId) {
