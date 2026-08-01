@@ -375,7 +375,8 @@ export interface QuestionImportBatchSummary {
 }
 export interface QuestionImportBatch extends QuestionImportBatchSummary {
   title?: string | null; year?: number | null; defaultSubject?: string | null; defaultChapter?: string | null;
-  pageRange?: string | null; providerCosts?: { estimated?: number; confirmed?: number } | null;
+  pageRange?: string | null; costSummary?: { estimated?: number; confirmed?: number; estimatedCost?: number; confirmedCost?: number } | null;
+  providerSummary?: { provider?: string; name?: string; [key: string]: unknown } | null;
   jobs: Array<{ id: string; pageStart: number; pageEnd: number; provider: string; attempt: number; state: string }>;
 }
 export interface QuestionImportCandidate {
