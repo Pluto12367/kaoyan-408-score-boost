@@ -32,6 +32,21 @@ async function incoming(config, extension, content) {
   return { path, filename, originalname: `questions${extension}`, size: content.length };
 }
 
+async function workbookLikeZip(entries) {
+  const zip = new JSZip();
+  for (const [name, content] of Object.entries(entries)) zip.file(name, content);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+const spreadsheetContentTypes = `<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+</Types>`;
+const spreadsheetWorkbook = `<?xml version="1.0" encoding="UTF-8"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="Questions" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`;
+
 test('rejects a generic ZIP posing as XLSX and removes the exact private incoming file', async () => {
   const { config, storage } = await storageFixture();
   const zip = new JSZip();
@@ -40,6 +55,21 @@ test('rejects a generic ZIP posing as XLSX and removes the exact private incomin
 
   await assert.rejects(storage.putIncoming(file));
   await assert.rejects(readFile(file.path));
+});
+
+test('rejects name-only and structurally invalid OOXML workbook ZIPs', async () => {
+  const { config, storage } = await storageFixture();
+  const cases = [
+    { '[Content_Types].xml': '', 'xl/workbook.xml': '', 'payload.txt': 'not a workbook' },
+    { '[Content_Types].xml': '<Types/>', 'xl/workbook.xml': spreadsheetWorkbook },
+    { '[Content_Types].xml': spreadsheetContentTypes, 'xl/workbook.xml': '<workbook/>' },
+    { '[Content_Types].xml': spreadsheetContentTypes, 'xl/workbook.xml': spreadsheetWorkbook },
+  ];
+  for (const entries of cases) {
+    const file = await incoming(config, '.xlsx', await workbookLikeZip(entries));
+    await assert.rejects(storage.putIncoming(file));
+    await assert.rejects(readFile(file.path));
+  }
 });
 
 test('accepts the standard XLSX template without whole-file ZIP parsing', async () => {
@@ -95,4 +125,21 @@ test('rejects a linked data root before creating private child directories in it
   }
   assert.throws(() => loadImportConfig({ QUESTION_IMPORT_DATA_DIR: linked, QUESTION_IMPORT_WEB_ROOT: join(root, 'web') }));
   await assert.rejects(access(join(target, 'incoming')));
+});
+
+test('readExactly fills its buffer across short reads', async () => {
+  const { storage } = await storageFixture();
+  const source = Buffer.from('short reads must be retried');
+  let calls = 0;
+  const handle = {
+    async read(target, offset, length, position) {
+      calls += 1;
+      const bytesRead = Math.min(3, length, source.length - position);
+      source.copy(target, offset, position, position + bytesRead);
+      return { bytesRead };
+    },
+  };
+  const output = await storage.readExactly(handle, source.length, 0);
+  assert.deepEqual(output, source);
+  assert.ok(calls > 1);
 });

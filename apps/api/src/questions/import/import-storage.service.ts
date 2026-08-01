@@ -3,6 +3,8 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { lstat, open, realpath, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { createInflateRaw } from 'node:zlib';
 import { loadImportConfig, QUESTION_IMPORT_CONFIG, type ImportConfig } from './import-config';
 
 export type ImportFileType = 'pdf' | 'xlsx' | 'csv';
@@ -15,6 +17,16 @@ const MAX_ZIP_ENTRIES = 1_000;
 const MAX_XLSX_EXPANDED_BYTES = 100 * 1024 * 1024;
 const MAX_XLSX_ENTRY_BYTES = 20 * 1024 * 1024;
 const MAX_ZIP_CENTRAL_BYTES = 1024 * 1024;
+const MAX_XLSX_STRUCTURE_BYTES = 1024 * 1024;
+
+interface ZipEntry {
+  name: string;
+  directory: boolean;
+  method: number;
+  compressedSize: number;
+  uncompressedSize: number;
+  localHeaderOffset: number;
+}
 
 function isContained(parent: string, candidate: string): boolean {
   const remainder = relative(parent, candidate);
@@ -33,6 +45,11 @@ function fileTypeFromName(fileName: string): ImportFileType {
 function readUInt32(buffer: Buffer, offset: number): number {
   if (offset + 4 > buffer.length) throw new BadRequestException('XLSX central directory is truncated');
   return buffer.readUInt32LE(offset);
+}
+
+function readUInt16(buffer: Buffer, offset: number): number {
+  if (offset + 2 > buffer.length) throw new BadRequestException('XLSX central directory is truncated');
+  return buffer.readUInt16LE(offset);
 }
 
 @Injectable()
@@ -134,7 +151,7 @@ export class ImportStorageService {
           throw new BadRequestException('XLSX ZIP exceeds safe directory limits');
         }
         const entries = this.readCentralDirectory(await this.readExactly(handle, directorySize, directoryOffset), entryCount);
-        if (entries.get('[Content_Types].xml') !== false || entries.get('xl/workbook.xml') !== false) throw new BadRequestException('XLSX workbook structure is invalid');
+        await this.assertWorkbookStructure(path, handle, size, entries);
       } finally {
         await handle.close();
       }
@@ -152,36 +169,125 @@ export class ImportStorageService {
     return eocd;
   }
 
-  private readCentralDirectory(buffer: Buffer, entryCount: number): Map<string, boolean> {
+  private readCentralDirectory(buffer: Buffer, entryCount: number): Map<string, ZipEntry> {
     let offset = 0;
-    const entries = new Map<string, boolean>();
+    const entries = new Map<string, ZipEntry>();
     let expandedBytes = 0;
     for (let index = 0; index < entryCount; index += 1) {
       if (offset + 46 > buffer.length) throw new BadRequestException('XLSX central directory entry is truncated');
       if (readUInt32(buffer, offset) !== 0x02014b50) throw new BadRequestException('XLSX central directory entry is invalid');
+      const flags = readUInt16(buffer, offset + 8);
+      const method = readUInt16(buffer, offset + 10);
       const compressed = readUInt32(buffer, offset + 20);
       const expanded = readUInt32(buffer, offset + 24);
-      const nameLength = buffer.readUInt16LE(offset + 28);
-      const extraLength = buffer.readUInt16LE(offset + 30);
-      const commentLength = buffer.readUInt16LE(offset + 32);
+      const nameLength = readUInt16(buffer, offset + 28);
+      const extraLength = readUInt16(buffer, offset + 30);
+      const commentLength = readUInt16(buffer, offset + 32);
+      const localHeaderOffset = readUInt32(buffer, offset + 42);
       const entryEnd = offset + 46 + nameLength + extraLength + commentLength;
       if (entryEnd > buffer.length) throw new BadRequestException('XLSX central directory entry is truncated');
-      if (expanded === 0xffffffff || compressed === 0xffffffff || expanded > MAX_XLSX_ENTRY_BYTES || expanded > compressed * 100 + 1) throw new BadRequestException('XLSX entry exceeds safe expansion limits');
+      if ((flags & 0x0001) !== 0 || ![0, 8].includes(method) || expanded === 0xffffffff || compressed === 0xffffffff || localHeaderOffset === 0xffffffff || expanded > MAX_XLSX_ENTRY_BYTES || expanded > compressed * 100 + 1) throw new BadRequestException('XLSX entry exceeds safe expansion limits');
       expandedBytes += expanded;
       if (expandedBytes > MAX_XLSX_EXPANDED_BYTES) throw new BadRequestException('XLSX exceeds safe expanded size limits');
       let name: string;
       try { name = new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(offset + 46, offset + 46 + nameLength)); } catch { throw new BadRequestException('XLSX path encoding is invalid'); }
       if (!name || name.includes('\\') || name.startsWith('/') || name.split('/').includes('..')) throw new BadRequestException('XLSX contains an unsafe path');
-      entries.set(name, name.endsWith('/'));
+      if (entries.has(name)) throw new BadRequestException('XLSX contains duplicate entry names');
+      entries.set(name, { name, directory: name.endsWith('/'), method, compressedSize: compressed, uncompressedSize: expanded, localHeaderOffset });
       offset = entryEnd;
     }
     return entries;
   }
 
+  private async assertWorkbookStructure(path: string, handle: Awaited<ReturnType<typeof open>>, size: number, entries: Map<string, ZipEntry>) {
+    const contentTypes = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, '[Content_Types].xml'));
+    const workbook = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, 'xl/workbook.xml'));
+    const relationships = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, 'xl/_rels/workbook.xml.rels'));
+    if (!this.isSpreadsheetContentTypes(contentTypes) || !this.isWorkbookXml(workbook)) throw new BadRequestException('XLSX workbook XML is invalid');
+
+    const sheetIds = [...workbook.matchAll(/<sheet\b[^>]*\br:id\s*=\s*(["'])([^"']+)\1[^>]*\/?\s*>/giu)].map((match) => match[2]);
+    if (sheetIds.length === 0 || !this.hasWorksheetRelationship(relationships, sheetIds, entries)) throw new BadRequestException('XLSX workbook has no valid worksheet relationship');
+  }
+
+  private requiredEntry(entries: Map<string, ZipEntry>, name: string): ZipEntry {
+    const entry = entries.get(name);
+    if (!entry || entry.directory) throw new BadRequestException('XLSX workbook structure is invalid');
+    return entry;
+  }
+
+  private async readXmlEntry(path: string, handle: Awaited<ReturnType<typeof open>>, size: number, entry: ZipEntry): Promise<string> {
+    if (entry.compressedSize > MAX_XLSX_STRUCTURE_BYTES || entry.uncompressedSize > MAX_XLSX_STRUCTURE_BYTES) throw new BadRequestException('XLSX structure entry exceeds safe size limits');
+    const header = await this.readExactly(handle, 30, entry.localHeaderOffset);
+    if (readUInt32(header, 0) !== 0x04034b50 || readUInt16(header, 8) !== entry.method) throw new BadRequestException('XLSX local entry header is invalid');
+    const nameLength = readUInt16(header, 26);
+    const extraLength = readUInt16(header, 28);
+    const name = new TextDecoder('utf-8', { fatal: true }).decode(await this.readExactly(handle, nameLength, entry.localHeaderOffset + 30));
+    const dataStart = entry.localHeaderOffset + 30 + nameLength + extraLength;
+    if (name !== entry.name || dataStart + entry.compressedSize > size) throw new BadRequestException('XLSX local entry is truncated');
+    const content = await this.readBoundedEntry(path, dataStart, entry);
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(content).replace(/^\uFEFF/u, '').trim();
+      if (!text.startsWith('<') || !text.endsWith('>') || /[\x00-\x08\x0b\x0c\x0e-\x1f]/u.test(text)) throw new Error('not XML-like');
+      return text;
+    } catch {
+      throw new BadRequestException('XLSX workbook XML is not valid UTF-8');
+    }
+  }
+
+  private async readBoundedEntry(path: string, dataStart: number, entry: ZipEntry): Promise<Buffer> {
+    let compressedBytes = 0;
+    let expandedBytes = 0;
+    const counter = new Transform({ transform: (chunk, _encoding, callback) => {
+      compressedBytes += chunk.length;
+      callback(compressedBytes > MAX_XLSX_STRUCTURE_BYTES ? new BadRequestException('XLSX structure entry exceeds safe size limits') : undefined, chunk);
+    } });
+    const source = entry.compressedSize === 0 ? Readable.from([]) : createReadStream(path, { start: dataStart, end: dataStart + entry.compressedSize - 1 });
+    const output = entry.method === 8 ? source.pipe(counter).pipe(createInflateRaw()) : source.pipe(counter);
+    const chunks: Buffer[] = [];
+    for await (const chunk of output) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      expandedBytes += bytes.length;
+      if (expandedBytes > MAX_XLSX_STRUCTURE_BYTES) throw new BadRequestException('XLSX structure entry exceeds safe size limits');
+      chunks.push(bytes);
+    }
+    if (compressedBytes !== entry.compressedSize || expandedBytes !== entry.uncompressedSize) throw new BadRequestException('XLSX structure entry is truncated');
+    return Buffer.concat(chunks, expandedBytes);
+  }
+
+  private isSpreadsheetContentTypes(xml: string): boolean {
+    return /<Types\b[^>]*xmlns\s*=\s*["']http:\/\/schemas\.openxmlformats\.org\/package\/2006\/content-types["'][^>]*>/iu.test(xml)
+      && /<Override\b(?=[^>]*\bPartName\s*=\s*["']\/xl\/workbook\.xml["'])(?=[^>]*\bContentType\s*=\s*["']application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet\.main\+xml["'])[^>]*\/?\s*>/iu.test(xml)
+      && /<\/Types\s*>/iu.test(xml);
+  }
+
+  private isWorkbookXml(xml: string): boolean {
+    return /<workbook\b[^>]*xmlns\s*=\s*["']http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main["'][^>]*>/iu.test(xml)
+      && /<sheets\b[^>]*>/iu.test(xml)
+      && /<\/workbook\s*>/iu.test(xml);
+  }
+
+  private hasWorksheetRelationship(xml: string, sheetIds: string[], entries: Map<string, ZipEntry>): boolean {
+    if (!/<Relationships\b[^>]*xmlns\s*=\s*["']http:\/\/schemas\.openxmlformats\.org\/package\/2006\/relationships["'][^>]*>/iu.test(xml)) return false;
+    for (const relationship of xml.matchAll(/<Relationship\b[^>]*\/?\s*>/giu)) {
+      const tag = relationship[0];
+      const id = /\bId\s*=\s*["']([^"']+)["']/iu.exec(tag)?.[1];
+      const type = /\bType\s*=\s*["']([^"']+)["']/iu.exec(tag)?.[1];
+      const target = /\bTarget\s*=\s*["']([^"']+)["']/iu.exec(tag)?.[1];
+      if (!id || !type?.endsWith('/worksheet') || !target || !sheetIds.includes(id) || target.startsWith('/') || target.includes('\\') || target.split('/').includes('..')) continue;
+      const worksheet = entries.get(`xl/${target}`);
+      if (worksheet && !worksheet.directory) return true;
+    }
+    return false;
+  }
+
   private async readExactly(handle: Awaited<ReturnType<typeof open>>, length: number, position: number): Promise<Buffer> {
     const output = Buffer.alloc(length);
-    const { bytesRead } = await handle.read(output, 0, length, position);
-    if (bytesRead !== length) throw new BadRequestException('XLSX ZIP is truncated');
+    let offset = 0;
+    while (offset < length) {
+      const { bytesRead } = await handle.read(output, offset, length - offset, position + offset);
+      if (bytesRead === 0) throw new BadRequestException('XLSX ZIP is truncated');
+      offset += bytesRead;
+    }
     return output;
   }
 
