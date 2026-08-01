@@ -35,6 +35,17 @@ export class BulkApproveCandidatesDto {
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(100)
-  @IsString({ each: true })
-  candidateIds!: string[];
+  @ValidateNested({ each: true })
+  @Type(() => BulkCandidateRevisionDto)
+  candidates!: BulkCandidateRevisionDto[];
+}
+
+export class BulkCandidateRevisionDto {
+  @IsString()
+  @MaxLength(200)
+  id!: string;
+
+  @IsInt()
+  @Min(0)
+  revision!: number;
 }

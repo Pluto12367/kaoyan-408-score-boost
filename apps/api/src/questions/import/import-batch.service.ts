@@ -57,9 +57,15 @@ export class ImportBatchService {
       const batch = await tx.questionImportBatch.findUnique({ where: { id: batchId }, select: { status: true } });
       if (!batch) throw new NotFoundException('Question import batch was not found');
       if (['cancelled', 'completed', 'expired'].includes(batch.status)) throw new BadRequestException('Question import batch cannot be cancelled');
-      const updated = await tx.questionImportBatch.updateMany({ where: { id: batchId, status: batch.status }, data: { status: 'cancelled', revision: { increment: 1 } } });
+      const updated = await tx.questionImportBatch.updateMany({
+        where: { id: batchId, status: { notIn: ['cancelled', 'completed', 'expired'] } },
+        data: { status: 'cancelled', revision: { increment: 1 } },
+      });
       if (updated.count !== 1) throw new BadRequestException('Question import batch changed while cancelling');
-      const cancelledJobs = await tx.questionImportJob.updateMany({ where: { batchId, state: { in: ['pending', 'queued'] } }, data: { state: 'cancelled' } });
+      const cancelledJobs = await tx.questionImportJob.updateMany({
+        where: { batchId, state: { in: ['pending', 'queued', 'running'] } },
+        data: { state: 'cancelled', leaseOwner: null, leaseExpiresAt: null },
+      });
       const counts = await this.countStates(tx, batchId);
       await tx.questionImportBatch.update({ where: { id: batchId }, data: { statusCounts: counts } });
       await this.recordInTransaction(tx, { actorId, action: 'question_import.cancel', targetId: batchId, result: 'success', metadata: { cancelledJobs: cancelledJobs.count } });

@@ -47,3 +47,28 @@ test('rejects a mixed retry set before claiming any job', async () => {
   await assert.rejects(new ImportBatchService(prisma, { record: async () => undefined }).retry('admin-1', 'batch-1', ['failed-job', 'other-batch']), /Every retry job/);
   assert.equal(claimed, false);
 });
+
+test('cancellation condition remains valid after a concurrent non-terminal worker transition', async () => {
+  let batchWhere;
+  let jobUpdate;
+  const tx = {
+    questionImportBatch: {
+      findUnique: async () => ({ status: 'parsing' }),
+      updateMany: async ({ where }) => { batchWhere = where; return { count: 1 }; },
+      update: async () => undefined,
+    },
+    questionImportJob: {
+      updateMany: async (input) => { jobUpdate = input; return { count: 1 }; },
+      groupBy: async () => [{ state: 'cancelled', _count: { _all: 1 } }],
+    },
+    auditEvent: { create: async () => undefined },
+  };
+  const service = new ImportBatchService({ $transaction: async (fn) => fn(tx) }, { record: async () => undefined });
+
+  await service.cancel('admin-1', 'batch-1');
+
+  assert.deepEqual(batchWhere.status.notIn, ['cancelled', 'completed', 'expired']);
+  assert.ok(jobUpdate.where.state.in.includes('running'));
+  assert.equal(jobUpdate.data.leaseOwner, null);
+  assert.equal(jobUpdate.data.leaseExpiresAt, null);
+});

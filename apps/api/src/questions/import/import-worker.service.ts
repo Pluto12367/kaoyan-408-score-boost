@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
 import { Prisma, type QuestionImportFileType } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ImportStorageService } from './import-storage.service';
 import { ImportValidationService } from './import-validation';
@@ -55,7 +56,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     @Optional() @Inject(IMPORT_WORKER_OPTIONS) options: ImportWorkerOptions = {},
     @Optional() validation?: ImportValidationService,
   ) {
-    this.workerId = options.workerId ?? `question-import-${process.pid}`;
+    this.workerId = options.workerId ?? `question-import-${randomUUID()}`;
     this.leaseMs = positiveInteger(options.leaseMs, 5 * 60_000);
     this.emptyPollMs = positiveInteger(options.emptyPollMs, 1_000);
     this.now = options.now ?? (() => new Date());
@@ -139,6 +140,11 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const now = this.now();
 
     const statusCounts = await this.prisma.$transaction(async (tx) => {
+      const batchClaimed = await tx.questionImportBatch.updateMany({
+        where: { id: job.batchId, status: { notIn: ['cancelled', 'expired', 'completed'] } },
+        data: { status: 'review', revision: { increment: 1 } },
+      });
+      if (batchClaimed.count !== 1) throw new Error('QUESTION_IMPORT_BATCH_TERMINAL');
       const completed = await tx.questionImportJob.updateMany({
         where: {
           id: job.id,
@@ -158,7 +164,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       const counts = Object.fromEntries(groups.map((group) => [group.status, group._count._all]));
       await tx.questionImportBatch.update({
         where: { id: job.batchId },
-        data: { status: 'review', statusCounts: counts, revision: { increment: 1 } },
+        data: { status: 'review', statusCounts: counts },
       });
       return counts;
     });
@@ -200,15 +206,16 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const safeError = { code: 'QUESTION_IMPORT_PROCESSING_FAILED' };
     try {
       await this.prisma.$transaction(async (tx) => {
+        const batchClaimed = await tx.questionImportBatch.updateMany({
+          where: { id: job.batchId, status: { notIn: ['cancelled', 'expired', 'completed'] } },
+          data: { status: 'failed', statusCounts: { failed: 1 }, failedAt: now, revision: { increment: 1 } },
+        });
+        if (batchClaimed.count !== 1) return;
         const failed = await tx.questionImportJob.updateMany({
           where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: now } },
           data: { state: 'failed', completedAt: now, leaseOwner: null, leaseExpiresAt: null, error: safeError },
         });
-        if (failed.count !== 1) return;
-        await tx.questionImportBatch.update({
-          where: { id: job.batchId },
-          data: { status: 'failed', statusCounts: { failed: 1 }, failedAt: now, revision: { increment: 1 } },
-        });
+        if (failed.count !== 1) throw new Error('QUESTION_IMPORT_LEASE_LOST');
       });
     } catch {
       this.logger.error(`Could not persist question import failure for job ${job.id}`);

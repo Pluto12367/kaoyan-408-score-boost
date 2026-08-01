@@ -73,6 +73,14 @@ test('two workers cannot claim the same available job', async () => {
   assert.equal(db.batches[0].status, 'parsing');
 });
 
+test('default worker lease owners are unique per worker instance', () => {
+  const first = new ImportWorkerService({}, {}, {}, { autoStart: false });
+  const second = new ImportWorkerService({}, {}, {}, { autoStart: false });
+
+  assert.notEqual(first.workerId, second.workerId);
+  assert.match(first.workerId, /^question-import-[0-9a-f-]{36}$/u);
+});
+
 test('an unexpired lease stays owned while an expired crash lease can be reclaimed', async () => {
   const clock = new Date('2026-08-01T00:00:00.000Z');
   const db = createClaimDatabase(clock);
@@ -192,7 +200,7 @@ test('worker failure is recorded only for the current lease owner and shutdown i
         assert.ok(where.leaseExpiresAt.gt instanceof Date);
         return { count: 1 };
       } },
-      questionImportBatch: { update: async () => undefined },
+      questionImportBatch: { updateMany: async () => ({ count: 1 }), update: async () => undefined },
     }),
   }, { readTemporary: async () => { throw new Error('simulated disk failure'); } }, {}, {
     workerId: 'worker-a', emptyPollMs: 60_000,
@@ -217,7 +225,7 @@ test('an old worker cannot mark a job failed after its lease expired', async () 
         assert.ok(where.leaseExpiresAt.gt > expired.leaseExpiresAt);
         return { count: 0 };
       } },
-      questionImportBatch: { update: async ({ data }) => {
+      questionImportBatch: { updateMany: async () => ({ count: 1 }), update: async ({ data }) => {
         if (data.status !== 'parsing') assert.fail('lease-lost worker must not update batch failure state');
       } },
     }),
@@ -227,6 +235,40 @@ test('an old worker cannot mark a job failed after its lease expired', async () 
 
   await worker.runOnce();
   assert.equal(attempted, true);
+});
+
+test('a cancelled batch wins over worker completion and failure', async () => {
+  const persisted = [];
+  const batchUpdates = [];
+  const job = claimFixture();
+  const prisma = createProcessingPrisma(persisted, batchUpdates, job, { batchStatus: 'cancelled' });
+  const worker = new ImportWorkerService(
+    prisma,
+    { readTemporary: async () => Buffer.from('csv') },
+    { parse: async () => ({ rows: [{ rowNumber: 2, values: validValues }], issues: [] }) },
+    { workerId: 'worker-a' },
+  );
+
+  await assert.rejects(worker.processClaimedJob(job), /BATCH_TERMINAL/u);
+  assert.equal(persisted.length, 0);
+  assert.equal(batchUpdates.length, 0);
+
+  let failureJobUpdateAttempted = false;
+  let transactionNumber = 0;
+  const failWorker = new ImportWorkerService({
+    $transaction: async (operation) => {
+      transactionNumber += 1;
+      return operation(transactionNumber === 1 ? {
+        $queryRaw: async () => [job],
+        questionImportBatch: { update: async () => undefined },
+      } : {
+        questionImportBatch: { updateMany: async () => ({ count: 0 }) },
+        questionImportJob: { updateMany: async () => { failureJobUpdateAttempted = true; return { count: 1 }; } },
+      });
+    },
+  }, { readTemporary: async () => { throw new Error('cancelled while reading'); } }, {}, { workerId: 'worker-a' });
+  await failWorker.runOnce();
+  assert.equal(failureJobUpdateAttempted, false);
 });
 
 test('candidate update uses revision OCC and includes the latest candidate in a 409 response', async () => {
@@ -251,7 +293,7 @@ test('bulk approval is bounded and audits candidate IDs and warning counts in th
   const service = new ImportCandidateService({}, { record: async () => undefined });
 
   await assert.rejects(
-    service.bulkApprove('batch-1', Array.from({ length: 101 }, (_, index) => `candidate-${index}`), 'admin-1'),
+    service.bulkApprove('batch-1', Array.from({ length: 101 }, (_, index) => ({ id: `candidate-${index}`, revision: 0 })), 'admin-1'),
     (error) => error instanceof BadRequestException,
   );
 });
@@ -275,11 +317,28 @@ test('bulk approval uses every candidate revision and audits only ID arrays and 
     { record: async (input, passedTx) => { audit = input; assert.equal(passedTx, tx); } },
   );
 
-  const result = await service.bulkApprove('batch-1', ['candidate-1', 'candidate-2'], 'admin-1');
+  const result = await service.bulkApprove('batch-1', [
+    { id: 'candidate-1', revision: 3 },
+    { id: 'candidate-2', revision: 7 },
+  ], 'admin-1');
 
   assert.deepEqual(revisions, [3, 7]);
   assert.equal(result.approvedCandidates, 2);
   assert.deepEqual(audit.metadata, { candidateIds: ['candidate-1', 'candidate-2'], warningCount: 0 });
+});
+
+test('bulk approval rejects a caller-stale candidate revision with the latest candidate', async () => {
+  const latest = { id: 'candidate-1', revision: 4, status: 'pending_review', warnings: [] };
+  const service = new ImportCandidateService({
+    $transaction: async (operation) => operation({
+      questionImportCandidate: { findMany: async () => [latest] },
+    }),
+  }, { record: async () => undefined });
+
+  await assert.rejects(
+    service.bulkApprove('batch-1', [{ id: 'candidate-1', revision: 3 }], 'admin-1'),
+    (error) => error instanceof ConflictException && error.getResponse().latest.revision === 4,
+  );
 });
 
 test('ignore refreshes batch counts and audits a JSON candidate ID array in the same transaction', async () => {
@@ -359,7 +418,14 @@ function createProcessingPrisma(persisted, batchUpdates, job, options = {}) {
         return { count: 1 };
       },
     },
-    questionImportBatch: { update: async ({ data }) => { batchUpdates.push(data); } },
+    questionImportBatch: {
+      updateMany: async ({ data }) => {
+        if (['cancelled', 'expired', 'completed'].includes(options.batchStatus)) return { count: 0 };
+        batchUpdates.push(data);
+        return { count: 1 };
+      },
+      update: async ({ data }) => { batchUpdates.push(data); },
+    },
   };
   return {
     knowledgePoint: { findMany: async () => [point] },

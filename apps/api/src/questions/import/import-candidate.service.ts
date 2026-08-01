@@ -40,6 +40,11 @@ export interface CandidatePatch {
   status?: 'ignored';
 }
 
+export interface CandidateRevision {
+  id: string;
+  revision: number;
+}
+
 @Injectable()
 export class ImportCandidateService {
   constructor(private readonly prisma: PrismaService, private readonly auditEvents: AuditEventService) {}
@@ -103,10 +108,11 @@ export class ImportCandidateService {
     });
   }
 
-  async bulkApprove(batchId: string, candidateIds: string[], actorId: string) {
-    const ids = uniqueIds(candidateIds);
-    if (ids.length === 0 || ids.length > MAX_BULK_CANDIDATES || ids.length !== candidateIds.length) {
-      throw new BadRequestException(`candidateIds must contain 1 to ${MAX_BULK_CANDIDATES} unique IDs`);
+  async bulkApprove(batchId: string, candidateRevisions: CandidateRevision[], actorId: string) {
+    const observed = uniqueCandidateRevisions(candidateRevisions);
+    const ids = observed.map((candidate) => candidate.id);
+    if (ids.length === 0 || ids.length > MAX_BULK_CANDIDATES || ids.length !== candidateRevisions?.length) {
+      throw new BadRequestException(`candidates must contain 1 to ${MAX_BULK_CANDIDATES} unique ID/revision pairs`);
     }
     return this.prisma.$transaction(async (tx) => {
       const candidates = await tx.questionImportCandidate.findMany({
@@ -114,6 +120,10 @@ export class ImportCandidateService {
         select: { id: true, revision: true, status: true, warnings: true },
       });
       if (candidates.length !== ids.length) throw new BadRequestException('Every candidate must belong to the requested batch');
+      for (const candidate of candidates) {
+        const callerRevision = observed.find((item) => item.id === candidate.id)?.revision;
+        if (callerRevision !== candidate.revision) throw staleCandidate(candidate);
+      }
       if (candidates.some((candidate) => !['pending_review', 'duplicate_suspected'].includes(candidate.status))) {
         throw new BadRequestException('Only reviewable candidates can be approved');
       }
@@ -122,11 +132,15 @@ export class ImportCandidateService {
       const now = new Date();
       let approvedCandidates = 0;
       for (const candidate of candidates) {
+        const callerRevision = observed.find((item) => item.id === candidate.id)!.revision;
         const approved = await tx.questionImportCandidate.updateMany({
-          where: { id: candidate.id, batchId, status: candidate.status, revision: candidate.revision },
+          where: { id: candidate.id, batchId, status: candidate.status, revision: callerRevision },
           data: { status: 'approved', reviewedById: actorId, reviewedAt: now, revision: { increment: 1 } },
         });
-        if (approved.count !== 1) throw new ConflictException('Candidates changed while being approved');
+        if (approved.count !== 1) {
+          const latest = await tx.questionImportCandidate.findFirst({ where: { id: candidate.id, batchId } });
+          throw staleCandidate(latest ?? candidate);
+        }
         approvedCandidates += 1;
       }
       const counts = await this.countStates(tx, batchId);
@@ -300,9 +314,12 @@ function staleCandidate(latest: unknown): ConflictException {
   return new ConflictException({ message: 'Question import candidate revision is stale', latest });
 }
 
-function uniqueIds(candidateIds: unknown): string[] {
-  if (!Array.isArray(candidateIds) || candidateIds.some((id) => typeof id !== 'string' || !id)) return [];
-  return [...new Set(candidateIds)];
+function uniqueCandidateRevisions(value: unknown): CandidateRevision[] {
+  if (!Array.isArray(value) || value.some((candidate) => !candidate || typeof candidate !== 'object'
+    || typeof candidate.id !== 'string' || !candidate.id
+    || !Number.isInteger(candidate.revision) || candidate.revision < 0)) return [];
+  const ids = new Set(value.map((candidate) => candidate.id));
+  return ids.size === value.length ? value : [];
 }
 
 function positiveInteger(value: number | undefined, fallback: number): number {

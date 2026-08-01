@@ -107,9 +107,20 @@ test('candidate routes validate pagination, revisions, and bounded bulk input', 
   assert.deepEqual(candidateCalls[1], ['update', 'candidate-1', 1, { status: 'ignored' }, 'admin-1']);
 
   const tooMany = await fetch(url('/admin/question-imports/batch-1/candidates/bulk-approve'), {
-    method: 'POST', headers, body: JSON.stringify({ candidateIds: Array.from({ length: 101 }, (_, index) => `candidate-${index}`) }),
+    method: 'POST', headers, body: JSON.stringify({
+      candidates: Array.from({ length: 101 }, (_, index) => ({ id: `candidate-${index}`, revision: 0 })),
+    }),
   });
   assert.equal(tooMany.status, 400);
+
+  const approved = await fetch(url('/admin/question-imports/batch-1/candidates/bulk-approve'), {
+    method: 'POST', headers, body: JSON.stringify({ candidates: [{ id: 'candidate-1', revision: 3 }] }),
+  });
+  assert.equal(approved.status, 201);
+  assert.equal(candidateCalls[2][0], 'bulk');
+  assert.equal(candidateCalls[2][1], 'batch-1');
+  assert.deepEqual(candidateCalls[2][2].map(({ id, revision }) => ({ id, revision })), [{ id: 'candidate-1', revision: 3 }]);
+  assert.equal(candidateCalls[2][3], 'admin-1');
 
   const invalidStatus = await fetch(url('/admin/question-imports/batch-1/candidates?status=not-a-status'), { headers });
   assert.equal(invalidStatus.status, 400);

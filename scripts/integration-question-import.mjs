@@ -382,7 +382,19 @@ async function assertWorkerLeaseAndCandidates(client, services) {
     const page = await candidateService.list(created.batchId, {}, { page: 1, pageSize: 100 });
     assert.equal(page.total, 3);
     const reviewable = candidates.filter((candidate) => candidate.status !== 'needs_edit');
-    const approved = await candidateService.bulkApprove(created.batchId, reviewable.map((candidate) => candidate.id), 'worker-admin');
+    await assertRejects(
+      () => candidateService.bulkApprove(
+        created.batchId,
+        reviewable.map((candidate) => ({ id: candidate.id, revision: candidate.revision + 1 })),
+        'worker-admin',
+      ),
+      'bulk approval must reject caller-stale candidate revisions',
+    );
+    const approved = await candidateService.bulkApprove(
+      created.batchId,
+      reviewable.map((candidate) => ({ id: candidate.id, revision: candidate.revision })),
+      'worker-admin',
+    );
     assert.equal(approved.approvedCandidates, 2);
     await assertRejects(
       () => candidateService.update(reviewable[0].id, 0, { status: 'ignored' }, 'worker-admin'),
@@ -397,6 +409,27 @@ async function assertWorkerLeaseAndCandidates(client, services) {
     assert.deepEqual(audit.metadata.candidateIds.sort(), reviewable.map((candidate) => candidate.id).sort());
     assert.equal(audit.metadata.warningCount, 0);
     assert.equal(JSON.stringify(audit.metadata).includes('version two'), false, 'audit metadata must not contain question text');
+
+    const cancelRace = await batches.create('worker-admin', {
+      source: 'integration source', rightsConfirmed: true, title: 'worker cancellation race',
+    }, stored);
+    const cancelWorker = new services.ImportWorkerService(client, storage, parser, {
+      workerId: 'pg-worker-cancel', leaseMs: 5_000, autoStart: false,
+    }, validation);
+    const cancelClaim = await cancelWorker.claimNextJob();
+    assert.equal(cancelClaim?.batchId, cancelRace.batchId);
+    await batches.cancel('worker-admin', cancelRace.batchId);
+    await assertRejects(
+      () => cancelWorker.processClaimedJob(cancelClaim),
+      'cancelled batch must fence a worker that finishes parsing later',
+    );
+    const cancelledRaceState = await client.questionImportBatch.findUniqueOrThrow({
+      where: { id: cancelRace.batchId }, include: { jobs: true },
+    });
+    assert.equal(cancelledRaceState.status, 'cancelled');
+    assert.equal(cancelledRaceState.jobs[0].state, 'cancelled');
+    assert.equal(cancelledRaceState.jobs[0].leaseOwner, null);
+    assert.equal(await client.questionImportCandidate.count({ where: { batchId: cancelRace.batchId } }), 0);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

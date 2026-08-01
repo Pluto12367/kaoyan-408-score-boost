@@ -98,7 +98,7 @@ export class QuestionImportController {
     @Param('batchId') batchId: string,
     @Body() input: BulkApproveCandidatesDto,
   ) {
-    return this.candidates.bulkApprove(batchId, input.candidateIds, user.id);
+    return this.candidates.bulkApprove(batchId, input.candidates, user.id);
   }
 
   @Post(':batchId/cancel')
