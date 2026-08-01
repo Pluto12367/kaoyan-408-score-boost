@@ -2,9 +2,10 @@ import { BadRequestException, Inject, Injectable, Optional, PayloadTooLargeExcep
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { lstat, open, realpath, rename, rm, stat } from 'node:fs/promises';
-import { basename, dirname, extname, isAbsolute, relative, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, posix, relative, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createInflateRaw } from 'node:zlib';
+import { SaxesParser, type SaxesTagNS } from 'saxes';
 import { loadImportConfig, QUESTION_IMPORT_CONFIG, type ImportConfig } from './import-config';
 
 export type ImportFileType = 'pdf' | 'xlsx' | 'csv';
@@ -18,6 +19,13 @@ const MAX_XLSX_EXPANDED_BYTES = 100 * 1024 * 1024;
 const MAX_XLSX_ENTRY_BYTES = 20 * 1024 * 1024;
 const MAX_ZIP_CENTRAL_BYTES = 1024 * 1024;
 const MAX_XLSX_STRUCTURE_BYTES = 1024 * 1024;
+const OPC_CONTENT_TYPES_NAMESPACE = 'http://schemas.openxmlformats.org/package/2006/content-types';
+const OPC_RELATIONSHIPS_NAMESPACE = 'http://schemas.openxmlformats.org/package/2006/relationships';
+const SPREADSHEETML_NAMESPACE = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const OFFICE_RELATIONSHIPS_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const WORKBOOK_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml';
+const WORKSHEET_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml';
+const WORKSHEET_RELATIONSHIP_TYPE = `${OFFICE_RELATIONSHIPS_NAMESPACE}/worksheet`;
 
 interface ZipEntry {
   name: string;
@@ -26,6 +34,12 @@ interface ZipEntry {
   compressedSize: number;
   uncompressedSize: number;
   localHeaderOffset: number;
+}
+
+interface WorkbookRelationship {
+  type: string;
+  target: string;
+  targetMode?: string;
 }
 
 function isContained(parent: string, candidate: string): boolean {
@@ -200,13 +214,32 @@ export class ImportStorageService {
   }
 
   private async assertWorkbookStructure(path: string, handle: Awaited<ReturnType<typeof open>>, size: number, entries: Map<string, ZipEntry>) {
-    const contentTypes = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, '[Content_Types].xml'));
-    const workbook = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, 'xl/workbook.xml'));
-    const relationships = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, 'xl/_rels/workbook.xml.rels'));
-    if (!this.isSpreadsheetContentTypes(contentTypes) || !this.isWorkbookXml(workbook)) throw new BadRequestException('XLSX workbook XML is invalid');
+    const contentTypesXml = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, '[Content_Types].xml'));
+    const workbookXml = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, 'xl/workbook.xml'));
+    const relationshipsXml = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, 'xl/_rels/workbook.xml.rels'));
+    const contentTypes = this.parseContentTypes(contentTypesXml);
+    const sheetIds = this.parseWorkbook(workbookXml);
+    const relationships = this.parseWorkbookRelationships(relationshipsXml);
 
-    const sheetIds = [...workbook.matchAll(/<sheet\b[^>]*\br:id\s*=\s*(["'])([^"']+)\1[^>]*\/?\s*>/giu)].map((match) => match[2]);
-    if (sheetIds.length === 0 || !this.hasWorksheetRelationship(relationships, sheetIds, entries)) throw new BadRequestException('XLSX workbook has no valid worksheet relationship');
+    if (contentTypes.get('/xl/workbook.xml') !== WORKBOOK_CONTENT_TYPE) {
+      throw new BadRequestException('XLSX workbook content type is invalid');
+    }
+
+    const parsedWorksheets = new Set<string>();
+    for (const sheetId of sheetIds) {
+      const relationship = relationships.get(sheetId);
+      if (!relationship || relationship.type !== WORKSHEET_RELATIONSHIP_TYPE || (relationship.targetMode && relationship.targetMode !== 'Internal')) {
+        throw new BadRequestException('XLSX workbook has no valid worksheet relationship');
+      }
+      const worksheetPath = this.resolveWorksheetTarget(relationship.target);
+      if (!worksheetPath || contentTypes.get(`/${worksheetPath}`) !== WORKSHEET_CONTENT_TYPE) {
+        throw new BadRequestException('XLSX worksheet target or content type is invalid');
+      }
+      if (parsedWorksheets.has(worksheetPath)) continue;
+      const worksheetXml = await this.readXmlEntry(path, handle, size, this.requiredEntry(entries, worksheetPath));
+      this.parseWorksheet(worksheetXml);
+      parsedWorksheets.add(worksheetPath);
+    }
   }
 
   private requiredEntry(entries: Map<string, ZipEntry>, name: string): ZipEntry {
@@ -254,30 +287,86 @@ export class ImportStorageService {
     return Buffer.concat(chunks, expandedBytes);
   }
 
-  private isSpreadsheetContentTypes(xml: string): boolean {
-    return /<Types\b[^>]*xmlns\s*=\s*["']http:\/\/schemas\.openxmlformats\.org\/package\/2006\/content-types["'][^>]*>/iu.test(xml)
-      && /<Override\b(?=[^>]*\bPartName\s*=\s*["']\/xl\/workbook\.xml["'])(?=[^>]*\bContentType\s*=\s*["']application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet\.main\+xml["'])[^>]*\/?\s*>/iu.test(xml)
-      && /<\/Types\s*>/iu.test(xml);
+  private parseContentTypes(xml: string): Map<string, string> {
+    const overrides = new Map<string, string>();
+    this.parseXml(xml, 'content types', (tag, depth) => {
+      if (depth === 1) this.assertXmlElement(tag, 'Types', OPC_CONTENT_TYPES_NAMESPACE, 'content types');
+      if (depth !== 2 || tag.local !== 'Override' || tag.uri !== OPC_CONTENT_TYPES_NAMESPACE) return;
+      const partName = this.xmlAttribute(tag, 'PartName');
+      const contentType = this.xmlAttribute(tag, 'ContentType');
+      if (!partName || !contentType || overrides.has(partName)) throw new BadRequestException('XLSX content type override is invalid');
+      overrides.set(partName, contentType);
+    });
+    return overrides;
   }
 
-  private isWorkbookXml(xml: string): boolean {
-    return /<workbook\b[^>]*xmlns\s*=\s*["']http:\/\/schemas\.openxmlformats\.org\/spreadsheetml\/2006\/main["'][^>]*>/iu.test(xml)
-      && /<sheets\b[^>]*>/iu.test(xml)
-      && /<\/workbook\s*>/iu.test(xml);
+  private parseWorkbook(xml: string): string[] {
+    const sheetIds: string[] = [];
+    this.parseXml(xml, 'workbook', (tag, depth, parent) => {
+      if (depth === 1) this.assertXmlElement(tag, 'workbook', SPREADSHEETML_NAMESPACE, 'workbook');
+      if (depth !== 3 || tag.local !== 'sheet' || tag.uri !== SPREADSHEETML_NAMESPACE || parent?.local !== 'sheets' || parent.uri !== SPREADSHEETML_NAMESPACE) return;
+      const relationshipId = this.xmlAttribute(tag, 'id', OFFICE_RELATIONSHIPS_NAMESPACE);
+      if (!relationshipId || sheetIds.includes(relationshipId)) throw new BadRequestException('XLSX workbook sheet relationship is invalid');
+      sheetIds.push(relationshipId);
+    });
+    if (sheetIds.length === 0) throw new BadRequestException('XLSX workbook has no worksheet');
+    return sheetIds;
   }
 
-  private hasWorksheetRelationship(xml: string, sheetIds: string[], entries: Map<string, ZipEntry>): boolean {
-    if (!/<Relationships\b[^>]*xmlns\s*=\s*["']http:\/\/schemas\.openxmlformats\.org\/package\/2006\/relationships["'][^>]*>/iu.test(xml)) return false;
-    for (const relationship of xml.matchAll(/<Relationship\b[^>]*\/?\s*>/giu)) {
-      const tag = relationship[0];
-      const id = /\bId\s*=\s*["']([^"']+)["']/iu.exec(tag)?.[1];
-      const type = /\bType\s*=\s*["']([^"']+)["']/iu.exec(tag)?.[1];
-      const target = /\bTarget\s*=\s*["']([^"']+)["']/iu.exec(tag)?.[1];
-      if (!id || !type?.endsWith('/worksheet') || !target || !sheetIds.includes(id) || target.startsWith('/') || target.includes('\\') || target.split('/').includes('..')) continue;
-      const worksheet = entries.get(`xl/${target}`);
-      if (worksheet && !worksheet.directory) return true;
+  private parseWorkbookRelationships(xml: string): Map<string, WorkbookRelationship> {
+    const relationships = new Map<string, WorkbookRelationship>();
+    this.parseXml(xml, 'workbook relationships', (tag, depth) => {
+      if (depth === 1) this.assertXmlElement(tag, 'Relationships', OPC_RELATIONSHIPS_NAMESPACE, 'workbook relationships');
+      if (depth !== 2 || tag.local !== 'Relationship' || tag.uri !== OPC_RELATIONSHIPS_NAMESPACE) return;
+      const id = this.xmlAttribute(tag, 'Id');
+      const type = this.xmlAttribute(tag, 'Type');
+      const target = this.xmlAttribute(tag, 'Target');
+      const targetMode = this.xmlAttribute(tag, 'TargetMode');
+      if (!id || !type || !target || relationships.has(id)) throw new BadRequestException('XLSX workbook relationship is invalid');
+      relationships.set(id, { type, target, ...(targetMode ? { targetMode } : {}) });
+    });
+    return relationships;
+  }
+
+  private parseWorksheet(xml: string): void {
+    this.parseXml(xml, 'worksheet', (tag, depth) => {
+      if (depth === 1) this.assertXmlElement(tag, 'worksheet', SPREADSHEETML_NAMESPACE, 'worksheet');
+    });
+  }
+
+  private parseXml(xml: string, label: string, onOpenTag: (tag: SaxesTagNS, depth: number, parent?: SaxesTagNS) => void): void {
+    if (/<!\s*(?:DOCTYPE|ENTITY)\b/iu.test(xml)) throw new BadRequestException(`XLSX ${label} XML must not contain DTD or entity declarations`);
+    const parser = new SaxesParser<{ xmlns: true }>({ xmlns: true });
+    const openTags: SaxesTagNS[] = [];
+    parser.on('doctype', () => { throw new BadRequestException(`XLSX ${label} XML must not contain a DTD`); });
+    parser.on('opentag', (tag) => {
+      const parent = openTags.at(-1);
+      openTags.push(tag);
+      onOpenTag(tag, openTags.length, parent);
+    });
+    parser.on('closetag', () => { openTags.pop(); });
+    try {
+      parser.write(xml).close();
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException(`XLSX ${label} XML is malformed`);
     }
-    return false;
+  }
+
+  private assertXmlElement(tag: SaxesTagNS, local: string, uri: string, label: string): void {
+    if (tag.local !== local || tag.uri !== uri) throw new BadRequestException(`XLSX ${label} namespace is invalid`);
+  }
+
+  private xmlAttribute(tag: SaxesTagNS, local: string, uri = ''): string | undefined {
+    return Object.values(tag.attributes).find((attribute) => attribute.local === local && attribute.uri === uri)?.value;
+  }
+
+  private resolveWorksheetTarget(target: string): string | undefined {
+    if (target.startsWith('/') || target.includes('\\') || /[\x00-\x1f\x7f%:?#]/u.test(target)) return undefined;
+    const segments = target.split('/');
+    if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return undefined;
+    const resolved = posix.join('xl', ...segments);
+    return resolved.startsWith('xl/worksheets/') && resolved.length > 'xl/worksheets/'.length ? resolved : undefined;
   }
 
   private async readExactly(handle: Awaited<ReturnType<typeof open>>, length: number, position: number): Promise<Buffer> {

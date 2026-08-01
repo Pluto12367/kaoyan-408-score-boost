@@ -41,11 +41,36 @@ async function workbookLikeZip(entries) {
 const spreadsheetContentTypes = `<?xml version="1.0" encoding="UTF-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>`;
 const spreadsheetWorkbook = `<?xml version="1.0" encoding="UTF-8"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets><sheet name="Questions" sheetId="1" r:id="rId1"/></sheets>
 </workbook>`;
+const spreadsheetRelationships = `<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+</Relationships>`;
+const spreadsheetWorksheet = `<?xml version="1.0" encoding="UTF-8"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>`;
+
+function spreadsheetEntries(overrides = {}) {
+  return {
+    '[Content_Types].xml': spreadsheetContentTypes,
+    'xl/workbook.xml': spreadsheetWorkbook,
+    'xl/_rels/workbook.xml.rels': spreadsheetRelationships,
+    'xl/worksheets/sheet1.xml': spreadsheetWorksheet,
+    ...overrides,
+  };
+}
+
+async function rejectsWorkbookCases(config, storage, cases) {
+  for (const entries of cases) {
+    const file = await incoming(config, '.xlsx', await workbookLikeZip(entries));
+    await assert.rejects(storage.putIncoming(file));
+    await assert.rejects(readFile(file.path));
+  }
+}
 
 test('rejects a generic ZIP posing as XLSX and removes the exact private incoming file', async () => {
   const { config, storage } = await storageFixture();
@@ -70,6 +95,81 @@ test('rejects name-only and structurally invalid OOXML workbook ZIPs', async () 
     await assert.rejects(storage.putIncoming(file));
     await assert.rejects(readFile(file.path));
   }
+});
+
+test('rejects malformed and namespace-unbound workbook XML', async () => {
+  const { config, storage } = await storageFixture();
+  await rejectsWorkbookCases(config, storage, [
+    spreadsheetEntries({
+      'xl/workbook.xml': `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Questions" sheetId="1" r:id="rId1"/></workbook>`,
+    }),
+    spreadsheetEntries({
+      'xl/workbook.xml': `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheets><sheet name="Questions" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    }),
+    spreadsheetEntries({
+      'xl/workbook.xml': `<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="urn:not-office-relationships"><sheets><sheet name="Questions" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+    }),
+  ]);
+});
+
+test('rejects missing or incorrectly namespaced worksheet content types', async () => {
+  const { config, storage } = await storageFixture();
+  const missingWorksheetType = spreadsheetContentTypes.replace(/\s*<Override PartName="\/xl\/worksheets\/sheet1\.xml"[^>]*\/>/u, '');
+  const wrongNamespace = spreadsheetContentTypes.replace(
+    '<Override PartName="/xl/worksheets/sheet1.xml"',
+    '<Override xmlns="urn:not-opc-content-types" PartName="/xl/worksheets/sheet1.xml"',
+  );
+  await rejectsWorkbookCases(config, storage, [
+    spreadsheetEntries({ '[Content_Types].xml': missingWorksheetType }),
+    spreadsheetEntries({ '[Content_Types].xml': wrongNamespace }),
+  ]);
+});
+
+test('rejects DTD and entity declarations in XLSX structural XML', async () => {
+  const { config, storage } = await storageFixture();
+  const withDtd = spreadsheetContentTypes.replace(
+    '<Types ',
+    '<!DOCTYPE Types [<!ENTITY forbidden "value">]>\n<Types ',
+  );
+  await rejectsWorkbookCases(config, storage, [
+    spreadsheetEntries({ '[Content_Types].xml': withDtd }),
+  ]);
+});
+
+test('rejects malformed, incorrectly namespaced, or forged worksheet relationships', async () => {
+  const { config, storage } = await storageFixture();
+  const wrongElementNamespace = spreadsheetRelationships.replace(
+    '<Relationship Id=',
+    '<Relationship xmlns="urn:not-package-relationships" Id=',
+  );
+  const forgedType = spreadsheetRelationships.replace(
+    'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet',
+    'https://attacker.invalid/worksheet',
+  );
+  const malformed = spreadsheetRelationships.replace('</Relationships>', '');
+  const outsideWorksheetDirectory = spreadsheetEntries({
+    '[Content_Types].xml': spreadsheetContentTypes.replaceAll('/xl/worksheets/sheet1.xml', '/xl/styles.xml'),
+    'xl/_rels/workbook.xml.rels': spreadsheetRelationships.replace('worksheets/sheet1.xml', 'styles.xml'),
+    'xl/worksheets/sheet1.xml': undefined,
+    'xl/styles.xml': spreadsheetWorksheet,
+  });
+  delete outsideWorksheetDirectory['xl/worksheets/sheet1.xml'];
+  await rejectsWorkbookCases(config, storage, [
+    spreadsheetEntries({ 'xl/_rels/workbook.xml.rels': wrongElementNamespace }),
+    spreadsheetEntries({ 'xl/_rels/workbook.xml.rels': forgedType }),
+    spreadsheetEntries({ 'xl/_rels/workbook.xml.rels': malformed }),
+    outsideWorksheetDirectory,
+  ]);
+});
+
+test('rejects plain-text and incorrectly namespaced worksheet parts', async () => {
+  const { config, storage } = await storageFixture();
+  await rejectsWorkbookCases(config, storage, [
+    spreadsheetEntries({ 'xl/worksheets/sheet1.xml': 'not xml' }),
+    spreadsheetEntries({
+      'xl/worksheets/sheet1.xml': '<worksheet xmlns="urn:not-spreadsheetml"><sheetData/></worksheet>',
+    }),
+  ]);
 });
 
 test('accepts the standard XLSX template without whole-file ZIP parsing', async () => {
