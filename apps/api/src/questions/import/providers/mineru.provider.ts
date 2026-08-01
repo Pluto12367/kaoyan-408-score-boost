@@ -16,16 +16,18 @@ export class PdfParserNotConfiguredError extends Error {
 interface MineruClient { extract(source: string, options: { model: string; timeout: number }): Promise<ExtractResult>; }
 export interface MineruProviderOptions {
   resolveSource?: (input: ProviderInput) => Promise<string>;
+  persistRaw?: (result: ExtractResult) => Promise<string>;
   createClient?: (token: string) => MineruClient;
 }
 
-interface Task { input: ProviderInput; result?: ExtractResult; error?: unknown; promise: Promise<void>; }
+interface Task { input: ProviderInput; rawResultKey?: string; result?: ExtractResult; error?: unknown; promise: Promise<void>; }
 
 @Injectable()
 export class MineruProvider implements DocumentParserProvider {
   readonly name = 'mineru' as const;
   private readonly tasks = new Map<string, Task>();
   private readonly resolveSource: (input: ProviderInput) => Promise<string>;
+  private readonly persistRaw: (result: ExtractResult) => Promise<string>;
   private readonly createClient: (token: string) => MineruClient;
 
   constructor(
@@ -33,7 +35,8 @@ export class MineruProvider implements DocumentParserProvider {
     options: MineruProviderOptions = {},
     private readonly quality = new ImportQualityService(),
   ) {
-    this.resolveSource = options.resolveSource ?? (async (input) => input.storageKey);
+    this.resolveSource = options.resolveSource ?? (async () => { throw new Error('DOCUMENT_SOURCE_UNRESOLVED'); });
+    this.persistRaw = options.persistRaw ?? (async () => { throw new Error('DOCUMENT_RESULT_STORAGE_UNRESOLVED'); });
     this.createClient = options.createClient ?? ((value) => new MinerU(value));
   }
 
@@ -42,7 +45,10 @@ export class MineruProvider implements DocumentParserProvider {
     const externalTaskId = `mineru-${randomUUID()}`;
     const task: Task = { input, promise: Promise.resolve() };
     task.promise = (async () => {
-      try { task.result = await this.createClient(this.token!).extract(await this.resolveSource(input), { model: 'vlm', timeout: 600 }); }
+      try {
+        task.result = await this.createClient(this.token!).extract(await this.resolveSource(input), { model: 'vlm', timeout: 600 });
+        task.rawResultKey = await this.persistRaw(task.result);
+      }
       catch (error) { task.error = error; }
     })();
     this.tasks.set(externalTaskId, task);
@@ -64,7 +70,8 @@ export class MineruProvider implements DocumentParserProvider {
     await task.promise;
     if (task.error || !task.result || task.result.state !== 'done') throw new Error('DOCUMENT_PARSE_NOT_READY');
     const pages = mapPages(task.result, task.input.pageStart, this.quality);
-    return { provider: 'mineru', model: 'vlm', pages, rawResultKey: `mineru/${externalTaskId}` };
+    if (!task.rawResultKey) throw new Error('DOCUMENT_RESULT_STORAGE_UNAVAILABLE');
+    return { provider: 'mineru', model: 'vlm', pages, rawResultKey: task.rawResultKey };
   }
 }
 

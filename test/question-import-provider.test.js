@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import { FakeDocumentProvider } from '../apps/api/dist/questions/import/providers/fake-document.provider.js';
 import { MineruProvider } from '../apps/api/dist/questions/import/providers/mineru.provider.js';
 import { ImportQualityService } from '../apps/api/dist/questions/import/import-quality.service.js';
 import { ImportWorkerService } from '../apps/api/dist/questions/import/import-worker.service.js';
 import { ImportBatchService } from '../apps/api/dist/questions/import/import-batch.service.js';
+import { ImportStorageService } from '../apps/api/dist/questions/import/import-storage.service.js';
 
 const input = { jobId: 'job-1', storageKey: 'temporary/11111111-1111-1111-1111-111111111111', fileName: 'sample.pdf', pageStart: 1, pageEnd: 2 };
 
@@ -22,15 +27,18 @@ test('fake document provider reports queued, running, and succeeded states witho
 test('fake document provider exposes failed and timeout outcomes as safe poll failures', async () => {
   const failed = new FakeDocumentProvider({ states: ['failed'], failure: { code: 'UPSTREAM_FAILED', retryable: true, message: 'provider unavailable' } });
   const timedOut = new FakeDocumentProvider({ states: ['timeout'] });
+  const failedTask = (await failed.submit(input)).externalTaskId;
 
-  assert.deepEqual(await failed.poll((await failed.submit(input)).externalTaskId), { state: 'failed', code: 'UPSTREAM_FAILED', retryable: true, message: 'provider unavailable' });
+  assert.deepEqual(await failed.poll(failedTask), { state: 'failed', code: 'UPSTREAM_FAILED', retryable: true, message: 'provider unavailable' });
   assert.deepEqual(await timedOut.poll((await timedOut.submit(input)).externalTaskId), { state: 'failed', code: 'DOCUMENT_PARSE_TIMEOUT', retryable: true, message: 'Document parsing timed out' });
+  await assert.rejects(failed.fetchResult(failedTask), /DOCUMENT_PARSE_NOT_SUCCEEDED/u);
 });
 
 test('MinerU adapter calls the SDK with vlm and a 600 second timeout, then normalizes blocks', async () => {
   const calls = [];
   const provider = new MineruProvider('test-token', {
     resolveSource: async () => '/private/split.pdf',
+    persistRaw: async () => 'provider/11111111-1111-1111-1111-111111111111.json',
     createClient: (token) => ({ extract: async (source, options) => {
       calls.push({ token, source, options });
       return { taskId: 'mineru-task-1', state: 'done', filename: 'split.pdf', contentList: [{ page_idx: 0, page_size: [1000, 2000], type: 'text', text: 'Question text', bbox: [100, 200, 500, 600] }], images: [], _zipBytes: Uint8Array.from([1, 2]) };
@@ -44,7 +52,31 @@ test('MinerU adapter calls the SDK with vlm and a 600 second timeout, then norma
   assert.equal(document.provider, 'mineru');
   assert.equal(document.pages[0].blocks[0].kind, 'text');
   assert.deepEqual(document.pages[0].blocks[0].region, { x: 0.1, y: 0.1, width: 0.4, height: 0.2 });
-  assert.match(document.rawResultKey, /^mineru\//u);
+  assert.match(document.rawResultKey, /^provider\//u);
+});
+
+test('MinerU receives an existing private split PDF path and persists raw artifacts privately', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'question-import-provider-'));
+  const temporaryDirectory = join(root, 'temporary');
+  const incomingDirectory = join(root, 'incoming');
+  const permanentDirectory = join(root, 'permanent');
+  await Promise.all([mkdir(temporaryDirectory), mkdir(incomingDirectory), mkdir(permanentDirectory)]);
+  const id = '11111111-1111-1111-1111-111111111111';
+  await writeFile(join(temporaryDirectory, id), '%PDF-1.7\n');
+  const storage = new ImportStorageService({ dataDirectory: root, temporaryDirectory, incomingDirectory, permanentDirectory, maxPdfBytes: 1024, maxTableBytes: 1024, temporaryQuotaBytes: 1024, diskStopPercent: 80 });
+  let source;
+  const provider = new MineruProvider('test-token', {
+    resolveSource: (job) => storage.resolveTemporaryPdfPath(job.storageKey),
+    persistRaw: (result) => storage.putProviderArtifacts(result),
+    createClient: () => ({ extract: async (path) => { source = path; return { taskId: 'task-2', state: 'done', filename: 'split.pdf', contentList: [], images: [], _zipBytes: Uint8Array.from([1]) }; } }),
+  });
+  const taskId = (await provider.submit(input)).externalTaskId;
+  await provider.poll(taskId);
+  const document = await provider.fetchResult(taskId);
+
+  assert.notEqual(source, input.storageKey);
+  assert.equal(existsSync(source), true);
+  assert.match(document.rawResultKey, /^provider\/[a-f0-9-]{36}\.json$/u);
 });
 
 test('quality service flags pages with no text blocks for fallback', () => {

@@ -12,7 +12,7 @@ export interface FakeDocumentProviderOptions {
 /** A deterministic, credential-free provider for tests and local sample gates. */
 export class FakeDocumentProvider implements DocumentParserProvider {
   readonly name = 'mineru' as const;
-  private readonly tasks = new Map<string, { states: FakeState[]; index: number; document: ParsedDocument }>();
+  private readonly tasks = new Map<string, { states: FakeState[]; index: number; terminal?: FakeState; document: ParsedDocument }>();
 
   constructor(private readonly options: FakeDocumentProviderOptions = {}) {}
 
@@ -30,14 +30,16 @@ export class FakeDocumentProvider implements DocumentParserProvider {
     if (!task) return { state: 'failed', code: 'DOCUMENT_TASK_NOT_FOUND', retryable: false, message: 'Document parsing task was not found' };
     const state = task.states[Math.min(task.index++, task.states.length - 1)];
     if (state === 'queued' || state === 'running') return { state, retryAfterMs: 100 };
-    if (state === 'succeeded') return { state: 'succeeded' };
-    if (state === 'timeout') return { state: 'failed', code: 'DOCUMENT_PARSE_TIMEOUT', retryable: true, message: 'Document parsing timed out' };
+    if (state === 'succeeded') { task.terminal = state; return { state: 'succeeded' }; }
+    if (state === 'timeout') { task.terminal = state; return { state: 'failed', code: 'DOCUMENT_PARSE_TIMEOUT', retryable: true, message: 'Document parsing timed out' }; }
+    task.terminal = state;
     return { state: 'failed', ...(this.options.failure ?? { code: 'DOCUMENT_PARSE_FAILED', retryable: false, message: 'Document parsing failed' }) };
   }
 
   async fetchResult(externalTaskId: string): Promise<ParsedDocument> {
     const task = this.tasks.get(externalTaskId);
     if (!task) throw new Error('DOCUMENT_TASK_NOT_FOUND');
+    if (task.terminal !== 'succeeded') throw new Error('DOCUMENT_PARSE_NOT_SUCCEEDED');
     return task.document;
   }
 }

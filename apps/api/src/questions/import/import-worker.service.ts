@@ -274,7 +274,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
           completedAt: now,
           leaseOwner: null,
           leaseExpiresAt: null,
-          quality: parsed.pages.map((page) => ({ pageNumber: page.pageNumber, quality: page.quality })),
+          quality: { rawResultKey: parsed.rawResultKey ?? null, pages: JSON.parse(JSON.stringify(parsed.pages)) } as Prisma.InputJsonObject,
           error: Prisma.DbNull,
         },
       });

@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, Optional, PayloadTooLargeException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, open, realpath, rename, rm, stat } from 'node:fs/promises';
+import { lstat, mkdir, open, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, posix, relative, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createInflateRaw } from 'node:zlib';
@@ -122,9 +122,48 @@ export class ImportStorageService {
     return Buffer.concat(chunks, total);
   }
 
+  /** Resolves a server-owned PDF to an absolute private path for a document provider. */
+  async resolveTemporaryPdfPath(storageKey: string): Promise<string> {
+    const filePath = await this.resolveTemporaryPath(storageKey);
+    const metadata = await lstat(filePath);
+    if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size <= 0 || metadata.size > this.config.maxPdfBytes) throw new BadRequestException('Question import PDF is unavailable');
+    const prefix = Buffer.alloc(5);
+    const handle = await open(filePath, 'r');
+    try { await handle.read(prefix, 0, prefix.length, 0); } finally { await handle.close(); }
+    if (prefix.toString('ascii') !== '%PDF-') throw new BadRequestException('PDF signature is invalid');
+    return filePath;
+  }
+
+  /** Persists unexposed provider JSON and optional ZIP bytes under private storage. */
+  async putProviderArtifacts<T extends object & { _zipBytes?: Uint8Array | null }>(result: T): Promise<string> {
+    const artifactDirectory = resolve(this.config.temporaryDirectory, 'provider');
+    await mkdir(artifactDirectory, { recursive: true, mode: 0o700 });
+    await this.assertTrustedParent(this.config.temporaryDirectory, artifactDirectory);
+    const artifactId = randomUUID();
+    let zipKey: string | undefined;
+    if (result._zipBytes && result._zipBytes.length > 0) {
+      const zipPath = resolve(artifactDirectory, `${artifactId}.zip`);
+      await writeFile(zipPath, result._zipBytes, { flag: 'wx', mode: 0o600 });
+      zipKey = `provider/${artifactId}.zip`;
+    }
+    const metadata = { ...result } as Record<string, unknown>;
+    delete metadata._zipBytes;
+    const jsonPath = resolve(artifactDirectory, `${artifactId}.json`);
+    await writeFile(jsonPath, JSON.stringify({ result: metadata, ...(zipKey ? { zipKey } : {}) }), { flag: 'wx', mode: 0o600 });
+    return `provider/${artifactId}.json`;
+  }
+
   async cleanupIncoming(file: UploadedImportFile | undefined): Promise<void> {
     if (!file) return;
     await this.removeIncomingIfSafe(resolve(file.path), file.filename);
+  }
+
+  private async resolveTemporaryPath(storageKey: string): Promise<string> {
+    const match = /^temporary\/([a-f0-9-]{36})$/u.exec(storageKey);
+    if (!match) throw new BadRequestException('Question import storage key is invalid');
+    const filePath = resolve(this.config.temporaryDirectory, match[1]);
+    await this.assertTrustedParent(this.config.temporaryDirectory, filePath);
+    return filePath;
   }
 
   private async hashAndValidate(path: string, fileType: ImportFileType): Promise<string> {

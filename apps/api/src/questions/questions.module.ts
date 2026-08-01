@@ -23,7 +23,11 @@ import { MineruProvider } from './import/providers/mineru.provider';
   providers: [
     QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportValidationService, ImportWorkerService,
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
-    QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService, MineruProvider,
+    QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService,
+    { provide: MineruProvider, useFactory: (storage: ImportStorageService, quality: ImportQualityService) => new MineruProvider(process.env.MINERU_API_TOKEN, {
+      resolveSource: (input) => storage.resolveTemporaryPdfPath(input.storageKey),
+      persistRaw: (result) => storage.putProviderArtifacts(result),
+    }, quality), inject: [ImportStorageService, ImportQualityService] },
   ],
   exports: [QuestionsService],
 })
