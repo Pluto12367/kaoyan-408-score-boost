@@ -270,9 +270,11 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const now = this.now();
     const statusCounts = { document_parsed: parsed.pages.length };
     await this.prisma.$transaction(async (tx) => {
+      const currentBatch = await tx.questionImportBatch.findUnique({ where: { id: job.batchId }, select: { status: true } });
+      if (!currentBatch || ['cancelled', 'expired', 'completed'].includes(currentBatch.status)) throw new Error('QUESTION_IMPORT_BATCH_TERMINAL');
       const batchClaimed = await tx.questionImportBatch.updateMany({
         where: { id: job.batchId, status: { notIn: ['cancelled', 'expired', 'completed'] } },
-        data: { status: 'review', statusCounts, providerSummary: { provider: parsed.provider, model: parsed.model, pages: parsed.pages.length }, revision: { increment: 1 } },
+        data: { status: currentBatch.status === 'parsing_partial_failure' ? 'parsing_partial_failure' : 'review', statusCounts, providerSummary: { provider: parsed.provider, model: parsed.model, pages: parsed.pages.length }, revision: { increment: 1 } },
       });
       if (batchClaimed.count !== 1) throw new Error('QUESTION_IMPORT_BATCH_TERMINAL');
       const completed = await tx.questionImportJob.updateMany({
