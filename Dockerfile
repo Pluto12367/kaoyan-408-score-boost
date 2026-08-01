@@ -10,7 +10,7 @@ COPY apps/web/package.json apps/web/
 
 # Install from the lockfile without running the root postinstall before source exists.
 RUN npm ci --ignore-scripts --fetch-retries=5 --fetch-retry-maxtimeout=120000
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl qpdf poppler-utils
 
 # Copy source code
 COPY packages/shared packages/shared/

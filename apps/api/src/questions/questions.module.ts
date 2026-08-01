@@ -16,6 +16,9 @@ import { TableImportParser } from './import/table-import.parser';
 import { ImportConfirmationService } from './import/import-confirmation.service';
 import { ImportQualityService } from './import/import-quality.service';
 import { MineruProvider } from './import/providers/mineru.provider';
+import { PdfDocumentService } from './import/pdf-document.service';
+import { PdfPageRenderer } from './import/pdf-page-renderer';
+import { QuestionStructureService } from './import/question-structure.service';
 
 @Module({
   imports: [AuthModule, PrismaModule],
@@ -24,6 +27,7 @@ import { MineruProvider } from './import/providers/mineru.provider';
     QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportValidationService, ImportWorkerService,
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
     QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService,
+    PdfDocumentService, PdfPageRenderer, QuestionStructureService,
     { provide: MineruProvider, useFactory: (storage: ImportStorageService, quality: ImportQualityService) => new MineruProvider(process.env.MINERU_API_TOKEN, {
       resolveSource: (input) => storage.resolveProviderSplitPdfPath(input.storageKey, input.pageStart, input.pageEnd),
       persistRaw: (result) => storage.putProviderArtifacts(result),
