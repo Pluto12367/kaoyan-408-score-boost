@@ -1,9 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { AuditEventService, type AuditEventInput } from '../../operations/audit-event.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { CreateImportBatchDto } from './dto/create-import-batch.dto';
 import type { StoredImportFile } from './import-storage.service';
+import { PDF_PARSER_NOT_CONFIGURED, PDF_PARSER_NOT_CONFIGURED_MESSAGE } from './providers/mineru.provider';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -19,6 +21,8 @@ export class ImportBatchService {
     if (!source) throw new BadRequestException('source is required');
     return this.prisma.$transaction(async (tx) => {
       const now = new Date();
+      const pdfParserUnavailable = file.fileType === 'pdf' && !process.env.MINERU_API_TOKEN;
+      const requestId = pdfParserUnavailable ? randomUUID() : undefined;
       const batch = await tx.questionImportBatch.create({
         data: {
           uploadedById: actorId, originalFileName: file.originalFileName, originalStorageKey: file.storageKey,
@@ -26,8 +30,12 @@ export class ImportBatchService {
           title: input.title?.trim() || null, year: input.year ?? null,
           defaultSubject: input.defaultSubject?.trim() || null, defaultChapter: input.defaultChapter?.trim() || null,
           pageRange: input.pageRange?.trim() || null, rightsConfirmed: true, rightsConfirmedAt: now,
-          status: 'queued', statusCounts: { pending: 1 }, expiresAt: new Date(now.getTime() + IMPORT_EXPIRY_MS),
-          jobs: { create: { pageStart: 1, pageEnd: 1, provider: file.fileType === 'pdf' ? 'document-parser' : 'table-parser', state: 'pending' } },
+          status: pdfParserUnavailable ? 'failed' : 'queued', statusCounts: pdfParserUnavailable ? { failed: 1 } : { pending: 1 }, expiresAt: new Date(now.getTime() + IMPORT_EXPIRY_MS),
+          ...(pdfParserUnavailable ? { failedAt: now } : {}),
+          jobs: { create: {
+            pageStart: 1, pageEnd: 1, provider: file.fileType === 'pdf' ? 'document-parser' : 'table-parser', state: pdfParserUnavailable ? 'failed' : 'pending',
+            ...(pdfParserUnavailable ? { completedAt: now, error: { code: PDF_PARSER_NOT_CONFIGURED, message: PDF_PARSER_NOT_CONFIGURED_MESSAGE, requestId } } : {}),
+          } },
         },
         select: { id: true, status: true },
       });

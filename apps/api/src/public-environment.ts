@@ -46,6 +46,7 @@ export function validatePublicEnvironment(values: NodeJS.ProcessEnv): string[] {
   }
   if ((values.JWT_SECRET?.length ?? 0) < 32) errors.push('JWT_SECRET must be at least 32 characters');
   if (values.ALLOW_DEMO_AUTH !== 'false') errors.push('ALLOW_DEMO_AUTH must be false');
+  if (values.MINERU_API_TOKEN && placeholders.test(values.MINERU_API_TOKEN)) errors.push('MINERU_API_TOKEN contains a placeholder value');
   if (values.QUESTION_IMPORT_DATA_DIR && !isAbsolute(values.QUESTION_IMPORT_DATA_DIR)) {
     errors.push('QUESTION_IMPORT_DATA_DIR must be an absolute private path');
   }

@@ -14,6 +14,8 @@ import { ImportValidationService } from './import/import-validation';
 import { ImportWorkerService } from './import/import-worker.service';
 import { TableImportParser } from './import/table-import.parser';
 import { ImportConfirmationService } from './import/import-confirmation.service';
+import { ImportQualityService } from './import/import-quality.service';
+import { MineruProvider } from './import/providers/mineru.provider';
 
 @Module({
   imports: [AuthModule, PrismaModule],
@@ -21,7 +23,7 @@ import { ImportConfirmationService } from './import/import-confirmation.service'
   providers: [
     QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportValidationService, ImportWorkerService,
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
-    QuestionTemplateService, ImportCleanupInterceptor,
+    QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService, MineruProvider,
   ],
   exports: [QuestionsService],
 })

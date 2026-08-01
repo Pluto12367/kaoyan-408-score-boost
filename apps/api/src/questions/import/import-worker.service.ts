@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { ImportStorageService } from './import-storage.service';
 import { ImportValidationService } from './import-validation';
 import { TableImportParser } from './table-import.parser';
+import { MineruProvider, PdfParserNotConfiguredError } from './providers/mineru.provider';
 
 export const IMPORT_WORKER_OPTIONS = Symbol('IMPORT_WORKER_OPTIONS');
 
@@ -20,6 +21,8 @@ export interface ClaimedJob {
   id: string;
   batchId: string;
   provider: string;
+  pageStart: number;
+  pageEnd: number;
   originalFileName: string;
   originalStorageKey: string;
   fileType: QuestionImportFileType;
@@ -48,6 +51,11 @@ export interface TableJobResult {
   statusCounts: Record<string, number>;
 }
 
+export interface DocumentJobResult {
+  parsedPages: number;
+  statusCounts: Record<string, number>;
+}
+
 @Injectable()
 export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(ImportWorkerService.name);
@@ -66,6 +74,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly parser: TableImportParser,
     @Optional() @Inject(IMPORT_WORKER_OPTIONS) options: ImportWorkerOptions = {},
     @Optional() validation?: ImportValidationService,
+    @Optional() private readonly documentProvider: MineruProvider = new MineruProvider(),
   ) {
     this.workerId = options.workerId ?? `question-import-${randomUUID()}`;
     this.leaseMs = positiveInteger(options.leaseMs, 5 * 60_000);
@@ -93,7 +102,8 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.$transaction(async (tx) => {
       const batches = await tx.$queryRaw<ClaimableBatch[]>`
         SELECT batch."id" AS "batchId", batch."originalFileName", batch."originalStorageKey", batch."fileType",
-               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter"
+               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter",
+               job."pageStart", job."pageEnd"
         FROM "QuestionImportBatch" AS batch
         WHERE batch."status" NOT IN (
           'cancelled'::"QuestionImportBatchStatus", 'completed'::"QuestionImportBatchStatus",
@@ -107,7 +117,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" = 'table-parser'
+          AND job."provider" IN ('table-parser', 'document-parser')
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
         )
         ORDER BY (
@@ -118,7 +128,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" = 'table-parser'
+          AND job."provider" IN ('table-parser', 'document-parser')
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
         ) ASC
         FOR UPDATE OF batch SKIP LOCKED
@@ -127,7 +137,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       const batch = batches[0];
       if (!batch) return null;
 
-      const rows = await tx.$queryRaw<Array<Pick<ClaimedJob, 'id' | 'batchId' | 'provider' | 'leaseOwner' | 'leaseExpiresAt'>>>`
+      const rows = await tx.$queryRaw<Array<Pick<ClaimedJob, 'id' | 'batchId' | 'provider' | 'pageStart' | 'pageEnd' | 'leaseOwner' | 'leaseExpiresAt'>>>`
         WITH next_job AS (
           SELECT job."id"
           FROM "QuestionImportJob" AS job
@@ -136,7 +146,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" = 'table-parser'
+          AND job."provider" IN ('table-parser', 'document-parser')
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
           ORDER BY job."createdAt" ASC
           FOR UPDATE SKIP LOCKED
@@ -150,7 +160,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             "updatedAt" = ${now}
         FROM next_job
         WHERE job."id" = next_job."id"
-        RETURNING job."id", job."batchId", job."provider", job."leaseOwner", job."leaseExpiresAt"
+        RETURNING job."id", job."batchId", job."provider", job."pageStart", job."pageEnd", job."leaseOwner", job."leaseExpiresAt"
       `;
       const row = rows[0];
       if (row) {
@@ -163,7 +173,8 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
-  async processClaimedJob(job: ClaimedJob): Promise<TableJobResult> {
+  async processClaimedJob(job: ClaimedJob): Promise<TableJobResult | DocumentJobResult> {
+    if (job.provider === 'document-parser' && job.fileType === 'pdf') return this.processDocumentJob(job);
     if (job.provider !== 'table-parser' || !['csv', 'xlsx'].includes(job.fileType)) {
       throw new Error(`Unsupported question import provider: ${job.provider}`);
     }
@@ -212,15 +223,64 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     return { validCandidates, failedCandidates, statusCounts };
   }
 
-  async runOnce(): Promise<TableJobResult | null> {
+  async runOnce(): Promise<TableJobResult | DocumentJobResult | null> {
     const job = await this.claimNextJob();
     if (!job) return null;
+    return this.runOnceWithJob(job);
+  }
+
+  async runOnceWithJob(job: ClaimedJob): Promise<TableJobResult | DocumentJobResult | null> {
     try {
       return await this.processClaimedJob(job);
     } catch (error) {
       await this.failJob(job, error);
       return null;
     }
+  }
+
+  private async processDocumentJob(job: ClaimedJob): Promise<DocumentJobResult> {
+    const submitted = await this.documentProvider.submit({
+      jobId: job.id,
+      storageKey: job.originalStorageKey,
+      fileName: job.originalFileName,
+      pageStart: job.pageStart,
+      pageEnd: job.pageEnd,
+    });
+    const poll = await this.documentProvider.poll(submitted.externalTaskId);
+    if (poll.state !== 'succeeded') {
+      const error = new Error(poll.state === 'failed' ? poll.message : 'Document parsing failed');
+      Object.assign(error, { code: poll.state === 'failed' ? poll.code : 'DOCUMENT_PARSE_NOT_READY', retryable: poll.state === 'failed' ? poll.retryable : true });
+      throw error;
+    }
+    const parsed = await this.documentProvider.fetchResult(submitted.externalTaskId);
+    const now = this.now();
+    const statusCounts = { document_parsed: parsed.pages.length };
+    await this.prisma.$transaction(async (tx) => {
+      const batchClaimed = await tx.questionImportBatch.updateMany({
+        where: { id: job.batchId, status: { notIn: ['cancelled', 'expired', 'completed'] } },
+        data: { status: 'review', statusCounts, providerSummary: { provider: parsed.provider, model: parsed.model, pages: parsed.pages.length }, revision: { increment: 1 } },
+      });
+      if (batchClaimed.count !== 1) throw new Error('QUESTION_IMPORT_BATCH_TERMINAL');
+      const completed = await tx.questionImportJob.updateMany({
+        where: {
+          id: job.id,
+          state: 'running',
+          leaseOwner: job.leaseOwner,
+          leaseExpiresAt: { gt: now },
+        },
+        data: {
+          externalTaskId: submitted.externalTaskId,
+          state: 'succeeded',
+          completedAt: now,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+          quality: parsed.pages.map((page) => ({ pageNumber: page.pageNumber, quality: page.quality })),
+          error: Prisma.DbNull,
+        },
+      });
+      if (completed.count !== 1) throw new Error('QUESTION_IMPORT_LEASE_LOST');
+    });
+    return { parsedPages: parsed.pages.length, statusCounts };
   }
 
   start(): Promise<void> {
@@ -232,7 +292,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
 
   private async runLoop(): Promise<void> {
     while (!this.stopping) {
-      let result: TableJobResult | null = null;
+      let result: TableJobResult | DocumentJobResult | null = null;
       try {
         result = await this.runOnce();
       } catch {
@@ -242,9 +302,9 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private async failJob(job: ClaimedJob, _error: unknown): Promise<void> {
+  private async failJob(job: ClaimedJob, error: unknown): Promise<void> {
     const now = this.now();
-    const safeError = { code: 'QUESTION_IMPORT_PROCESSING_FAILED' };
+    const safeError = safeJobError(error);
     try {
       await this.prisma.$transaction(async (tx) => {
         const batchClaimed = await tx.questionImportBatch.updateMany({
@@ -273,4 +333,12 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
 
 function positiveInteger(value: number | undefined, fallback: number): number {
   return Number.isInteger(value) && value! > 0 ? value! : fallback;
+}
+
+function safeJobError(error: unknown): Prisma.InputJsonObject {
+  if (error instanceof PdfParserNotConfiguredError) {
+    return { code: error.code, message: error.message, requestId: error.requestId };
+  }
+  const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'QUESTION_IMPORT_PROCESSING_FAILED';
+  return { code: code || 'QUESTION_IMPORT_PROCESSING_FAILED' };
 }

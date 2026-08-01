@@ -20,3 +20,10 @@
 - 仅保存 SHA-256、来源、状态、成本和诊断元数据；实际文档解析由后续可替换提供商完成。
 - 不采用 2GB 服务器本地模型方案：该方案的资源占用和运维成本不适合本项目部署目标。
 - 不复制 MinerU、PP-StructureV3、Docling 或 Moodle 的源码；仅根据其公开文档和架构模式进行本项目内重实现。
+
+## Task 7 reference update
+
+- `mineru-open-sdk` 0.2.5 is pinned in the API workspace. Its TypeScript SDK exposes `new MinerU(token).extract(source, { model, timeout })`, `ExtractResult`, and typed provider errors such as `TimeoutError`.
+- The provider boundary follows mature async document-ingestion patterns from MinerU/Docling/PaddleOCR-style systems: keep the external parser behind a replaceable adapter, normalize layout into project-owned block unions, keep source regions for review diagnostics, and do not let candidate generation depend on vendor-specific JSON.
+- Tests use a deterministic fake provider and injected MinerU client factory so unit coverage never spends external parser credits.
+- The production fallback is credential-free: when `MINERU_API_TOKEN` is absent, PDF jobs fail with a safe administrator-facing message and request ID while Excel/CSV imports continue through the table parser.
