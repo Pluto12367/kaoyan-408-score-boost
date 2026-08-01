@@ -23,6 +23,7 @@ test('admin question-import workspace exposes the operational review contract', 
   assert.match(workspace, /startPolling/);
   assert.match(workspace, /\.then\(startPolling\)/);
   assert.match(workspace, /startPolling\(batches\)/);
+  assert.match(workspace, /mounted\.current = true;[\s\S]*?loadBatches\(\)\.then\(startPolling\)/);
   assert.match(workspace, /listImportCandidates\(selectedId, candidatePage\)/);
   assert.match(workspace, /getQuestionImport\(selectedId\)/);
   assert.match(upload, /accept="\.xlsx,\.csv,\.pdf"/);
