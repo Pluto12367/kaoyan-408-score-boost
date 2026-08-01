@@ -410,6 +410,13 @@ async function assertWorkerLeaseAndCandidates(client, services) {
     assert.equal(audit.metadata.warningCount, 0);
     assert.equal(JSON.stringify(audit.metadata).includes('version two'), false, 'audit metadata must not contain question text');
 
+    const deadlockBatch = await batches.create('worker-admin', {
+      source: 'integration source', rightsConfirmed: true, title: 'worker claim cancellation lock order',
+    }, stored);
+    await assertClaimCancelLockOrder(client, services, storage, parser, validation, audits, deadlockBatch.batchId);
+
+    await assertConcurrentCandidateCounts(client, services.ImportCandidateService, audits);
+
     const cancelRace = await batches.create('worker-admin', {
       source: 'integration source', rightsConfirmed: true, title: 'worker cancellation race',
     }, stored);
@@ -433,6 +440,170 @@ async function assertWorkerLeaseAndCandidates(client, services) {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+}
+
+async function assertConcurrentCandidateCounts(client, ImportCandidateService, audits) {
+  const batch = await client.questionImportBatch.create({
+    data: {
+      uploadedById: 'worker-admin', originalFileName: 'concurrent-counts.csv',
+      originalStorageKey: `temporary/${randomUUID()}`, fileSha256: randomBytes(32).toString('hex'),
+      fileType: 'csv', source: 'integration source', rightsConfirmed: true,
+      rightsConfirmedAt: new Date(), status: 'review', expiresAt: new Date(Date.now() + 86_400_000),
+    },
+  });
+  const candidates = await Promise.all(['a', 'b'].map((suffix) => client.questionImportCandidate.create({
+    data: {
+      batchId: batch.id, stem: `concurrent ${suffix}`, options: ['A', 'B'], answer: 'A',
+      analysis: `concurrent ${suffix} analysis`, difficulty: 'MEDIUM', type: 'SINGLE_CHOICE',
+      source: 'integration source', expectedTimeSec: 90, knowledgePointIds: ['ds-tree'],
+      formulas: [], warnings: [], contentFingerprint: randomBytes(32).toString('hex'), status: 'pending_review',
+    },
+  })));
+  const candidateBarrier = twoPartyBarrier();
+  const serviceA = new ImportCandidateService(withCandidateUpdateBarrier(client, candidateBarrier), audits);
+  const serviceB = new ImportCandidateService(withCandidateUpdateBarrier(client, candidateBarrier), audits);
+
+  await Promise.all([
+    serviceA.update(candidates[0].id, candidates[0].revision, { status: 'ignored' }, 'worker-admin'),
+    serviceB.update(candidates[1].id, candidates[1].revision, { status: 'ignored' }, 'worker-admin'),
+  ]);
+
+  const refreshed = await client.questionImportBatch.findUniqueOrThrow({ where: { id: batch.id } });
+  assert.deepEqual(refreshed.statusCounts, { ignored: 2 }, 'concurrent candidate updates must not persist a stale status count snapshot');
+}
+
+async function assertClaimCancelLockOrder(client, services, storage, parser, validation, audits, batchId) {
+  const claimReady = signal();
+  const cancelStarted = signal();
+  const cancelBatchLocked = signal();
+  const claimClient = withClaimLockBarrier(client, { claimReady, cancelStarted, cancelBatchLocked });
+  const cancelClient = withCancelLockBarrier(client, { cancelStarted, cancelBatchLocked });
+  const worker = new services.ImportWorkerService(claimClient, storage, parser, {
+    workerId: 'pg-worker-deadlock-regression', leaseMs: 5_000, autoStart: false,
+  }, validation);
+  const cancelService = new services.ImportBatchService(cancelClient, audits);
+
+  const claimPromise = worker.claimNextJob();
+  await claimReady.promise;
+  const cancelPromise = cancelService.cancel('worker-admin', batchId);
+  const outcomes = await Promise.allSettled([claimPromise, cancelPromise]);
+  assert.deepEqual(
+    outcomes.map((outcome) => outcome.status),
+    ['fulfilled', 'fulfilled'],
+    `claim/cancel must share batch-to-job lock order: ${outcomes.map(formatOutcome).join(', ')}`,
+  );
+}
+
+function withCandidateUpdateBarrier(client, barrier) {
+  return {
+    $transaction: (callback) => client.$transaction(async (tx) => {
+      let batchLockedFirst = false;
+      return callback(new Proxy(tx, {
+        get(target, property) {
+          if (property === '$queryRaw') {
+            return async (...args) => {
+              if (isBatchLockSql(args[0])) batchLockedFirst = true;
+              return target.$queryRaw(...args);
+            };
+          }
+          if (property === 'questionImportCandidate') {
+            return new Proxy(target.questionImportCandidate, {
+              get(candidateTarget, candidateProperty) {
+                if (candidateProperty !== 'updateMany') return candidateTarget[candidateProperty];
+                return async (...args) => {
+                  const result = await candidateTarget.updateMany(...args);
+                  if (!batchLockedFirst) await barrier();
+                  return result;
+                };
+              },
+            });
+          }
+          return target[property];
+        },
+      }));
+    }),
+  };
+}
+
+function withClaimLockBarrier(client, signals) {
+  return {
+    $transaction: (callback) => client.$transaction(async (tx) => {
+      let batchLockedFirst = false;
+      return callback(new Proxy(tx, {
+        get(target, property) {
+          if (property !== '$queryRaw') return target[property];
+          return async (...args) => {
+            const sql = sqlText(args[0]);
+            const isBatchLock = isBatchLockSql(args[0]);
+            if (isBatchLock) batchLockedFirst = true;
+            const result = await target.$queryRaw(...args);
+            if (isBatchLock) {
+              signals.claimReady.resolve();
+              await signals.cancelStarted.promise;
+            } else if (sql.includes('UPDATE "QuestionImportJob"')) {
+              signals.claimReady.resolve();
+              if (!batchLockedFirst) await signals.cancelBatchLocked.promise;
+            }
+            return result;
+          };
+        },
+      }));
+    }),
+  };
+}
+
+function withCancelLockBarrier(client, signals) {
+  return {
+    $transaction: (callback) => client.$transaction(async (tx) => {
+      const wrapped = new Proxy(tx, {
+        get(target, property) {
+          if (property !== 'questionImportBatch') return target[property];
+          return new Proxy(target.questionImportBatch, {
+            get(batchTarget, batchProperty) {
+              if (batchProperty !== 'updateMany') return batchTarget[batchProperty];
+              return async (...args) => {
+                signals.cancelStarted.resolve();
+                const result = await batchTarget.updateMany(...args);
+                signals.cancelBatchLocked.resolve();
+                return result;
+              };
+            },
+          });
+        },
+      });
+      return callback(wrapped);
+    }),
+  };
+}
+
+function twoPartyBarrier() {
+  let arrivals = 0;
+  const ready = signal();
+  return async () => {
+    arrivals += 1;
+    if (arrivals === 2) ready.resolve();
+    await ready.promise;
+  };
+}
+
+function signal() {
+  let resolve;
+  const promise = new Promise((done) => { resolve = done; });
+  return { promise, resolve };
+}
+
+function sqlText(strings) {
+  return Array.isArray(strings) ? strings.join('?') : '';
+}
+
+function isBatchLockSql(strings) {
+  const sql = sqlText(strings);
+  return sql.includes('QuestionImportBatch') && /FOR UPDATE(?: OF batch)?(?: SKIP LOCKED)?/u.test(sql)
+    && !sql.includes('FOR UPDATE OF job');
+}
+
+function formatOutcome(outcome) {
+  return outcome.status === 'fulfilled' ? 'fulfilled' : String(outcome.reason?.message ?? outcome.reason);
 }
 
 function tableCsv() {

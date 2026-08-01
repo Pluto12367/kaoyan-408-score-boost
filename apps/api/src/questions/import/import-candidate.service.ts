@@ -83,6 +83,7 @@ export class ImportCandidateService {
       if (latest.revision !== revision) throw staleCandidate(latest);
 
       const { data, warningCount, action } = await this.buildUpdate(tx, latest, sanitizedPatch, actorId);
+      await this.lockBatch(tx, latest.batchId);
       const updated = await tx.questionImportCandidate.updateMany({
         where: { id, revision },
         data: { ...data, revision: { increment: 1 } },
@@ -115,6 +116,7 @@ export class ImportCandidateService {
       throw new BadRequestException(`candidates must contain 1 to ${MAX_BULK_CANDIDATES} unique ID/revision pairs`);
     }
     return this.prisma.$transaction(async (tx) => {
+      await this.lockBatch(tx, batchId);
       const candidates = await tx.questionImportCandidate.findMany({
         where: { id: { in: ids }, batchId },
         select: { id: true, revision: true, status: true, warnings: true },
@@ -266,6 +268,16 @@ export class ImportCandidateService {
   private async countStates(tx: Prisma.TransactionClient, batchId: string): Promise<Prisma.InputJsonObject> {
     const groups = await tx.questionImportCandidate.groupBy({ by: ['status'], where: { batchId }, _count: { _all: true } });
     return Object.fromEntries(groups.map((group) => [group.status, group._count._all])) as Prisma.InputJsonObject;
+  }
+
+  private async lockBatch(tx: Prisma.TransactionClient, batchId: string): Promise<void> {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id"
+      FROM "QuestionImportBatch"
+      WHERE "id" = ${batchId}
+      FOR UPDATE
+    `;
+    if (rows.length !== 1) throw new NotFoundException('Question import batch was not found');
   }
 }
 

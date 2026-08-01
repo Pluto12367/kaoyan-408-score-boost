@@ -31,6 +31,17 @@ export interface ClaimedJob {
   leaseExpiresAt: Date;
 }
 
+interface ClaimableBatch {
+  batchId: string;
+  originalFileName: string;
+  originalStorageKey: string;
+  fileType: QuestionImportFileType;
+  source: string;
+  year?: number | null;
+  defaultSubject?: string | null;
+  defaultChapter?: string | null;
+}
+
 export interface TableJobResult {
   validCandidates: number;
   failedCandidates: number;
@@ -80,24 +91,55 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const now = this.now();
     const leaseExpiresAt = new Date(now.getTime() + this.leaseMs);
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRaw<ClaimedJob[]>`
-        WITH next_job AS (
-          SELECT job."id", batch."originalFileName", batch."originalStorageKey", batch."fileType",
-                 batch."source", batch."year", batch."defaultSubject", batch."defaultChapter"
+      const batches = await tx.$queryRaw<ClaimableBatch[]>`
+        SELECT batch."id" AS "batchId", batch."originalFileName", batch."originalStorageKey", batch."fileType",
+               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter"
+        FROM "QuestionImportBatch" AS batch
+        WHERE batch."status" NOT IN (
+          'cancelled'::"QuestionImportBatchStatus", 'completed'::"QuestionImportBatchStatus",
+          'expired'::"QuestionImportBatchStatus"
+        )
+        AND EXISTS (
+          SELECT 1
           FROM "QuestionImportJob" AS job
-          INNER JOIN "QuestionImportBatch" AS batch ON batch."id" = job."batchId"
-          WHERE (
+          WHERE job."batchId" = batch."id"
+          AND (
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
           AND job."provider" = 'table-parser'
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
-          AND batch."status" NOT IN (
-            'cancelled'::"QuestionImportBatchStatus", 'completed'::"QuestionImportBatchStatus",
-            'expired'::"QuestionImportBatchStatus"
+        )
+        ORDER BY (
+          SELECT MIN(job."createdAt")
+          FROM "QuestionImportJob" AS job
+          WHERE job."batchId" = batch."id"
+          AND (
+            job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
+            OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
+          AND job."provider" = 'table-parser'
+          AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
+        ) ASC
+        FOR UPDATE OF batch SKIP LOCKED
+        LIMIT 1
+      `;
+      const batch = batches[0];
+      if (!batch) return null;
+
+      const rows = await tx.$queryRaw<Array<Pick<ClaimedJob, 'id' | 'batchId' | 'provider' | 'leaseOwner' | 'leaseExpiresAt'>>>`
+        WITH next_job AS (
+          SELECT job."id"
+          FROM "QuestionImportJob" AS job
+          WHERE job."batchId" = ${batch.batchId}
+          AND (
+            job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
+            OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
+          )
+          AND job."provider" = 'table-parser'
+          AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
           ORDER BY job."createdAt" ASC
-          FOR UPDATE OF job SKIP LOCKED
+          FOR UPDATE SKIP LOCKED
           LIMIT 1
         )
         UPDATE "QuestionImportJob" AS job
@@ -108,17 +150,16 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             "updatedAt" = ${now}
         FROM next_job
         WHERE job."id" = next_job."id"
-        RETURNING job."id", job."batchId", job."provider", job."leaseOwner", job."leaseExpiresAt",
-                  next_job."originalFileName", next_job."originalStorageKey", next_job."fileType",
-                  next_job."source", next_job."year", next_job."defaultSubject", next_job."defaultChapter"
+        RETURNING job."id", job."batchId", job."provider", job."leaseOwner", job."leaseExpiresAt"
       `;
-      if (rows[0]) {
+      const row = rows[0];
+      if (row) {
         await tx.questionImportBatch.update({
-          where: { id: rows[0].batchId },
+          where: { id: row.batchId },
           data: { status: 'parsing', revision: { increment: 1 } },
         });
       }
-      return rows[0] ?? null;
+      return row ? { ...batch, ...row } : null;
     });
   }
 

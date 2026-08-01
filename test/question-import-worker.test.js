@@ -39,7 +39,23 @@ function createClaimDatabase(now = new Date('2026-08-01T00:00:00.000Z')) {
     jobs, batches,
     prisma: {
       $transaction: async (operation) => operation({
-        $queryRaw: async (_strings, ...values) => {
+        $queryRaw: async (strings, ...values) => {
+          const sql = sqlText(strings);
+          if (sql.includes('FROM "QuestionImportBatch"') && sql.includes('FOR UPDATE OF batch')) {
+            const job = jobs.find((item) => ['pending', 'queued'].includes(item.state)
+              || (item.state === 'running' && item.leaseExpiresAt <= now));
+            const batch = job ? batches.find((item) => item.id === job.batchId && !['cancelled', 'completed', 'expired'].includes(item.status)) : null;
+            return batch ? [{
+              batchId: batch.id,
+              originalFileName: job.originalFileName,
+              originalStorageKey: job.originalStorageKey,
+              fileType: job.fileType,
+              source: job.source,
+              year: job.year,
+              defaultSubject: job.defaultSubject,
+              defaultChapter: job.defaultChapter,
+            }] : [];
+          }
           const workerId = values.find((value) => typeof value === 'string' && value.startsWith('worker-'));
           const leaseExpiry = values.find((value) => value instanceof Date && value > now);
           const job = jobs.find((item) => ['pending', 'queued'].includes(item.state)
@@ -302,6 +318,7 @@ test('bulk approval uses every candidate revision and audits only ID arrays and 
   const revisions = [];
   let audit;
   const tx = {
+    $queryRaw: async () => [{ id: 'batch-1' }],
     questionImportCandidate: {
       findMany: async () => [
         { id: 'candidate-1', revision: 3, status: 'pending_review', warnings: [] },
@@ -331,6 +348,7 @@ test('bulk approval rejects a caller-stale candidate revision with the latest ca
   const latest = { id: 'candidate-1', revision: 4, status: 'pending_review', warnings: [] };
   const service = new ImportCandidateService({
     $transaction: async (operation) => operation({
+      $queryRaw: async () => [{ id: 'batch-1' }],
       questionImportCandidate: { findMany: async () => [latest] },
     }),
   }, { record: async () => undefined });
@@ -348,6 +366,7 @@ test('ignore refreshes batch counts and audits a JSON candidate ID array in the 
   let batchCounts;
   let audit;
   const tx = {
+    $queryRaw: async () => [{ id: 'batch-1' }],
     questionImportCandidate: {
       findFirst: async () => latest,
       updateMany: async ({ data }) => { Object.assign(latest, { status: data.status, revision: 1 }); return { count: 1 }; },
@@ -434,4 +453,8 @@ function createProcessingPrisma(persisted, batchUpdates, job, options = {}) {
       : [] },
     $transaction: async (operation) => operation(transaction),
   };
+}
+
+function sqlText(strings) {
+  return Array.isArray(strings) ? strings.join('?') : '';
 }
