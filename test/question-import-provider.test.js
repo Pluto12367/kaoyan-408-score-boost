@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,6 +11,7 @@ import { ImportQualityService } from '../apps/api/dist/questions/import/import-q
 import { ImportWorkerService } from '../apps/api/dist/questions/import/import-worker.service.js';
 import { ImportBatchService } from '../apps/api/dist/questions/import/import-batch.service.js';
 import { ImportStorageService } from '../apps/api/dist/questions/import/import-storage.service.js';
+import { PDFDocument } from 'pdf-lib';
 
 const input = { jobId: 'job-1', storageKey: 'temporary/11111111-1111-1111-1111-111111111111', fileName: 'sample.pdf', pageStart: 1, pageEnd: 2 };
 
@@ -62,7 +63,9 @@ test('MinerU receives an existing private split PDF path and persists raw artifa
   const permanentDirectory = join(root, 'permanent');
   await Promise.all([mkdir(temporaryDirectory), mkdir(incomingDirectory), mkdir(permanentDirectory)]);
   const id = '11111111-1111-1111-1111-111111111111';
-  await writeFile(join(temporaryDirectory, id), '%PDF-1.7\n');
+  const sourceDocument = await PDFDocument.create();
+  for (let pageNumber = 1; pageNumber <= 6; pageNumber += 1) sourceDocument.addPage([100 + pageNumber, 200 + pageNumber]);
+  await writeFile(join(temporaryDirectory, id), await sourceDocument.save());
   const storage = new ImportStorageService({ dataDirectory: root, temporaryDirectory, incomingDirectory, permanentDirectory, maxPdfBytes: 1024, maxTableBytes: 1024, temporaryQuotaBytes: 1024, diskStopPercent: 80 });
   let source;
   const split = await storage.createProviderSplitArtifact(`temporary/${id}`, 4, 6);
@@ -79,6 +82,10 @@ test('MinerU receives an existing private split PDF path and persists raw artifa
   assert.notEqual(source, join(temporaryDirectory, id));
   assert.equal(existsSync(source), true);
   assert.deepEqual(await storage.readProviderSplitMetadata(split.storageKey), { pageStart: 4, pageEnd: 6 });
+  const splitDocument = await PDFDocument.load(await readFile(source));
+  assert.equal(splitDocument.getPageCount(), 3);
+  assert.deepEqual(splitDocument.getPages().map((page) => page.getSize().width), [104, 105, 106]);
+  await assert.rejects(storage.createProviderSplitArtifact(`temporary/${id}`, 6, 7), /page range/u);
   assert.match(document.rawResultKey, /^provider\/[a-f0-9-]{36}\.json$/u);
 });
 

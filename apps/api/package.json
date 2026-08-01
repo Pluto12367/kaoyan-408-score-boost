@@ -21,6 +21,7 @@
     "class-validator": "^0.14.1",
     "exceljs": "^4.4.0",
     "mineru-open-sdk": "0.2.5",
+    "pdf-lib": "^1.17.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "saxes": "5.0.1"

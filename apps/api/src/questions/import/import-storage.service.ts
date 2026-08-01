@@ -1,11 +1,12 @@
 import { BadRequestException, Inject, Injectable, Optional, PayloadTooLargeException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
-import { constants, createReadStream } from 'node:fs';
-import { copyFile, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, posix, relative, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createInflateRaw } from 'node:zlib';
 import { SaxesParser, type SaxesTagNS } from 'saxes';
+import { PDFDocument } from 'pdf-lib';
 import { loadImportConfig, QUESTION_IMPORT_CONFIG, type ImportConfig } from './import-config';
 
 export type ImportFileType = 'pdf' | 'xlsx' | 'csv';
@@ -142,7 +143,19 @@ export class ImportStorageService {
     const splitId = randomUUID();
     const splitPath = resolve(splitDirectory, `${splitId}.pdf`);
     const metadataPath = resolve(splitDirectory, `${splitId}.json`);
-    await copyFile(sourcePath, splitPath, constants.COPYFILE_EXCL);
+    let splitBytes: Uint8Array;
+    try {
+      const source = await PDFDocument.load(await readFile(sourcePath));
+      if (pageEnd > source.getPageCount()) throw new BadRequestException('Document split page range exceeds the source PDF');
+      const split = await PDFDocument.create();
+      const pages = await split.copyPages(source, Array.from({ length: pageEnd - pageStart + 1 }, (_, index) => pageStart - 1 + index));
+      for (const page of pages) split.addPage(page);
+      splitBytes = await split.save();
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw new BadRequestException('Document split PDF could not be created');
+    }
+    await writeFile(splitPath, splitBytes, { flag: 'wx', mode: 0o600 });
     try {
       await writeFile(metadataPath, JSON.stringify({ pageStart, pageEnd }), { flag: 'wx', mode: 0o600 });
     } catch (error) {
