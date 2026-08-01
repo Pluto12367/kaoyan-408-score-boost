@@ -60,9 +60,9 @@ export class ImportBatchService {
     return batch;
   }
 
-  async pagePreview(batchId: string, pageNumber: number) {
+  async pagePreview(actorId: string, batchId: string, pageNumber: number) {
     if (!Number.isInteger(pageNumber) || pageNumber < 1) throw new BadRequestException('pageNumber must be a positive integer');
-    const asset = await this.prisma.questionImportAsset.findFirst({ where: { batchId, pageNumber, mediaType: 'image/jpeg', scope: 'temporary' }, select: { storageKey: true } });
+    const asset = await this.prisma.questionImportAsset.findFirst({ where: { batchId, pageNumber, mediaType: 'image/jpeg', scope: 'temporary', batch: { uploadedById: actorId } }, select: { storageKey: true } });
     if (!asset) throw new NotFoundException('Question import page preview was not found');
     return asset;
   }

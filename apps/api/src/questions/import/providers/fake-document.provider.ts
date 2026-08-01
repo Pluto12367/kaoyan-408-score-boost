@@ -36,7 +36,7 @@ export class FakeDocumentProvider implements DocumentParserProvider {
     return { state: 'failed', ...(this.options.failure ?? { code: 'DOCUMENT_PARSE_FAILED', retryable: false, message: 'Document parsing failed' }) };
   }
 
-  async fetchResult(externalTaskId: string): Promise<ParsedDocument> {
+  async fetchResult(externalTaskId: string, _input?: ProviderInput): Promise<ParsedDocument> {
     const task = this.tasks.get(externalTaskId);
     if (!task) throw new Error('DOCUMENT_TASK_NOT_FOUND');
     if (task.terminal !== 'succeeded') throw new Error('DOCUMENT_PARSE_NOT_SUCCEEDED');

@@ -82,8 +82,8 @@ export class QuestionImportController {
   }
 
   @Get(':batchId/pages/:pageNumber')
-  async pagePreview(@Param('batchId') batchId: string, @Param('pageNumber') pageNumber: string, @Res() response: Response) {
-    const asset = await this.imports.pagePreview(batchId, Number(pageNumber));
+  async pagePreview(@CurrentUser() user: { id: string }, @Param('batchId') batchId: string, @Param('pageNumber') pageNumber: string, @Res() response: Response) {
+    const asset = await this.imports.pagePreview(user.id, batchId, Number(pageNumber));
     const path = await this.storage.resolvePagePreviewJpegPath(asset.storageKey);
     response.setHeader('Content-Type', 'image/jpeg');
     response.setHeader('Cache-Control', 'private, max-age=300');

@@ -13,14 +13,17 @@ export class PdfParserNotConfiguredError extends Error {
   constructor(readonly requestId = randomUUID()) { super(`${PDF_PARSER_NOT_CONFIGURED_MESSAGE}（请求 ID：${requestId}）`); }
 }
 
-interface MineruClient { extract(source: string, options: { model: string; timeout: number }): Promise<ExtractResult>; }
+interface MineruClient {
+  extract(source: string, options: { model: string; timeout: number }): Promise<ExtractResult>;
+  getTask(taskId: string): Promise<ExtractResult>;
+}
 export interface MineruProviderOptions {
   resolveSource?: (input: ProviderInput) => Promise<string>;
   persistRaw?: (result: ExtractResult) => Promise<string>;
   createClient?: (token: string) => MineruClient;
 }
 
-interface Task { input: ProviderInput; rawResultKey?: string; result?: ExtractResult; error?: unknown; promise: Promise<void>; }
+interface Task { input?: ProviderInput; rawResultKey?: string; result: ExtractResult; }
 
 @Injectable()
 export class MineruProvider implements DocumentParserProvider {
@@ -42,17 +45,12 @@ export class MineruProvider implements DocumentParserProvider {
 
   async submit(input: ProviderInput): Promise<{ externalTaskId: string }> {
     this.assertConfigured();
-    const externalTaskId = `mineru-${randomUUID()}`;
-    const task: Task = { input, promise: Promise.resolve() };
-    task.promise = (async () => {
-      try {
-        task.result = await this.createClient(this.token!).extract(await this.resolveSource(input), { model: 'vlm', timeout: 600 });
-        task.rawResultKey = await this.persistRaw(task.result);
-      }
-      catch (error) { task.error = error; }
-    })();
-    this.tasks.set(externalTaskId, task);
-    return { externalTaskId };
+    const result = await this.createClient(this.token!).extract(await this.resolveSource(input), { model: 'vlm', timeout: 600 });
+    if (!result.taskId) throw new Error('DOCUMENT_TASK_ID_MISSING');
+    const task: Task = { input, result };
+    if (result.state === 'done') task.rawResultKey = await this.persistRaw(result);
+    this.tasks.set(result.taskId, task);
+    return { externalTaskId: result.taskId };
   }
 
   assertConfigured(): void {
@@ -60,23 +58,41 @@ export class MineruProvider implements DocumentParserProvider {
   }
 
   async poll(externalTaskId: string): Promise<ProviderPollResult> {
-    const task = this.tasks.get(externalTaskId);
-    if (!task) return { state: 'failed', code: 'DOCUMENT_TASK_NOT_FOUND', retryable: false, message: 'Document parsing task was not found' };
-    await task.promise;
-    if (task.error) return failure(task.error);
-    if (task.result?.state === 'done') return { state: 'succeeded' };
-    return { state: 'failed', code: 'DOCUMENT_PARSE_FAILED', retryable: false, message: 'Document parsing failed' };
+    this.assertConfigured();
+    try {
+      return pollResult((await this.loadTask(externalTaskId, false)).result);
+    } catch (error) {
+      return failure(error);
+    }
   }
 
-  async fetchResult(externalTaskId: string): Promise<ParsedDocument> {
-    const task = this.tasks.get(externalTaskId);
-    if (!task) throw new Error('DOCUMENT_TASK_NOT_FOUND');
-    await task.promise;
-    if (task.error || !task.result || task.result.state !== 'done') throw new Error('DOCUMENT_PARSE_NOT_READY');
-    const pages = mapPages(task.result, task.input.pageStart, this.quality);
+  async fetchResult(externalTaskId: string, input?: ProviderInput): Promise<ParsedDocument> {
+    this.assertConfigured();
+    const task = await this.loadTask(externalTaskId, true);
+    if (task.result.state !== 'done') throw new Error('DOCUMENT_PARSE_NOT_READY');
+    const context = input ?? task.input;
+    if (!context) throw new Error('DOCUMENT_TASK_CONTEXT_MISSING');
+    task.input = context;
+    const pages = mapPages(task.result, context.pageStart, this.quality);
     if (!task.rawResultKey) throw new Error('DOCUMENT_RESULT_STORAGE_UNAVAILABLE');
     return { provider: 'mineru', model: 'vlm', pages, rawResultKey: task.rawResultKey };
   }
+
+  private async loadTask(externalTaskId: string, allowCachedTerminal: boolean): Promise<Task> {
+    const cached = this.tasks.get(externalTaskId);
+    if (cached && (allowCachedTerminal || ['done', 'failed'].includes(cached.result.state))) return cached;
+    const result = await this.createClient(this.token!).getTask(externalTaskId);
+    const task: Task = { input: cached?.input, rawResultKey: cached?.rawResultKey, result };
+    if (result.state === 'done' && !task.rawResultKey) task.rawResultKey = await this.persistRaw(result);
+    this.tasks.set(externalTaskId, task);
+    return task;
+  }
+}
+
+function pollResult(result: ExtractResult): ProviderPollResult {
+  if (result.state === 'done') return { state: 'succeeded' };
+  if (result.state === 'failed') return { state: 'failed', code: result.errCode || 'DOCUMENT_PARSE_FAILED', retryable: false, message: result.error || 'Document parsing failed' };
+  return { state: result.state === 'pending' ? 'queued' : 'running', retryAfterMs: 1_000 };
 }
 
 function failure(error: unknown): ProviderPollResult {

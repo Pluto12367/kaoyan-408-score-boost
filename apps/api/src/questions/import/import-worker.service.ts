@@ -249,13 +249,14 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   private async processDocumentJob(job: ClaimedJob): Promise<DocumentJobResult> {
     this.documentProvider.assertConfigured();
     const split = await this.storage.createProviderSplitArtifact(job.originalStorageKey, job.pageStart, job.pageEnd);
-    const submitted = job.externalTaskId ? { externalTaskId: job.externalTaskId } : await this.documentProvider.submit({
+    const providerInput = {
       jobId: job.id,
       storageKey: split.storageKey,
       fileName: job.originalFileName,
       pageStart: job.pageStart,
       pageEnd: job.pageEnd,
-    });
+    };
+    const submitted = job.externalTaskId ? { externalTaskId: job.externalTaskId } : await this.documentProvider.submit(providerInput);
     if (!job.externalTaskId) await this.prisma.questionImportJob.updateMany({ where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner }, data: { externalTaskId: submitted.externalTaskId } });
     const poll = await this.documentProvider.poll(submitted.externalTaskId);
     if (poll.state !== 'succeeded') {
@@ -263,7 +264,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       Object.assign(error, { code: poll.state === 'failed' ? poll.code : 'DOCUMENT_PARSE_NOT_READY', retryable: poll.state === 'failed' ? poll.retryable : true });
       throw error;
     }
-    const parsed = await this.documentProvider.fetchResult(submitted.externalTaskId);
+    const parsed = await this.documentProvider.fetchResult(submitted.externalTaskId, providerInput);
     const previews: QuestionImportAsset[] = [];
     if (this.pageRenderer) for (const page of parsed.pages) previews.push(await this.pageRenderer.render(job.originalStorageKey, page.pageNumber));
     const drafts = this.structure?.structure(parsed) ?? [];
@@ -314,32 +315,50 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const pdf = this.pdfDocuments;
     if (!pdf) throw new Error('PDF_DOCUMENT_SERVICE_NOT_CONFIGURED');
     const pageCount = await pdf.pageCount(job.originalStorageKey);
-    const accepted = await this.splitPdfRanges(job.originalStorageKey, splitPageRanges(pageCount));
+    const { acceptedRanges, failures } = await this.splitPdfRanges(job.originalStorageKey, splitPageRanges(pageCount));
+    const statusCounts = {
+      document_planned: 1,
+      document_pending: acceptedRanges.length,
+      ...(failures.length > 0 ? { failed: failures.length } : {}),
+    };
+    const failureJson = JSON.parse(JSON.stringify(failures)) as Prisma.InputJsonArray;
     const now = this.now();
     await this.prisma.$transaction(async (tx) => {
-      await tx.questionImportJob.createMany({ data: accepted.map((range) => ({ batchId: job.batchId, pageStart: range.pageStart, pageEnd: range.pageEnd, provider: 'document-parser', state: 'pending' })), skipDuplicates: true });
-      const completed = await tx.questionImportJob.updateMany({ where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: now } }, data: { state: 'succeeded', completedAt: now, leaseOwner: null, leaseExpiresAt: null, quality: { pageCount, children: accepted.length } } });
+      await tx.questionImportJob.createMany({ data: acceptedRanges.map((range) => ({ batchId: job.batchId, pageStart: range.pageStart, pageEnd: range.pageEnd, provider: 'document-parser', state: 'pending' })), skipDuplicates: true });
+      const completed = await tx.questionImportJob.updateMany({
+        where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: now } },
+        data: {
+          state: 'succeeded', completedAt: now, leaseOwner: null, leaseExpiresAt: null,
+          quality: { pageCount, children: acceptedRanges.length, failures: failureJson },
+          error: failures.length > 0 ? { code: 'PDF_PAGE_TOO_LARGE', failures: failureJson } : Prisma.DbNull,
+        },
+      });
       if (completed.count !== 1) throw new Error('QUESTION_IMPORT_LEASE_LOST');
-      await tx.questionImportBatch.update({ where: { id: job.batchId }, data: { status: 'parsing', statusCounts: { document_planned: 1, document_pending: accepted.length } } });
+      await tx.questionImportBatch.update({ where: { id: job.batchId }, data: { status: failures.length > 0 ? 'parsing_partial_failure' : 'parsing', statusCounts } });
     });
-    return { parsedPages: pageCount, statusCounts: { document_planned: 1, document_pending: accepted.length } };
+    return { parsedPages: pageCount, statusCounts };
   }
 
-  private async splitPdfRanges(storageKey: string, ranges: PdfPageRange[]): Promise<PdfPageRange[]> {
+  private async splitPdfRanges(storageKey: string, ranges: PdfPageRange[]): Promise<{
+    acceptedRanges: PdfPageRange[];
+    failures: Array<PdfPageRange & { code: 'PDF_PAGE_TOO_LARGE' }>;
+  }> {
     const pdf = this.pdfDocuments!;
-    const accepted: PdfPageRange[] = [];
+    const acceptedRanges: PdfPageRange[] = [];
+    const failures: Array<PdfPageRange & { code: 'PDF_PAGE_TOO_LARGE' }> = [];
     for (const range of ranges) {
       const [file] = await pdf.split(storageKey, [range]);
-      if (file.byteSize <= 200 * 1024 * 1024) { accepted.push(range); continue; }
+      if (file.byteSize <= 200 * 1024 * 1024) { acceptedRanges.push(range); continue; }
       if (range.pageStart === range.pageEnd) {
-        const error = new Error('PDF_PAGE_TOO_LARGE');
-        Object.assign(error, { code: 'PDF_PAGE_TOO_LARGE' });
-        throw error;
+        failures.push({ code: 'PDF_PAGE_TOO_LARGE', ...range });
+        continue;
       }
       const midpoint = Math.floor((range.pageStart + range.pageEnd) / 2);
-      accepted.push(...await this.splitPdfRanges(storageKey, [{ pageStart: range.pageStart, pageEnd: midpoint }, { pageStart: midpoint + 1, pageEnd: range.pageEnd }]));
+      const childResult = await this.splitPdfRanges(storageKey, [{ pageStart: range.pageStart, pageEnd: midpoint }, { pageStart: midpoint + 1, pageEnd: range.pageEnd }]);
+      acceptedRanges.push(...childResult.acceptedRanges);
+      failures.push(...childResult.failures);
     }
-    return accepted;
+    return { acceptedRanges, failures };
   }
 
   start(): Promise<void> {
