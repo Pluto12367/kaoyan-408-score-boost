@@ -36,6 +36,7 @@ export interface ClaimedJob {
   leaseOwner: string;
   leaseExpiresAt: Date;
   externalTaskId?: string | null;
+  providerInputStorageKey?: string | null;
 }
 
 interface ClaimableBatch {
@@ -47,6 +48,7 @@ interface ClaimableBatch {
   year?: number | null;
   defaultSubject?: string | null;
   defaultChapter?: string | null;
+  status: string;
 }
 
 export interface TableJobResult {
@@ -109,7 +111,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.$transaction(async (tx) => {
       const batches = await tx.$queryRaw<ClaimableBatch[]>`
         SELECT batch."id" AS "batchId", batch."originalFileName", batch."originalStorageKey", batch."fileType",
-               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter",
+               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter", batch."status",
                job."pageStart", job."pageEnd"
         FROM "QuestionImportBatch" AS batch
         WHERE batch."status" NOT IN (
@@ -144,7 +146,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       const batch = batches[0];
       if (!batch) return null;
 
-      const rows = await tx.$queryRaw<Array<Pick<ClaimedJob, 'id' | 'batchId' | 'provider' | 'pageStart' | 'pageEnd' | 'leaseOwner' | 'leaseExpiresAt' | 'externalTaskId'>>>`
+      const rows = await tx.$queryRaw<Array<Pick<ClaimedJob, 'id' | 'batchId' | 'provider' | 'pageStart' | 'pageEnd' | 'leaseOwner' | 'leaseExpiresAt' | 'externalTaskId' | 'providerInputStorageKey'>>>`
         WITH next_job AS (
           SELECT job."id"
           FROM "QuestionImportJob" AS job
@@ -167,13 +169,13 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             "updatedAt" = ${now}
         FROM next_job
         WHERE job."id" = next_job."id"
-        RETURNING job."id", job."batchId", job."provider", job."pageStart", job."pageEnd", job."leaseOwner", job."leaseExpiresAt", job."externalTaskId"
+        RETURNING job."id", job."batchId", job."provider", job."pageStart", job."pageEnd", job."leaseOwner", job."leaseExpiresAt", job."externalTaskId", job."providerInputStorageKey"
       `;
       const row = rows[0];
       if (row) {
         await tx.questionImportBatch.update({
           where: { id: row.batchId },
-          data: { status: 'parsing', revision: { increment: 1 } },
+          data: { status: batch.status === 'parsing_partial_failure' ? 'parsing_partial_failure' : 'parsing', revision: { increment: 1 } },
         });
       }
       return row ? { ...batch, ...row } : null;
@@ -248,10 +250,10 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
 
   private async processDocumentJob(job: ClaimedJob): Promise<DocumentJobResult> {
     this.documentProvider.assertConfigured();
-    const split = await this.storage.createProviderSplitArtifact(job.originalStorageKey, job.pageStart, job.pageEnd);
+    if (!job.providerInputStorageKey) throw new Error('PDF_PROVIDER_SPLIT_MISSING');
     const providerInput = {
       jobId: job.id,
-      storageKey: split.storageKey,
+      storageKey: job.providerInputStorageKey,
       fileName: job.originalFileName,
       pageStart: job.pageStart,
       pageEnd: job.pageEnd,
@@ -315,21 +317,24 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const pdf = this.pdfDocuments;
     if (!pdf) throw new Error('PDF_DOCUMENT_SERVICE_NOT_CONFIGURED');
     const pageCount = await pdf.pageCount(job.originalStorageKey);
-    const { acceptedRanges, failures } = await this.splitPdfRanges(job.originalStorageKey, splitPageRanges(pageCount));
+    const { acceptedFiles, failures } = await this.splitPdfRanges(job.originalStorageKey, splitPageRanges(pageCount));
     const statusCounts = {
       document_planned: 1,
-      document_pending: acceptedRanges.length,
+      document_pending: acceptedFiles.length,
       ...(failures.length > 0 ? { failed: failures.length } : {}),
     };
     const failureJson = JSON.parse(JSON.stringify(failures)) as Prisma.InputJsonArray;
     const now = this.now();
     await this.prisma.$transaction(async (tx) => {
-      await tx.questionImportJob.createMany({ data: acceptedRanges.map((range) => ({ batchId: job.batchId, pageStart: range.pageStart, pageEnd: range.pageEnd, provider: 'document-parser', state: 'pending' })), skipDuplicates: true });
+      await tx.questionImportJob.createMany({ data: acceptedFiles.map((file) => ({
+        batchId: job.batchId, pageStart: file.pageStart, pageEnd: file.pageEnd,
+        provider: 'document-parser', providerInputStorageKey: file.storageKey, state: 'pending',
+      })), skipDuplicates: true });
       const completed = await tx.questionImportJob.updateMany({
         where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: now } },
         data: {
           state: 'succeeded', completedAt: now, leaseOwner: null, leaseExpiresAt: null,
-          quality: { pageCount, children: acceptedRanges.length, failures: failureJson },
+          quality: { pageCount, children: acceptedFiles.length, failures: failureJson },
           error: failures.length > 0 ? { code: 'PDF_PAGE_TOO_LARGE', failures: failureJson } : Prisma.DbNull,
         },
       });
@@ -340,25 +345,26 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async splitPdfRanges(storageKey: string, ranges: PdfPageRange[]): Promise<{
-    acceptedRanges: PdfPageRange[];
+    acceptedFiles: Array<PdfPageRange & { storageKey: string }>;
     failures: Array<PdfPageRange & { code: 'PDF_PAGE_TOO_LARGE' }>;
   }> {
     const pdf = this.pdfDocuments!;
-    const acceptedRanges: PdfPageRange[] = [];
+    const acceptedFiles: Array<PdfPageRange & { storageKey: string }> = [];
     const failures: Array<PdfPageRange & { code: 'PDF_PAGE_TOO_LARGE' }> = [];
     for (const range of ranges) {
       const [file] = await pdf.split(storageKey, [range]);
-      if (file.byteSize <= 200 * 1024 * 1024) { acceptedRanges.push(range); continue; }
+      if (file.byteSize <= 200 * 1024 * 1024) { acceptedFiles.push(file); continue; }
+      await pdf.removeProviderSplitArtifact(file.storageKey);
       if (range.pageStart === range.pageEnd) {
         failures.push({ code: 'PDF_PAGE_TOO_LARGE', ...range });
         continue;
       }
       const midpoint = Math.floor((range.pageStart + range.pageEnd) / 2);
       const childResult = await this.splitPdfRanges(storageKey, [{ pageStart: range.pageStart, pageEnd: midpoint }, { pageStart: midpoint + 1, pageEnd: range.pageEnd }]);
-      acceptedRanges.push(...childResult.acceptedRanges);
+      acceptedFiles.push(...childResult.acceptedFiles);
       failures.push(...childResult.failures);
     }
-    return { acceptedRanges, failures };
+    return { acceptedFiles, failures };
   }
 
   start(): Promise<void> {

@@ -182,6 +182,17 @@ export class ImportStorageService {
     return (await this.providerSplitPaths(storageKey)).metadata;
   }
 
+  async removeProviderSplitArtifact(storageKey: string): Promise<void> {
+    const match = /^provider-split\/([a-f0-9-]{36})$/u.exec(storageKey);
+    if (!match) throw new BadRequestException('Document split storage key is invalid');
+    const directory = await this.providerSplitDirectory();
+    const pdfPath = resolve(directory, `${match[1]}.pdf`);
+    const metadataPath = resolve(directory, `${match[1]}.json`);
+    await this.assertTrustedParent(directory, pdfPath);
+    await this.assertTrustedParent(directory, metadataPath);
+    await Promise.all([rm(pdfPath, { force: true }), rm(metadataPath, { force: true })]);
+  }
+
   async resolvePagePreviewJpegPath(storageKey: string): Promise<string> {
     const match = /^page-preview\/([a-f0-9-]{36})$/u.exec(storageKey);
     if (!match) throw new BadRequestException('Question import preview storage key is invalid');

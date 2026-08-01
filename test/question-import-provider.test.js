@@ -35,21 +35,26 @@ test('fake document provider exposes failed and timeout outcomes as safe poll fa
   await assert.rejects(failed.fetchResult(failedTask), /DOCUMENT_PARSE_NOT_SUCCEEDED/u);
 });
 
-test('MinerU adapter calls the SDK with vlm and a 600 second timeout, then normalizes blocks', async () => {
-  const calls = [];
+test('MinerU adapter persists the async submission handle before polling, then normalizes blocks', async () => {
+  const submitCalls = [];
+  let getTaskCalls = 0;
+  const result = { taskId: 'mineru-task-1', state: 'done', filename: 'split.pdf', contentList: [{ page_idx: 0, page_size: [1000, 2000], type: 'text', text: 'Question text', bbox: [100, 200, 500, 600] }], images: [], _zipBytes: Uint8Array.from([1, 2]) };
   const provider = new MineruProvider('test-token', {
     resolveSource: async () => '/private/split.pdf',
     persistRaw: async () => 'provider/11111111-1111-1111-1111-111111111111.json',
-    createClient: (token) => ({ extract: async (source, options) => {
-      calls.push({ token, source, options });
-      return { taskId: 'mineru-task-1', state: 'done', filename: 'split.pdf', contentList: [{ page_idx: 0, page_size: [1000, 2000], type: 'text', text: 'Question text', bbox: [100, 200, 500, 600] }], images: [], _zipBytes: Uint8Array.from([1, 2]) };
-    } }),
+    createClient: (token) => ({
+      submit: async (source, options) => { submitCalls.push({ token, source, options }); return result.taskId; },
+      getTask: async () => { getTaskCalls += 1; return result; },
+    }),
   });
   const externalTaskId = (await provider.submit(input)).externalTaskId;
 
+  assert.equal(externalTaskId, result.taskId);
+  assert.equal(getTaskCalls, 0, 'submit must return the durable provider handle without polling to completion');
   assert.deepEqual(await provider.poll(externalTaskId), { state: 'succeeded' });
   const document = await provider.fetchResult(externalTaskId);
-  assert.deepEqual(calls, [{ token: 'test-token', source: '/private/split.pdf', options: { model: 'vlm', timeout: 600 } }]);
+  assert.deepEqual(submitCalls, [{ token: 'test-token', source: '/private/split.pdf', options: { model: 'vlm' } }]);
+  assert.equal(getTaskCalls, 1);
   assert.equal(document.provider, 'mineru');
   assert.equal(document.pages[0].blocks[0].kind, 'text');
   assert.deepEqual(document.pages[0].blocks[0].region, { x: 0.1, y: 0.1, width: 0.4, height: 0.2 });
@@ -72,7 +77,10 @@ test('MinerU receives an existing private split PDF path and persists raw artifa
   const provider = new MineruProvider('test-token', {
     resolveSource: (job) => storage.resolveProviderSplitPdfPath(job.storageKey, job.pageStart, job.pageEnd),
     persistRaw: (result) => storage.putProviderArtifacts(result),
-    createClient: () => ({ extract: async (path) => { source = path; return { taskId: 'task-2', state: 'done', filename: 'split.pdf', contentList: [], images: [], _zipBytes: Uint8Array.from([1]) }; } }),
+    createClient: () => ({
+      submit: async (path) => { source = path; return 'task-2'; },
+      getTask: async () => ({ taskId: 'task-2', state: 'done', filename: 'split.pdf', contentList: [], images: [], _zipBytes: Uint8Array.from([1]) }),
+    }),
   });
   const taskId = (await provider.submit({ ...input, storageKey: split.storageKey, pageStart: 4, pageEnd: 6 })).externalTaskId;
   await provider.poll(taskId);
@@ -127,7 +135,7 @@ test('PDF jobs fail safely with an administrator message when MinerU credentials
 
   await worker.runOnceWithJob(job);
 
-  assert.equal(batchFailure.status, 'failed');
+  assert.equal(batchFailure.status, 'parsing_partial_failure');
   assert.deepEqual(batchFailure.statusCounts, { failed: 1 });
   assert.equal(jobFailure.state, 'failed');
   assert.equal(jobFailure.error.code, 'PDF_PARSER_NOT_CONFIGURED');

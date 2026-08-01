@@ -32,9 +32,9 @@ function claimFixture(overrides = {}) {
   };
 }
 
-function createClaimDatabase(now = new Date('2026-08-01T00:00:00.000Z')) {
+function createClaimDatabase(now = new Date('2026-08-01T00:00:00.000Z'), batchStatus = 'queued') {
   const jobs = [{ ...claimFixture({ state: 'pending', leaseOwner: null, leaseExpiresAt: null }) }];
-  const batches = [{ id: 'batch-1', status: 'queued' }];
+  const batches = [{ id: 'batch-1', status: batchStatus }];
   return {
     jobs, batches,
     prisma: {
@@ -54,6 +54,7 @@ function createClaimDatabase(now = new Date('2026-08-01T00:00:00.000Z')) {
               year: job.year,
               defaultSubject: job.defaultSubject,
               defaultChapter: job.defaultChapter,
+              status: batch.status,
             }] : [];
           }
           const workerId = values.find((value) => typeof value === 'string' && value.startsWith('worker-'));
@@ -112,6 +113,20 @@ test('an unexpired lease stays owned while an expired crash lease can be reclaim
   assert.equal(reclaimed.id, 'job-1');
   assert.equal(reclaimed.leaseOwner, 'worker-recovery');
   assert.equal(db.jobs[0].leaseOwner, 'worker-recovery');
+});
+
+test('claiming a later document child preserves an earlier parsing partial failure', async () => {
+  const clock = new Date('2026-08-01T00:00:00.000Z');
+  const db = createClaimDatabase(clock, 'parsing_partial_failure');
+  db.jobs[0].provider = 'document-parser';
+  db.jobs[0].fileType = 'pdf';
+  db.jobs[0].providerInputStorageKey = 'provider-split/11111111-1111-1111-1111-111111111111';
+  const worker = new ImportWorkerService(db.prisma, {}, {}, { workerId: 'worker-recovery', now: () => clock });
+
+  const claimed = await worker.claimNextJob();
+
+  assert.equal(claimed.providerInputStorageKey, db.jobs[0].providerInputStorageKey);
+  assert.equal(db.batches[0].status, 'parsing_partial_failure');
 });
 
 test('file IO and parsing happen after the claim transaction has committed', async () => {

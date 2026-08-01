@@ -51,6 +51,10 @@ export class PdfDocumentService {
     }
     return files;
   }
+
+  removeProviderSplitArtifact(storageKey: string): Promise<void> {
+    return this.storage.removeProviderSplitArtifact(storageKey);
+  }
 }
 
 async function sha256File(path: string): Promise<string> {

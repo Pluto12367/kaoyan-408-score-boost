@@ -355,6 +355,7 @@ model QuestionImportJob {
   pageEnd        Int
   provider       String
   externalTaskId String?
+  providerInputStorageKey String?
   attempt        Int                    @default(0)
   retryAt        DateTime?
   leaseOwner     String?

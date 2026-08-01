@@ -14,7 +14,7 @@ export class PdfParserNotConfiguredError extends Error {
 }
 
 interface MineruClient {
-  extract(source: string, options: { model: string; timeout: number }): Promise<ExtractResult>;
+  submit(source: string, options: { model: string }): Promise<string>;
   getTask(taskId: string): Promise<ExtractResult>;
 }
 export interface MineruProviderOptions {
@@ -23,7 +23,7 @@ export interface MineruProviderOptions {
   createClient?: (token: string) => MineruClient;
 }
 
-interface Task { input?: ProviderInput; rawResultKey?: string; result: ExtractResult; }
+interface Task { input?: ProviderInput; rawResultKey?: string; result?: ExtractResult; }
 
 @Injectable()
 export class MineruProvider implements DocumentParserProvider {
@@ -40,17 +40,25 @@ export class MineruProvider implements DocumentParserProvider {
   ) {
     this.resolveSource = options.resolveSource ?? (async () => { throw new Error('DOCUMENT_SOURCE_UNRESOLVED'); });
     this.persistRaw = options.persistRaw ?? (async () => { throw new Error('DOCUMENT_RESULT_STORAGE_UNRESOLVED'); });
-    this.createClient = options.createClient ?? ((value) => new MinerU(value));
+    this.createClient = options.createClient ?? ((value) => {
+      const sdk = new MinerU(value);
+      return {
+        submit: (source, submitOptions) => sdk.submit(source, submitOptions),
+        getTask: async (batchId) => {
+          const [result] = await sdk.getBatch(batchId);
+          if (!result) throw new Error('DOCUMENT_TASK_NOT_FOUND');
+          return result;
+        },
+      };
+    });
   }
 
   async submit(input: ProviderInput): Promise<{ externalTaskId: string }> {
     this.assertConfigured();
-    const result = await this.createClient(this.token!).extract(await this.resolveSource(input), { model: 'vlm', timeout: 600 });
-    if (!result.taskId) throw new Error('DOCUMENT_TASK_ID_MISSING');
-    const task: Task = { input, result };
-    if (result.state === 'done') task.rawResultKey = await this.persistRaw(result);
-    this.tasks.set(result.taskId, task);
-    return { externalTaskId: result.taskId };
+    const externalTaskId = await this.createClient(this.token!).submit(await this.resolveSource(input), { model: 'vlm' });
+    if (!externalTaskId) throw new Error('DOCUMENT_TASK_ID_MISSING');
+    this.tasks.set(externalTaskId, { input });
+    return { externalTaskId };
   }
 
   assertConfigured(): void {
@@ -78,11 +86,11 @@ export class MineruProvider implements DocumentParserProvider {
     return { provider: 'mineru', model: 'vlm', pages, rawResultKey: task.rawResultKey };
   }
 
-  private async loadTask(externalTaskId: string, allowCachedTerminal: boolean): Promise<Task> {
+  private async loadTask(externalTaskId: string, allowCachedTerminal: boolean): Promise<Task & { result: ExtractResult }> {
     const cached = this.tasks.get(externalTaskId);
-    if (cached && (allowCachedTerminal || ['done', 'failed'].includes(cached.result.state))) return cached;
+    if (cached?.result && (allowCachedTerminal || ['done', 'failed'].includes(cached.result.state))) return cached as Task & { result: ExtractResult };
     const result = await this.createClient(this.token!).getTask(externalTaskId);
-    const task: Task = { input: cached?.input, rawResultKey: cached?.rawResultKey, result };
+    const task: Task & { result: ExtractResult } = { input: cached?.input, rawResultKey: cached?.rawResultKey, result };
     if (result.state === 'done' && !task.rawResultKey) task.rawResultKey = await this.persistRaw(result);
     this.tasks.set(externalTaskId, task);
     return task;
