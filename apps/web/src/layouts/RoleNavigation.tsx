@@ -1,4 +1,4 @@
-import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target } from 'lucide-react';
+import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target, Upload } from 'lucide-react';
 import type { UserRole } from '@kaoyan408/shared';
 
 interface RoleNavigationProps {
@@ -13,6 +13,7 @@ export function RoleNavigation({ role = 'student' }: RoleNavigationProps) {
         <a href="#review"><ShieldCheck size={18} /> 内容审核</a>
         <a href="#config"><ClipboardCheck size={18} /> 系统配置</a>
         <a href="#teacher"><ClipboardList size={18} /> 教研管理</a>
+        <a href="#question-import"><Upload size={18} /> 题库文档导入</a>
       </nav>
     );
   }

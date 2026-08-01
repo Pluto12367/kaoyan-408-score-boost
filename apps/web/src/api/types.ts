@@ -365,6 +365,27 @@ export interface AdminMetrics {
   generatedAt: string;
 }
 
+export type QuestionImportStatus = 'uploaded' | 'queued' | 'parsing' | 'parsing_partial_failure' | 'review' | 'partially_imported' | 'completed' | 'failed' | 'cancelled' | 'expired';
+export type QuestionImportCandidateStatus = 'pending_review' | 'needs_edit' | 'duplicate_suspected' | 'approved' | 'ignored' | 'parse_failed' | 'imported';
+export type QuestionImportDuplicateAction = 'skip' | 'create' | 'new_version';
+
+export interface QuestionImportBatchSummary {
+  id: string; originalFileName: string; fileType: 'pdf' | 'xlsx' | 'csv'; source: string;
+  status: QuestionImportStatus; statusCounts: Record<string, number>; createdAt: string; updatedAt: string; expiresAt: string;
+}
+export interface QuestionImportBatch extends QuestionImportBatchSummary {
+  title?: string | null; year?: number | null; defaultSubject?: string | null; defaultChapter?: string | null;
+  pageRange?: string | null; providerCosts?: { estimated?: number; confirmed?: number } | null;
+  jobs: Array<{ id: string; pageStart: number; pageEnd: number; provider: string; attempt: number; state: string }>;
+}
+export interface QuestionImportCandidate {
+  id: string; batchId: string; revision: number; status: QuestionImportCandidateStatus;
+  stem: string; options: string[]; answer: string; analysis: string; source: string; year?: number | null;
+  difficulty: string; type: string; expectedTimeSec: number; knowledgePointIds: string[]; warnings: Array<{ code: string; severity: 'warning' | 'error'; field?: string; message: string; suggestion: string; rowNumber?: number }>;
+  duplicateAction: QuestionImportDuplicateAction; targetFamilyId?: string | null; sourceRowNumber?: number | null; sourcePageNumber?: number | null;
+  exactDuplicates?: Array<{ id: string; stem: string }> ; similarDuplicates?: Array<{ id: string; stem: string }>;
+}
+
 export type AdminCoreMetricKey =
   | 'registrationCompletionRate'
   | 'diagnosticCompletionRate'

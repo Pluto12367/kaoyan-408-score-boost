@@ -7,6 +7,7 @@ import { InvitationManagementPanel } from './InvitationManagementPanel';
 import { ManagedUserCreationPanel } from './ManagedUserCreationPanel';
 import { StudentAccountActions } from './StudentAccountActions';
 import { TeacherAuthorizationPanel } from './TeacherAuthorizationPanel';
+import { QuestionImportWorkspace } from './question-import/QuestionImportWorkspace';
 
 interface AdminWorkspaceProps {
   metrics: ModuleResource<AdminMetrics>;
@@ -91,6 +92,7 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
 
       <InvitationManagementPanel />
       <ManagedUserCreationPanel onCreateManagedUser={props.onCreateManagedUser} />
+      <QuestionImportWorkspace />
 
       {users ? (
         <section className="panel admin-users-panel">

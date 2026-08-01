@@ -10,3 +10,4 @@ export * from './endpoints/onboarding';
 export * from './endpoints/sessions';
 export * from './endpoints/review';
 export * from './endpoints/exam';
+export * from './endpoints/question-import';
