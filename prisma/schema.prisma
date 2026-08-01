@@ -128,6 +128,7 @@ model User {
   authorizedTeachers    TeacherStudentAuthorization[] @relation("AuthorizedStudent")
   createdInvitations    InvitationCode[]              @relation("CreatedInvitations")
   invitationRedemptions InvitationRedemption[]
+  uploadedImportBatches QuestionImportBatch[]      @relation("QuestionImportUploader")
 }
 
 model FeedbackSubmission {
@@ -313,6 +314,7 @@ model QuestionFamily {
 model QuestionImportBatch {
   id                  String                       @id @default(cuid())
   uploadedById        String
+  uploadedBy          User                         @relation("QuestionImportUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
   originalFileName    String
   originalStorageKey  String
   fileSha256          String
@@ -355,7 +357,7 @@ model QuestionImportJob {
   externalTaskId String?
   attempt        Int                    @default(0)
   retryAt        DateTime?
-  state          QuestionImportJobState @default(queued)
+  state          QuestionImportJobState @default(pending)
   quality        Json?
   cost           Json?
   error          Json?

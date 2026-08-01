@@ -21,3 +21,14 @@ test('schema keeps immutable question versions and resumable import state', asyn
   assert.match(schema, /defaultChapter\s+String\?/);
   assert.match(schema, /pageRange\s+String\?/);
 });
+
+test('keeps the original import migration immutable and upgrades it in a follow-on migration', async () => {
+  const initial = await readFile('prisma/migrations/20260731120000_question_document_import/migration.sql', 'utf8');
+  const followOn = await readFile('prisma/migrations/20260801090000_harden_question_import_batches/migration.sql', 'utf8');
+
+  assert.match(initial, /QuestionImportJobState" AS ENUM \('queued'/);
+  assert.doesNotMatch(initial, /"title" TEXT/);
+  assert.match(followOn, /QuestionImportJobState_new" AS ENUM \('pending'/);
+  assert.match(followOn, /QuestionImportBatch_uploadedById_fkey/);
+  assert.match(followOn, /ADD COLUMN "title"/);
+});

@@ -7,11 +7,12 @@ import { ImportBatchService } from './import/import-batch.service';
 import { ImportStorageService } from './import/import-storage.service';
 import { QuestionImportController } from './import/question-import.controller';
 import { QuestionTemplateService } from './import/question-template.service';
+import { ImportCleanupInterceptor } from './import/import-cleanup.interceptor';
 
 @Module({
   imports: [AuthModule, PrismaModule],
   controllers: [QuestionsController, TeacherQuestionsController, QuestionImportController],
-  providers: [QuestionsService, ImportBatchService, ImportStorageService, QuestionTemplateService],
+  providers: [QuestionsService, ImportBatchService, ImportStorageService, QuestionTemplateService, ImportCleanupInterceptor],
   exports: [QuestionsService],
 })
 export class QuestionsModule {}

@@ -41,7 +41,9 @@ test('storage validates extension and content signatures without trusting client
   assert.match(storage, /\.xlsx/);
   assert.match(storage, /\.csv/);
   assert.match(storage, /%PDF-/);
-  assert.match(storage, /0x50[\s\S]*0x4b|PK/);
+  assert.match(storage, /JSZip\.loadAsync/);
+  assert.match(storage, /readCentralDirectory/);
+  assert.match(storage, /TextDecoder\('utf-8', \{ fatal: true \}\)/);
   assert.match(storage, /NUL|\\0|0x00/);
   assert.match(storage, /createHash\('sha256'\)/);
   assert.match(storage, /relative\(/);
@@ -64,7 +66,7 @@ test('batch service creates pending work transactionally and protects retry and 
   assert.match(service, /Math\.min\([^\n]*MAX_PAGE_SIZE/);
   assert.match(service, /updateMany/);
   assert.match(service, /attempt:\s*\{\s*increment:\s*1\s*\}/);
-  assert.match(service, /auditEventService\.record/);
+  assert.match(service, /tx\.auditEvent\.create/);
   assert.doesNotMatch(service, /stem\s*:/);
   assert.match(service, /fileSha256/);
   assert.match(service, /byteSize/);
