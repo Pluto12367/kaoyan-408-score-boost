@@ -7,7 +7,7 @@ import { ImportValidationService } from './import-validation';
 import { TableImportParser } from './table-import.parser';
 import { MineruProvider, PdfParserNotConfiguredError } from './providers/mineru.provider';
 import { PdfDocumentService, splitPageRanges, type PdfPageRange } from './pdf-document.service';
-import { PdfPageRenderer } from './pdf-page-renderer';
+import { PdfPageRenderer, type QuestionImportAsset } from './pdf-page-renderer';
 import { QuestionStructureService } from './question-structure.service';
 
 export const IMPORT_WORKER_OPTIONS = Symbol('IMPORT_WORKER_OPTIONS');
@@ -35,6 +35,7 @@ export interface ClaimedJob {
   defaultChapter?: string | null;
   leaseOwner: string;
   leaseExpiresAt: Date;
+  externalTaskId?: string | null;
 }
 
 interface ClaimableBatch {
@@ -143,7 +144,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       const batch = batches[0];
       if (!batch) return null;
 
-      const rows = await tx.$queryRaw<Array<Pick<ClaimedJob, 'id' | 'batchId' | 'provider' | 'pageStart' | 'pageEnd' | 'leaseOwner' | 'leaseExpiresAt'>>>`
+      const rows = await tx.$queryRaw<Array<Pick<ClaimedJob, 'id' | 'batchId' | 'provider' | 'pageStart' | 'pageEnd' | 'leaseOwner' | 'leaseExpiresAt' | 'externalTaskId'>>>`
         WITH next_job AS (
           SELECT job."id"
           FROM "QuestionImportJob" AS job
@@ -166,7 +167,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             "updatedAt" = ${now}
         FROM next_job
         WHERE job."id" = next_job."id"
-        RETURNING job."id", job."batchId", job."provider", job."pageStart", job."pageEnd", job."leaseOwner", job."leaseExpiresAt"
+        RETURNING job."id", job."batchId", job."provider", job."pageStart", job."pageEnd", job."leaseOwner", job."leaseExpiresAt", job."externalTaskId"
       `;
       const row = rows[0];
       if (row) {
@@ -248,14 +249,14 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   private async processDocumentJob(job: ClaimedJob): Promise<DocumentJobResult> {
     this.documentProvider.assertConfigured();
     const split = await this.storage.createProviderSplitArtifact(job.originalStorageKey, job.pageStart, job.pageEnd);
-    const submitted = await this.documentProvider.submit({
+    const submitted = job.externalTaskId ? { externalTaskId: job.externalTaskId } : await this.documentProvider.submit({
       jobId: job.id,
       storageKey: split.storageKey,
       fileName: job.originalFileName,
       pageStart: job.pageStart,
       pageEnd: job.pageEnd,
     });
-    await this.prisma.questionImportJob.updateMany({ where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner }, data: { externalTaskId: submitted.externalTaskId } });
+    if (!job.externalTaskId) await this.prisma.questionImportJob.updateMany({ where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner }, data: { externalTaskId: submitted.externalTaskId } });
     const poll = await this.documentProvider.poll(submitted.externalTaskId);
     if (poll.state !== 'succeeded') {
       const error = new Error(poll.state === 'failed' ? poll.message : 'Document parsing failed');
@@ -263,7 +264,8 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       throw error;
     }
     const parsed = await this.documentProvider.fetchResult(submitted.externalTaskId);
-    const previews = this.pageRenderer ? await Promise.all(parsed.pages.map((page) => this.pageRenderer!.render(job.originalStorageKey, page.pageNumber))) : [];
+    const previews: QuestionImportAsset[] = [];
+    if (this.pageRenderer) for (const page of parsed.pages) previews.push(await this.pageRenderer.render(job.originalStorageKey, page.pageNumber));
     const drafts = this.structure?.structure(parsed) ?? [];
     const now = this.now();
     const statusCounts = { document_parsed: parsed.pages.length };

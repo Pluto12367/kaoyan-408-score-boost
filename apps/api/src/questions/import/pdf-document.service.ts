@@ -61,11 +61,15 @@ async function sha256File(path: string): Promise<string> {
 export function runPdfProcess(command: string, args: string[]): Promise<string> {
   return new Promise((resolveOutput, reject) => {
     const child = spawn(command, args, { shell: false, windowsHide: true });
-    let output = '';
+    const output: Buffer[] = [];
+    let outputBytes = 0;
     let overflow = false;
     const append = (chunk: Buffer) => {
-      if (output.length >= MAX_PROCESS_OUTPUT_BYTES) { overflow = true; return; }
-      output += chunk.toString('utf8').slice(0, MAX_PROCESS_OUTPUT_BYTES - output.length);
+      if (outputBytes >= MAX_PROCESS_OUTPUT_BYTES) { overflow = true; return; }
+      const allowed = Math.min(chunk.length, MAX_PROCESS_OUTPUT_BYTES - outputBytes);
+      output.push(chunk.subarray(0, allowed));
+      outputBytes += allowed;
+      if (allowed !== chunk.length) overflow = true;
     };
     child.stdout.on('data', append);
     child.stderr.on('data', append);
@@ -75,7 +79,7 @@ export function runPdfProcess(command: string, args: string[]): Promise<string> 
       clearTimeout(timer);
       if (overflow) return reject(new BadRequestException('PDF command output exceeded the safety limit'));
       if (code !== 0) return reject(new BadRequestException(`PDF command failed (${code ?? 'signal'})`));
-      resolveOutput(output);
+      resolveOutput(Buffer.concat(output, outputBytes).toString('utf8'));
     });
   });
 }
