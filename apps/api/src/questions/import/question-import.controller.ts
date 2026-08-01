@@ -17,6 +17,8 @@ import { ImportCleanupInterceptor } from './import-cleanup.interceptor';
 import { ImportCandidateService } from './import-candidate.service';
 import { BulkApproveCandidatesDto, UpdateImportCandidateDto } from './dto/update-import-candidate.dto';
 import { CandidateQueryDto } from './dto/candidate-query.dto';
+import { ConfirmImportDto } from './dto/confirm-import.dto';
+import { ImportConfirmationService } from './import-confirmation.service';
 
 const uploadConfig = loadImportConfig();
 
@@ -29,6 +31,7 @@ export class QuestionImportController {
     private readonly storage: ImportStorageService,
     private readonly templates: QuestionTemplateService,
     private readonly candidates: ImportCandidateService,
+    private readonly confirmations: ImportConfirmationService,
   ) {}
 
   @Post()
@@ -99,6 +102,15 @@ export class QuestionImportController {
     @Body() input: BulkApproveCandidatesDto,
   ) {
     return this.candidates.bulkApprove(batchId, input.candidates, user.id);
+  }
+
+  @Post(':batchId/confirm')
+  confirm(
+    @CurrentUser() user: { id: string },
+    @Param('batchId') batchId: string,
+    @Body() input: ConfirmImportDto,
+  ) {
+    return this.confirmations.confirm(batchId, input, user.id);
   }
 
   @Post(':batchId/cancel')

@@ -437,6 +437,8 @@ async function assertWorkerLeaseAndCandidates(client, services) {
     assert.equal(cancelledRaceState.jobs[0].state, 'cancelled');
     assert.equal(cancelledRaceState.jobs[0].leaseOwner, null);
     assert.equal(await client.questionImportCandidate.count({ where: { batchId: cancelRace.batchId } }), 0);
+
+    await assertImportConfirmation(client, services, audits);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -470,6 +472,62 @@ async function assertConcurrentCandidateCounts(client, ImportCandidateService, a
 
   const refreshed = await client.questionImportBatch.findUniqueOrThrow({ where: { id: batch.id } });
   assert.deepEqual(refreshed.statusCounts, { ignored: 2 }, 'concurrent candidate updates must not persist a stale status count snapshot');
+}
+
+async function assertImportConfirmation(client, services, audits) {
+  const { ImportConfirmationService } = require(join(root, 'apps/api/dist/questions/import/import-confirmation.service.js'));
+  const { QuestionsService } = require(join(root, 'apps/api/dist/questions/questions.service.js'));
+  const questions = new QuestionsService(client);
+  await questions.onModuleInit();
+  const batch = await client.questionImportBatch.create({
+    data: {
+      uploadedById: 'worker-admin', originalFileName: 'confirm.csv', originalStorageKey: `temporary/${randomUUID()}`,
+      fileSha256: randomBytes(32).toString('hex'), fileType: 'csv', source: 'integration source', rightsConfirmed: true,
+      rightsConfirmedAt: new Date(), status: 'review', expiresAt: new Date(Date.now() + 86_400_000),
+    },
+  });
+  const oldQuestion = await questions.createQuestion(questionInput('confirmation old version', ['co-cache']));
+  await client.practiceRecord.create({
+    data: { userId: 'worker-admin', questionId: oldQuestion.id, knowledgePointId: 'co-cache', correct: false, timeSpentSec: 30, expectedTimeSec: 90 },
+  });
+  const candidates = await Promise.all([
+    ['new question', 'approved', 'skip', null],
+    ['confirmation old version', 'approved', 'skip', (await client.question.findUniqueOrThrow({ where: { id: oldQuestion.id } })).familyId],
+    ['similar independent question', 'approved', 'create', (await client.question.findUniqueOrThrow({ where: { id: oldQuestion.id } })).familyId],
+    ['confirmation old version revised', 'approved', 'new_version', (await client.question.findUniqueOrThrow({ where: { id: oldQuestion.id } })).familyId],
+  ].map(async ([stem, status, duplicateAction, targetFamilyId]) => client.questionImportCandidate.create({
+    data: {
+      batchId: batch.id, stem, options: ['A', 'B'], answer: 'A', analysis: `${stem} analysis`,
+      difficulty: 'MEDIUM', type: 'SINGLE_CHOICE', source: 'integration source', expectedTimeSec: 90,
+      knowledgePointIds: ['co-cache'], formulas: [], warnings: [], contentFingerprint: randomBytes(32).toString('hex'),
+      status, duplicateAction, targetFamilyId,
+    },
+  })));
+  const confirmation = new ImportConfirmationService(client, audits, questions);
+  const input = { candidateIds: candidates.map((candidate) => candidate.id), idempotencyKey: randomUUID() };
+  const first = await confirmation.confirm(batch.id, input, 'worker-admin');
+  const second = await confirmation.confirm(batch.id, input, 'worker-admin');
+  assert.deepEqual(second, first, 'the same idempotency key must return the stored confirmation result');
+  const [newCandidate, skippedCandidate, createdCandidate, versionCandidate] = await Promise.all(candidates.map((candidate) => client.questionImportCandidate.findUniqueOrThrow({ where: { id: candidate.id } })));
+  assert.equal(skippedCandidate.importedQuestionId, null, 'duplicate candidates default to skip');
+  assert.ok(newCandidate.importedQuestionId, 'new candidate must create a question');
+  assert.ok(createdCandidate.importedQuestionId, 'explicit create must create an independent question');
+  const old = await client.question.findUniqueOrThrow({ where: { id: oldQuestion.id } });
+  const updated = await client.question.findUniqueOrThrow({ where: { id: versionCandidate.importedQuestionId } });
+  assert.equal(old.isCurrent, false);
+  assert.equal(updated.familyId, old.familyId);
+  assert.equal(updated.versionNumber, old.versionNumber + 1);
+  assert.equal(await client.practiceRecord.count({ where: { questionId: oldQuestion.id } }), 1);
+  const concurrentCandidate = await client.questionImportCandidate.create({
+    data: {
+      batchId: batch.id, stem: 'confirmation concurrent', options: ['A', 'B'], answer: 'A', analysis: 'concurrent analysis',
+      difficulty: 'MEDIUM', type: 'SINGLE_CHOICE', source: 'integration source', expectedTimeSec: 90,
+      knowledgePointIds: ['co-cache'], formulas: [], warnings: [], contentFingerprint: randomBytes(32).toString('hex'), status: 'approved',
+    },
+  });
+  const concurrentInputs = [randomUUID(), randomUUID()].map((idempotencyKey) => ({ candidateIds: [concurrentCandidate.id], idempotencyKey }));
+  const outcomes = await Promise.allSettled(concurrentInputs.map((request) => confirmation.confirm(batch.id, request, 'worker-admin')));
+  assert.equal(outcomes.filter((outcome) => outcome.status === 'fulfilled').length, 1, 'only one confirmation may import a candidate');
 }
 
 async function assertClaimCancelLockOrder(client, services, storage, parser, validation, audits, batchId) {

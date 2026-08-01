@@ -13,12 +13,13 @@ import { ImportCandidateService } from './import/import-candidate.service';
 import { ImportValidationService } from './import/import-validation';
 import { ImportWorkerService } from './import/import-worker.service';
 import { TableImportParser } from './import/table-import.parser';
+import { ImportConfirmationService } from './import/import-confirmation.service';
 
 @Module({
   imports: [AuthModule, PrismaModule],
   controllers: [QuestionsController, TeacherQuestionsController, QuestionImportController],
   providers: [
-    QuestionsService, ImportBatchService, ImportCandidateService, ImportValidationService, ImportWorkerService,
+    QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportValidationService, ImportWorkerService,
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
     QuestionTemplateService, ImportCleanupInterceptor,
   ],
