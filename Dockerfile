@@ -25,7 +25,7 @@ RUN npm run build -w apps/api
 # ---- Production stage ----
 FROM node:22-alpine
 WORKDIR /app
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl qpdf poppler-utils
 
 COPY --from=builder /app/node_modules node_modules/
 COPY --from=builder /app/packages/shared/dist packages/shared/dist/

@@ -4,6 +4,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import type { Response } from 'express';
 import { CurrentUser } from '../../auth/current-user.decorator';
 import { RoleGuard } from '../../auth/role.guard';
@@ -78,6 +79,16 @@ export class QuestionImportController {
   @Get(':batchId')
   detail(@Param('batchId') batchId: string) {
     return this.imports.detail(batchId);
+  }
+
+  @Get(':batchId/pages/:pageNumber')
+  async pagePreview(@Param('batchId') batchId: string, @Param('pageNumber') pageNumber: string, @Res() response: Response) {
+    const asset = await this.imports.pagePreview(batchId, Number(pageNumber));
+    const path = await this.storage.resolvePagePreviewJpegPath(asset.storageKey);
+    response.setHeader('Content-Type', 'image/jpeg');
+    response.setHeader('Cache-Control', 'private, max-age=300');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    createReadStream(path).pipe(response);
   }
 
   @Get(':batchId/candidates')

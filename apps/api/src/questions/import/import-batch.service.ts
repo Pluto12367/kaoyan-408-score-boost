@@ -33,7 +33,7 @@ export class ImportBatchService {
           status: pdfParserUnavailable ? 'failed' : 'queued', statusCounts: pdfParserUnavailable ? { failed: 1 } : { pending: 1 }, expiresAt: new Date(now.getTime() + IMPORT_EXPIRY_MS),
           ...(pdfParserUnavailable ? { failedAt: now } : {}),
           jobs: { create: {
-            pageStart: 1, pageEnd: 1, provider: file.fileType === 'pdf' ? 'document-parser' : 'table-parser', state: pdfParserUnavailable ? 'failed' : 'pending',
+            pageStart: 1, pageEnd: 1, provider: file.fileType === 'pdf' ? 'document-planner' : 'table-parser', state: pdfParserUnavailable ? 'failed' : 'pending',
             ...(pdfParserUnavailable ? { completedAt: now, error: { code: PDF_PARSER_NOT_CONFIGURED, message: PDF_PARSER_NOT_CONFIGURED_MESSAGE, requestId } } : {}),
           } },
         },
@@ -58,6 +58,13 @@ export class ImportBatchService {
     const batch = await this.prisma.questionImportBatch.findUnique({ where: { id: batchId }, include: { jobs: { orderBy: { createdAt: 'asc' }, select: { id: true, pageStart: true, pageEnd: true, provider: true, attempt: true, state: true, retryAt: true, createdAt: true, updatedAt: true } }, assets: { select: { id: true, scope: true, mediaType: true, byteSize: true, pageNumber: true, createdAt: true } } } });
     if (!batch) throw new NotFoundException('Question import batch was not found');
     return batch;
+  }
+
+  async pagePreview(batchId: string, pageNumber: number) {
+    if (!Number.isInteger(pageNumber) || pageNumber < 1) throw new BadRequestException('pageNumber must be a positive integer');
+    const asset = await this.prisma.questionImportAsset.findFirst({ where: { batchId, pageNumber, mediaType: 'image/jpeg', scope: 'temporary' }, select: { storageKey: true } });
+    if (!asset) throw new NotFoundException('Question import page preview was not found');
+    return asset;
   }
 
   async cancel(actorId: string, batchId: string) {

@@ -6,6 +6,9 @@ import { ImportStorageService } from './import-storage.service';
 import { ImportValidationService } from './import-validation';
 import { TableImportParser } from './table-import.parser';
 import { MineruProvider, PdfParserNotConfiguredError } from './providers/mineru.provider';
+import { PdfDocumentService, splitPageRanges, type PdfPageRange } from './pdf-document.service';
+import { PdfPageRenderer } from './pdf-page-renderer';
+import { QuestionStructureService } from './question-structure.service';
 
 export const IMPORT_WORKER_OPTIONS = Symbol('IMPORT_WORKER_OPTIONS');
 
@@ -75,6 +78,9 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     @Optional() @Inject(IMPORT_WORKER_OPTIONS) options: ImportWorkerOptions = {},
     @Optional() validation?: ImportValidationService,
     @Optional() private readonly documentProvider: MineruProvider = new MineruProvider(),
+    @Optional() private readonly pdfDocuments?: PdfDocumentService,
+    @Optional() private readonly pageRenderer?: PdfPageRenderer,
+    @Optional() private readonly structure?: QuestionStructureService,
   ) {
     this.workerId = options.workerId ?? `question-import-${randomUUID()}`;
     this.leaseMs = positiveInteger(options.leaseMs, 5 * 60_000);
@@ -117,7 +123,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" IN ('table-parser', 'document-parser')
+          AND job."provider" IN ('table-parser', 'document-planner', 'document-parser')
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
         )
         ORDER BY (
@@ -128,7 +134,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" IN ('table-parser', 'document-parser')
+          AND job."provider" IN ('table-parser', 'document-planner', 'document-parser')
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
         ) ASC
         FOR UPDATE OF batch SKIP LOCKED
@@ -146,7 +152,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" IN ('table-parser', 'document-parser')
+          AND job."provider" IN ('table-parser', 'document-planner', 'document-parser')
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
           ORDER BY job."createdAt" ASC
           FOR UPDATE SKIP LOCKED
@@ -174,6 +180,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async processClaimedJob(job: ClaimedJob): Promise<TableJobResult | DocumentJobResult> {
+    if (job.provider === 'document-planner' && job.fileType === 'pdf') return this.processPdfPlannerJob(job);
     if (job.provider === 'document-parser' && job.fileType === 'pdf') return this.processDocumentJob(job);
     if (job.provider !== 'table-parser' || !['csv', 'xlsx'].includes(job.fileType)) {
       throw new Error(`Unsupported question import provider: ${job.provider}`);
@@ -248,6 +255,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       pageStart: job.pageStart,
       pageEnd: job.pageEnd,
     });
+    await this.prisma.questionImportJob.updateMany({ where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner }, data: { externalTaskId: submitted.externalTaskId } });
     const poll = await this.documentProvider.poll(submitted.externalTaskId);
     if (poll.state !== 'succeeded') {
       const error = new Error(poll.state === 'failed' ? poll.message : 'Document parsing failed');
@@ -255,6 +263,8 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       throw error;
     }
     const parsed = await this.documentProvider.fetchResult(submitted.externalTaskId);
+    const previews = this.pageRenderer ? await Promise.all(parsed.pages.map((page) => this.pageRenderer!.render(job.originalStorageKey, page.pageNumber))) : [];
+    const drafts = this.structure?.structure(parsed) ?? [];
     const now = this.now();
     const statusCounts = { document_parsed: parsed.pages.length };
     await this.prisma.$transaction(async (tx) => {
@@ -281,8 +291,51 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
         },
       });
       if (completed.count !== 1) throw new Error('QUESTION_IMPORT_LEASE_LOST');
+      if (previews.length > 0) await tx.questionImportAsset.createMany({ data: previews.map((preview) => ({
+        batchId: job.batchId, scope: 'temporary', storageKey: preview.storageKey, sha256: preview.sha256, mediaType: preview.mediaType,
+        byteSize: preview.byteSize, pageNumber: preview.pageNumber,
+      })), skipDuplicates: true });
+      if (drafts.length > 0) await tx.questionImportCandidate.createMany({ data: drafts.map((draft, index) => ({
+        batchId: job.batchId, jobId: job.id, sourceRowNumber: index + 1, stem: draft.stem || 'Unstructured PDF question', options: draft.options,
+        answer: draft.answer, analysis: draft.analysis, difficulty: 'MEDIUM', type: draft.options.length ? 'SINGLE_CHOICE' : 'COMPREHENSIVE', source: job.source,
+        year: job.year ?? null, expectedTimeSec: 100, knowledgePointIds: [], formulas: draft.formulas as unknown as Prisma.InputJsonValue,
+        warnings: draft.warnings as unknown as Prisma.InputJsonValue, pageNumber: draft.pageNumber, sourceRegion: draft.sourceRegion as unknown as Prisma.InputJsonValue,
+        contentFingerprint: `${job.id}:${index + 1}`, status: draft.warnings.length ? 'needs_edit' : 'pending_review',
+      })), skipDuplicates: true });
     });
     return { parsedPages: parsed.pages.length, statusCounts };
+  }
+
+  private async processPdfPlannerJob(job: ClaimedJob): Promise<DocumentJobResult> {
+    const pdf = this.pdfDocuments;
+    if (!pdf) throw new Error('PDF_DOCUMENT_SERVICE_NOT_CONFIGURED');
+    const pageCount = await pdf.pageCount(job.originalStorageKey);
+    const accepted = await this.splitPdfRanges(job.originalStorageKey, splitPageRanges(pageCount));
+    const now = this.now();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.questionImportJob.createMany({ data: accepted.map((range) => ({ batchId: job.batchId, pageStart: range.pageStart, pageEnd: range.pageEnd, provider: 'document-parser', state: 'pending' })), skipDuplicates: true });
+      const completed = await tx.questionImportJob.updateMany({ where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: now } }, data: { state: 'succeeded', completedAt: now, leaseOwner: null, leaseExpiresAt: null, quality: { pageCount, children: accepted.length } } });
+      if (completed.count !== 1) throw new Error('QUESTION_IMPORT_LEASE_LOST');
+      await tx.questionImportBatch.update({ where: { id: job.batchId }, data: { status: 'parsing', statusCounts: { document_planned: 1, document_pending: accepted.length } } });
+    });
+    return { parsedPages: pageCount, statusCounts: { document_planned: 1, document_pending: accepted.length } };
+  }
+
+  private async splitPdfRanges(storageKey: string, ranges: PdfPageRange[]): Promise<PdfPageRange[]> {
+    const pdf = this.pdfDocuments!;
+    const accepted: PdfPageRange[] = [];
+    for (const range of ranges) {
+      const [file] = await pdf.split(storageKey, [range]);
+      if (file.byteSize <= 200 * 1024 * 1024) { accepted.push(range); continue; }
+      if (range.pageStart === range.pageEnd) {
+        const error = new Error('PDF_PAGE_TOO_LARGE');
+        Object.assign(error, { code: 'PDF_PAGE_TOO_LARGE' });
+        throw error;
+      }
+      const midpoint = Math.floor((range.pageStart + range.pageEnd) / 2);
+      accepted.push(...await this.splitPdfRanges(storageKey, [{ pageStart: range.pageStart, pageEnd: midpoint }, { pageStart: midpoint + 1, pageEnd: range.pageEnd }]));
+    }
+    return accepted;
   }
 
   start(): Promise<void> {
@@ -311,7 +364,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.$transaction(async (tx) => {
         const batchClaimed = await tx.questionImportBatch.updateMany({
           where: { id: job.batchId, status: { notIn: ['cancelled', 'expired', 'completed'] } },
-          data: { status: 'failed', statusCounts: { failed: 1 }, failedAt: now, revision: { increment: 1 } },
+          data: { status: job.provider === 'document-parser' ? 'parsing_partial_failure' : 'failed', statusCounts: { failed: 1 }, failedAt: now, revision: { increment: 1 } },
         });
         if (batchClaimed.count !== 1) return;
         const failed = await tx.questionImportJob.updateMany({
