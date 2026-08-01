@@ -54,6 +54,7 @@ test('reports a formula without a cached result instead of evaluating it', async
 
   assert.deepEqual(result.rows, []);
   assert.ok(result.issues.some((issue) => issue.code === 'FORMULA_VALUE_UNAVAILABLE'));
+  assert.equal(result.issues.find((issue) => issue.code === 'FORMULA_VALUE_UNAVAILABLE').rowNumber, 2);
 });
 
 test('uses cached shared-formula results and rejects an uncached shared formula', async () => {

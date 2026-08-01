@@ -32,3 +32,17 @@ test('keeps the original import migration immutable and upgrades it in a follow-
   assert.match(followOn, /QuestionImportBatch_uploadedById_fkey/);
   assert.match(followOn, /ADD COLUMN "title"/);
 });
+
+test('worker leases and source rows have database-backed restart guarantees', async () => {
+  const schema = await readFile('prisma/schema.prisma', 'utf8');
+  const workerMigration = await readFile('prisma/migrations/20260801120000_question_import_worker/migration.sql', 'utf8');
+
+  assert.match(schema, /leaseOwner\s+String\?/);
+  assert.match(schema, /leaseExpiresAt\s+DateTime\?/);
+  assert.match(schema, /sourceRowNumber\s+Int\?/);
+  assert.match(schema, /@@unique\(\[jobId, sourceRowNumber\]\)/);
+  assert.match(workerMigration, /leaseOwner/);
+  assert.match(workerMigration, /leaseExpiresAt/);
+  assert.match(workerMigration, /sourceRowNumber/);
+  assert.match(workerMigration, /UNIQUE/);
+});

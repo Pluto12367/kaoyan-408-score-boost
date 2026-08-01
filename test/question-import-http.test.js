@@ -10,10 +10,12 @@ const { Test } = require('@nestjs/testing');
 const { ValidationPipe, ForbiddenException } = require('@nestjs/common');
 const { AuthService } = require('../apps/api/dist/auth/auth.service.js');
 const { ImportBatchService } = require('../apps/api/dist/questions/import/import-batch.service.js');
+const { ImportCandidateService } = require('../apps/api/dist/questions/import/import-candidate.service.js');
 
 let app;
 let root;
 let rejected = 0;
+let candidateCalls = [];
 
 test.before(async () => {
   root = await mkdtemp(join(tmpdir(), 'question-import-http-'));
@@ -34,6 +36,12 @@ test.before(async () => {
       cancel: async () => ({ status: 'cancelled' }),
       retry: async () => ({ retriedJobs: 1 }),
       recordRejection: async () => { rejected += 1; },
+    })
+    .overrideProvider(ImportCandidateService)
+    .useValue({
+      list: async (...args) => { candidateCalls.push(['list', ...args]); return { items: [], page: 1, pageSize: 20, total: 0 }; },
+      update: async (...args) => { candidateCalls.push(['update', ...args]); return { id: 'candidate-1', revision: 2 }; },
+      bulkApprove: async (...args) => { candidateCalls.push(['bulk', ...args]); return { approvedCandidates: 1 }; },
     })
     .compile();
   app = module.createNestApplication();
@@ -78,4 +86,37 @@ test('admin uploads return 202 and templates have format-specific headers', asyn
   assert.equal(template.status, 200);
   assert.match(template.headers.get('content-type'), /text\/csv/u);
   assert.match(template.headers.get('content-disposition'), /\.csv/u);
+});
+
+test('candidate routes validate pagination, revisions, and bounded bulk input', async () => {
+  candidateCalls = [];
+  const headers = { Authorization: 'Bearer admin', 'Content-Type': 'application/json' };
+  const listed = await fetch(url('/admin/question-imports/batch-1/candidates?page=1&pageSize=20&status=pending_review'), { headers });
+  assert.equal(listed.status, 200);
+  assert.deepEqual(candidateCalls[0], ['list', 'batch-1', { status: 'pending_review' }, { page: 1, pageSize: 20 }]);
+
+  const missingRevision = await fetch(url('/admin/question-imports/candidates/candidate-1'), {
+    method: 'PATCH', headers, body: JSON.stringify({ stem: 'updated' }),
+  });
+  assert.equal(missingRevision.status, 400);
+
+  const updated = await fetch(url('/admin/question-imports/candidates/candidate-1'), {
+    method: 'PATCH', headers, body: JSON.stringify({ revision: 1, patch: { status: 'ignored' } }),
+  });
+  assert.equal(updated.status, 200);
+  assert.deepEqual(candidateCalls[1], ['update', 'candidate-1', 1, { status: 'ignored' }, 'admin-1']);
+
+  const tooMany = await fetch(url('/admin/question-imports/batch-1/candidates/bulk-approve'), {
+    method: 'POST', headers, body: JSON.stringify({ candidateIds: Array.from({ length: 101 }, (_, index) => `candidate-${index}`) }),
+  });
+  assert.equal(tooMany.status, 400);
+
+  const invalidStatus = await fetch(url('/admin/question-imports/batch-1/candidates?status=not-a-status'), { headers });
+  assert.equal(invalidStatus.status, 400);
+  const oversizedPage = await fetch(url('/admin/question-imports/batch-1/candidates?pageSize=101'), { headers });
+  assert.equal(oversizedPage.status, 400);
+  const malformedPatch = await fetch(url('/admin/question-imports/candidates/candidate-1'), {
+    method: 'PATCH', headers, body: JSON.stringify({ revision: 1, patch: { options: 'not-an-array' } }),
+  });
+  assert.equal(malformedPatch.status, 400);
 });

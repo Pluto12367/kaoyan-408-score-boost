@@ -11,6 +11,7 @@ export interface ImportWarning {
   code: string;
   severity: 'warning' | 'error';
   field?: keyof CandidateQuestionDraft;
+  rowNumber?: number;
   message: string;
   suggestion: string;
 }

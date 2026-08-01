@@ -1,5 +1,5 @@
 import {
-  BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors,
+  BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -14,6 +14,9 @@ import { ImportStorageService, type UploadedImportFile } from './import-storage.
 import { QuestionTemplateService } from './question-template.service';
 import { CreateImportBatchDto } from './dto/create-import-batch.dto';
 import { ImportCleanupInterceptor } from './import-cleanup.interceptor';
+import { ImportCandidateService } from './import-candidate.service';
+import { BulkApproveCandidatesDto, UpdateImportCandidateDto } from './dto/update-import-candidate.dto';
+import { CandidateQueryDto } from './dto/candidate-query.dto';
 
 const uploadConfig = loadImportConfig();
 
@@ -25,6 +28,7 @@ export class QuestionImportController {
     private readonly imports: ImportBatchService,
     private readonly storage: ImportStorageService,
     private readonly templates: QuestionTemplateService,
+    private readonly candidates: ImportCandidateService,
   ) {}
 
   @Post()
@@ -71,6 +75,30 @@ export class QuestionImportController {
   @Get(':batchId')
   detail(@Param('batchId') batchId: string) {
     return this.imports.detail(batchId);
+  }
+
+  @Get(':batchId/candidates')
+  candidateList(@Param('batchId') batchId: string, @Query() query: CandidateQueryDto) {
+    return this.candidates.list(batchId, { status: query.status }, { page: query.page, pageSize: query.pageSize });
+  }
+
+  @Patch('candidates/:candidateId')
+  updateCandidate(
+    @CurrentUser() user: { id: string },
+    @Param('candidateId') candidateId: string,
+    @Body() input: UpdateImportCandidateDto,
+  ) {
+    const patch = Object.fromEntries(Object.entries(input.patch).filter(([, value]) => value !== undefined));
+    return this.candidates.update(candidateId, input.revision, patch, user.id);
+  }
+
+  @Post(':batchId/candidates/bulk-approve')
+  bulkApproveCandidates(
+    @CurrentUser() user: { id: string },
+    @Param('batchId') batchId: string,
+    @Body() input: BulkApproveCandidatesDto,
+  ) {
+    return this.candidates.bulkApprove(batchId, input.candidateIds, user.id);
   }
 
   @Post(':batchId/cancel')

@@ -103,6 +103,25 @@ export class ImportStorageService {
     await rm(filePath, { force: true });
   }
 
+  async readTemporary(storageKey: string): Promise<Buffer> {
+    const match = /^temporary\/([a-f0-9-]{36})$/u.exec(storageKey);
+    if (!match) throw new BadRequestException('Question import storage key is invalid');
+    const filePath = resolve(this.config.temporaryDirectory, match[1]);
+    await this.assertTrustedParent(this.config.temporaryDirectory, filePath);
+    const metadata = await lstat(filePath);
+    if (!metadata.isFile() || metadata.isSymbolicLink()) throw new BadRequestException('Question import file is unavailable');
+    if (metadata.size > this.config.maxTableBytes) throw new PayloadTooLargeException('Question import table exceeds its size limit');
+    const chunks: Buffer[] = [];
+    let total = 0;
+    for await (const chunk of createReadStream(filePath)) {
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      total += bytes.length;
+      if (total > this.config.maxTableBytes) throw new PayloadTooLargeException('Question import table exceeds its size limit');
+      chunks.push(bytes);
+    }
+    return Buffer.concat(chunks, total);
+  }
+
   async cleanupIncoming(file: UploadedImportFile | undefined): Promise<void> {
     if (!file) return;
     await this.removeIncomingIfSafe(resolve(file.path), file.filename);

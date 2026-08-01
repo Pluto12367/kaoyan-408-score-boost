@@ -15,8 +15,8 @@ export interface TableParseResult {
   issues: ImportWarning[];
 }
 
-function issue(code: string, message: string, suggestion: string): ImportWarning {
-  return { code, severity: 'error', message, suggestion };
+function issue(code: string, message: string, suggestion: string, rowNumber?: number): ImportWarning {
+  return { code, severity: 'error', message, suggestion, ...(rowNumber === undefined ? {} : { rowNumber }) };
 }
 
 function parseCsv(text: string): string[][] {
@@ -174,7 +174,7 @@ export class TableImportParser {
         else values[header] = parsed.value;
       });
       if (hasUnavailableFormula) {
-        issues.push(issue('FORMULA_VALUE_UNAVAILABLE', `第 ${rowNumber} 行含有未缓存结果的公式。`, '请粘贴公式计算后的值，而不是公式。'));
+        issues.push(issue('FORMULA_VALUE_UNAVAILABLE', `第 ${rowNumber} 行含有未缓存结果的公式。`, '请粘贴公式计算后的值，而不是公式。', rowNumber));
         continue;
       }
       rows.push({ rowNumber, values });

@@ -357,6 +357,8 @@ model QuestionImportJob {
   externalTaskId String?
   attempt        Int                    @default(0)
   retryAt        DateTime?
+  leaseOwner     String?
+  leaseExpiresAt DateTime?
   state          QuestionImportJobState @default(pending)
   quality        Json?
   cost           Json?
@@ -369,6 +371,7 @@ model QuestionImportJob {
   candidates     QuestionImportCandidate[]
 
   @@index([batchId, state, retryAt])
+  @@index([state, retryAt, leaseExpiresAt, createdAt])
   @@index([externalTaskId])
 }
 
@@ -376,6 +379,7 @@ model QuestionImportCandidate {
   id                String                        @id @default(cuid())
   batchId           String
   jobId             String?
+  sourceRowNumber   Int?
   stem              String
   options           String[]
   answer            String
@@ -411,6 +415,7 @@ model QuestionImportCandidate {
   @@index([contentFingerprint, status])
   @@index([targetFamilyId])
   @@index([jobId])
+  @@unique([jobId, sourceRowNumber])
 }
 
 model QuestionImportAsset {

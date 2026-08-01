@@ -25,6 +25,7 @@ async function bootstrap() {
   }
 
   const app = await NestFactory.create(AppModule);
+  app.enableShutdownHooks();
   const operationLogService = app.get(OperationLogService);
 
   // CORS: allow configured origins in production, localhost in dev
