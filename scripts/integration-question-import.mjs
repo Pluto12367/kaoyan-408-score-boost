@@ -10,6 +10,7 @@ import { PrismaClient } from '@prisma/client';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const require = createRequire(import.meta.url);
+const ExcelJS = require('exceljs');
 const baseDatabaseUrl = process.env.TEST_DATABASE_URL
   ?? 'postgresql://postgres:postgres@127.0.0.1:55432/kaoyan408_test?schema=public';
 const schemaName = `question_import_migration_${randomBytes(6).toString('hex')}`;
@@ -416,6 +417,7 @@ async function assertWorkerLeaseAndCandidates(client, services) {
     await assertClaimCancelLockOrder(client, services, storage, parser, validation, audits, deadlockBatch.batchId);
 
     await assertConcurrentCandidateCounts(client, services.ImportCandidateService, audits);
+    await assertXlsxUploadReviewConfirm(client, services, storage, parser, validation, audits, batches, incomingDirectory);
 
     const cancelRace = await batches.create('worker-admin', {
       source: 'integration source', rightsConfirmed: true, title: 'worker cancellation race',
@@ -442,6 +444,59 @@ async function assertWorkerLeaseAndCandidates(client, services) {
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+}
+
+async function assertXlsxUploadReviewConfirm(client, services, storage, parser, validation, audits, batches, incomingDirectory) {
+  const xlsx = await tableXlsx('xlsx complete import');
+  const incomingName = randomUUID();
+  const incomingPath = join(incomingDirectory, incomingName);
+  await writeFile(incomingPath, xlsx);
+  const stored = await storage.putIncoming({
+    path: incomingPath,
+    filename: incomingName,
+    originalname: 'acceptance.xlsx',
+    size: xlsx.length,
+  });
+  const created = await batches.create('worker-admin', {
+    source: 'integration source', rightsConfirmed: true, title: 'xlsx acceptance import',
+  }, stored);
+  const worker = new services.ImportWorkerService(client, storage, parser, {
+    workerId: 'pg-worker-xlsx-acceptance', leaseMs: 5_000, autoStart: false,
+  }, validation);
+  const claimed = await worker.claimNextJob();
+  assert.equal(claimed?.batchId, created.batchId, 'XLSX acceptance batch must be claimed by the table worker');
+  const result = await worker.processClaimedJob(claimed);
+  if (JSON.stringify(result.statusCounts) !== JSON.stringify({ pending_review: 1 })) {
+    const diagnostics = await client.questionImportCandidate.findMany({
+      where: { batchId: created.batchId },
+      select: { status: true, warnings: true, sourceRowNumber: true },
+    });
+    assert.deepEqual(result.statusCounts, { pending_review: 1 }, `unexpected XLSX diagnostics: ${JSON.stringify(diagnostics)}`);
+  }
+
+  const candidateService = new services.ImportCandidateService(client, audits);
+  const page = await candidateService.list(created.batchId, {}, { page: 1, pageSize: 100 });
+  assert.equal(page.total, 1, 'XLSX acceptance import must create one candidate');
+  const [candidate] = page.items;
+  const edited = await candidateService.update(candidate.id, candidate.revision, { duplicateAction: 'create' }, 'worker-admin');
+  assert.equal(edited.duplicateAction, 'create', 'XLSX acceptance candidate must be explicitly marked for creation');
+  const approved = await candidateService.bulkApprove(created.batchId, [{ id: edited.id, revision: edited.revision }], 'worker-admin');
+  assert.equal(approved.approvedCandidates, 1);
+
+  const { ImportConfirmationService } = require(join(root, 'apps/api/dist/questions/import/import-confirmation.service.js'));
+  const { QuestionsService } = require(join(root, 'apps/api/dist/questions/questions.service.js'));
+  const questions = new QuestionsService(client);
+  await questions.onModuleInit();
+  const confirmation = new ImportConfirmationService(client, audits, questions);
+  const confirmed = await confirmation.confirm(created.batchId, {
+    candidateIds: [edited.id],
+    idempotencyKey: randomUUID(),
+  }, 'worker-admin');
+  assert.equal(confirmed.importedCandidateIds.length, 1, 'XLSX acceptance confirmation must import one candidate');
+  const imported = await client.question.findUniqueOrThrow({ where: { id: confirmed.questionIds[0] } });
+  assert.equal(imported.stem, 'xlsx complete import');
+  const batch = await client.questionImportBatch.findUniqueOrThrow({ where: { id: created.batchId } });
+  assert.equal(batch.status, 'completed');
 }
 
 async function assertConcurrentCandidateCounts(client, ImportCandidateService, audits) {
@@ -739,6 +794,19 @@ function tableCsv() {
     ['计算机组成原理', '存储系统', 'Cache 映射与替换', '选择题', '中等', '', 'A', 'B', '', '', '', '', '', '', 'A', 'invalid row analysis', 'integration source', '2026', '90'],
   ];
   return `${headers.join(',')}\r\n${rows.map((row) => row.join(',')).join('\r\n')}\r\n`;
+}
+
+async function tableXlsx(stem) {
+  const { QUESTION_IMPORT_SHEET } = require(join(root, 'apps/api/dist/questions/import/table-import.parser.js'));
+  const [headerLine, rowLine] = tableCsv().trim().split(/\r?\n/u);
+  const row = rowLine.split(',');
+  row[5] = stem;
+  row[15] = `${stem} analysis`;
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet(QUESTION_IMPORT_SHEET);
+  sheet.addRow(headerLine.split(','));
+  sheet.addRow(row);
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 async function assertImportBatchTransactions(client, AuditEventService, ImportBatchService) {
