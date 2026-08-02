@@ -24,3 +24,15 @@ export const listImportCandidates = async (batchId: string, page = 1, status?: Q
 export const updateImportCandidate = async (id: string, revision: number, patch: Record<string, unknown>) => expectJson<QuestionImportCandidate>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/candidates/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, patch }) }));
 export const bulkApproveImportCandidates = async (batchId: string, candidates: Array<{ id: string; revision: number }>) => expectJson<{ approvedCandidates: number }>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}/candidates/bulk-approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidates }) }));
 export const confirmQuestionImport = async (batchId: string, candidateIds: string[], idempotencyKey: string) => expectJson<{ importedCount: number; skippedCount: number; candidateIds: string[] }>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}/confirm`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidateIds, idempotencyKey }) }));
+export const getImportPagePreview = (batchId: string, pageNumber: number) => authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}/pages/${pageNumber}`);
+export const getQuestionImportAsset = (assetId: string) => authenticatedFetch(`${API_BASE_URL}/admin/question-import-assets/${assetId}`);
+export async function uploadCandidateAsset(candidateId: string, file: Blob, sourceRegion: { x: number; y: number; width: number; height: number }) {
+  const body = new FormData();
+  body.append('file', file, 'question-crop.png');
+  body.append('sourceRegion', JSON.stringify(sourceRegion));
+  return expectJson<{ id: string }>(await authenticatedFetch(`${API_BASE_URL}/admin/question-import-candidates/${candidateId}/assets`, { method: 'POST', body }));
+}
+export async function deleteCandidateAsset(candidateId: string, assetId: string) {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/question-import-candidates/${candidateId}/assets/${assetId}`, { method: 'DELETE' });
+  if (!response.ok) await expectJson(response);
+}

@@ -385,6 +385,9 @@ export interface QuestionImportCandidate {
   difficulty: string; type: string; expectedTimeSec: number; knowledgePointIds: string[]; warnings: Array<{ code: string; severity: 'warning' | 'error'; field?: string; message: string; suggestion: string; rowNumber?: number }>;
   duplicateAction: QuestionImportDuplicateAction; targetFamilyId?: string | null; sourceRowNumber?: number | null; sourcePageNumber?: number | null;
   exactDuplicates?: Array<{ id: string; stem: string }> ; similarDuplicates?: Array<{ id: string; stem: string }>;
+  sourceRegion?: { x: number; y: number; width: number; height: number };
+  formulas: Array<{ latex: string; region?: { x: number; y: number; width: number; height: number } }>;
+  assetIds: string[];
 }
 
 export type AdminCoreMetricKey =

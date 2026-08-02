@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
 test('admin question-import workspace exposes the operational review contract', async () => {
-  const [navigation, admin, workspace, upload, review, batches, api] = await Promise.all([
+  const [navigation, admin, workspace, upload, review, batches, api, sourcePreview, assetEditor, formulaPreview, types] = await Promise.all([
     source('apps/web/src/layouts/RoleNavigation.tsx'),
     source('apps/web/src/features/admin/AdminWorkspace.tsx'),
     source('apps/web/src/features/admin/question-import/QuestionImportWorkspace.tsx'),
@@ -13,6 +13,10 @@ test('admin question-import workspace exposes the operational review contract', 
     source('apps/web/src/features/admin/question-import/CandidateReview.tsx'),
     source('apps/web/src/features/admin/question-import/ImportBatchList.tsx'),
     source('apps/web/src/api/endpoints/question-import.ts'),
+    source('apps/web/src/features/admin/question-import/SourcePagePreview.tsx'),
+    source('apps/web/src/features/admin/question-import/QuestionAssetEditor.tsx'),
+    source('apps/web/src/features/admin/question-import/FormulaPreview.tsx'),
+    source('apps/web/src/api/types.ts'),
   ]);
 
   assert.match(navigation, /role === 'admin'[\s\S]*?#question-import/);
@@ -50,4 +54,28 @@ test('admin question-import workspace exposes the operational review contract', 
   assert.match(api, /authenticatedFetch/);
   assert.match(api, /new FormData/);
   assert.doesNotMatch(api, /Content-Type[^\n]*multipart/i);
+  assert.match(sourcePreview, /authenticatedFetch/);
+  assert.match(sourcePreview, /URL\.createObjectURL/);
+  assert.match(sourcePreview, /URL\.revokeObjectURL/);
+  assert.match(sourcePreview, /原始 PDF 第.*页/);
+  assert.match(sourcePreview, /sourceRegion/);
+  assert.match(sourcePreview, /left:\s*`\$\{.*\.x \* 100\}%`/);
+  assert.match(formulaPreview, /katex\.render\(latex,.*throwOnError:\s*false.*trust:\s*false.*strict:\s*'warn'/s);
+  assert.match(formulaPreview, /公式 LaTeX/);
+  assert.match(formulaPreview, /解析提示/);
+  assert.match(assetEditor, /保留原图/);
+  assert.match(assetEditor, /删除图片/);
+  assert.match(assetEditor, /裁剪并上传/);
+  assert.match(assetEditor, /canvas\.toBlob/);
+  assert.match(assetEditor, /image\/png/);
+  assert.match(assetEditor, /URL\.revokeObjectURL/);
+  assert.match(review, /低置信度/);
+  assert.match(review, /KeyboardEvent/);
+  assert.match(review, /event\.key === 'ArrowRight'/);
+  assert.match(review, /event\.key\.toLowerCase\(\) === 'a'/);
+  assert.match(api, /getImportPagePreview/);
+  assert.match(api, /uploadCandidateAsset/);
+  assert.match(api, /deleteCandidateAsset/);
+  assert.match(types, /sourceRegion\?: \{ x: number; y: number; width: number; height: number \}/);
+  assert.match(types, /assetIds: string\[\]/);
 });
