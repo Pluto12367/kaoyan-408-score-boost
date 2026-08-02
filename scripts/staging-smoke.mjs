@@ -5,6 +5,8 @@ export function readStagingSmokeConfig(env = process.env) {
   const email = required(env.STAGING_SMOKE_EMAIL, 'STAGING_SMOKE_EMAIL');
   const password = required(env.STAGING_SMOKE_PASSWORD, 'STAGING_SMOKE_PASSWORD');
   const invitationCode = required(env.STAGING_SMOKE_INVITATION, 'STAGING_SMOKE_INVITATION');
+  const adminEmail = required(env.STAGING_ADMIN_EMAIL, 'STAGING_ADMIN_EMAIL');
+  const adminPassword = required(env.STAGING_ADMIN_PASSWORD, 'STAGING_ADMIN_PASSWORD');
   const webOrigin = (env.STAGING_WEB_ORIGIN || defaultOrigin).trim();
 
   const parsedApiUrl = parseUrl(apiUrl, 'STAGING_API_URL');
@@ -12,6 +14,7 @@ export function readStagingSmokeConfig(env = process.env) {
   if (parsedApiUrl.protocol !== 'https:') throw new Error('STAGING_API_URL must use HTTPS');
   if (parsedWebOrigin.protocol !== 'https:') throw new Error('STAGING_WEB_ORIGIN must use HTTPS');
   if (password.length < 12) throw new Error('STAGING_SMOKE_PASSWORD must contain at least 12 characters');
+  if (adminPassword.length < 12) throw new Error('STAGING_ADMIN_PASSWORD must contain at least 12 characters');
 
   return {
     apiUrl: trimTrailingSlash(parsedApiUrl.href),
@@ -19,7 +22,60 @@ export function readStagingSmokeConfig(env = process.env) {
     email: email.toLowerCase(),
     password,
     invitationCode,
+    adminEmail: adminEmail.toLowerCase(),
+    adminPassword,
   };
+}
+
+export async function runQuestionImportSmoke(config, options = {}) {
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const log = options.log ?? console.log;
+  const apiUrl = trimTrailingSlash(config.apiUrl);
+  const checkpoint = (message) => log(`[staging-smoke] PASS question import: ${message}`);
+  const unauthenticated = await request(fetchImpl, `${apiUrl}/admin/question-imports`, {
+    method: 'POST', body: generatedQuestionCsv(),
+  });
+  ensure([401, 403].includes(unauthenticated.status), 'question-import upload must reject unauthenticated callers');
+  checkpoint('unauthenticated upload rejection');
+
+  const adminSession = await readJson(await request(fetchImpl, `${apiUrl}/auth/login`, {
+    method: 'POST', headers: jsonHeaders(), body: JSON.stringify({ email: config.adminEmail, password: config.adminPassword }),
+  }), 'administrator authentication');
+  ensure(adminSession?.accessToken && adminSession.user?.role === 'admin', 'question-import smoke requires an administrator account');
+  const headers = { Authorization: `Bearer ${adminSession.accessToken}` };
+  const upload = await readJson(await request(fetchImpl, `${apiUrl}/admin/question-imports`, {
+    method: 'POST', headers, body: generatedQuestionCsv(),
+  }), 'question-import CSV upload');
+  ensure(Boolean(upload.batchId), 'question-import upload must return batchId');
+  checkpoint('generated CSV upload');
+
+  const batch = await getImportBatch(fetchImpl, apiUrl, headers, upload.batchId);
+  ensure(['review', 'parsing_partial_failure'].includes(batch.status), 'fake-provider batch must be ready for review or have a controlled partial failure');
+  const failedJob = batch.jobs?.find((job) => job.state === 'failed');
+  if (failedJob) {
+    const retry = await readJson(await request(fetchImpl, `${apiUrl}/admin/question-imports/${encodeURIComponent(upload.batchId)}/retry`, {
+      method: 'POST', headers: jsonHeaders(headers), body: JSON.stringify({ jobIds: [failedJob.id] }),
+    }), 'failed import job retry');
+    ensure(retry.retriedJobs === 1, 'failed import job must be restartable');
+    checkpoint('failed page retry');
+  }
+
+  const candidates = await listImportCandidates(fetchImpl, apiUrl, headers, upload.batchId);
+  ensure(candidates.length >= 2, 'fake provider smoke fixture must yield duplicate and version candidates');
+  const duplicate = candidates.find((candidate) => candidate.duplicateAction === 'skip') ?? candidates[0];
+  const version = candidates.find((candidate) => candidate.duplicateAction === 'new_version' && candidate.targetFamilyId) ?? candidates[1];
+  await updateCandidate(fetchImpl, apiUrl, headers, duplicate, { status: 'approved', duplicateAction: 'skip' });
+  await updateCandidate(fetchImpl, apiUrl, headers, version, { status: 'approved', duplicateAction: 'new_version', targetFamilyId: version.targetFamilyId });
+  checkpoint('candidate edit, duplicate skip, and version selection');
+
+  const idempotencyKey = `staging-smoke-${randomId()}`;
+  const confirmation = await confirmCandidates(fetchImpl, apiUrl, headers, upload.batchId, [duplicate.id, version.id], idempotencyKey);
+  const replay = await confirmCandidates(fetchImpl, apiUrl, headers, upload.batchId, [duplicate.id, version.id], idempotencyKey);
+  ensure(JSON.stringify(replay) === JSON.stringify(confirmation), 'repeated confirmation must replay the original result');
+  ensure((confirmation.skippedCandidateIds ?? []).includes(duplicate.id), 'duplicate skip must remain skipped after confirmation');
+  ensure((confirmation.questionIds ?? []).length > 0, 'new-version confirmation must create a current question');
+  checkpoint('partial confirmation, repeated confirm, and current-question visibility');
+  return { ok: true, batchId: upload.batchId, importedQuestionId: confirmation.questionIds[0], checks: failedJob ? 7 : 6 };
 }
 
 export async function runStagingSmoke(config, options = {}) {
@@ -198,6 +254,43 @@ async function getOverview(fetchImpl, apiUrl, headers) {
   return overview;
 }
 
+async function getImportBatch(fetchImpl, apiUrl, headers, batchId) {
+  return readJson(await request(fetchImpl, `${apiUrl}/admin/question-imports/${encodeURIComponent(batchId)}`, { headers }), 'question-import batch detail');
+}
+
+async function listImportCandidates(fetchImpl, apiUrl, headers, batchId) {
+  const response = await request(fetchImpl, `${apiUrl}/admin/question-imports/${encodeURIComponent(batchId)}/candidates?page=1&pageSize=100`, { headers });
+  const body = await readJson(response, 'question-import candidate list');
+  ensure(response.ok, 'question-import candidate list must succeed');
+  return body.items ?? [];
+}
+
+async function updateCandidate(fetchImpl, apiUrl, headers, candidate, patch) {
+  const response = await request(fetchImpl, `${apiUrl}/admin/question-imports/candidates/${encodeURIComponent(candidate.id)}`, {
+    method: 'PATCH', headers: jsonHeaders(headers), body: JSON.stringify({ revision: candidate.revision, patch }),
+  });
+  ensure(response.ok, 'question-import candidate edit must succeed');
+  return readJson(response, 'question-import candidate edit');
+}
+
+async function confirmCandidates(fetchImpl, apiUrl, headers, batchId, candidateIds, idempotencyKey) {
+  const response = await request(fetchImpl, `${apiUrl}/admin/question-imports/${encodeURIComponent(batchId)}/confirm`, {
+    method: 'POST', headers: jsonHeaders(headers), body: JSON.stringify({ candidateIds, idempotencyKey }),
+  });
+  ensure(response.ok, 'question-import confirmation must succeed');
+  return readJson(response, 'question-import confirmation');
+}
+
+function generatedQuestionCsv() {
+  const form = new FormData();
+  form.append('file', new Blob(['科目,章节,知识点,题型,难度,题干,选项 A,选项 B,正确答案,答案解析,来源\n操作系统,进程管理,进程同步,选择题,基础,测试题,A,B,A,测试解析,staging smoke'], { type: 'text/csv' }), 'staging-question-import.csv');
+  form.append('source', 'staging smoke generated CSV');
+  form.append('rightsConfirmed', 'true');
+  return form;
+}
+
+function randomId() { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`; }
+
 async function request(fetchImpl, url, init = {}) {
   try {
     return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(20_000) });
@@ -260,7 +353,8 @@ function ensure(condition, message) {
 }
 
 async function main() {
-  const result = await runStagingSmoke(readStagingSmokeConfig());
+  const config = readStagingSmokeConfig();
+  const result = { ...(await runStagingSmoke(config)), questionImport: await runQuestionImportSmoke(config) };
   console.log(JSON.stringify(result, null, 2));
 }
 

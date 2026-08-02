@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   readStagingSmokeConfig,
+  runQuestionImportSmoke,
   runStagingSmoke,
 } from '../scripts/staging-smoke.mjs';
 
@@ -17,6 +18,8 @@ test('staging smoke configuration requires an HTTPS API and dedicated credential
       STAGING_SMOKE_EMAIL: 'smoke@example.com',
       STAGING_SMOKE_PASSWORD: 'ReliablePassword!408',
       STAGING_SMOKE_INVITATION: 'invite-smoke-code',
+      STAGING_ADMIN_EMAIL: 'admin@example.com',
+      STAGING_ADMIN_PASSWORD: 'AdminPassword!408',
     }),
     /must use HTTPS/,
   );
@@ -27,13 +30,53 @@ test('staging smoke configuration requires an HTTPS API and dedicated credential
     STAGING_SMOKE_EMAIL: 'smoke@example.com',
     STAGING_SMOKE_PASSWORD: 'ReliablePassword!408',
     STAGING_SMOKE_INVITATION: 'invite-smoke-code',
+    STAGING_ADMIN_EMAIL: 'admin@example.com',
+    STAGING_ADMIN_PASSWORD: 'AdminPassword!408',
   }), {
     apiUrl: 'https://api.example.com',
     webOrigin: 'https://web.example.com',
     email: 'smoke@example.com',
     password: 'ReliablePassword!408',
     invitationCode: 'invite-smoke-code',
+    adminEmail: 'admin@example.com',
+    adminPassword: 'AdminPassword!408',
   });
+});
+
+test('question-import staging smoke exercises the admin review and confirmation release gate', async () => {
+  const calls = [];
+  let confirmationCalls = 0;
+  const fetchImpl = async (url, init = {}) => {
+    const requestUrl = new URL(url);
+    const method = init.method ?? 'GET';
+    calls.push({ method, path: requestUrl.pathname, auth: headerValue(init.headers, 'authorization'), body: init.body });
+    if (requestUrl.pathname === '/auth/login') return jsonResponse(200, { accessToken: 'admin-token', user: { role: 'admin' } });
+    if (requestUrl.pathname === '/admin/question-imports' && method === 'POST' && !headerValue(init.headers, 'authorization')) return jsonResponse(401, { message: 'Unauthorized' });
+    if (requestUrl.pathname === '/admin/question-imports' && method === 'POST') return jsonResponse(202, { batchId: 'batch-1', status: 'queued' });
+    if (requestUrl.pathname === '/admin/question-imports/batch-1') return jsonResponse(200, { id: 'batch-1', status: 'parsing_partial_failure', jobs: [{ id: 'failed-job', state: 'failed' }], assets: [{ pageNumber: 1 }] });
+    if (requestUrl.pathname === '/admin/question-imports/batch-1/retry') return jsonResponse(201, { batchId: 'batch-1', retriedJobs: 1 });
+    if (requestUrl.pathname === '/admin/question-imports/batch-1/candidates') return jsonResponse(200, { items: [
+      { id: 'skip', revision: 0, status: 'duplicate_suspected', duplicateAction: 'skip', stem: 'hidden' },
+      { id: 'version', revision: 0, status: 'pending_review', duplicateAction: 'new_version', targetFamilyId: 'family-1', stem: 'hidden' },
+    ], total: 2 });
+    if (requestUrl.pathname.startsWith('/admin/question-imports/candidates/') && method === 'PATCH') return jsonResponse(200, { id: 'version', revision: 1, status: 'approved' });
+    if (requestUrl.pathname === '/admin/question-imports/batch-1/confirm') {
+      confirmationCalls += 1;
+      return jsonResponse(201, { importedCandidateIds: ['version'], skippedCandidateIds: ['skip'], questionIds: ['question-current'] });
+    }
+    throw new Error(`Unexpected request: ${method} ${requestUrl.pathname}`);
+  };
+
+  const result = await runQuestionImportSmoke({
+    apiUrl: 'https://api.example.com', adminEmail: 'admin@example.com', adminPassword: 'AdminPassword!408',
+  }, { fetchImpl, log: () => undefined });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.importedQuestionId, 'question-current');
+  assert.equal(confirmationCalls, 2, 'the same idempotency key must be replayed once');
+  assert.equal(calls.some((call) => call.path === '/admin/question-imports' && !call.auth), true, 'unauthorized upload must be checked');
+  assert.equal(calls.some((call) => call.path.endsWith('/retry')), true);
+  assert.equal(calls.filter((call) => call.path.endsWith('/confirm')).length, 2);
 });
 
 test('staging smoke verifies the authenticated persistence path without exposing secrets', async () => {
@@ -159,6 +202,7 @@ function jsonResponse(status, body, headers = {}) {
 }
 
 function headerValue(headers, name) {
+  if (!headers) return undefined;
   if (headers instanceof Headers) return headers.get(name);
   const entry = Object.entries(headers).find(([key]) => key.toLowerCase() === name.toLowerCase());
   return entry?.[1];
