@@ -587,10 +587,13 @@ async function assertImportConfirmation(client, services, audits, storage) {
   })));
   const assets = new services.ImportAssetService(client, storage);
   const versionCandidateDraft = candidates.find((candidate) => candidate.duplicateAction === 'new_version');
+  const createdCandidateDraft = candidates.find((candidate) => candidate.duplicateAction === 'create');
+  const sharedCandidateImage = pngFixture('shared-permanent-asset');
   const uploadedAsset = await assets.uploadCandidateAsset(versionCandidateDraft.id, {
-    buffer: pngFixture('new-version'),
+    buffer: sharedCandidateImage,
     sourceRegion: JSON.stringify({ page: 2, x: 10, y: 20, width: 120, height: 80 }),
   });
+  await assets.uploadCandidateAsset(createdCandidateDraft.id, { buffer: sharedCandidateImage });
   assert.equal(uploadedAsset.scope, 'temporary', 'candidate image upload must remain temporary before confirmation');
   const confirmation = new ImportConfirmationService(client, audits, questions, assets);
   const input = { candidateIds: candidates.map((candidate) => candidate.id), idempotencyKey: randomUUID() };
@@ -608,12 +611,15 @@ async function assertImportConfirmation(client, services, audits, storage) {
   assert.equal(updated.versionNumber, old.versionNumber + 1);
   assert.deepEqual(updated.formulas, [{ latex: 'T(n)=2T(n/2)+n', source: 'fixture' }], 'new imported versions must preserve formula metadata');
   assert.deepEqual(updated.sourceRegion, { page: 2, x: 10, y: 20, width: 120, height: 80 }, 'new imported versions must preserve original page crop metadata');
-  const [oldAssets, promotedAssets] = await Promise.all([
+  const [oldAssets, createdAssets, promotedAssets] = await Promise.all([
     client.questionImportAsset.findMany({ where: { questionId: oldQuestion.id, scope: 'permanent' } }),
+    client.questionImportAsset.findMany({ where: { questionId: createdCandidate.importedQuestionId, scope: 'permanent' } }),
     client.questionImportAsset.findMany({ where: { questionId: updated.id, scope: 'permanent' } }),
   ]);
   assert.equal(oldAssets.length, 1, 'historical question version must keep its existing asset ownership');
+  assert.equal(createdAssets.length, 1, 'independent question must retain a permanent asset reference for duplicate-content crops');
   assert.equal(promotedAssets.length, 1, 'new current version must own the promoted candidate asset');
+  assert.equal(createdAssets[0].storageKey, promotedAssets[0].storageKey, 'duplicate-content crops may share the permanent blob while retaining one asset row per question');
   assert.equal(promotedAssets[0].candidateId, null, 'promoted permanent assets must not retain candidate ownership');
   assert.match(promotedAssets[0].storageKey, /^permanent\//);
   assert.ok((await readFile(await storage.resolveAssetPath(oldAssets[0].storageKey))).length > 0, 'historical version asset must remain reachable');

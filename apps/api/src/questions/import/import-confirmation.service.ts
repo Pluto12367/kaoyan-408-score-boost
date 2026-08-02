@@ -91,7 +91,7 @@ export class ImportConfirmationService {
           batchId, scope: 'permanent', storageKey: asset.permanentStorageKey, sha256: asset.sha256, mediaType: asset.mediaType,
           byteSize: asset.byteSize, pageNumber: asset.pageNumber, sourceRegion: asset.sourceRegion ?? undefined, questionId,
           promotedAt: new Date(),
-        })), skipDuplicates: true });
+        })) });
         result.importedCandidateIds.push(candidate.id);
         result.questionIds.push(questionId);
       }

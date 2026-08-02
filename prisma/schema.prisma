@@ -425,7 +425,7 @@ model QuestionImportAsset {
   id           String                   @id @default(cuid())
   batchId      String
   scope        QuestionImportAssetScope @default(temporary)
-  storageKey   String                   @unique
+  storageKey   String
   sha256       String
   mediaType    String
   byteSize     Int
@@ -445,6 +445,7 @@ model QuestionImportAsset {
   @@index([candidateId])
   @@index([questionId])
   @@index([sha256])
+  @@index([storageKey])
 }
 
 model QuestionImportConfirmation {
