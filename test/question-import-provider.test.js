@@ -13,6 +13,7 @@ import { ImportBatchService } from '../apps/api/dist/questions/import/import-bat
 import { ImportStorageService } from '../apps/api/dist/questions/import/import-storage.service.js';
 import { TencentPageOcrProvider } from '../apps/api/dist/questions/import/providers/tencent-page-ocr.provider.js';
 import { PDFDocument } from 'pdf-lib';
+import { readFileSync } from 'node:fs';
 
 const input = { jobId: 'job-1', storageKey: 'temporary/11111111-1111-1111-1111-111111111111', fileName: 'sample.pdf', pageStart: 1, pageEnd: 2 };
 
@@ -121,6 +122,14 @@ test('Tencent page OCR sends a rendered JPEG once and maps text polygons without
   assert.equal(calls[0].request.ImageBase64, Buffer.from('jpeg').toString('base64'));
   assert.equal(page.pageNumber, 3);
   assert.deepEqual(page.blocks[0].region, { x: 0.1, y: 0.2, width: 0.5, height: 0.6 });
+});
+
+test('document fallback processing is serial and counts every paid Tencent call', () => {
+  const worker = readFileSync(new URL('../apps/api/src/questions/import/import-worker.service.ts', import.meta.url), 'utf8');
+  const pdf = readFileSync(new URL('../apps/api/src/questions/import/pdf-document.service.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(worker, /Promise\.all\(parsed\.pages\.map/);
+  assert.match(worker, /tencentFallbackCalls/);
+  assert.match(pdf, /QUESTION_IMPORT_MAX_PROVIDER_PAGES/);
 });
 
 test('PDF jobs fail safely with an administrator message when MinerU credentials are absent', async () => {

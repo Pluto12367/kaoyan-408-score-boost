@@ -250,6 +250,12 @@ export class ImportStorageService {
     if (/^candidate-asset\/[a-f0-9-]{36}\.(?:png|jpg|webp)$/u.test(storageKey)) return this.removeTemporaryAsset(storageKey);
     if (/^page-preview\/[a-f0-9-]{36}$/u.test(storageKey)) { await rm(await this.resolvePagePreviewJpegPath(storageKey), { force: true }); return; }
     if (/^provider-split\/[a-f0-9-]{36}$/u.test(storageKey)) return this.removeProviderSplitArtifact(storageKey);
+    const provider = /^provider\/([a-f0-9-]{36})\.(?:json|zip)$/u.exec(storageKey);
+    if (provider) {
+      const directory = resolve(this.config.temporaryDirectory, 'provider');
+      await this.assertTrustedParent(this.config.temporaryDirectory, directory);
+      await Promise.all([rm(resolve(directory, `${provider[1]}.json`), { force: true }), rm(resolve(directory, `${provider[1]}.zip`), { force: true })]);
+    }
   }
 
   async listPermanentObjects(): Promise<Array<{ storageKey: string; byteSize: number }>> {

@@ -30,12 +30,21 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
       PGDATABASE: ${POSTGRES_DB}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      QUESTION_IMPORT_PERMANENT_DIR: /question-import-data
     depends_on:
       postgres:
+        condition: service_healthy
+      app:
         condition: service_healthy
     volumes:
       - ./deploy/tencent-ip/backup.sh:/usr/local/bin/backup.sh:ro
       - ./backups:/backups
+      - type: volume
+        source: question_import_data
+        target: /question-import-data
+        read_only: true
+        volume:
+          subpath: permanent
     entrypoint: ["/bin/sh", "/usr/local/bin/backup.sh"]
 
   app:
@@ -54,6 +63,7 @@ services:
       AUDIT_LOG_RETENTION_DAYS: "90"
       QUESTION_IMPORT_DATA_DIR: /var/lib/kaoyan408/question-imports
       QUESTION_IMPORT_MAX_PDF_BYTES: ${QUESTION_IMPORT_MAX_PDF_BYTES:-524288000}
+      QUESTION_IMPORT_MAX_PROVIDER_PAGES: ${QUESTION_IMPORT_MAX_PROVIDER_PAGES:-200}
       QUESTION_IMPORT_TEMPORARY_QUOTA_BYTES: ${QUESTION_IMPORT_TEMPORARY_QUOTA_BYTES:-10737418240}
       QUESTION_IMPORT_DISK_STOP_PERCENT: ${QUESTION_IMPORT_DISK_STOP_PERCENT:-80}
       QUESTION_IMPORT_WORKER_CONCURRENCY: "1"

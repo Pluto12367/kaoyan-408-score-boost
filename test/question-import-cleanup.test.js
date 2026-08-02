@@ -37,6 +37,8 @@ test('cleanup service protects unresolved data and only removes unreferenced per
   assert.match(cleanup, /bytes/);
   assert.match(cleanup, /onModuleInit/);
   assert.match(cleanup, /24 \* 60 \* 60 \* 1000/);
+  assert.match(cleanup, /providerInputStorageKey/);
+  assert.match(cleanup, /rawResultKey/);
 });
 
 test('bare backup verification performs a deterministic archive self-check without a database', () => {

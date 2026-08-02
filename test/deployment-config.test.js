@@ -140,6 +140,11 @@ test('production backup tooling writes verifiable archives and isolates restore 
   assert.match(backupService, /profiles:\s*\["tools"\]/);
   assert.match(backupService, /backup\.sh:\/usr\/local\/bin\/backup\.sh:ro/);
   assert.match(backupService, /\.\/backups:\/backups/);
+  assert.match(backupService, /QUESTION_IMPORT_PERMANENT_DIR:\s*\/question-import-data/);
+  assert.match(backupService, /source:\s*question_import_data/);
+  assert.match(backupService, /target:\s*\/question-import-data/);
+  assert.match(backupService, /read_only:\s*true/);
+  assert.match(backupService, /subpath:\s*permanent/);
   assert.match(backupService, /depends_on:\s+postgres:\s+condition:\s+service_healthy/);
   assert.match(backupScript, /pg_dump/);
   assert.match(backupScript, /cd "\$backup_dir" && sha256sum/);

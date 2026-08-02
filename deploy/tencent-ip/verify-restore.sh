@@ -6,7 +6,12 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   exit 1
 fi
 
+dump_path=$1
 asset_path=${2:-}
+if [ -z "$asset_path" ]; then
+  inferred_asset_path="${dump_path%.dump}.assets.tar.gz"
+  if [ -f "$inferred_asset_path" ]; then asset_path="$inferred_asset_path"; fi
+fi
 if [ -n "$asset_path" ]; then
   if [ ! -f "$asset_path" ] || [ ! -r "$asset_path" ] || [ ! -s "$asset_path" ]; then
     echo "Asset archive path must be a readable, non-empty file: $asset_path" >&2
@@ -19,7 +24,6 @@ if [ -n "$asset_path" ]; then
   tar -tzf "$asset_path" >/dev/null
 fi
 
-dump_path=$1
 if [ ! -f "$dump_path" ] || [ ! -r "$dump_path" ] || [ ! -s "$dump_path" ]; then
   echo "Dump path must be a readable, non-empty file: $dump_path" >&2
   exit 1

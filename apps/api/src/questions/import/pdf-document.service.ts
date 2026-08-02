@@ -8,16 +8,24 @@ import { ImportStorageService } from './import-storage.service';
 export interface PdfPageRange { pageStart: number; pageEnd: number; }
 export interface StoredFile { storageKey: string; sha256: string; mediaType: string; byteSize: number; pageStart: number; pageEnd: number; }
 
-const MAX_PROVIDER_PAGES = 200;
+const DEFAULT_MAX_PROVIDER_PAGES = 200;
 const PROCESS_TIMEOUT_MS = 10 * 60_000;
 const MAX_PROCESS_OUTPUT_BYTES = 64 * 1024;
 
-export function splitPageRanges(pageCount: number, maximum = MAX_PROVIDER_PAGES): PdfPageRange[] {
+export function splitPageRanges(pageCount: number, maximum = DEFAULT_MAX_PROVIDER_PAGES): PdfPageRange[] {
   if (!Number.isInteger(pageCount) || pageCount < 1) throw new BadRequestException('PDF must contain at least one page');
   if (!Number.isInteger(maximum) || maximum < 1) throw new BadRequestException('PDF page chunk size is invalid');
   const ranges: PdfPageRange[] = [];
   for (let pageStart = 1; pageStart <= pageCount; pageStart += maximum) ranges.push({ pageStart, pageEnd: Math.min(pageCount, pageStart + maximum - 1) });
   return ranges;
+}
+
+export function providerPageLimit(env: NodeJS.ProcessEnv = process.env): number {
+  const value = env.QUESTION_IMPORT_MAX_PROVIDER_PAGES;
+  if (value === undefined || value === '') return DEFAULT_MAX_PROVIDER_PAGES;
+  const maximum = Number(value);
+  if (!Number.isInteger(maximum) || maximum < 1) throw new BadRequestException('QUESTION_IMPORT_MAX_PROVIDER_PAGES must be a positive integer');
+  return maximum;
 }
 
 @Injectable()
