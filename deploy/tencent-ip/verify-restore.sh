@@ -1,9 +1,22 @@
 #!/bin/sh
 set -eu
 
-if [ "$#" -ne 1 ]; then
-  echo "Usage: $0 <dump-path>" >&2
+if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+  echo "Usage: $0 <dump-path> [asset-archive-path]" >&2
   exit 1
+fi
+
+asset_path=${2:-}
+if [ -n "$asset_path" ]; then
+  if [ ! -f "$asset_path" ] || [ ! -r "$asset_path" ] || [ ! -s "$asset_path" ]; then
+    echo "Asset archive path must be a readable, non-empty file: $asset_path" >&2
+    exit 1
+  fi
+  asset_directory=$(cd "$(dirname "$asset_path")" && pwd -P)
+  asset_name=$(basename "$asset_path")
+  asset_path="$asset_directory/$asset_name"
+  sha256sum -c "$asset_path.sha256"
+  tar -tzf "$asset_path" >/dev/null
 fi
 
 dump_path=$1
@@ -68,6 +81,17 @@ tables_ready=$(docker exec -e PGPASSWORD="$restore_password" "$container_name" \
 if [ "$tables_ready" != 'ok' ]; then
   echo 'Restored database is missing required Prisma tables.' >&2
   exit 1
+fi
+
+if [ -n "$asset_path" ]; then
+  referenced_asset=$(docker exec -e PGPASSWORD="$restore_password" "$container_name" \
+    psql --no-psqlrc --tuples-only --no-align --quiet \
+    --username="$restore_user" --dbname="$restore_db" \
+    --command="SELECT \"storageKey\" FROM \"QuestionImportAsset\" WHERE \"scope\" = 'permanent' LIMIT 1;")
+  if [ -n "$referenced_asset" ] && ! tar -tzf "$asset_path" | grep -Fq "${referenced_asset#permanent/}"; then
+    echo 'Asset archive is missing a permanent asset referenced by the restored database.' >&2
+    exit 1
+  fi
 fi
 
 echo "Restore verification succeeded in isolated container: $container_name"

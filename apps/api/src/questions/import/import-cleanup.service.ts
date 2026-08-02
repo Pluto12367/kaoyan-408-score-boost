@@ -1,0 +1,39 @@
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+import { ImportStorageService } from './import-storage.service';
+
+export interface CleanupSummary { temporaryObjects: number; permanentObjects: number; bytes: number; unresolvedBatches: number; }
+const DAY = 24 * 60 * 60 * 1000;
+
+@Injectable()
+export class ImportCleanupService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(ImportCleanupService.name);
+  private timer?: NodeJS.Timeout;
+  constructor(private readonly prisma: PrismaService, private readonly storage: ImportStorageService) {}
+
+  onModuleInit(): void { void this.run(new Date()); this.timer = setInterval(() => void this.run(new Date()), DAY); this.timer.unref(); }
+  onModuleDestroy(): void { if (this.timer) clearInterval(this.timer); }
+
+  async run(now: Date): Promise<CleanupSummary> {
+    const summary: CleanupSummary = { temporaryObjects: 0, permanentObjects: 0, bytes: 0, unresolvedBatches: 0 };
+    const expired = await this.prisma.questionImportBatch.findMany({
+      where: { expiresAt: { lte: now } },
+      select: { id: true, originalStorageKey: true, candidates: { where: { status: { in: ['pending_review', 'needs_edit', 'duplicate_suspected'] } }, select: { id: true } }, assets: { where: { scope: 'temporary' }, select: { id: true, storageKey: true, byteSize: true } } },
+    });
+    for (const batch of expired) {
+      if (batch.candidates.length) { summary.unresolvedBatches += 1; this.logger.warn(`Retaining expired question import batch ${batch.id}: unresolved candidates`); continue; }
+      await this.storage.removeTemporary(batch.originalStorageKey);
+      for (const asset of batch.assets) {
+        await this.storage.removeTemporaryObject(asset.storageKey);
+        await this.prisma.questionImportAsset.delete({ where: { id: asset.id } });
+        summary.temporaryObjects += 1; summary.bytes += asset.byteSize;
+      }
+    }
+    const permanent = await this.storage.listPermanentObjects();
+    for (const object of permanent) {
+      const reference = await this.prisma.questionImportAsset.findFirst({ where: { storageKey: object.storageKey, scope: 'permanent' }, select: { id: true } });
+      if (!reference) { await this.storage.removePermanentObject(object.storageKey); summary.permanentObjects += 1; summary.bytes += object.byteSize; }
+    }
+    return summary;
+  }
+}

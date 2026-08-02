@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, Optional, PayloadTooLargeException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { copyFile, lstat, mkdir, open, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, statfs, writeFile } from 'node:fs/promises';
 import { basename, dirname, extname, isAbsolute, posix, relative, resolve } from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { createInflateRaw } from 'node:zlib';
@@ -48,6 +48,16 @@ function isContained(parent: string, candidate: string): boolean {
   return remainder !== '' && !remainder.startsWith('..') && !isAbsolute(remainder);
 }
 
+async function directoryBytes(directory: string): Promise<number> {
+  let total = 0;
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const path = resolve(directory, entry.name);
+    if (entry.isDirectory()) total += await directoryBytes(path);
+    else if (entry.isFile()) total += (await stat(path)).size;
+  }
+  return total;
+}
+
 function fileTypeFromName(fileName: string): ImportFileType {
   const extension = extname(fileName).toLowerCase();
   const base = fileName.slice(0, -extension.length);
@@ -84,6 +94,7 @@ export class ImportStorageService {
       if (!actual.isFile() || actual.size <= 0 || actual.size !== file.size || actual.size > maximum) {
         throw new PayloadTooLargeException(`Upload exceeds the ${fileType} size limit`);
       }
+      await this.assertAdmission(actual.size);
       const fileSha256 = await this.hashAndValidate(incomingPath, fileType);
       const finalName = randomUUID();
       const finalPath = resolve(this.config.temporaryDirectory, finalName);
@@ -234,6 +245,31 @@ export class ImportStorageService {
     await rm(path, { force: true });
   }
 
+  async removeTemporaryObject(storageKey: string): Promise<void> {
+    if (/^temporary\/[a-f0-9-]{36}$/u.test(storageKey)) return this.removeTemporary(storageKey);
+    if (/^candidate-asset\/[a-f0-9-]{36}\.(?:png|jpg|webp)$/u.test(storageKey)) return this.removeTemporaryAsset(storageKey);
+    if (/^page-preview\/[a-f0-9-]{36}$/u.test(storageKey)) { await rm(await this.resolvePagePreviewJpegPath(storageKey), { force: true }); return; }
+    if (/^provider-split\/[a-f0-9-]{36}$/u.test(storageKey)) return this.removeProviderSplitArtifact(storageKey);
+  }
+
+  async listPermanentObjects(): Promise<Array<{ storageKey: string; byteSize: number }>> {
+    const result: Array<{ storageKey: string; byteSize: number }> = [];
+    for (const prefix of await readdir(this.config.permanentDirectory, { withFileTypes: true })) {
+      if (!prefix.isDirectory() || !/^[a-f0-9]{2}$/u.test(prefix.name)) continue;
+      for (const file of await readdir(resolve(this.config.permanentDirectory, prefix.name), { withFileTypes: true })) {
+        if (!file.isFile() || !/^[a-f0-9]{64}\.(png|jpg|webp)$/u.test(file.name)) continue;
+        const path = resolve(this.config.permanentDirectory, prefix.name, file.name);
+        result.push({ storageKey: `permanent/${prefix.name}/${file.name}`, byteSize: (await stat(path)).size });
+      }
+    }
+    return result;
+  }
+
+  async removePermanentObject(storageKey: string): Promise<void> {
+    if (!/^permanent\/[a-f0-9]{2}\/[a-f0-9]{64}\.(?:png|jpg|webp)$/u.test(storageKey)) return;
+    await rm(await this.resolveAssetPath(storageKey), { force: true });
+  }
+
   /** Copy, never move: callers can commit the permanent reference after this returns. */
   async copyToPermanent(storageKey: string, sha256: string, mediaType: string): Promise<string> {
     if (!/^[a-f0-9]{64}$/u.test(sha256)) throw new BadRequestException('Question import asset checksum is invalid');
@@ -293,6 +329,14 @@ export class ImportStorageService {
     const filePath = resolve(this.config.temporaryDirectory, match[1]);
     await this.assertTrustedParent(this.config.temporaryDirectory, filePath);
     return filePath;
+  }
+
+  private async assertAdmission(incomingBytes: number): Promise<void> {
+    const used = await directoryBytes(this.config.temporaryDirectory);
+    if (used + incomingBytes > this.config.temporaryQuotaBytes) throw new PayloadTooLargeException('Question import temporary storage quota is exhausted');
+    const filesystem = await statfs(this.config.dataDirectory);
+    const usedPercent = 100 * (1 - Number(filesystem.bavail) / Number(filesystem.blocks));
+    if (usedPercent >= this.config.diskStopPercent) throw new PayloadTooLargeException('Question import storage is temporarily unavailable');
   }
 
   private async providerSplitDirectory(): Promise<string> {

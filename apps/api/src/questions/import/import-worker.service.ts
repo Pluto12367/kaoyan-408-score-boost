@@ -9,6 +9,8 @@ import { MineruProvider, PdfParserNotConfiguredError } from './providers/mineru.
 import { PdfDocumentService, splitPageRanges, type PdfPageRange } from './pdf-document.service';
 import { PdfPageRenderer, type QuestionImportAsset } from './pdf-page-renderer';
 import { QuestionStructureService } from './question-structure.service';
+import { TencentPageOcrProvider } from './providers/tencent-page-ocr.provider';
+import { ImportQualityService } from './import-quality.service';
 
 export const IMPORT_WORKER_OPTIONS = Symbol('IMPORT_WORKER_OPTIONS');
 
@@ -84,6 +86,8 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     @Optional() private readonly pdfDocuments?: PdfDocumentService,
     @Optional() private readonly pageRenderer?: PdfPageRenderer,
     @Optional() private readonly structure?: QuestionStructureService,
+    @Optional() private readonly tencentOcr?: TencentPageOcrProvider,
+    @Optional() private readonly quality = new ImportQualityService(),
   ) {
     this.workerId = options.workerId ?? `question-import-${randomUUID()}`;
     this.leaseMs = positiveInteger(options.leaseMs, 5 * 60_000);
@@ -281,7 +285,21 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const parsed = await this.documentProvider.fetchResult(submitted.externalTaskId, providerInput);
     const previews: QuestionImportAsset[] = [];
     if (this.pageRenderer) for (const page of parsed.pages) previews.push(await this.pageRenderer.render(job.originalStorageKey, page.pageNumber));
-    const drafts = this.structure?.structure(parsed) ?? [];
+    const selectedPages = await Promise.all(parsed.pages.map(async (page) => {
+      const preview = previews.find((item) => item.pageNumber === page.pageNumber);
+      if (!preview || !this.tencentOcr?.isConfigured() || !this.quality.shouldFallback(page.quality)) return page;
+      try {
+        const fallback = await this.tencentOcr.recognize(await this.storage.resolvePagePreviewJpegPath(preview.storageKey), page.pageNumber, page.width, page.height);
+        return fallback.quality.score > page.quality.score
+          ? { ...fallback, quality: { ...fallback.quality, signals: [...fallback.quality.signals, 'fallback_selected'] } }
+          : { ...page, quality: { ...page.quality, signals: [...page.quality.signals, 'fallback_retained_mineru'] } };
+      } catch (error) {
+        this.logger.warn(`Tencent OCR fallback failed for page ${page.pageNumber}; retaining MinerU result`);
+        return { ...page, quality: { ...page.quality, signals: [...page.quality.signals, 'fallback_unavailable'] } };
+      }
+    }));
+    const selected = { ...parsed, pages: selectedPages };
+    const drafts = this.structure?.structure(selected) ?? [];
     const now = this.now();
     const statusCounts = { document_parsed: parsed.pages.length };
     await this.prisma.$transaction(async (tx) => {
@@ -289,7 +307,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       if (!currentBatch || ['cancelled', 'expired', 'completed'].includes(currentBatch.status)) throw new Error('QUESTION_IMPORT_BATCH_TERMINAL');
       const batchClaimed = await tx.questionImportBatch.updateMany({
         where: { id: job.batchId, status: { notIn: ['cancelled', 'expired', 'completed'] } },
-        data: { status: currentBatch.status === 'parsing_partial_failure' ? 'parsing_partial_failure' : 'review', statusCounts, providerSummary: { provider: parsed.provider, model: parsed.model, pages: parsed.pages.length }, revision: { increment: 1 } },
+        data: { status: currentBatch.status === 'parsing_partial_failure' ? 'parsing_partial_failure' : 'review', statusCounts, providerSummary: { provider: parsed.provider, model: parsed.model, pages: parsed.pages.length, fallback: selectedPages.filter((page) => page.quality.signals.includes('fallback_selected')).length }, revision: { increment: 1 } },
       });
       if (batchClaimed.count !== 1) throw new Error('QUESTION_IMPORT_BATCH_TERMINAL');
       const completed = await tx.questionImportJob.updateMany({
@@ -305,7 +323,8 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
           completedAt: now,
           leaseOwner: null,
           leaseExpiresAt: null,
-          quality: { rawResultKey: parsed.rawResultKey ?? null, pages: JSON.parse(JSON.stringify(parsed.pages)) } as Prisma.InputJsonObject,
+          quality: { rawResultKey: parsed.rawResultKey ?? null, mineruPages: JSON.parse(JSON.stringify(parsed.pages)), selectedPages: JSON.parse(JSON.stringify(selectedPages)) } as Prisma.InputJsonObject,
+          cost: { mineruPages: parsed.pages.length, tencentFallbackPages: selectedPages.filter((page) => page.quality.signals.includes('fallback_selected')).length } as Prisma.InputJsonObject,
           error: Prisma.DbNull,
         },
       });

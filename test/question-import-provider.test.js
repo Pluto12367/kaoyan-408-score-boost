@@ -11,6 +11,7 @@ import { ImportQualityService } from '../apps/api/dist/questions/import/import-q
 import { ImportWorkerService } from '../apps/api/dist/questions/import/import-worker.service.js';
 import { ImportBatchService } from '../apps/api/dist/questions/import/import-batch.service.js';
 import { ImportStorageService } from '../apps/api/dist/questions/import/import-storage.service.js';
+import { TencentPageOcrProvider } from '../apps/api/dist/questions/import/providers/tencent-page-ocr.provider.js';
 import { PDFDocument } from 'pdf-lib';
 
 const input = { jobId: 'job-1', storageKey: 'temporary/11111111-1111-1111-1111-111111111111', fileName: 'sample.pdf', pageStart: 1, pageEnd: 2 };
@@ -101,6 +102,25 @@ test('quality service flags pages with no text blocks for fallback', () => {
   const quality = new ImportQualityService();
   assert.deepEqual(quality.assess([]), { score: 0, signals: ['empty_page'] });
   assert.equal(quality.needsFallback({ score: 0, signals: ['empty_page'] }), true);
+});
+
+test('Tencent page OCR sends a rendered JPEG once and maps text polygons without cloud calls', async () => {
+  const calls = [];
+  const provider = new TencentPageOcrProvider('secret-id', 'secret-key', 'ap-shanghai', {
+    readPage: async () => Buffer.from('jpeg'),
+    createClient: (secretId, secretKey, region) => ({
+      GeneralBasicOCR: async (request) => {
+        calls.push({ secretId, secretKey, region, request });
+        return { TextDetections: [{ DetectedText: '题干文字', Confidence: 98, Polygon: [{ X: 10, Y: 20 }, { X: 60, Y: 20 }, { X: 60, Y: 80 }, { X: 10, Y: 80 }] }] };
+      },
+    }),
+  });
+  const page = await provider.recognize('/private/page.jpg', 3, 100, 100);
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].request.ImageBase64, Buffer.from('jpeg').toString('base64'));
+  assert.equal(page.pageNumber, 3);
+  assert.deepEqual(page.blocks[0].region, { x: 0.1, y: 0.2, width: 0.5, height: 0.6 });
 });
 
 test('PDF jobs fail safely with an administrator message when MinerU credentials are absent', async () => {

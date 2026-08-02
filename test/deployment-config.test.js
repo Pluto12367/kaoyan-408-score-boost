@@ -94,7 +94,9 @@ test('web gateway builds a static SPA and proxies the same-origin API', () => {
   assert.match(gatewayConfig, /proxy_pass http:\/\/app:3000\//);
   assert.match(gatewayConfig, /location = \/health/);
   assert.match(gatewayConfig, /try_files \$uri \$uri\/ \/index\.html/);
-  assert.match(gatewayConfig, /client_max_body_size 10m/);
+  assert.match(gatewayConfig, /client_max_body_size 500m/);
+  assert.match(gatewayConfig, /client_body_timeout 120s/);
+  assert.match(gatewayConfig, /proxy_read_timeout 120s/);
 });
 
 test('production Compose exposes only the gateway and uses production-safe application settings', () => {
@@ -106,6 +108,9 @@ test('production Compose exposes only the gateway and uses production-safe appli
   assert.doesNotMatch(productionCompose, /"3000:3000"/);
   assert.doesNotMatch(productionCompose, /"5432:5432"/);
   assert.match(productionCompose, /postgres_data:\/var\/lib\/postgresql\/data/);
+  assert.match(productionCompose, /question_import_data:\/var\/lib\/kaoyan408\/question-imports/);
+  assert.match(productionCompose, /QUESTION_IMPORT_WORKER_CONCURRENCY:\s+"1"/);
+  assert.match(productionCompose, /NODE_OPTIONS:/);
   assert.match(productionCompose, /restart:\s+unless-stopped/g);
   assert.match(productionCompose, /ALLOW_DEMO_AUTH:\s+"false"/);
   assert.match(productionCompose, /WEB_ORIGIN:\s*\$\{WEB_ORIGIN:-http:\/\/\$\{PUBLIC_IP\}\}/);
@@ -140,6 +145,9 @@ test('production backup tooling writes verifiable archives and isolates restore 
   assert.match(backupScript, /cd "\$backup_dir" && sha256sum/);
   assert.doesNotMatch(backupScript, /sha256sum "\$backup_path"/);
   assert.match(backupScript, /BACKUP_RETENTION_DAYS/);
+  assert.match(backupScript, /QUESTION_IMPORT_PERMANENT_DIR/);
+  assert.match(backupScript, /assets\.tar\.gz/);
+  assert.match(restoreScript, /tar -tzf/);
   assert.match(backupScript, /-delete/);
   assert.match(restoreScript, /restore_id="\$\(date -u .*\)-\$\$"/);
   assert.match(restoreScript, /container_name="kaoyan408-restore-drill-\$restore_id"/);

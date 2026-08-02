@@ -24,6 +24,8 @@ import { PdfDocumentService } from './import/pdf-document.service';
 import { PdfPageRenderer } from './import/pdf-page-renderer';
 import { QuestionStructureService } from './import/question-structure.service';
 import { ImportAssetService } from './import/import-asset.service';
+import { TencentPageOcrProvider } from './import/providers/tencent-page-ocr.provider';
+import { ImportCleanupService } from './import/import-cleanup.service';
 
 @Module({
   imports: [AuthModule, PrismaModule],
@@ -35,10 +37,11 @@ import { ImportAssetService } from './import/import-asset.service';
     QuestionImportCandidateAssetController,
   ],
   providers: [
-    QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportAssetService, ImportValidationService, ImportWorkerService,
+    QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportAssetService, ImportValidationService, ImportWorkerService, ImportCleanupService,
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
     QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService,
     PdfDocumentService, PdfPageRenderer, QuestionStructureService,
+    TencentPageOcrProvider,
     { provide: MineruProvider, useFactory: (storage: ImportStorageService, quality: ImportQualityService) => new MineruProvider(process.env.MINERU_API_TOKEN, {
       resolveSource: (input) => storage.resolveProviderSplitPdfPath(input.storageKey, input.pageStart, input.pageEnd),
       persistRaw: (result) => storage.putProviderArtifacts(result),

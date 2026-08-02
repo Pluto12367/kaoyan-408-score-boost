@@ -52,9 +52,20 @@ services:
       ALLOW_DEMO_AUTH: "false"
       ALLOW_INSECURE_HTTP_IP: ${ALLOW_INSECURE_HTTP_IP:-true}
       AUDIT_LOG_RETENTION_DAYS: "90"
+      QUESTION_IMPORT_DATA_DIR: /var/lib/kaoyan408/question-imports
+      QUESTION_IMPORT_MAX_PDF_BYTES: ${QUESTION_IMPORT_MAX_PDF_BYTES:-524288000}
+      QUESTION_IMPORT_TEMPORARY_QUOTA_BYTES: ${QUESTION_IMPORT_TEMPORARY_QUOTA_BYTES:-10737418240}
+      QUESTION_IMPORT_DISK_STOP_PERCENT: ${QUESTION_IMPORT_DISK_STOP_PERCENT:-80}
+      QUESTION_IMPORT_WORKER_CONCURRENCY: "1"
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=1536}
+      TENCENTCLOUD_SECRET_ID: ${TENCENTCLOUD_SECRET_ID:-}
+      TENCENTCLOUD_SECRET_KEY: ${TENCENTCLOUD_SECRET_KEY:-}
+      TENCENTCLOUD_REGION: ${TENCENTCLOUD_REGION:-ap-shanghai}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - question_import_data:/var/lib/kaoyan408/question-imports
     healthcheck:
       test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 10s
@@ -85,3 +96,4 @@ services:
 
 volumes:
   postgres_data:
+  question_import_data:

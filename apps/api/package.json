@@ -24,7 +24,8 @@
     "pdf-lib": "^1.17.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "saxes": "5.0.1"
+    "saxes": "5.0.1",
+    "tencentcloud-sdk-nodejs-ocr": "^4.1.268"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.2",
