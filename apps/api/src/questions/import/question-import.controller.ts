@@ -1,8 +1,8 @@
 import {
-  BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors,
+  BadRequestException, Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
+import { diskStorage, memoryStorage } from 'multer';
 import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import type { Response } from 'express';
@@ -20,6 +20,8 @@ import { BulkApproveCandidatesDto, UpdateImportCandidateDto } from './dto/update
 import { CandidateQueryDto } from './dto/candidate-query.dto';
 import { ConfirmImportDto } from './dto/confirm-import.dto';
 import { ImportConfirmationService } from './import-confirmation.service';
+import { ImportAssetService } from './import-asset.service';
+import { CandidateAssetUploadDto } from './dto/update-candidate.dto';
 
 const uploadConfig = loadImportConfig();
 
@@ -132,5 +134,48 @@ export class QuestionImportController {
   @Post(':batchId/retry')
   retry(@CurrentUser() user: { id: string }, @Param('batchId') batchId: string, @Body('jobIds') jobIds: unknown) {
     return this.imports.retry(user.id, batchId, jobIds);
+  }
+}
+
+@Controller('admin/question-import-assets')
+@UseGuards(RoleGuard)
+@Roles('admin')
+export class QuestionImportAssetController {
+  constructor(private readonly assetService: ImportAssetService) {}
+
+  @Get(':assetId')
+  async asset(@Param('assetId') assetId: string, @Res() response: Response) {
+    const asset = await this.assetService.readForAdmin(assetId);
+    response.setHeader('Content-Type', asset.mediaType);
+    response.setHeader('Cache-Control', 'private, max-age=300');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    createReadStream(asset.path).pipe(response);
+  }
+}
+
+@Controller('admin/question-import-candidates')
+@UseGuards(RoleGuard)
+@Roles('admin')
+export class QuestionImportCandidateAssetController {
+  constructor(private readonly assetService: ImportAssetService) {}
+
+  @Post(':candidateId/assets')
+  @UseInterceptors(FileInterceptor('file', {
+    storage: memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  }))
+  uploadCandidateAsset(
+    @Param('candidateId') candidateId: string,
+    @UploadedFile() file: { buffer?: Buffer } | undefined,
+    @Body() input: CandidateAssetUploadDto,
+  ) {
+    if (!file?.buffer) throw new BadRequestException('An image asset is required');
+    return this.assetService.uploadCandidateAsset(candidateId, { buffer: file.buffer, sourceRegion: input.sourceRegion });
+  }
+
+  @Delete(':candidateId/assets/:assetId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async deleteCandidateAsset(@Param('candidateId') candidateId: string, @Param('assetId') assetId: string) {
+    await this.assetService.deleteCandidateAsset(candidateId, assetId);
   }
 }

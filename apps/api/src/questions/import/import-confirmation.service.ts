@@ -1,10 +1,11 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { Prisma, QuestionImportCandidateStatus, type QuestionImportCandidate } from '@prisma/client';
 import { AuditEventService } from '../../operations/audit-event.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { QuestionsService } from '../questions.service';
 import { computeImportFingerprint } from './import-fingerprint';
 import type { ConfirmImportDto } from './dto/confirm-import.dto';
+import { ImportAssetService } from './import-asset.service';
 
 const CONFIRMATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_SERIALIZATION_ATTEMPTS = 3;
@@ -23,6 +24,7 @@ export class ImportConfirmationService {
     private readonly prisma: PrismaService,
     private readonly auditEvents: AuditEventService,
     private readonly questions: QuestionsService,
+    @Optional() private readonly assets?: ImportAssetService,
   ) {}
 
   async confirm(batchId: string, input: ConfirmImportDto, actorId: string): Promise<ImportConfirmationResult> {
@@ -34,10 +36,12 @@ export class ImportConfirmationService {
     const existing = await this.prisma.questionImportConfirmation.findUnique({ where: { idempotencyKey } });
     if (existing) return this.replayOrReject(existing, batchId, candidateIds);
 
+    // Copy first so a database rollback cannot destroy the only reviewable asset. A later sweep can remove an unreferenced copy.
+    const promotions = this.assets ? await this.assets.preparePromotions(candidateIds) : [];
     let result: ImportConfirmationResult | undefined;
     for (let attempt = 0; attempt < MAX_SERIALIZATION_ATTEMPTS; attempt += 1) {
       try {
-        result = await this.confirmInTransaction(batchId, candidateIds, idempotencyKey, actorId);
+        result = await this.confirmInTransaction(batchId, candidateIds, idempotencyKey, actorId, promotions);
         break;
       } catch (error) {
         if (isPrismaCode(error, 'P2002')) {
@@ -53,7 +57,10 @@ export class ImportConfirmationService {
     return result;
   }
 
-  private async confirmInTransaction(batchId: string, candidateIds: string[], idempotencyKey: string, actorId: string) {
+  private async confirmInTransaction(
+    batchId: string, candidateIds: string[], idempotencyKey: string, actorId: string,
+    promotions: Awaited<ReturnType<ImportAssetService['preparePromotions']>>,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       await lockBatch(tx, batchId);
       const prior = await tx.questionImportConfirmation.findUnique({ where: { idempotencyKey } });
@@ -79,6 +86,12 @@ export class ImportConfirmationService {
         await tx.questionImportCandidate.update({
           where: { id: candidate.id }, data: { status: 'imported', importedQuestionId: questionId, reviewedAt: new Date() },
         });
+        const candidateAssets = promotions.filter((asset) => asset.candidateId === candidate.id && asset.batchId === batchId);
+        if (candidateAssets.length > 0) await tx.questionImportAsset.createMany({ data: candidateAssets.map((asset) => ({
+          batchId, scope: 'permanent', storageKey: asset.permanentStorageKey, sha256: asset.sha256, mediaType: asset.mediaType,
+          byteSize: asset.byteSize, pageNumber: asset.pageNumber, sourceRegion: asset.sourceRegion ?? undefined, questionId,
+          promotedAt: new Date(),
+        })), skipDuplicates: true });
         result.importedCandidateIds.push(candidate.id);
         result.questionIds.push(questionId);
       }
@@ -165,6 +178,7 @@ function questionData(candidate: QuestionImportCandidate, batchId: string): Omit
     importBatch: { connect: { id: batchId } }, contentFingerprint: candidate.contentFingerprint, stem: candidate.stem, options: candidate.options,
     answer: candidate.answer, analysis: candidate.analysis, difficulty: candidate.difficulty, type: candidate.type,
     source: candidate.source, year: candidate.year, expectedTimeSec: candidate.expectedTimeSec,
+    formulas: candidate.formulas as Prisma.InputJsonValue, sourceRegion: candidate.sourceRegion as Prisma.InputJsonValue | undefined,
     knowledgePoints: { create: candidate.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })) },
   };
 }

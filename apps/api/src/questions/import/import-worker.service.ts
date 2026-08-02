@@ -108,11 +108,11 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   claimNextJob(): Promise<ClaimedJob | null> {
     const now = this.now();
     const leaseExpiresAt = new Date(now.getTime() + this.leaseMs);
+    const claimableProviders = this.claimableProviders();
     return this.prisma.$transaction(async (tx) => {
       const batches = await tx.$queryRaw<ClaimableBatch[]>`
         SELECT batch."id" AS "batchId", batch."originalFileName", batch."originalStorageKey", batch."fileType",
-               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter", batch."status",
-               job."pageStart", job."pageEnd"
+               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter", batch."status"
         FROM "QuestionImportBatch" AS batch
         WHERE batch."status" NOT IN (
           'cancelled'::"QuestionImportBatchStatus", 'completed'::"QuestionImportBatchStatus",
@@ -126,7 +126,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" IN ('table-parser', 'document-planner', 'document-parser')
+          AND job."provider" IN (${Prisma.join(claimableProviders)})
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
         )
         ORDER BY (
@@ -137,7 +137,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" IN ('table-parser', 'document-planner', 'document-parser')
+          AND job."provider" IN (${Prisma.join(claimableProviders)})
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
         ) ASC
         FOR UPDATE OF batch SKIP LOCKED
@@ -155,7 +155,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
             job."state" IN ('pending'::"QuestionImportJobState", 'queued'::"QuestionImportJobState")
             OR (job."state" = 'running'::"QuestionImportJobState" AND job."leaseExpiresAt" <= ${now})
           )
-          AND job."provider" IN ('table-parser', 'document-planner', 'document-parser')
+          AND job."provider" IN (${Prisma.join(claimableProviders)})
           AND (job."retryAt" IS NULL OR job."retryAt" <= ${now})
           ORDER BY job."createdAt" ASC
           FOR UPDATE SKIP LOCKED
@@ -180,6 +180,18 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       }
       return row ? { ...batch, ...row } : null;
     });
+  }
+
+  private claimableProviders(): string[] {
+    const providers = ['table-parser'];
+    if (this.pdfDocuments) providers.push('document-planner');
+    try {
+      this.documentProvider.assertConfigured();
+      providers.push('document-parser');
+    } catch {
+      // A table-only worker must not lease PDF parser jobs it cannot process.
+    }
+    return providers;
   }
 
   async processClaimedJob(job: ClaimedJob): Promise<TableJobResult | DocumentJobResult> {

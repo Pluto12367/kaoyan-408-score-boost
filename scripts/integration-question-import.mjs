@@ -31,6 +31,8 @@ async function main() {
   await assertUpgradeMigration(prisma);
   await applyWorkerMigration(prisma);
   await assertWorkerMigration(prisma);
+  await applyAssetHistoryMigration(prisma);
+  await assertAssetHistoryMigration(prisma);
   await assertAssetLifecycleConstraint(prisma);
   await assertVersionedWriteBehavior();
 
@@ -86,6 +88,10 @@ async function applyWorkerMigration(client) {
   await applyMigration(client, '20260801120000_question_import_worker');
 }
 
+async function applyAssetHistoryMigration(client) {
+  await applyMigration(client, '20260801110000_question_import_asset_history');
+}
+
 async function applyMigration(client, name) {
   const migration = await readFile(join(root, `prisma/migrations/${name}/migration.sql`), 'utf8');
   for (const statement of migration.split(/;\s*(?:\r?\n|$)/)) {
@@ -118,6 +124,14 @@ async function assertWorkerMigration(client) {
   ]);
   assert.equal(jobColumn.length, 1, 'worker migration must add lease expiry');
   assert.equal(rowColumn.length, 1, 'worker migration must add source row identity');
+}
+
+async function assertAssetHistoryMigration(client) {
+  const columns = await client.$queryRawUnsafe(`SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = 'Question' AND column_name IN ('formulas', 'sourceRegion')`);
+  assert.deepEqual(columns.map((column) => column.column_name).sort(), ['formulas', 'sourceRegion']);
+  const [legacy] = await client.$queryRawUnsafe(`SELECT "formulas", "sourceRegion" FROM "Question" WHERE "id" = 'legacy-question'`);
+  assert.deepEqual(legacy.formulas, []);
+  assert.equal(legacy.sourceRegion, null);
 }
 
 async function assertLegacyQuestionMigration(client) {
@@ -259,6 +273,7 @@ async function assertVersionedWriteBehavior() {
       AuditEventService,
       ImportBatchService,
       ImportCandidateService: require(join(root, 'apps/api/dist/questions/import/import-candidate.service.js')).ImportCandidateService,
+      ImportAssetService: require(join(root, 'apps/api/dist/questions/import/import-asset.service.js')).ImportAssetService,
       ImportStorageService: require(join(root, 'apps/api/dist/questions/import/import-storage.service.js')).ImportStorageService,
       ImportValidationService: require(join(root, 'apps/api/dist/questions/import/import-validation.js')).ImportValidationService,
       ImportWorkerService: require(join(root, 'apps/api/dist/questions/import/import-worker.service.js')).ImportWorkerService,
@@ -440,7 +455,7 @@ async function assertWorkerLeaseAndCandidates(client, services) {
     assert.equal(cancelledRaceState.jobs[0].leaseOwner, null);
     assert.equal(await client.questionImportCandidate.count({ where: { batchId: cancelRace.batchId } }), 0);
 
-    await assertImportConfirmation(client, services, audits);
+    await assertImportConfirmation(client, services, audits, storage);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -529,7 +544,7 @@ async function assertConcurrentCandidateCounts(client, ImportCandidateService, a
   assert.deepEqual(refreshed.statusCounts, { ignored: 2 }, 'concurrent candidate updates must not persist a stale status count snapshot');
 }
 
-async function assertImportConfirmation(client, services, audits) {
+async function assertImportConfirmation(client, services, audits, storage) {
   const { ImportConfirmationService } = require(join(root, 'apps/api/dist/questions/import/import-confirmation.service.js'));
   const { QuestionsService } = require(join(root, 'apps/api/dist/questions/questions.service.js'));
   const questions = new QuestionsService(client);
@@ -545,6 +560,15 @@ async function assertImportConfirmation(client, services, audits) {
   await client.practiceRecord.create({
     data: { userId: 'worker-admin', questionId: oldQuestion.id, knowledgePointId: 'co-cache', correct: false, timeSpentSec: 30, expectedTimeSec: 90 },
   });
+  const oldAssetTemporary = await storage.putCandidateAsset(pngFixture('old-version'), 'image/png');
+  const oldAssetSha = randomBytes(32).toString('hex');
+  const oldAssetPermanentKey = await storage.copyToPermanent(oldAssetTemporary.storageKey, oldAssetSha, 'image/png');
+  await client.questionImportAsset.create({
+    data: {
+      batchId: batch.id, scope: 'permanent', storageKey: oldAssetPermanentKey, sha256: oldAssetSha,
+      mediaType: 'image/png', byteSize: pngFixture('old-version').length, questionId: oldQuestion.id, promotedAt: new Date(),
+    },
+  });
   const candidates = await Promise.all([
     ['new question', 'approved', 'skip', null],
     ['confirmation old version', 'approved', 'skip', (await client.question.findUniqueOrThrow({ where: { id: oldQuestion.id } })).familyId],
@@ -554,11 +578,21 @@ async function assertImportConfirmation(client, services, audits) {
     data: {
       batchId: batch.id, stem, options: ['A', 'B'], answer: 'A', analysis: `${stem} analysis`,
       difficulty: 'MEDIUM', type: 'SINGLE_CHOICE', source: 'integration source', expectedTimeSec: 90,
-      knowledgePointIds: ['co-cache'], formulas: [], warnings: [], contentFingerprint: randomBytes(32).toString('hex'),
+      knowledgePointIds: ['co-cache'],
+      formulas: duplicateAction === 'new_version' ? [{ latex: 'T(n)=2T(n/2)+n', source: 'fixture' }] : [],
+      sourceRegion: duplicateAction === 'new_version' ? { page: 2, x: 10, y: 20, width: 120, height: 80 } : undefined,
+      warnings: [], contentFingerprint: randomBytes(32).toString('hex'),
       status, duplicateAction, targetFamilyId,
     },
   })));
-  const confirmation = new ImportConfirmationService(client, audits, questions);
+  const assets = new services.ImportAssetService(client, storage);
+  const versionCandidateDraft = candidates.find((candidate) => candidate.duplicateAction === 'new_version');
+  const uploadedAsset = await assets.uploadCandidateAsset(versionCandidateDraft.id, {
+    buffer: pngFixture('new-version'),
+    sourceRegion: JSON.stringify({ page: 2, x: 10, y: 20, width: 120, height: 80 }),
+  });
+  assert.equal(uploadedAsset.scope, 'temporary', 'candidate image upload must remain temporary before confirmation');
+  const confirmation = new ImportConfirmationService(client, audits, questions, assets);
   const input = { candidateIds: candidates.map((candidate) => candidate.id), idempotencyKey: randomUUID() };
   const first = await confirmation.confirm(batch.id, input, 'worker-admin');
   const second = await confirmation.confirm(batch.id, input, 'worker-admin');
@@ -572,6 +606,18 @@ async function assertImportConfirmation(client, services, audits) {
   assert.equal(old.isCurrent, false);
   assert.equal(updated.familyId, old.familyId);
   assert.equal(updated.versionNumber, old.versionNumber + 1);
+  assert.deepEqual(updated.formulas, [{ latex: 'T(n)=2T(n/2)+n', source: 'fixture' }], 'new imported versions must preserve formula metadata');
+  assert.deepEqual(updated.sourceRegion, { page: 2, x: 10, y: 20, width: 120, height: 80 }, 'new imported versions must preserve original page crop metadata');
+  const [oldAssets, promotedAssets] = await Promise.all([
+    client.questionImportAsset.findMany({ where: { questionId: oldQuestion.id, scope: 'permanent' } }),
+    client.questionImportAsset.findMany({ where: { questionId: updated.id, scope: 'permanent' } }),
+  ]);
+  assert.equal(oldAssets.length, 1, 'historical question version must keep its existing asset ownership');
+  assert.equal(promotedAssets.length, 1, 'new current version must own the promoted candidate asset');
+  assert.equal(promotedAssets[0].candidateId, null, 'promoted permanent assets must not retain candidate ownership');
+  assert.match(promotedAssets[0].storageKey, /^permanent\//);
+  assert.ok((await readFile(await storage.resolveAssetPath(oldAssets[0].storageKey))).length > 0, 'historical version asset must remain reachable');
+  assert.ok((await readFile(await storage.resolveAssetPath(promotedAssets[0].storageKey))).length > 0, 'promoted current version asset must be reachable');
   assert.equal(await client.practiceRecord.count({ where: { questionId: oldQuestion.id } }), 1);
   const concurrentCandidate = await client.questionImportCandidate.create({
     data: {
@@ -650,6 +696,13 @@ function confirmationCandidate(batchId, stem, status) {
     source: 'integration source', expectedTimeSec: 90, knowledgePointIds: ['co-cache'], formulas: [], warnings: [],
     contentFingerprint: randomBytes(32).toString('hex'), status, duplicateAction: 'skip',
   };
+}
+
+function pngFixture(label) {
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.from(label, 'utf8'),
+  ]);
 }
 
 async function assertClaimCancelLockOrder(client, services, storage, parser, validation, audits, batchId) {

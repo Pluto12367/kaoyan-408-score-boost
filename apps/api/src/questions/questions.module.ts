@@ -5,7 +5,11 @@ import { QuestionsService } from './questions.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ImportBatchService } from './import/import-batch.service';
 import { ImportStorageService } from './import/import-storage.service';
-import { QuestionImportController } from './import/question-import.controller';
+import {
+  QuestionImportAssetController,
+  QuestionImportCandidateAssetController,
+  QuestionImportController,
+} from './import/question-import.controller';
 import { QuestionTemplateService } from './import/question-template.service';
 import { ImportCleanupInterceptor } from './import/import-cleanup.interceptor';
 import { loadImportConfig, QUESTION_IMPORT_CONFIG } from './import/import-config';
@@ -19,12 +23,19 @@ import { MineruProvider } from './import/providers/mineru.provider';
 import { PdfDocumentService } from './import/pdf-document.service';
 import { PdfPageRenderer } from './import/pdf-page-renderer';
 import { QuestionStructureService } from './import/question-structure.service';
+import { ImportAssetService } from './import/import-asset.service';
 
 @Module({
   imports: [AuthModule, PrismaModule],
-  controllers: [QuestionsController, TeacherQuestionsController, QuestionImportController],
+  controllers: [
+    QuestionsController,
+    TeacherQuestionsController,
+    QuestionImportController,
+    QuestionImportAssetController,
+    QuestionImportCandidateAssetController,
+  ],
   providers: [
-    QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportValidationService, ImportWorkerService,
+    QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportAssetService, ImportValidationService, ImportWorkerService,
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
     QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService,
     PdfDocumentService, PdfPageRenderer, QuestionStructureService,

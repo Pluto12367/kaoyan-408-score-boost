@@ -288,6 +288,8 @@ model Question {
   source               String
   year                 Int?
   expectedTimeSec      Int                      @default(100)
+  formulas             Json                     @default("[]")
+  sourceRegion         Json?
   knowledgePoints      QuestionKnowledgePoint[]
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]
