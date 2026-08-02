@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 const root = new URL('..', import.meta.url);
 const source = (path) => readFileSync(new URL(path, root), 'utf8');
@@ -36,4 +37,11 @@ test('cleanup service protects unresolved data and only removes unreferenced per
   assert.match(cleanup, /bytes/);
   assert.match(cleanup, /onModuleInit/);
   assert.match(cleanup, /24 \* 60 \* 60 \* 1000/);
+});
+
+test('bare backup verification performs a deterministic archive self-check without a database', () => {
+  const output = execFileSync(process.execPath, ['scripts/verify-postgres-backup.mjs'], { cwd: root, encoding: 'utf8' });
+  assert.match(output, /"ok": true/);
+  assert.match(output, /"mode": "self-check"/);
+  assert.match(output, /"assetArchive": true/);
 });
