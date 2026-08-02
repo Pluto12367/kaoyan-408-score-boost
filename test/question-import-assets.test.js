@@ -41,6 +41,18 @@ test('candidate crop uploads validate bytes, bind the candidate batch, and retai
   assert.match(module, /QuestionImportCandidateAssetController/);
 });
 
+test('candidate review edits persist formulas and project temporary candidate assets', async () => {
+  const dto = await source('apps/api/src/questions/import/dto/update-import-candidate.dto.ts');
+  const candidates = await source('apps/api/src/questions/import/import-candidate.service.ts');
+
+  assert.match(dto, /formulas/);
+  assert.match(dto, /latex/);
+  assert.match(candidates, /'formulas'/);
+  assert.match(candidates, /formulas:\s*.*Prisma\.InputJsonValue/);
+  assert.match(candidates, /assets:\s*\{[\s\S]*?scope:\s*'temporary'/);
+  assert.match(candidates, /assetIds/);
+});
+
 test('asset deletion only removes a candidate temporary asset and confirmation copies before permanent DB ownership', async () => {
   const controller = await source('apps/api/src/questions/import/question-import.controller.ts');
   const assets = await source('apps/api/src/questions/import/import-asset.service.ts');

@@ -15,7 +15,8 @@ export function SourcePagePreview({ batchId, pageNumber, sourceRegion }: { batch
       .then(async (response) => {
         if (!response.ok) throw new Error(`页面加载失败 (${response.status})`);
         objectUrl = URL.createObjectURL(await response.blob());
-        if (active) setUrl(objectUrl);
+        if (!active) { URL.revokeObjectURL(objectUrl); return; }
+        setUrl(objectUrl);
       })
       .catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : '页面加载失败'); });
     return () => { active = false; if (objectUrl) URL.revokeObjectURL(objectUrl); };

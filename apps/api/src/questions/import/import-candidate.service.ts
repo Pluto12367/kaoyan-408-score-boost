@@ -14,6 +14,7 @@ const MAX_BULK_CANDIDATES = 100;
 const EDITABLE_FIELDS = new Set([
   'stem', 'options', 'answer', 'analysis', 'difficulty', 'type', 'source', 'year', 'expectedTimeSec',
   'knowledgePointIds', 'duplicateAction', 'status',
+  'formulas',
 ]);
 
 export interface CandidateListFilters {
@@ -36,6 +37,7 @@ export interface CandidatePatch {
   year?: number | null;
   expectedTimeSec?: number;
   knowledgePointIds?: string[];
+  formulas?: Array<{ latex: string; region?: { x: number; y: number; width: number; height: number } }>;
   duplicateAction?: QuestionImportDuplicateAction;
   status?: 'ignored';
 }
@@ -67,10 +69,11 @@ export class ImportCandidateService {
         orderBy: [{ sourceRowNumber: 'asc' }, { createdAt: 'asc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: { assets: { where: { scope: 'temporary' }, select: { id: true } } },
       }),
       this.prisma.questionImportCandidate.count({ where }),
     ]);
-    return { items, page, pageSize, total };
+    return { items: items.map(({ assets, pageNumber, ...candidate }) => ({ ...candidate, sourcePageNumber: pageNumber, assetIds: assets.map((asset) => asset.id) })), page, pageSize, total };
   }
 
   async update(id: string, revision: number, patch: CandidatePatch, actorId: string) {
@@ -197,6 +200,9 @@ export class ImportCandidateService {
     if (patch.expectedTimeSec !== undefined && (!Number.isInteger(patch.expectedTimeSec) || patch.expectedTimeSec < 1 || patch.expectedTimeSec > 86_400)) {
       throw new BadRequestException('expectedTimeSec is invalid');
     }
+    if (patch.formulas !== undefined && (!Array.isArray(patch.formulas) || patch.formulas.length > 100 || patch.formulas.some((formula) => !validFormula(formula)))) {
+      throw new BadRequestException('formulas are invalid');
+    }
   }
 
   private async buildUpdate(
@@ -214,6 +220,7 @@ export class ImportCandidateService {
     }
 
     const merged = { ...latest, ...patch };
+    const formulas = patch.formulas ?? formulasFromJson(latest.formulas);
     const knowledgePointIds = patch.knowledgePointIds ?? latest.knowledgePointIds;
     if (knowledgePointIds.length === 0) throw new BadRequestException('At least one knowledge point is required');
     const count = await tx.knowledgePoint.count({ where: { id: { in: knowledgePointIds } } });
@@ -235,6 +242,7 @@ export class ImportCandidateService {
       return {
         data: {
           ...editableData(merged, knowledgePointIds),
+          formulas: formulas as unknown as Prisma.InputJsonValue,
           warnings: normalized.issues as unknown as Prisma.InputJsonValue,
           status: 'needs_edit',
           targetFamilyId: null,
@@ -252,6 +260,7 @@ export class ImportCandidateService {
     return {
       data: {
         ...editableData(normalized.value, normalized.value.knowledgePointIds),
+        formulas: formulas as unknown as Prisma.InputJsonValue,
         warnings: [] as unknown as Prisma.InputJsonValue,
         contentFingerprint,
         targetFamilyId: duplicate?.familyId ?? null,
@@ -345,4 +354,18 @@ function jsonArrayLength(value: Prisma.JsonValue): number {
 function compactPatch(patch: CandidatePatch): CandidatePatch {
   if (!patch || typeof patch !== 'object' || Array.isArray(patch)) return patch;
   return Object.fromEntries(Object.entries(patch).filter(([, value]) => value !== undefined)) as CandidatePatch;
+}
+
+function validFormula(value: unknown): value is NonNullable<CandidatePatch['formulas']>[number] {
+  if (!value || typeof value !== 'object') return false;
+  const formula = value as { latex?: unknown; region?: unknown };
+  if (typeof formula.latex !== 'string' || formula.latex.length === 0 || formula.latex.length > 10_000) return false;
+  if (formula.region === undefined) return true;
+  if (!formula.region || typeof formula.region !== 'object') return false;
+  const region = formula.region as Record<string, unknown>;
+  return ['x', 'y', 'width', 'height'].every((key) => typeof region[key] === 'number' && Number.isFinite(region[key]) && region[key] >= 0);
+}
+
+function formulasFromJson(value: Prisma.JsonValue): NonNullable<CandidatePatch['formulas']> {
+  return Array.isArray(value) && value.every(validFormula) ? value : [];
 }

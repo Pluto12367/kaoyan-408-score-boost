@@ -73,6 +73,7 @@ test('admin question-import workspace exposes the operational review contract', 
   assert.match(review, /KeyboardEvent/);
   assert.match(review, /event\.key === 'ArrowRight'/);
   assert.match(review, /event\.key\.toLowerCase\(\) === 'a'/);
+  assert.match(review, /assetIds:\s*_assetIds/);
   assert.match(api, /getImportPagePreview/);
   assert.match(api, /uploadCandidateAsset/);
   assert.match(api, /deleteCandidateAsset/);

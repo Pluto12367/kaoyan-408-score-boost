@@ -1,9 +1,21 @@
 import { Type } from 'class-transformer';
 import {
   ArrayMaxSize, ArrayMinSize, ArrayUnique, IsArray, IsDefined, IsEnum, IsIn, IsInt, IsOptional, IsString, Max,
-  MaxLength, Min, ValidateNested,
+  MaxLength, Min, ValidateNested, IsNumber,
 } from 'class-validator';
 import { QuestionImportDuplicateAction } from '@prisma/client';
+
+class SourceRegionDto {
+  @IsNumber() @Min(0) x!: number;
+  @IsNumber() @Min(0) y!: number;
+  @IsNumber() @Min(0) width!: number;
+  @IsNumber() @Min(0) height!: number;
+}
+
+class FormulaPatchDto {
+  @IsString() @MaxLength(10_000) latex!: string;
+  @IsOptional() @ValidateNested() @Type(() => SourceRegionDto) region?: SourceRegionDto;
+}
 
 export class ImportCandidatePatchDto {
   @IsOptional() @IsString() @MaxLength(10_000) stem?: string;
@@ -16,6 +28,7 @@ export class ImportCandidatePatchDto {
   @IsOptional() @IsInt() @Min(1900) @Max(3000) year?: number;
   @IsOptional() @IsInt() @Min(1) @Max(86_400) expectedTimeSec?: number;
   @IsOptional() @IsArray() @ArrayMinSize(1) @ArrayMaxSize(20) @ArrayUnique() @IsString({ each: true }) knowledgePointIds?: string[];
+  @IsOptional() @IsArray() @ArrayMaxSize(100) @ValidateNested({ each: true }) @Type(() => FormulaPatchDto) formulas?: FormulaPatchDto[];
   @IsOptional() @IsEnum(QuestionImportDuplicateAction) duplicateAction?: QuestionImportDuplicateAction;
   @IsOptional() @IsIn(['ignored']) status?: 'ignored';
 }
