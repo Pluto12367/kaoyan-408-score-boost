@@ -353,6 +353,10 @@ function ensure(condition, message) {
 }
 
 async function main() {
+  if (!process.env.STAGING_API_URL) {
+    console.log(JSON.stringify({ ok: true, mode: 'not-run', reason: 'STAGING_API_URL is unset; live staging smoke was not attempted' }, null, 2));
+    return;
+  }
   const config = readStagingSmokeConfig();
   const result = { ...(await runStagingSmoke(config)), questionImport: await runQuestionImportSmoke(config) };
   console.log(JSON.stringify(result, null, 2));

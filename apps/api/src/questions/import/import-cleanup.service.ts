@@ -11,7 +11,7 @@ export class ImportCleanupService implements OnModuleInit, OnModuleDestroy {
   private timer?: NodeJS.Timeout;
   constructor(private readonly prisma: PrismaService, private readonly storage: ImportStorageService) {}
 
-  onModuleInit(): void { void this.run(new Date()); this.timer = setInterval(() => void this.run(new Date()), DAY); this.timer.unref(); }
+  onModuleInit(): void { void this.runSafely(); this.timer = setInterval(() => void this.runSafely(), DAY); this.timer.unref(); }
   onModuleDestroy(): void { if (this.timer) clearInterval(this.timer); }
 
   async run(now: Date): Promise<CleanupSummary> {
@@ -39,6 +39,10 @@ export class ImportCleanupService implements OnModuleInit, OnModuleDestroy {
       if (!reference) { await this.storage.removePermanentObject(object.storageKey); summary.permanentObjects += 1; summary.bytes += object.byteSize; }
     }
     return summary;
+  }
+
+  private async runSafely(): Promise<void> {
+    try { await this.run(new Date()); } catch (error) { this.logger.error(`Question import cleanup failed: ${error instanceof Error ? error.message : 'unknown error'}`); }
   }
 }
 

@@ -21,6 +21,7 @@ test.before(async () => {
   root = await mkdtemp(join(tmpdir(), 'question-import-http-'));
   process.env.QUESTION_IMPORT_DATA_DIR = root;
   process.env.QUESTION_IMPORT_WEB_ROOT = join(root, '..', 'web-root');
+  process.env.QUESTION_IMPORT_DISK_STOP_PERCENT = '100';
   const { AppModule } = require('../apps/api/dist/app.module.js');
   const module = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(AuthService)
@@ -54,6 +55,7 @@ test.after(async () => {
   await rm(root, { recursive: true, force: true });
   delete process.env.QUESTION_IMPORT_DATA_DIR;
   delete process.env.QUESTION_IMPORT_WEB_ROOT;
+  delete process.env.QUESTION_IMPORT_DISK_STOP_PERCENT;
 });
 
 function url(path) { return `http://127.0.0.1:${app.getHttpServer().address().port}${path}`; }

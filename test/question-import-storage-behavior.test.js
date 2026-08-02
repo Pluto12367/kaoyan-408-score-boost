@@ -19,6 +19,7 @@ async function storageFixture() {
   const config = loadImportConfig({
     QUESTION_IMPORT_DATA_DIR: root,
     QUESTION_IMPORT_WEB_ROOT: join(root, '..', 'web-root'),
+    QUESTION_IMPORT_DISK_STOP_PERCENT: '100',
   });
   return { config, storage: new ImportStorageService(config) };
 }

@@ -2315,10 +2315,12 @@ async function prepareLegacyFeedbackMigrationFixture() {
         ('legacy-review-point-a', 'COMPUTER_ORGANIZATION', '缓存', '迁移错题 A', 5, 5, ARRAY[]::TEXT[], '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z'),
         ('legacy-review-point-b', 'COMPUTER_ORGANIZATION', '缓存', '迁移错题 B', 5, 5, ARRAY[]::TEXT[], '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z')`,
       `
-      INSERT INTO "Question" ("id", "stem", "options", "answer", "analysis", "difficulty", "type", "source", "expectedTimeSec", "createdAt", "updatedAt")
+      INSERT INTO "QuestionFamily" ("id", "createdAt") VALUES ('legacy-review-family-a', '2026-07-01T00:00:00Z'), ('legacy-review-family-b', '2026-07-01T00:00:00Z')`,
+      `
+      INSERT INTO "Question" ("id", "familyId", "versionNumber", "isCurrent", "contentFingerprint", "stem", "options", "answer", "analysis", "difficulty", "type", "source", "expectedTimeSec", "createdAt", "updatedAt")
       VALUES
-        ('legacy-review-question-a', '迁移测试题 A', ARRAY['A', 'B'], 'A', '迁移解析 A', 'MEDIUM', 'SINGLE_CHOICE', 'migration-fixture', 100, '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z'),
-        ('legacy-review-question-b', '迁移测试题 B', ARRAY['A', 'B'], 'A', '迁移解析 B', 'MEDIUM', 'SINGLE_CHOICE', 'migration-fixture', 100, '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z')`,
+        ('legacy-review-question-a', 'legacy-review-family-a', 1, true, 'legacy-review-fingerprint-a', '迁移测试题 A', ARRAY['A', 'B'], 'A', '迁移解析 A', 'MEDIUM', 'SINGLE_CHOICE', 'migration-fixture', 100, '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z'),
+        ('legacy-review-question-b', 'legacy-review-family-b', 1, true, 'legacy-review-fingerprint-b', '迁移测试题 B', ARRAY['A', 'B'], 'A', '迁移解析 B', 'MEDIUM', 'SINGLE_CHOICE', 'migration-fixture', 100, '2026-07-01T00:00:00Z', '2026-07-01T00:00:00Z')`,
       `
       INSERT INTO "QuestionKnowledgePoint" ("questionId", "knowledgePointId")
       VALUES

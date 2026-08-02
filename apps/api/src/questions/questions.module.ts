@@ -41,7 +41,9 @@ import { ImportCleanupService } from './import/import-cleanup.service';
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
     QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService,
     PdfDocumentService, PdfPageRenderer, QuestionStructureService,
-    TencentPageOcrProvider,
+    { provide: TencentPageOcrProvider, useFactory: (quality: ImportQualityService) => new TencentPageOcrProvider(
+      process.env.TENCENTCLOUD_SECRET_ID, process.env.TENCENTCLOUD_SECRET_KEY, process.env.TENCENTCLOUD_REGION ?? 'ap-shanghai', {}, quality,
+    ), inject: [ImportQualityService] },
     { provide: MineruProvider, useFactory: (storage: ImportStorageService, quality: ImportQualityService) => new MineruProvider(process.env.MINERU_API_TOKEN, {
       resolveSource: (input) => storage.resolveProviderSplitPdfPath(input.storageKey, input.pageStart, input.pageEnd),
       persistRaw: (result) => storage.putProviderArtifacts(result),
