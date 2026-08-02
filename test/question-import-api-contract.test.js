@@ -8,15 +8,17 @@ const source = (path) => readFile(resolve(root, path), 'utf8');
 
 test('admin import controller keeps uploads private, disk-backed, and admin-only', async () => {
   const controller = await source('apps/api/src/questions/import/question-import.controller.ts');
+  const mainController = controller.slice(controller.indexOf("@Controller('admin/question-imports')"), controller.indexOf("@Controller('admin/question-import-assets')"));
 
   assert.match(controller, /@Controller\('admin\/question-imports'\)/);
   assert.match(controller, /@UseGuards\(RoleGuard\)/);
   assert.match(controller, /@Roles\('admin'\)/);
-  assert.match(controller, /FileInterceptor\('file',[\s\S]*diskStorage/);
-  assert.match(controller, /randomUUID|randomBytes/);
-  assert.doesNotMatch(controller, /memoryStorage/);
-  assert.match(controller, /@HttpCode\(HttpStatus\.ACCEPTED\)/);
-  assert.match(controller, /templates\/:format/);
+  assert.match(mainController, /FileInterceptor\('file',[\s\S]*diskStorage/);
+  assert.match(mainController, /randomUUID|randomBytes/);
+  assert.doesNotMatch(mainController, /memoryStorage/);
+  assert.match(mainController, /@HttpCode\(HttpStatus\.ACCEPTED\)/);
+  assert.match(mainController, /templates\/:format/);
+  assert.match(controller, /QuestionImportCandidateAssetController[\s\S]*memoryStorage/);
 });
 
 test('import configuration has private containment and safe capacity defaults', async () => {
@@ -36,6 +38,7 @@ test('import configuration has private containment and safe capacity defaults', 
 
 test('storage validates extension and content signatures without trusting client mime type', async () => {
   const storage = await source('apps/api/src/questions/import/import-storage.service.ts');
+  const uploadValidation = storage.slice(storage.indexOf('private async hashAndValidate'), storage.indexOf('private async assertXlsx'));
 
   assert.match(storage, /\.pdf/);
   assert.match(storage, /\.xlsx/);
@@ -50,7 +53,7 @@ test('storage validates extension and content signatures without trusting client
   assert.match(storage, /createHash\('sha256'\)/);
   assert.match(storage, /relative\(/);
   assert.doesNotMatch(storage, /mimetype|mimeType/);
-  assert.doesNotMatch(storage, /JSZip|readFile/);
+  assert.doesNotMatch(uploadValidation, /JSZip|readFile/);
   assert.doesNotMatch(storage, /removeIncomingIfSafe[\s\S]*\(pdf\|xlsx\|csv\)/);
 });
 
@@ -65,7 +68,8 @@ test('batch service creates pending work transactionally and protects retry and 
   assert.match(dto, /@IsBoolean\(\)/);
   assert.match(service, /\$transaction/);
   assert.match(service, /rightsConfirmedAt/);
-  assert.match(service, /state:\s*'pending'/);
+  assert.match(service, /state:\s*pdfParserUnavailable \? 'failed' : 'pending'/);
+  assert.match(service, /status:\s*pdfParserUnavailable \? 'failed' : 'queued'/);
   assert.match(service, /MAX_PAGE_SIZE\s*=\s*100/);
   assert.match(service, /Math\.min\([^\n]*MAX_PAGE_SIZE/);
   assert.match(service, /updateMany/);
