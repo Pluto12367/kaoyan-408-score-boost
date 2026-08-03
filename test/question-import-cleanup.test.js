@@ -64,11 +64,13 @@ test('persisted question IDs include database-only rows when allocating q-number
 
 test('document import module has an explicit gated fake-provider selector for staging smoke', () => {
   const moduleSource = source('apps/api/src/questions/questions.module.ts');
+  const workerSource = source('apps/api/src/questions/import/import-worker.service.ts');
   const fakeProvider = source('apps/api/src/questions/import/providers/fake-document.provider.ts');
 
   assert.match(moduleSource, /QUESTION_IMPORT_DOCUMENT_PROVIDER/);
   assert.match(moduleSource, /ALLOW_FAKE_DOCUMENT_PROVIDER/);
   assert.match(moduleSource, /new FakeDocumentProvider/);
+  assert.match(workerSource, /@Inject\(MineruProvider\) private readonly documentProvider: DocumentParserProvider/);
   assert.match(fakeProvider, /Fake PDF staging smoke question/);
 });
 

@@ -83,7 +83,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly parser: TableImportParser,
     @Optional() @Inject(IMPORT_WORKER_OPTIONS) options: ImportWorkerOptions = {},
     @Optional() validation?: ImportValidationService,
-    @Optional() private readonly documentProvider: DocumentParserProvider = new MineruProvider(),
+    @Optional() @Inject(MineruProvider) private readonly documentProvider: DocumentParserProvider = new MineruProvider(),
     @Optional() private readonly pdfDocuments?: PdfDocumentService,
     @Optional() private readonly pageRenderer?: PdfPageRenderer,
     @Optional() private readonly structure?: QuestionStructureService,
