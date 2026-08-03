@@ -62,6 +62,16 @@ test('persisted question IDs include database-only rows when allocating q-number
   assert.match(questions, /nextQuestionId\(\[\.\.\.this\.questions, \.\.\.persistedIds\]\)/);
 });
 
+test('document import module has an explicit gated fake-provider selector for staging smoke', () => {
+  const moduleSource = source('apps/api/src/questions/questions.module.ts');
+  const fakeProvider = source('apps/api/src/questions/import/providers/fake-document.provider.ts');
+
+  assert.match(moduleSource, /QUESTION_IMPORT_DOCUMENT_PROVIDER/);
+  assert.match(moduleSource, /ALLOW_FAKE_DOCUMENT_PROVIDER/);
+  assert.match(moduleSource, /new FakeDocumentProvider/);
+  assert.match(fakeProvider, /Fake PDF staging smoke question/);
+});
+
 test('bare backup verification performs a deterministic archive self-check without a database', () => {
   const output = execFileSync(process.execPath, ['scripts/verify-postgres-backup.mjs'], { cwd: root, encoding: 'utf8' });
   assert.match(output, /"ok": true/);

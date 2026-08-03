@@ -20,6 +20,7 @@ import { TableImportParser } from './import/table-import.parser';
 import { ImportConfirmationService } from './import/import-confirmation.service';
 import { ImportQualityService } from './import/import-quality.service';
 import { MineruProvider } from './import/providers/mineru.provider';
+import { FakeDocumentProvider } from './import/providers/fake-document.provider';
 import { PdfDocumentService } from './import/pdf-document.service';
 import { PdfPageRenderer } from './import/pdf-page-renderer';
 import { QuestionStructureService } from './import/question-structure.service';
@@ -44,10 +45,15 @@ import { ImportCleanupService } from './import/import-cleanup.service';
     { provide: TencentPageOcrProvider, useFactory: (quality: ImportQualityService) => new TencentPageOcrProvider(
       process.env.TENCENTCLOUD_SECRET_ID, process.env.TENCENTCLOUD_SECRET_KEY, process.env.TENCENTCLOUD_REGION ?? 'ap-shanghai', {}, quality,
     ), inject: [ImportQualityService] },
-    { provide: MineruProvider, useFactory: (storage: ImportStorageService, quality: ImportQualityService) => new MineruProvider(process.env.MINERU_API_TOKEN, {
-      resolveSource: (input) => storage.resolveProviderSplitPdfPath(input.storageKey, input.pageStart, input.pageEnd),
-      persistRaw: (result) => storage.putProviderArtifacts(result),
-    }, quality), inject: [ImportStorageService, ImportQualityService] },
+    { provide: MineruProvider, useFactory: (storage: ImportStorageService, quality: ImportQualityService) => {
+      if (process.env.QUESTION_IMPORT_DOCUMENT_PROVIDER === 'fake' && process.env.ALLOW_FAKE_DOCUMENT_PROVIDER === 'true') {
+        return new FakeDocumentProvider();
+      }
+      return new MineruProvider(process.env.MINERU_API_TOKEN, {
+        resolveSource: (input) => storage.resolveProviderSplitPdfPath(input.storageKey, input.pageStart, input.pageEnd),
+        persistRaw: (result) => storage.putProviderArtifacts(result),
+      }, quality);
+    }, inject: [ImportStorageService, ImportQualityService] },
   ],
   exports: [QuestionsService],
 })

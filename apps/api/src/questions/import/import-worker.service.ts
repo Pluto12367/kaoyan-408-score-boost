@@ -6,6 +6,7 @@ import { ImportStorageService } from './import-storage.service';
 import { ImportValidationService } from './import-validation';
 import { TableImportParser } from './table-import.parser';
 import { MineruProvider, PdfParserNotConfiguredError } from './providers/mineru.provider';
+import type { DocumentParserProvider } from './providers/document-parser.provider';
 import { PdfDocumentService, providerPageLimit, splitPageRanges, type PdfPageRange } from './pdf-document.service';
 import { PdfPageRenderer, type QuestionImportAsset } from './pdf-page-renderer';
 import { QuestionStructureService } from './question-structure.service';
@@ -82,7 +83,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     private readonly parser: TableImportParser,
     @Optional() @Inject(IMPORT_WORKER_OPTIONS) options: ImportWorkerOptions = {},
     @Optional() validation?: ImportValidationService,
-    @Optional() private readonly documentProvider: MineruProvider = new MineruProvider(),
+    @Optional() private readonly documentProvider: DocumentParserProvider = new MineruProvider(),
     @Optional() private readonly pdfDocuments?: PdfDocumentService,
     @Optional() private readonly pageRenderer?: PdfPageRenderer,
     @Optional() private readonly structure?: QuestionStructureService,
@@ -190,7 +191,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const providers = ['table-parser'];
     if (this.pdfDocuments) providers.push('document-planner');
     try {
-      this.documentProvider.assertConfigured();
+      this.documentProvider.assertConfigured?.();
       providers.push('document-parser');
     } catch {
       // A table-only worker must not lease PDF parser jobs it cannot process.
@@ -265,7 +266,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async processDocumentJob(job: ClaimedJob): Promise<DocumentJobResult> {
-    this.documentProvider.assertConfigured();
+    this.documentProvider.assertConfigured?.();
     if (!job.providerInputStorageKey) throw new Error('PDF_PROVIDER_SPLIT_MISSING');
     const providerInput = {
       jobId: job.id,

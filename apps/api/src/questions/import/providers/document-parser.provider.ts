@@ -15,6 +15,7 @@ export type ProviderPollResult =
 
 export interface DocumentParserProvider {
   readonly name: 'mineru' | 'tencent-ocr';
+  assertConfigured?(): void;
   submit(input: ProviderInput): Promise<{ externalTaskId: string }>;
   poll(externalTaskId: string): Promise<ProviderPollResult>;
   fetchResult(externalTaskId: string, input?: ProviderInput): Promise<ParsedDocument>;

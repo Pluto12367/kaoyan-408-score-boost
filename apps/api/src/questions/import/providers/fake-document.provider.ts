@@ -45,5 +45,19 @@ export class FakeDocumentProvider implements DocumentParserProvider {
 }
 
 function emptyDocument(input: ProviderInput): ParsedDocument {
-  return { provider: 'mineru', model: 'fake', pages: [{ pageNumber: input.pageStart, width: 1, height: 1, blocks: [], quality: { score: 0, signals: ['empty_page'] } }] };
+  return {
+    provider: 'mineru',
+    model: 'fake',
+    pages: [{
+      pageNumber: input.pageStart,
+      width: 1,
+      height: 1,
+      blocks: [{
+        kind: 'text',
+        text: '1. Fake PDF staging smoke question\nA. Option A\nB. Option B\nAnswer: A\nAnalysis: Fake provider staging smoke analysis',
+        region: { x: 0, y: 0, width: 1, height: 1 },
+      }],
+      quality: { score: 1, signals: [] },
+    }],
+  };
 }
