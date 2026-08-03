@@ -1939,7 +1939,10 @@ export class StudyService implements OnModuleInit {
   }
 
   async createPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }) {
-    const record = this.buildPracticeRecord(input);
+    const questionSnapshot = input.questionSnapshot
+      ?? await this.questionsService.findQuestionById(input.questionId)
+      ?? undefined;
+    const record = this.buildPracticeRecord({ ...input, questionSnapshot });
     const savedRecord = await this.practiceRecordRepository.save(record);
     this.records.push(savedRecord);
     if (!savedRecord.correct) {
@@ -2789,9 +2792,9 @@ export class StudyService implements OnModuleInit {
     if (questionIds.length === 0 || questionIds.length !== input.questionIds.length) {
       throw new BadRequestException('A session requires a non-empty list of unique questions');
     }
-    const knownQuestionIds = new Set(this.questions.map((question) => question.id));
-    const unknownQuestionId = questionIds.find((questionId) => !knownQuestionIds.has(questionId));
-    if (unknownQuestionId) throw new BadRequestException(`Question ${unknownQuestionId} was not found`);
+    const snapshot = await Promise.all(questionIds.map(async (questionId) => this.questionsService.findQuestionById(questionId)));
+    const unknownQuestionIndex = snapshot.findIndex((question) => !question);
+    if (unknownQuestionIndex !== -1) throw new BadRequestException(`Question ${questionIds[unknownQuestionIndex]} was not found`);
 
     const existing = [...this.practiceSessions.values()].find((session) =>
       session.userId === userId
@@ -2810,7 +2813,7 @@ export class StudyService implements OnModuleInit {
       type: input.type,
       resourceId: input.resourceId,
       questionIds,
-      questionSnapshot: questionIds.map((questionId) => ({ ...this.questions.find((question) => question.id === questionId)! })),
+      questionSnapshot: snapshot.map((question) => ({ ...question! })),
       answers: {},
       markedQuestions: [],
       currentIndex: 0,
@@ -2924,7 +2927,7 @@ export class StudyService implements OnModuleInit {
           sessionId,
           selfScore: answer.selfScore,
           maxScore: answer.maxScore,
-          questionSnapshot: submittedSession.type === 'paper' ? snapshotQuestions.get(answer.questionId) : undefined,
+          questionSnapshot: snapshotQuestions.get(answer.questionId),
         }),
       );
 

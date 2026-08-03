@@ -106,6 +106,17 @@ export class QuestionsService implements OnModuleInit {
     });
   }
 
+  async findQuestionById(questionId: string): Promise<Question | null> {
+    const inMemory = this.questions.find((question) => question.id === questionId);
+    if (inMemory) return inMemory;
+    if (!this.persistenceEnabled) return null;
+    const row = await this.prisma.question.findUnique({
+      where: { id: questionId },
+      include: { knowledgePoints: true },
+    });
+    return row ? toSharedQuestion(row) : null;
+  }
+
   async createQuestion(input: CreateQuestionDto) {
     const questionId = this.persistenceEnabled
       ? await this.nextPersistedQuestionId()
@@ -171,10 +182,12 @@ export class QuestionsService implements OnModuleInit {
     }
 
     const current = this.questions[index];
-    const persistedVersionId = this.persistenceEnabled ? await this.nextPersistedQuestionId() : current.id;
+    const updatedQuestionId = this.persistenceEnabled
+      ? await this.nextPersistedQuestionId()
+      : current.id;
     const question = requireQuestionKnowledgePoint<Question>({
       ...current,
-      id: current.id,
+      id: updatedQuestionId,
       stem: input.stem?.trim() ?? current.stem,
       options: input.options ? input.options.map((option) => option.trim()).filter(Boolean) : current.options,
       answer: input.answer ?? current.answer,
@@ -191,11 +204,16 @@ export class QuestionsService implements OnModuleInit {
       await this.prisma.$transaction(async (tx) => {
         const persisted = await tx.question.findUniqueOrThrow({
           where: { id: questionId },
-          include: { knowledgePoints: true },
+          select: { familyId: true, versionNumber: true },
         });
         await tx.question.update({
           where: { id: questionId },
+          data: { isCurrent: false },
+        });
+        await tx.question.create({
           data: {
+            id: question.id,
+            familyId: persisted.familyId,
             versionNumber: persisted.versionNumber + 1,
             isCurrent: true,
             contentFingerprint: computeContentFingerprint(question),
@@ -209,32 +227,7 @@ export class QuestionsService implements OnModuleInit {
             year: question.year,
             expectedTimeSec: question.expectedTimeSec,
             knowledgePoints: {
-              deleteMany: {},
               create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
-            },
-          },
-        });
-        await tx.question.create({
-          data: {
-            id: persistedVersionId,
-            familyId: persisted.familyId,
-            versionNumber: persisted.versionNumber,
-            isCurrent: false,
-            contentFingerprint: persisted.contentFingerprint,
-            importBatchId: persisted.importBatchId,
-            stem: persisted.stem,
-            options: persisted.options,
-            answer: persisted.answer,
-            analysis: persisted.analysis,
-            difficulty: persisted.difficulty,
-            type: persisted.type,
-            source: persisted.source,
-            year: persisted.year,
-            expectedTimeSec: persisted.expectedTimeSec,
-            createdAt: persisted.createdAt,
-            updatedAt: persisted.updatedAt,
-            knowledgePoints: {
-              create: persisted.knowledgePoints.map(({ knowledgePointId }) => ({ knowledgePointId })),
             },
           },
         });

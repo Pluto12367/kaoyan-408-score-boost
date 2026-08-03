@@ -1,6 +1,5 @@
 import { readFile, stat, writeFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
-import { randomUUID } from 'node:crypto';
 
 const SAMPLE_KINDS = new Set(['text', 'scan', 'complex']);
 const TERMINAL_BATCH_STATUSES = new Set(['review', 'parsing_partial_failure', 'failed', 'completed', 'partially_imported']);
@@ -14,12 +13,21 @@ export function validateManifest(manifest) {
     if (!SAMPLE_KINDS.has(sample?.kind)) throw new Error(`samples[${index}].kind must be text, scan, or complex`);
     if (typeof sample.path !== 'string' || !sample.path.toLowerCase().endsWith('.pdf')) throw new Error(`samples[${index}].path must name a PDF`);
     if (!Number.isInteger(sample.expectedQuestions) || sample.expectedQuestions < 1) throw new Error(`samples[${index}].expectedQuestions must be a positive integer`);
-    return { kind: sample.kind, path: sample.path, expectedQuestions: sample.expectedQuestions };
+    for (const field of ['expectedFormulas', 'expectedImages']) {
+      if (sample[field] != null && (!Number.isInteger(sample[field]) || sample[field] < 0)) throw new Error(`samples[${index}].${field} must be a non-negative integer when provided`);
+    }
+    return {
+      kind: sample.kind,
+      path: sample.path,
+      expectedQuestions: sample.expectedQuestions,
+      expectedFormulas: sample.expectedFormulas ?? null,
+      expectedImages: sample.expectedImages ?? null,
+    };
   });
   return { samples };
 }
 
-export function summarizeBatch({ kind, expectedQuestions, elapsedMs, pageCount, batch, candidates }) {
+export function summarizeBatch({ kind, expectedQuestions, expectedFormulas = null, expectedImages = null, elapsedMs, pageCount, batch, candidates }) {
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
   const detectedQuestions = safeCandidates.length;
   const complete = safeCandidates.filter((candidate) => REQUIRED_FIELDS.every((field) => hasValue(candidate?.[field]))).length;
@@ -32,6 +40,8 @@ export function summarizeBatch({ kind, expectedQuestions, elapsedMs, pageCount, 
   return {
     kind,
     expectedQuestions,
+    expectedFormulas,
+    expectedImages,
     detectedQuestions,
     pageCount: safePageCount,
     elapsedMs,
@@ -40,8 +50,8 @@ export function summarizeBatch({ kind, expectedQuestions, elapsedMs, pageCount, 
       recall: ratio(Math.min(detectedQuestions, expectedQuestions), expectedQuestions),
       requiredFieldCompleteness: ratio(complete, detectedQuestions),
       answerAssociation: ratio(answers, detectedQuestions),
-      formulaRetention: ratio(formulaCandidates, formulaCandidates),
-      imageRetention: ratio(imageCandidates, imageCandidates),
+      formulaRetention: expectedFormulas === null ? null : ratio(Math.min(formulaCandidates, expectedFormulas), expectedFormulas),
+      imageRetention: expectedImages === null ? null : ratio(Math.min(imageCandidates, expectedImages), expectedImages),
       manualWarningRate: ratio(warnings, detectedQuestions),
     },
     cost,
@@ -69,7 +79,7 @@ export async function runBenchmark(config, options = {}) {
     const completed = await waitForReview(fetchImpl, apiUrl, token, created.batchId, config.pollIntervalMs ?? 2_000, config.timeoutMs ?? 15 * 60_000);
     const candidates = await listCandidates(fetchImpl, apiUrl, token, created.batchId);
     const pageCount = pageCountFor(completed, candidates);
-    const summary = summarizeBatch({ kind: sample.kind, expectedQuestions: sample.expectedQuestions, elapsedMs: Date.now() - started, pageCount, batch: completed, candidates });
+    const summary = summarizeBatch({ kind: sample.kind, expectedQuestions: sample.expectedQuestions, expectedFormulas: sample.expectedFormulas, expectedImages: sample.expectedImages, elapsedMs: Date.now() - started, pageCount, batch: completed, candidates });
     samples.push({ batchId: created.batchId, ...summary, candidateExport: redactCandidates(candidates) });
     log(`[benchmark-question-parser] completed ${sample.kind}: ${summary.detectedQuestions} candidates across ${pageCount} pages`);
   }
@@ -77,6 +87,11 @@ export async function runBenchmark(config, options = {}) {
   return {
     schemaVersion: 1, startedAt, completedAt: new Date().toISOString(),
     samples, totals: aggregate(samples),
+    releaseDecision: {
+      status: 'hold',
+      reason: 'manual-admin-approval-required',
+      requiredApproval: ['correction-rate', 'cost-per-100-pages', 'processing-time'],
+    },
     note: 'Candidate text, answers, analyses, provider tokens, and credentials are intentionally omitted.',
   };
 }
@@ -128,9 +143,28 @@ function aggregate(samples) {
   const elapsedMs = samples.reduce((total, sample) => total + sample.elapsedMs, 0);
   const totalCost = samples.reduce((total, sample) => total + (sample.cost ?? 0), 0);
   const weighted = (key, denominator) => denominator === 0 ? 0 : round(samples.reduce((total, sample) => total + (sample.metrics[key] * (key === 'recall' ? sample.expectedQuestions : sample.detectedQuestions)), 0) / denominator);
+  const optionalWeighted = (key, expectedKey) => {
+    const scoped = samples.filter((sample) => sample.metrics[key] !== null);
+    const denominator = scoped.reduce((total, sample) => total + sample[expectedKey], 0);
+    return denominator === 0 ? null : round(scoped.reduce((total, sample) => total + (sample.metrics[key] * sample[expectedKey]), 0) / denominator);
+  };
   const expected = samples.reduce((total, sample) => total + sample.expectedQuestions, 0);
   const detected = samples.reduce((total, sample) => total + sample.detectedQuestions, 0);
-  return { pageCount: pages, expectedQuestions: expected, detectedQuestions: detected, elapsedMs, totalCost: samples.some((sample) => sample.cost !== null) ? round(totalCost) : null, costPer100Pages: samples.some((sample) => sample.cost !== null) ? round((totalCost / Math.max(1, pages)) * 100) : null, precision: weighted('precision', detected), recall: weighted('recall', expected) };
+  return {
+    pageCount: pages,
+    expectedQuestions: expected,
+    detectedQuestions: detected,
+    elapsedMs,
+    totalCost: samples.some((sample) => sample.cost !== null) ? round(totalCost) : null,
+    costPer100Pages: samples.some((sample) => sample.cost !== null) ? round((totalCost / Math.max(1, pages)) * 100) : null,
+    precision: weighted('precision', detected),
+    recall: weighted('recall', expected),
+    requiredFieldCompleteness: weighted('requiredFieldCompleteness', detected),
+    answerAssociation: weighted('answerAssociation', detected),
+    formulaRetention: optionalWeighted('formulaRetention', 'expectedFormulas'),
+    imageRetention: optionalWeighted('imageRetention', 'expectedImages'),
+    manualWarningRate: weighted('manualWarningRate', detected),
+  };
 }
 
 function pageCountFor(batch, candidates) { return Math.max(1, ...[...(batch.assets ?? []), ...candidates].map((item) => Number(item?.pageNumber) || 0)); }

@@ -33,7 +33,7 @@ export async function runQuestionImportSmoke(config, options = {}) {
   const apiUrl = trimTrailingSlash(config.apiUrl);
   const checkpoint = (message) => log(`[staging-smoke] PASS question import: ${message}`);
   const unauthenticated = await request(fetchImpl, `${apiUrl}/admin/question-imports`, {
-    method: 'POST', body: generatedQuestionCsv(),
+    method: 'POST', body: generatedQuestionCsv(questionImportFixture('unauthenticated')),
   });
   ensure([401, 403].includes(unauthenticated.status), 'question-import upload must reject unauthenticated callers');
   checkpoint('unauthenticated upload rejection');
@@ -43,14 +43,17 @@ export async function runQuestionImportSmoke(config, options = {}) {
   }), 'administrator authentication');
   ensure(adminSession?.accessToken && adminSession.user?.role === 'admin', 'question-import smoke requires an administrator account');
   const headers = { Authorization: `Bearer ${adminSession.accessToken}` };
+  const fixture = questionImportFixture(randomId());
+  await createBaselineQuestion(fetchImpl, apiUrl, headers, fixture);
+  checkpoint('baseline duplicate fixture');
   const upload = await readJson(await request(fetchImpl, `${apiUrl}/admin/question-imports`, {
-    method: 'POST', headers, body: generatedQuestionCsv(),
+    method: 'POST', headers, body: generatedQuestionCsv(fixture),
   }), 'question-import CSV upload');
   ensure(Boolean(upload.batchId), 'question-import upload must return batchId');
   checkpoint('generated CSV upload');
 
-  const batch = await getImportBatch(fetchImpl, apiUrl, headers, upload.batchId);
-  ensure(['review', 'parsing_partial_failure'].includes(batch.status), 'fake-provider batch must be ready for review or have a controlled partial failure');
+  const batch = await waitForImportBatch(fetchImpl, apiUrl, headers, upload.batchId);
+  ensure(['review', 'parsing_partial_failure'].includes(batch.status), 'generated import batch must be ready for review or have a controlled partial failure');
   const failedJob = batch.jobs?.find((job) => job.state === 'failed');
   if (failedJob) {
     const retry = await readJson(await request(fetchImpl, `${apiUrl}/admin/question-imports/${encodeURIComponent(upload.batchId)}/retry`, {
@@ -61,9 +64,10 @@ export async function runQuestionImportSmoke(config, options = {}) {
   }
 
   const candidates = await listImportCandidates(fetchImpl, apiUrl, headers, upload.batchId);
-  ensure(candidates.length >= 2, 'fake provider smoke fixture must yield duplicate and version candidates');
+  ensure(candidates.length >= 2, 'generated smoke fixture must yield duplicate and version candidates');
   const duplicate = candidates.find((candidate) => candidate.duplicateAction === 'skip') ?? candidates[0];
-  const version = candidates.find((candidate) => candidate.duplicateAction === 'new_version' && candidate.targetFamilyId) ?? candidates[1];
+  const version = candidates.find((candidate) => candidate.id !== duplicate.id && candidate.targetFamilyId) ?? candidates[1];
+  ensure(Boolean(duplicate?.targetFamilyId && version?.targetFamilyId), 'duplicate/version candidates must target the seeded family');
   await updateCandidate(fetchImpl, apiUrl, headers, duplicate, { status: 'approved', duplicateAction: 'skip' });
   await updateCandidate(fetchImpl, apiUrl, headers, version, { status: 'approved', duplicateAction: 'new_version', targetFamilyId: version.targetFamilyId });
   checkpoint('candidate edit, duplicate skip, and version selection');
@@ -75,7 +79,7 @@ export async function runQuestionImportSmoke(config, options = {}) {
   ensure((confirmation.skippedCandidateIds ?? []).includes(duplicate.id), 'duplicate skip must remain skipped after confirmation');
   ensure((confirmation.questionIds ?? []).length > 0, 'new-version confirmation must create a current question');
   checkpoint('partial confirmation, repeated confirm, and current-question visibility');
-  return { ok: true, batchId: upload.batchId, importedQuestionId: confirmation.questionIds[0], checks: failedJob ? 7 : 6 };
+  return { ok: true, batchId: upload.batchId, importedQuestionId: confirmation.questionIds[0], checks: failedJob ? 8 : 7 };
 }
 
 export async function runStagingSmoke(config, options = {}) {
@@ -258,6 +262,17 @@ async function getImportBatch(fetchImpl, apiUrl, headers, batchId) {
   return readJson(await request(fetchImpl, `${apiUrl}/admin/question-imports/${encodeURIComponent(batchId)}`, { headers }), 'question-import batch detail');
 }
 
+async function waitForImportBatch(fetchImpl, apiUrl, headers, batchId) {
+  const deadline = Date.now() + 90_000;
+  let latest;
+  do {
+    latest = await getImportBatch(fetchImpl, apiUrl, headers, batchId);
+    if (['review', 'parsing_partial_failure', 'failed', 'completed', 'cancelled'].includes(latest.status)) return latest;
+    await delay(1_000);
+  } while (Date.now() < deadline);
+  throw new Error(`question-import batch ${batchId} did not reach review before timeout; latest status ${latest?.status ?? 'unknown'}`);
+}
+
 async function listImportCandidates(fetchImpl, apiUrl, headers, batchId) {
   const response = await request(fetchImpl, `${apiUrl}/admin/question-imports/${encodeURIComponent(batchId)}/candidates?page=1&pageSize=100`, { headers });
   const body = await readJson(response, 'question-import candidate list');
@@ -281,15 +296,69 @@ async function confirmCandidates(fetchImpl, apiUrl, headers, batchId, candidateI
   return readJson(response, 'question-import confirmation');
 }
 
-function generatedQuestionCsv() {
+async function createBaselineQuestion(fetchImpl, apiUrl, headers, fixture) {
+  const response = await request(fetchImpl, `${apiUrl}/questions`, {
+    method: 'POST',
+    headers: jsonHeaders(headers),
+    body: JSON.stringify({
+      stem: fixture.stem,
+      options: fixture.options,
+      answer: fixture.answer,
+      analysis: fixture.analysis,
+      knowledgePointIds: ['os-sync'],
+      difficulty: fixture.difficulty,
+      type: fixture.type,
+      source: fixture.source,
+      expectedTimeSec: 90,
+    }),
+  });
+  ensure(response.ok, 'baseline duplicate question creation must succeed');
+  return readJson(response, 'baseline duplicate question creation');
+}
+
+function generatedQuestionCsv(fixture) {
   const form = new FormData();
-  form.append('file', new Blob(['科目,章节,知识点,题型,难度,题干,选项 A,选项 B,正确答案,答案解析,来源\n操作系统,进程管理,进程同步,选择题,基础,测试题,A,B,A,测试解析,staging smoke'], { type: 'text/csv' }), 'staging-question-import.csv');
+  const row = [
+    '操作系统',
+    '进程管理',
+    '进程同步',
+    fixture.type,
+    fixture.difficulty,
+    fixture.stem,
+    fixture.options[0],
+    fixture.options[1],
+    fixture.answer,
+    fixture.analysis,
+    fixture.source,
+  ].map(csvCell).join(',');
+  form.append('file', new Blob([
+    `科目,章节,知识点,题型,难度,题干,选项 A,选项 B,正确答案,答案解析,来源\n${row}\n${row}`,
+  ], { type: 'text/csv' }), 'staging-question-import.csv');
   form.append('source', 'staging smoke generated CSV');
   form.append('rightsConfirmed', 'true');
   return form;
 }
 
+function questionImportFixture(id) {
+  return {
+    stem: `Staging smoke duplicate fixture ${id}`,
+    options: ['A', 'B'],
+    answer: 'A',
+    analysis: `Staging smoke analysis ${id}`,
+    difficulty: '基础',
+    type: '选择题',
+    source: `staging smoke ${id}`,
+  };
+}
+
+function csvCell(value) {
+  const text = String(value);
+  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
 function randomId() { return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`; }
+
+function delay(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 async function request(fetchImpl, url, init = {}) {
   try {

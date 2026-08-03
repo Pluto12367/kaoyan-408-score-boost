@@ -52,11 +52,12 @@ test('question-import staging smoke exercises the admin review and confirmation 
     calls.push({ method, path: requestUrl.pathname, auth: headerValue(init.headers, 'authorization'), body: init.body });
     if (requestUrl.pathname === '/auth/login') return jsonResponse(200, { accessToken: 'admin-token', user: { role: 'admin' } });
     if (requestUrl.pathname === '/admin/question-imports' && method === 'POST' && !headerValue(init.headers, 'authorization')) return jsonResponse(401, { message: 'Unauthorized' });
+    if (requestUrl.pathname === '/questions' && method === 'POST') return jsonResponse(201, { id: 'q-baseline', familyId: 'family-1' });
     if (requestUrl.pathname === '/admin/question-imports' && method === 'POST') return jsonResponse(202, { batchId: 'batch-1', status: 'queued' });
     if (requestUrl.pathname === '/admin/question-imports/batch-1') return jsonResponse(200, { id: 'batch-1', status: 'parsing_partial_failure', jobs: [{ id: 'failed-job', state: 'failed' }], assets: [{ pageNumber: 1 }] });
     if (requestUrl.pathname === '/admin/question-imports/batch-1/retry') return jsonResponse(201, { batchId: 'batch-1', retriedJobs: 1 });
     if (requestUrl.pathname === '/admin/question-imports/batch-1/candidates') return jsonResponse(200, { items: [
-      { id: 'skip', revision: 0, status: 'duplicate_suspected', duplicateAction: 'skip', stem: 'hidden' },
+      { id: 'skip', revision: 0, status: 'duplicate_suspected', duplicateAction: 'skip', targetFamilyId: 'family-1', stem: 'hidden' },
       { id: 'version', revision: 0, status: 'pending_review', duplicateAction: 'new_version', targetFamilyId: 'family-1', stem: 'hidden' },
     ], total: 2 });
     if (requestUrl.pathname.startsWith('/admin/question-imports/candidates/') && method === 'PATCH') return jsonResponse(200, { id: 'version', revision: 1, status: 'approved' });
@@ -75,6 +76,7 @@ test('question-import staging smoke exercises the admin review and confirmation 
   assert.equal(result.importedQuestionId, 'question-current');
   assert.equal(confirmationCalls, 2, 'the same idempotency key must be replayed once');
   assert.equal(calls.some((call) => call.path === '/admin/question-imports' && !call.auth), true, 'unauthorized upload must be checked');
+  assert.equal(calls.some((call) => call.path === '/questions' && call.auth), true, 'baseline duplicate fixture must be seeded by an administrator');
   assert.equal(calls.some((call) => call.path.endsWith('/retry')), true);
   assert.equal(calls.filter((call) => call.path.endsWith('/confirm')).length, 2);
 });
