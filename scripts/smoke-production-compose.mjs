@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,14 +12,19 @@ const startedAt = Date.now();
 const requestIds = [];
 const temporaryRoot = await mkdtemp(join(tmpdir(), `${projectName}-`));
 const backupDirectory = join(temporaryRoot, 'backups');
+const scriptDirectory = join(temporaryRoot, 'scripts');
 const envFile = join(temporaryRoot, '.env.production');
 const overrideFile = join(temporaryRoot, 'compose.smoke.yml');
+const backupScript = join(scriptDirectory, 'backup.sh');
+const verifyRestoreScript = join(scriptDirectory, 'verify-restore.sh');
 const adminEmail = `admin-${randomUUID()}@example.invalid`;
 const studentEmail = `student-${randomUUID()}@example.invalid`;
 const adminPassword = secret(24);
 const studentPassword = secret(24);
 let composeStarted = false;
 let status = 'PASS';
+let failedStage;
+let diagnosticSnippet;
 
 const composePrefix = [
   'compose',
@@ -31,6 +36,9 @@ const composePrefix = [
 
 try {
   await mkdir(backupDirectory, { mode: 0o777 });
+  await mkdir(scriptDirectory, { mode: 0o700 });
+  await writeNormalizedShellScript(join(root, 'deploy/tencent-ip/backup.sh'), backupScript);
+  await writeNormalizedShellScript(join(root, 'deploy/tencent-ip/verify-restore.sh'), verifyRestoreScript);
   await writeFile(envFile, [
     'POSTGRES_USER=smoke_user',
     `POSTGRES_PASSWORD=${secret(24)}`,
@@ -46,7 +54,7 @@ try {
     'services:',
     '  backup:',
     '    volumes:',
-    `      - "${composePath(join(root, 'deploy/tencent-ip/backup.sh'))}:/usr/local/bin/backup.sh:ro"`,
+    `      - "${composePath(backupScript)}:/usr/local/bin/backup.sh:ro"`,
     `      - "${composePath(backupDirectory)}:/backups"`,
     '',
   ].join('\n'), { mode: 0o600 });
@@ -118,8 +126,9 @@ try {
   ensure(Boolean(backupName), 'backup');
   await verifyRestore(join(backupDirectory, backupName));
 
-} catch {
+} catch (error) {
   status = 'FAIL';
+  failedStage = error instanceof Error ? error.message : 'unknown';
 } finally {
   try {
     if (composeStarted) {
@@ -169,11 +178,17 @@ async function verifyRestore(backupPath) {
     'run', '--rm',
     '-v', '/var/run/docker.sock:/var/run/docker.sock',
     '-v', `${root}:/workspace:ro`,
+    '-v', `${verifyRestoreScript}:/verify-restore.sh:ro`,
     '-v', `${dirname(backupPath)}:/smoke-backups:ro`,
     'docker:cli',
-    'sh', '/workspace/deploy/tencent-ip/verify-restore.sh',
+    'sh', '/verify-restore.sh',
     `/smoke-backups/${backupPath.split(/[\\/]/).at(-1)}`,
   ], 'restore-verify', 3 * 60_000);
+}
+
+async function writeNormalizedShellScript(source, target) {
+  const contents = await readFile(source, 'utf8');
+  await writeFile(target, contents.replace(/\r\n/g, '\n'), { mode: 0o700 });
 }
 
 async function waitForHealth() {
@@ -224,17 +239,31 @@ function docker(args, stage, timeoutMs = 2 * 60_000, ignoreFailure = false, extr
       windowsHide: true,
     });
     let outputBytes = 0;
-    child.stdout.on('data', (chunk) => { outputBytes += chunk.length; });
-    child.stderr.on('data', (chunk) => { outputBytes += chunk.length; });
+    let output = '';
+    const capture = (chunk) => {
+      outputBytes += chunk.length;
+      output = `${output}${chunk.toString('utf8')}`.slice(-2_000);
+    };
+    child.stdout.on('data', capture);
+    child.stderr.on('data', capture);
     child.on('error', () => {
       if (ignoreFailure) resolveCommand();
       else rejectCommand(new Error(stage));
     });
     child.on('close', (code) => {
       if (code === 0 || ignoreFailure) resolveCommand();
-      else rejectCommand(new Error(`${stage}-${code}-${outputBytes > 0 ? 'output' : 'silent'}`));
+      else {
+        diagnosticSnippet = sanitizeOutput(output).slice(-500);
+        rejectCommand(new Error(`${stage}-${code}-${outputBytes > 0 ? 'output' : 'silent'}`));
+      }
     });
   });
+}
+
+function sanitizeOutput(output) {
+  return output
+    .replace(/(password|secret|token|authorization|cookie)([=:]\s*)([^\s]+)/gi, '$1$2[redacted]')
+    .replace(/[A-Za-z0-9_-]{32,}/g, '[redacted]');
 }
 
 function assertSession(session, role) {
@@ -268,6 +297,8 @@ function printSummary(status) {
     status,
     elapsedMs: Date.now() - startedAt,
     requestIds: [...new Set(requestIds)],
+    ...(failedStage ? { failedStage } : {}),
+    ...(diagnosticSnippet ? { diagnosticSnippet } : {}),
   };
   process.stdout.write(`${JSON.stringify(summary)}\n`);
 }

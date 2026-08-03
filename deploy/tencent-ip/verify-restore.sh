@@ -20,7 +20,7 @@ if [ -n "$asset_path" ]; then
   asset_directory=$(cd "$(dirname "$asset_path")" && pwd -P)
   asset_name=$(basename "$asset_path")
   asset_path="$asset_directory/$asset_name"
-  sha256sum -c "$asset_path.sha256"
+  (cd "$asset_directory" && sha256sum -c "$asset_name.sha256")
   tar -tzf "$asset_path" >/dev/null
 fi
 

@@ -633,6 +633,8 @@ async function main() {
       type: 'SINGLE_CHOICE',
       source: atomicQuestion.source,
       expectedTimeSec: atomicQuestion.expectedTimeSec,
+      contentFingerprint: randomBytes(16).toString('hex'),
+      family: { create: { id: 'integration-atomic-submission-family' } },
     },
   });
   await atomicFailurePrisma.questionKnowledgePoint.create({
@@ -2570,6 +2572,10 @@ function delay(ms) {
 main()
   .catch((error) => {
     console.error(error);
+    const output = activeApi?.getOutput?.();
+    if (output) {
+      console.error(output.slice(-4_000));
+    }
     process.exitCode = 1;
   })
   .finally(() => stop(activeApi));

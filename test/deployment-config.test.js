@@ -152,6 +152,7 @@ test('production backup tooling writes verifiable archives and isolates restore 
   assert.match(backupScript, /BACKUP_RETENTION_DAYS/);
   assert.match(backupScript, /QUESTION_IMPORT_PERMANENT_DIR/);
   assert.match(backupScript, /assets\.tar\.gz/);
+  assert.match(restoreScript, /cd "\$asset_directory" && sha256sum -c "\$asset_name\.sha256"/);
   assert.match(restoreScript, /tar -tzf/);
   assert.match(backupScript, /-delete/);
   assert.match(restoreScript, /restore_id="\$\(date -u .*\)-\$\$"/);

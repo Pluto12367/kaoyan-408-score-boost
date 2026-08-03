@@ -41,6 +41,27 @@ test('cleanup service protects unresolved data and only removes unreferenced per
   assert.match(cleanup, /rawResultKey/);
 });
 
+test('import storage initializes all asset directories before backup mounts run', () => {
+  const storagePath = new URL('apps/api/src/questions/import/import-storage.service.ts', root);
+  assert.ok(existsSync(storagePath), 'import storage service must exist');
+  const storage = source('apps/api/src/questions/import/import-storage.service.ts');
+
+  assert.match(storage, /implements OnModuleInit/);
+  assert.match(storage, /async onModuleInit\(\): Promise<void>/);
+  assert.match(storage, /mkdir\(this\.config\.incomingDirectory/);
+  assert.match(storage, /mkdir\(this\.config\.temporaryDirectory/);
+  assert.match(storage, /mkdir\(this\.config\.permanentDirectory/);
+});
+
+test('persisted question IDs include database-only rows when allocating q-number IDs', () => {
+  const questions = source('apps/api/src/questions/questions.service.ts');
+
+  assert.match(questions, /nextPersistedQuestionId/);
+  assert.match(questions, /this\.prisma\.question\.findMany/);
+  assert.match(questions, /startsWith: 'q-'/);
+  assert.match(questions, /nextQuestionId\(\[\.\.\.this\.questions, \.\.\.persistedIds\]\)/);
+});
+
 test('bare backup verification performs a deterministic archive self-check without a database', () => {
   const output = execFileSync(process.execPath, ['scripts/verify-postgres-backup.mjs'], { cwd: root, encoding: 'utf8' });
   assert.match(output, /"ok": true/);

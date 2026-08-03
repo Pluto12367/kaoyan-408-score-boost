@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Optional, PayloadTooLargeException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, OnModuleInit, Optional, PayloadTooLargeException } from '@nestjs/common';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { copyFile, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, statfs, writeFile } from 'node:fs/promises';
@@ -78,10 +78,19 @@ function readUInt16(buffer: Buffer, offset: number): number {
 }
 
 @Injectable()
-export class ImportStorageService {
+export class ImportStorageService implements OnModuleInit {
   private readonly config: ImportConfig;
 
   constructor(@Optional() @Inject(QUESTION_IMPORT_CONFIG) config?: ImportConfig) { this.config = config ?? loadImportConfig(); }
+
+  async onModuleInit(): Promise<void> {
+    await Promise.all([
+      mkdir(this.config.dataDirectory, { recursive: true, mode: 0o700 }),
+      mkdir(this.config.incomingDirectory, { recursive: true, mode: 0o700 }),
+      mkdir(this.config.temporaryDirectory, { recursive: true, mode: 0o700 }),
+      mkdir(this.config.permanentDirectory, { recursive: true, mode: 0o700 }),
+    ]);
+  }
 
   async putIncoming(file: UploadedImportFile): Promise<StoredImportFile> {
     const incomingPath = resolve(file.path);

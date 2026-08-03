@@ -107,8 +107,11 @@ export class QuestionsService implements OnModuleInit {
   }
 
   async createQuestion(input: CreateQuestionDto) {
+    const questionId = this.persistenceEnabled
+      ? await this.nextPersistedQuestionId()
+      : nextQuestionId(this.questions);
     const question = requireQuestionKnowledgePoint<Question>({
-      id: nextQuestionId(this.questions),
+      id: questionId,
       stem: input.stem.trim(),
       options: input.options.map((option) => option.trim()).filter(Boolean),
       answer: input.answer,
@@ -168,9 +171,10 @@ export class QuestionsService implements OnModuleInit {
     }
 
     const current = this.questions[index];
+    const persistedVersionId = this.persistenceEnabled ? await this.nextPersistedQuestionId() : current.id;
     const question = requireQuestionKnowledgePoint<Question>({
       ...current,
-      id: this.persistenceEnabled ? nextQuestionId(this.questions) : current.id,
+      id: current.id,
       stem: input.stem?.trim() ?? current.stem,
       options: input.options ? input.options.map((option) => option.trim()).filter(Boolean) : current.options,
       answer: input.answer ?? current.answer,
@@ -187,16 +191,11 @@ export class QuestionsService implements OnModuleInit {
       await this.prisma.$transaction(async (tx) => {
         const persisted = await tx.question.findUniqueOrThrow({
           where: { id: questionId },
-          select: { familyId: true, versionNumber: true },
+          include: { knowledgePoints: true },
         });
         await tx.question.update({
           where: { id: questionId },
-          data: { isCurrent: false },
-        });
-        await tx.question.create({
           data: {
-            id: question.id,
-            familyId: persisted.familyId,
             versionNumber: persisted.versionNumber + 1,
             isCurrent: true,
             contentFingerprint: computeContentFingerprint(question),
@@ -210,7 +209,32 @@ export class QuestionsService implements OnModuleInit {
             year: question.year,
             expectedTimeSec: question.expectedTimeSec,
             knowledgePoints: {
+              deleteMany: {},
               create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
+            },
+          },
+        });
+        await tx.question.create({
+          data: {
+            id: persistedVersionId,
+            familyId: persisted.familyId,
+            versionNumber: persisted.versionNumber,
+            isCurrent: false,
+            contentFingerprint: persisted.contentFingerprint,
+            importBatchId: persisted.importBatchId,
+            stem: persisted.stem,
+            options: persisted.options,
+            answer: persisted.answer,
+            analysis: persisted.analysis,
+            difficulty: persisted.difficulty,
+            type: persisted.type,
+            source: persisted.source,
+            year: persisted.year,
+            expectedTimeSec: persisted.expectedTimeSec,
+            createdAt: persisted.createdAt,
+            updatedAt: persisted.updatedAt,
+            knowledgePoints: {
+              create: persisted.knowledgePoints.map(({ knowledgePointId }) => ({ knowledgePointId })),
             },
           },
         });
@@ -268,6 +292,14 @@ export class QuestionsService implements OnModuleInit {
     return item;
   }
 
+  private async nextPersistedQuestionId() {
+    const persistedIds = await this.prisma.question.findMany({
+      where: { id: { startsWith: 'q-' } },
+      select: { id: true },
+    });
+    return nextQuestionId([...this.questions, ...persistedIds]);
+  }
+
   private get questions() {
     return QuestionsService.questions;
   }
@@ -291,7 +323,7 @@ export class QuestionsService implements OnModuleInit {
   }
 }
 
-function nextQuestionId(questions: Question[]) {
+function nextQuestionId(questions: Array<{ id: string }>) {
   const next = questions.reduce((max, question) => {
     const match = /^q-(\d+)$/.exec(question.id);
     return Math.max(max, match ? Number(match[1]) : 0);
