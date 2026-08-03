@@ -40,6 +40,7 @@ test('staging smoke configuration requires an HTTPS API and dedicated credential
     invitationCode: 'invite-smoke-code',
     adminEmail: 'admin@example.com',
     adminPassword: 'AdminPassword!408',
+    questionImportPdfSmoke: false,
   });
 });
 
@@ -74,11 +75,58 @@ test('question-import staging smoke exercises the admin review and confirmation 
 
   assert.equal(result.ok, true);
   assert.equal(result.importedQuestionId, 'question-current');
+  assert.equal(result.pdfSmoke.mode, 'not-run');
   assert.equal(confirmationCalls, 2, 'the same idempotency key must be replayed once');
   assert.equal(calls.some((call) => call.path === '/admin/question-imports' && !call.auth), true, 'unauthorized upload must be checked');
   assert.equal(calls.some((call) => call.path === '/questions' && call.auth), true, 'baseline duplicate fixture must be seeded by an administrator');
   assert.equal(calls.some((call) => call.path.endsWith('/retry')), true);
   assert.equal(calls.filter((call) => call.path.endsWith('/confirm')).length, 2);
+});
+
+test('question-import staging smoke can exercise a gated fake-provider PDF path and cleanup protection', async () => {
+  let confirmationCalls = 0;
+  let uploadCalls = 0;
+  const fetchImpl = async (url, init = {}) => {
+    const requestUrl = new URL(url);
+    const method = init.method ?? 'GET';
+    if (requestUrl.pathname === '/auth/login') return jsonResponse(200, { accessToken: 'admin-token', user: { role: 'admin' } });
+    if (requestUrl.pathname === '/admin/question-imports' && method === 'POST' && !headerValue(init.headers, 'authorization')) return jsonResponse(401, { message: 'Unauthorized' });
+    if (requestUrl.pathname === '/questions' && method === 'POST') return jsonResponse(201, { id: 'q-baseline', familyId: 'family-1' });
+    if (requestUrl.pathname === '/admin/question-imports' && method === 'POST') {
+      uploadCalls += 1;
+      const batchId = uploadCalls === 1 ? 'batch-1' : 'pdf-batch';
+      return jsonResponse(202, { batchId, status: 'queued' });
+    }
+    if (requestUrl.pathname === '/admin/question-imports/batch-1') return jsonResponse(200, { id: 'batch-1', status: 'review', jobs: [] });
+    if (requestUrl.pathname === '/admin/question-imports/batch-1/candidates') return jsonResponse(200, { items: [
+      { id: 'skip', revision: 0, duplicateAction: 'skip', targetFamilyId: 'family-1' },
+      { id: 'version', revision: 0, duplicateAction: 'skip', targetFamilyId: 'family-1' },
+    ] });
+    if (requestUrl.pathname === '/admin/question-imports/pdf-batch') return jsonResponse(200, { id: 'pdf-batch', status: 'review', jobs: [] });
+    if (requestUrl.pathname === '/admin/question-imports/pdf-batch/candidates') return jsonResponse(200, { items: [
+      { id: 'pdf-candidate', revision: 0, duplicateAction: 'create', assetIds: ['asset-1'] },
+    ] });
+    if (requestUrl.pathname.startsWith('/admin/question-imports/candidates/') && method === 'PATCH') return jsonResponse(200, { id: requestUrl.pathname.includes('pdf-candidate') ? 'pdf-candidate' : 'version', revision: 1, assetIds: ['asset-1'] });
+    if (requestUrl.pathname === '/admin/question-imports/batch-1/confirm') {
+      return jsonResponse(201, { importedCandidateIds: ['version'], skippedCandidateIds: ['skip'], questionIds: ['question-1'] });
+    }
+    if (requestUrl.pathname === '/admin/question-imports/pdf-batch/confirm') {
+      confirmationCalls += 1;
+      return jsonResponse(201, { importedCandidateIds: ['version'], skippedCandidateIds: ['skip'], questionIds: [`question-${confirmationCalls}`] });
+    }
+    if (requestUrl.pathname === '/admin/question-import-candidates/pdf-candidate/assets/asset-1' && method === 'DELETE') return jsonResponse(409, { message: 'Protected' });
+    throw new Error(`Unexpected request: ${method} ${requestUrl.pathname}`);
+  };
+
+  const result = await runQuestionImportSmoke({
+    apiUrl: 'https://api.example.com',
+    adminEmail: 'admin@example.com',
+    adminPassword: 'AdminPassword!408',
+    questionImportPdfSmoke: true,
+  }, { fetchImpl, log: () => undefined });
+
+  assert.equal(result.pdfSmoke.mode, 'run');
+  assert.equal(result.pdfSmoke.batchId, 'pdf-batch');
 });
 
 test('staging smoke verifies the authenticated persistence path without exposing secrets', async () => {

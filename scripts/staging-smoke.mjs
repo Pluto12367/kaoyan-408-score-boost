@@ -24,6 +24,7 @@ export function readStagingSmokeConfig(env = process.env) {
     invitationCode,
     adminEmail: adminEmail.toLowerCase(),
     adminPassword,
+    questionImportPdfSmoke: env.STAGING_QUESTION_IMPORT_PDF_SMOKE === 'true',
   };
 }
 
@@ -79,7 +80,10 @@ export async function runQuestionImportSmoke(config, options = {}) {
   ensure((confirmation.skippedCandidateIds ?? []).includes(duplicate.id), 'duplicate skip must remain skipped after confirmation');
   ensure((confirmation.questionIds ?? []).length > 0, 'new-version confirmation must create a current question');
   checkpoint('partial confirmation, repeated confirm, and current-question visibility');
-  return { ok: true, batchId: upload.batchId, importedQuestionId: confirmation.questionIds[0], checks: failedJob ? 8 : 7 };
+  const pdfSmoke = config.questionImportPdfSmoke
+    ? await runQuestionImportPdfSmoke(fetchImpl, apiUrl, headers, checkpoint)
+    : { mode: 'not-run', reason: 'STAGING_QUESTION_IMPORT_PDF_SMOKE is not true' };
+  return { ok: true, batchId: upload.batchId, importedQuestionId: confirmation.questionIds[0], checks: failedJob ? 8 : 7, pdfSmoke };
 }
 
 export async function runStagingSmoke(config, options = {}) {
@@ -296,6 +300,27 @@ async function confirmCandidates(fetchImpl, apiUrl, headers, batchId, candidateI
   return readJson(response, 'question-import confirmation');
 }
 
+async function runQuestionImportPdfSmoke(fetchImpl, apiUrl, headers, checkpoint) {
+  const upload = await readJson(await request(fetchImpl, `${apiUrl}/admin/question-imports`, {
+    method: 'POST', headers, body: generatedTinyPdfImport(),
+  }), 'question-import PDF upload');
+  ensure(Boolean(upload.batchId), 'question-import PDF upload must return batchId');
+  const batch = await waitForImportBatch(fetchImpl, apiUrl, headers, upload.batchId);
+  ensure(['review', 'parsing_partial_failure'].includes(batch.status), 'PDF smoke batch must reach review or controlled partial failure');
+  const candidates = await listImportCandidates(fetchImpl, apiUrl, headers, upload.batchId);
+  const candidateWithAsset = candidates.find((candidate) => Array.isArray(candidate.assetIds) && candidate.assetIds.length > 0);
+  ensure(Boolean(candidateWithAsset), 'PDF smoke requires a candidate with a protected page/crop asset from the fake provider');
+  const approved = await updateCandidate(fetchImpl, apiUrl, headers, candidateWithAsset, { status: 'approved', duplicateAction: 'create' });
+  const confirmation = await confirmCandidates(fetchImpl, apiUrl, headers, upload.batchId, [approved.id], `staging-pdf-smoke-${randomId()}`);
+  ensure((confirmation.questionIds ?? []).length > 0, 'PDF smoke confirmation must create a current question');
+  const deleteAttempt = await request(fetchImpl, `${apiUrl}/admin/question-import-candidates/${encodeURIComponent(approved.id)}/assets/${encodeURIComponent(candidateWithAsset.assetIds[0])}`, {
+    method: 'DELETE', headers,
+  });
+  ensure(!deleteAttempt.ok, 'confirmed PDF asset must be protected from candidate temporary-asset deletion');
+  checkpoint('tiny PDF fake-provider path and cleanup protection');
+  return { mode: 'run', batchId: upload.batchId, importedQuestionId: confirmation.questionIds[0] };
+}
+
 async function createBaselineQuestion(fetchImpl, apiUrl, headers, fixture) {
   const response = await request(fetchImpl, `${apiUrl}/questions`, {
     method: 'POST',
@@ -314,6 +339,14 @@ async function createBaselineQuestion(fetchImpl, apiUrl, headers, fixture) {
   });
   ensure(response.ok, 'baseline duplicate question creation must succeed');
   return readJson(response, 'baseline duplicate question creation');
+}
+
+function generatedTinyPdfImport() {
+  const form = new FormData();
+  form.append('file', new Blob([tinyPdfBytes()], { type: 'application/pdf' }), 'staging-question-import.pdf');
+  form.append('source', 'staging smoke generated PDF');
+  form.append('rightsConfirmed', 'true');
+  return form;
 }
 
 function generatedQuestionCsv(fixture) {
@@ -337,6 +370,31 @@ function generatedQuestionCsv(fixture) {
   form.append('source', 'staging smoke generated CSV');
   form.append('rightsConfirmed', 'true');
   return form;
+}
+
+function tinyPdfBytes() {
+  return `%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>
+endobj
+xref
+0 4
+0000000000 65535 f
+0000000009 00000 n
+0000000058 00000 n
+0000000115 00000 n
+trailer
+<< /Root 1 0 R /Size 4 >>
+startxref
+188
+%%EOF
+`;
 }
 
 function questionImportFixture(id) {
