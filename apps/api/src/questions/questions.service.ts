@@ -63,6 +63,11 @@ export class QuestionsService implements OnModuleInit {
       include: { knowledgePoints: true },
       orderBy: { createdAt: 'asc' },
     });
+    // On a fresh database, StudyService persists these built-in questions and
+    // their seed records during its own startup hook. Replacing the in-memory
+    // bootstrap list with an empty query result first leaves those records
+    // pointing at questions that were never created.
+    if (rows.length === 0) return;
     this.questions.splice(0, this.questions.length, ...rows.map(toSharedQuestion));
   }
 
