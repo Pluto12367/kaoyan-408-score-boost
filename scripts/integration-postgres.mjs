@@ -604,6 +604,9 @@ async function main() {
     questionIds: ['q-001', atomicQuestion.id],
   }, studentHeaders);
   await deleteJson(`${apiUrl}/questions/${atomicQuestion.id}`, teacherHeaders);
+  const atomicSetupPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  await atomicSetupPrisma.question.delete({ where: { id: atomicQuestion.id } });
+  await atomicSetupPrisma.$disconnect();
   await expectPostStatus(`${apiUrl}/sessions/practice/${atomicSession.id}/submit`, {
     answers: [
       { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 80 },
