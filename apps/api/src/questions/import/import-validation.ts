@@ -37,6 +37,34 @@ export interface RowImportIssue extends ImportWarning {
 
 export type PreparedImportCandidate = Prisma.QuestionImportCandidateCreateManyInput;
 
+export interface ImportableCandidate {
+  stem: string; options: string[]; answer: string; analysis: string; difficulty: Difficulty; type: QuestionType;
+  source: string; year?: number | null; expectedTimeSec: number; knowledgePointIds: string[];
+}
+
+/** Final, provider-independent validation used before approval and confirmation. */
+export function candidateImportIssues(candidate: ImportableCandidate): ImportWarning[] {
+  const options = Array.isArray(candidate.options) ? candidate.options : [];
+  const knowledgePointIds = Array.isArray(candidate.knowledgePointIds) ? candidate.knowledgePointIds : [];
+  const raw: Record<string, unknown> = {
+    stem: candidate.stem,
+    type: candidate.type === QuestionType.COMPREHENSIVE ? '\u7efc\u5408\u9898' : candidate.type === QuestionType.JUDGEMENT ? '\u5224\u65ad\u9898' : '\u9009\u62e9\u9898',
+    difficulty: candidate.difficulty === Difficulty.BASIC ? '\u57fa\u7840' : candidate.difficulty === Difficulty.HARD ? '\u56f0\u96be' : '\u4e2d\u7b49',
+    source: candidate.source,
+    answer: candidate.answer,
+    analysis: candidate.analysis,
+    year: candidate.year ?? undefined,
+    expectedTimeSec: candidate.expectedTimeSec,
+    knowledgePointIds,
+  };
+  options.forEach((option, index) => { raw[`option${OPTION_LETTERS[index]}`] = option; });
+  const issues = [...normalizeCandidateDraft(raw).issues];
+  if (!String(candidate.answer ?? '').trim()) issues.push(fieldWarning('MISSING_ANSWER', 'answer', 'Answer is required.', 'Enter a verifiable answer.'));
+  if (!String(candidate.analysis ?? '').trim()) issues.push(fieldWarning('MISSING_ANALYSIS', 'analysis', 'Analysis is required.', 'Enter the answer analysis.'));
+  if (knowledgePointIds.length === 0) issues.push(fieldWarning('MISSING_KNOWLEDGE_POINT', 'knowledgePointIds', 'At least one knowledge point is required.', 'Select a knowledge point.'));
+  return deduplicateWarnings(issues);
+}
+
 @Injectable()
 export class ImportValidationService {
   constructor(private readonly prisma: PrismaService) {}

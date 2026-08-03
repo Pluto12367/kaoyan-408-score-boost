@@ -375,7 +375,7 @@ export interface QuestionImportBatchSummary {
 }
 export interface QuestionImportBatch extends QuestionImportBatchSummary {
   title?: string | null; year?: number | null; defaultSubject?: string | null; defaultChapter?: string | null;
-  pageRange?: string | null; costSummary?: { estimated?: number; confirmed?: number; estimatedCost?: number; confirmedCost?: number } | null;
+  pageRange?: string | null; costSummary?: { available?: boolean; totalCost?: number | null; estimated?: number; confirmed?: number; estimatedCost?: number; confirmedCost?: number } | null;
   providerSummary?: { provider?: string; name?: string; [key: string]: unknown } | null;
   jobs: Array<{ id: string; pageStart: number; pageEnd: number; provider: string; attempt: number; state: string }>;
 }
@@ -385,6 +385,7 @@ export interface QuestionImportCandidate {
   difficulty: string; type: string; expectedTimeSec: number; knowledgePointIds: string[]; warnings: Array<{ code: string; severity: 'warning' | 'error'; field?: string; message: string; suggestion: string; rowNumber?: number }>;
   duplicateAction: QuestionImportDuplicateAction; targetFamilyId?: string | null; sourceRowNumber?: number | null; sourcePageNumber?: number | null;
   exactDuplicates?: Array<{ id: string; stem: string }> ; similarDuplicates?: Array<{ id: string; stem: string }>;
+  duplicateTarget?: { id: string; familyId: string; stem: string; options: string[]; answer: string; analysis: string; source: string; year?: number | null } | null;
   sourceRegion?: { x: number; y: number; width: number; height: number };
   formulas: Array<{ latex: string; region?: { x: number; y: number; width: number; height: number } }>;
   assetIds: string[];

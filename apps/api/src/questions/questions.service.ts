@@ -244,7 +244,11 @@ export class QuestionsService implements OnModuleInit {
     }
 
     if (this.persistenceEnabled) {
-      await this.prisma.question.delete({ where: { id: questionId } });
+      const archived = await this.prisma.question.updateMany({
+        where: { id: questionId, isCurrent: true },
+        data: { isCurrent: false },
+      });
+      if (archived.count !== 1) throw new BadRequestException(`Question ${questionId} is historical and cannot be deleted`);
     }
     this.questions.splice(index, 1);
     const reviewIndex = this.reviewItems.findIndex((item) => item.relatedId === questionId);
@@ -256,6 +260,7 @@ export class QuestionsService implements OnModuleInit {
     return {
       id: questionId,
       deleted: true,
+      archived: this.persistenceEnabled,
     };
   }
 

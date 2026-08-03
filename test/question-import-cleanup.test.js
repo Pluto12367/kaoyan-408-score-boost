@@ -39,6 +39,8 @@ test('cleanup service protects unresolved data and only removes unreferenced per
   assert.match(cleanup, /24 \* 60 \* 60 \* 1000/);
   assert.match(cleanup, /providerInputStorageKey/);
   assert.match(cleanup, /rawResultKey/);
+  assert.match(cleanup, /approved/);
+  assert.match(cleanup, /parse_failed/);
 });
 
 test('import storage initializes all asset directories before backup mounts run', () => {

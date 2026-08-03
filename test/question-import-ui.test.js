@@ -74,6 +74,14 @@ test('admin question-import workspace exposes the operational review contract', 
   assert.match(review, /event\.key === 'ArrowRight'/);
   assert.match(review, /event\.key\.toLowerCase\(\) === 'a'/);
   assert.match(review, /assetIds:\s*_assetIds/);
+  for (const field of ['options', 'answer', 'analysis', 'type', 'difficulty', 'source', 'year', 'expectedTimeSec', 'knowledgePointIds']) {
+    assert.match(review, new RegExp(field), `review UI must edit ${field}`);
+  }
+  assert.match(review, /duplicateTarget/);
+  assert.match(workspace, /retryQuestionImport/);
+  assert.match(workspace, /cancelQuestionImport/);
+  assert.match(upload, /downloadQuestionImportTemplate/);
+  assert.doesNotMatch(upload, /href="\/admin\/question-imports\/templates/);
   assert.match(api, /getImportPagePreview/);
   assert.match(api, /uploadCandidateAsset/);
   assert.match(api, /deleteCandidateAsset/);

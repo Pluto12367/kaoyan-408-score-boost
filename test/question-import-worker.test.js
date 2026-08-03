@@ -32,6 +32,22 @@ function claimFixture(overrides = {}) {
   };
 }
 
+function completeCandidate(overrides = {}) {
+  return {
+    stem: 'PV 操作的作用是什么？',
+    options: ['同步与互斥', '磁盘调度'],
+    answer: 'A',
+    analysis: 'P/V 操作用于协调并发进程。',
+    difficulty: 'MEDIUM',
+    type: 'SINGLE_CHOICE',
+    source: '合法原创资料',
+    year: 2026,
+    expectedTimeSec: 90,
+    knowledgePointIds: ['kp-1'],
+    ...overrides,
+  };
+}
+
 function createClaimDatabase(now = new Date('2026-08-01T00:00:00.000Z'), batchStatus = 'queued') {
   const jobs = [{ ...claimFixture({ state: 'pending', leaseOwner: null, leaseExpiresAt: null }) }];
   const batches = [{ id: 'batch-1', status: batchStatus }];
@@ -336,8 +352,8 @@ test('bulk approval uses every candidate revision and audits only ID arrays and 
     $queryRaw: async () => [{ id: 'batch-1' }],
     questionImportCandidate: {
       findMany: async () => [
-        { id: 'candidate-1', revision: 3, status: 'pending_review', warnings: [] },
-        { id: 'candidate-2', revision: 7, status: 'duplicate_suspected', warnings: [] },
+        completeCandidate({ id: 'candidate-1', revision: 3, status: 'pending_review', warnings: [] }),
+        completeCandidate({ id: 'candidate-2', revision: 7, status: 'duplicate_suspected', warnings: [] }),
       ],
       updateMany: async ({ where }) => { revisions.push(where.revision); return { count: 1 }; },
       groupBy: async () => [{ status: 'approved', _count: { _all: 2 } }],

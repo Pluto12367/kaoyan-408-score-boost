@@ -363,3 +363,8 @@ test('production Compose smoke is isolated, cleans only its own project, and nev
   assert.doesNotMatch(smoke, /exec(?:Sync)?\(/);
   assert.doesNotMatch(smoke, /shell:\s*true/);
 });
+
+test('production Compose passes the MinerU credential without embedding a secret', () => {
+  assert.match(productionCompose, /MINERU_API_TOKEN:\s*\$\{MINERU_API_TOKEN:-\}/);
+  assert.match(productionEnvTemplate, /^MINERU_API_TOKEN=$/m);
+});

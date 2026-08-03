@@ -18,10 +18,11 @@ export class ImportCleanupService implements OnModuleInit, OnModuleDestroy {
     const summary: CleanupSummary = { temporaryObjects: 0, permanentObjects: 0, bytes: 0, unresolvedBatches: 0 };
     const expired = await this.prisma.questionImportBatch.findMany({
       where: { expiresAt: { lte: now } },
-      select: { id: true, originalStorageKey: true, candidates: { where: { status: { in: ['pending_review', 'needs_edit', 'duplicate_suspected'] } }, select: { id: true } }, assets: { where: { scope: 'temporary' }, select: { id: true, storageKey: true, byteSize: true } }, jobs: { select: { providerInputStorageKey: true, quality: true } } },
+      select: { id: true, originalStorageKey: true, candidates: { where: { status: { in: ['pending_review', 'needs_edit', 'duplicate_suspected', 'approved', 'parse_failed'] } }, select: { id: true } }, assets: { where: { scope: 'temporary' }, select: { id: true, storageKey: true, byteSize: true } }, jobs: { select: { state: true, providerInputStorageKey: true, quality: true } } },
     });
     for (const batch of expired) {
-      if (batch.candidates.length) { summary.unresolvedBatches += 1; this.logger.warn(`Retaining expired question import batch ${batch.id}: unresolved candidates`); continue; }
+      const activeJob = batch.jobs.some((job) => ['pending', 'queued', 'running'].includes(job.state));
+      if (batch.candidates.length || activeJob) { summary.unresolvedBatches += 1; this.logger.warn(`Retaining expired question import batch ${batch.id}: unresolved candidates or jobs`); continue; }
       await this.storage.removeTemporary(batch.originalStorageKey);
       for (const job of batch.jobs) {
         await this.storage.removeTemporaryObject(job.providerInputStorageKey ?? '');

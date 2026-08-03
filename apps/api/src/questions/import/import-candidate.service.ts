@@ -6,7 +6,7 @@ import { normalizeCandidateDraft } from '@kaoyan408/shared';
 import { AuditEventService } from '../../operations/audit-event.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeImportFingerprint } from './import-fingerprint';
-import { toDifficulty, toQuestionType } from './import-validation';
+import { candidateImportIssues, toDifficulty, toQuestionType } from './import-validation';
 
 const DEFAULT_PAGE_SIZE = 20;
 const MAX_PAGE_SIZE = 100;
@@ -73,7 +73,16 @@ export class ImportCandidateService {
       }),
       this.prisma.questionImportCandidate.count({ where }),
     ]);
-    return { items: items.map(({ assets, pageNumber, ...candidate }) => ({ ...candidate, sourcePageNumber: pageNumber, assetIds: assets.map((asset) => asset.id) })), page, pageSize, total };
+    const familyIds = [...new Set(items.map((candidate) => candidate.targetFamilyId).filter((id): id is string => Boolean(id)))];
+    const targets = familyIds.length ? await this.prisma.question.findMany({
+      where: { familyId: { in: familyIds }, isCurrent: true },
+      select: { id: true, familyId: true, stem: true, options: true, answer: true, analysis: true, source: true, year: true },
+    }) : [];
+    const targetByFamily = new Map(targets.map((target) => [target.familyId, target]));
+    return { items: items.map(({ assets, pageNumber, ...candidate }) => ({
+      ...candidate, sourcePageNumber: pageNumber, assetIds: assets.map((asset) => asset.id),
+      duplicateTarget: candidate.targetFamilyId ? targetByFamily.get(candidate.targetFamilyId) ?? null : null,
+    })), page, pageSize, total };
   }
 
   async update(id: string, revision: number, patch: CandidatePatch, actorId: string) {
@@ -122,7 +131,10 @@ export class ImportCandidateService {
       await this.lockBatch(tx, batchId);
       const candidates = await tx.questionImportCandidate.findMany({
         where: { id: { in: ids }, batchId },
-        select: { id: true, revision: true, status: true, warnings: true },
+        select: {
+          id: true, revision: true, status: true, warnings: true, stem: true, options: true, answer: true, analysis: true,
+          difficulty: true, type: true, source: true, year: true, expectedTimeSec: true, knowledgePointIds: true,
+        },
       });
       if (candidates.length !== ids.length) throw new BadRequestException('Every candidate must belong to the requested batch');
       for (const candidate of candidates) {
@@ -134,6 +146,9 @@ export class ImportCandidateService {
       }
       const warningCount = candidates.reduce((total, candidate) => total + jsonArrayLength(candidate.warnings), 0);
       if (warningCount !== 0) throw new BadRequestException('Only warning-free candidates can be bulk approved');
+      if (candidates.some((candidate) => candidateImportIssues(candidate).length > 0)) {
+        throw new BadRequestException('Only complete, valid candidates can be approved');
+      }
       const now = new Date();
       let approvedCandidates = 0;
       for (const candidate of candidates) {

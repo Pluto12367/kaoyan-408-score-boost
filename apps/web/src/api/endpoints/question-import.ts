@@ -20,6 +20,14 @@ export async function createQuestionImport(file: File, metadata: CreateImportMet
 }
 export const listQuestionImports = async () => expectJson<Page<QuestionImportBatchSummary>>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports`));
 export const getQuestionImport = async (batchId: string) => expectJson<QuestionImportBatch>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}`));
+export async function downloadQuestionImportTemplate(format: 'csv' | 'xlsx' = 'xlsx') {
+  const response = await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/templates/${format}`);
+  if (!response.ok) await expectJson(response);
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a'); link.href = url; link.download = `question-import-template.${format}`; link.click(); URL.revokeObjectURL(url);
+}
+export const cancelQuestionImport = async (batchId: string) => expectJson<{ status: string }>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}/cancel`, { method: 'POST' }));
+export const retryQuestionImport = async (batchId: string, jobIds: string[]) => expectJson<{ retriedJobs: number }>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jobIds }) }));
 export const listImportCandidates = async (batchId: string, page = 1, status?: QuestionImportCandidateStatus) => expectJson<Page<QuestionImportCandidate>>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}/candidates?${new URLSearchParams({ page: String(page), pageSize: '20', ...(status ? { status } : {}) })}`));
 export const updateImportCandidate = async (id: string, revision: number, patch: Record<string, unknown>) => expectJson<QuestionImportCandidate>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/candidates/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, patch }) }));
 export const bulkApproveImportCandidates = async (batchId: string, candidates: Array<{ id: string; revision: number }>) => expectJson<{ approvedCandidates: number }>(await authenticatedFetch(`${API_BASE_URL}/admin/question-imports/${batchId}/candidates/bulk-approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ candidates }) }));

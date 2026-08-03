@@ -3,7 +3,7 @@ import { Prisma, type QuestionImportFileType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { ImportStorageService } from './import-storage.service';
-import { ImportValidationService } from './import-validation';
+import { candidateImportIssues, ImportValidationService } from './import-validation';
 import { TableImportParser } from './table-import.parser';
 import { MineruProvider, PdfParserNotConfiguredError } from './providers/mineru.provider';
 import type { DocumentParserProvider } from './providers/document-parser.provider';
@@ -36,6 +36,7 @@ export interface ClaimedJob {
   year?: number | null;
   defaultSubject?: string | null;
   defaultChapter?: string | null;
+  pageRange?: string | null;
   leaseOwner: string;
   leaseExpiresAt: Date;
   externalTaskId?: string | null;
@@ -51,6 +52,7 @@ interface ClaimableBatch {
   year?: number | null;
   defaultSubject?: string | null;
   defaultChapter?: string | null;
+  pageRange?: string | null;
   status: string;
 }
 
@@ -117,7 +119,7 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.$transaction(async (tx) => {
       const batches = await tx.$queryRaw<ClaimableBatch[]>`
         SELECT batch."id" AS "batchId", batch."originalFileName", batch."originalStorageKey", batch."fileType",
-               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter", batch."status"
+               batch."source", batch."year", batch."defaultSubject", batch."defaultChapter", batch."pageRange", batch."status"
         FROM "QuestionImportBatch" AS batch
         WHERE batch."status" NOT IN (
           'cancelled'::"QuestionImportBatchStatus", 'completed'::"QuestionImportBatchStatus",
@@ -200,6 +202,17 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
   }
 
   async processClaimedJob(job: ClaimedJob): Promise<TableJobResult | DocumentJobResult> {
+    await this.renewLease(job);
+    const timer = setInterval(() => void this.renewLease(job), Math.max(1_000, Math.floor(this.leaseMs / 3)));
+    timer.unref();
+    try {
+      return await this.processClaimedJobBody(job);
+    } finally {
+      clearInterval(timer);
+    }
+  }
+
+  private async processClaimedJobBody(job: ClaimedJob): Promise<TableJobResult | DocumentJobResult> {
     if (job.provider === 'document-planner' && job.fileType === 'pdf') return this.processPdfPlannerJob(job);
     if (job.provider === 'document-parser' && job.fileType === 'pdf') return this.processDocumentJob(job);
     if (job.provider !== 'table-parser' || !['csv', 'xlsx'].includes(job.fileType)) {
@@ -278,6 +291,10 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const submitted = job.externalTaskId ? { externalTaskId: job.externalTaskId } : await this.documentProvider.submit(providerInput);
     if (!job.externalTaskId) await this.prisma.questionImportJob.updateMany({ where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner }, data: { externalTaskId: submitted.externalTaskId } });
     const poll = await this.documentProvider.poll(submitted.externalTaskId);
+    if (poll.state === 'queued' || poll.state === 'running') {
+      await this.scheduleProviderPoll(job, submitted.externalTaskId, poll.retryAfterMs);
+      return { parsedPages: 0, statusCounts: { document_pending: 1 } };
+    }
     if (poll.state !== 'succeeded') {
       const error = new Error(poll.state === 'failed' ? poll.message : 'Document parsing failed');
       Object.assign(error, { code: poll.state === 'failed' ? poll.code : 'DOCUMENT_PARSE_NOT_READY', retryable: poll.state === 'failed' ? poll.retryable : true });
@@ -337,13 +354,24 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
         batchId: job.batchId, scope: 'temporary', storageKey: preview.storageKey, sha256: preview.sha256, mediaType: preview.mediaType,
         byteSize: preview.byteSize, pageNumber: preview.pageNumber,
       })), skipDuplicates: true });
-      if (drafts.length > 0) await tx.questionImportCandidate.createMany({ data: drafts.map((draft, index) => ({
-        batchId: job.batchId, jobId: job.id, sourceRowNumber: index + 1, stem: draft.stem || 'Unstructured PDF question', options: draft.options,
-        answer: draft.answer, analysis: draft.analysis, difficulty: 'MEDIUM', type: draft.options.length ? 'SINGLE_CHOICE' : 'COMPREHENSIVE', source: job.source,
-        year: job.year ?? null, expectedTimeSec: 100, knowledgePointIds: [], formulas: draft.formulas as unknown as Prisma.InputJsonValue,
-        warnings: draft.warnings as unknown as Prisma.InputJsonValue, pageNumber: draft.pageNumber, sourceRegion: draft.sourceRegion as unknown as Prisma.InputJsonValue,
-        contentFingerprint: `${job.id}:${index + 1}`, status: draft.warnings.length ? 'needs_edit' : 'pending_review',
-      })), skipDuplicates: true });
+      if (drafts.length > 0) await tx.questionImportCandidate.createMany({ data: drafts.map((draft, index) => {
+        const candidate = {
+          stem: draft.stem, options: draft.options, answer: draft.answer, analysis: draft.analysis,
+          difficulty: 'MEDIUM' as const, type: draft.options.length ? 'SINGLE_CHOICE' as const : 'COMPREHENSIVE' as const,
+          source: job.source, year: job.year ?? null, expectedTimeSec: 100, knowledgePointIds: [] as string[],
+        };
+        const warnings = [...draft.warnings, ...candidateImportIssues(candidate)];
+        return {
+          batchId: job.batchId, jobId: job.id, sourceRowNumber: index + 1, ...candidate,
+          formulas: draft.formulas as unknown as Prisma.InputJsonValue,
+          warnings: warnings as unknown as Prisma.InputJsonValue, pageNumber: draft.pageNumber, sourceRegion: draft.sourceRegion as unknown as Prisma.InputJsonValue,
+          contentFingerprint: `${job.id}:${index + 1}`, status: 'needs_edit' as const,
+        };
+      }), skipDuplicates: true });
+      await this.updateAggregatedBatchState(tx, job.batchId, {
+        provider: parsed.provider, model: parsed.model, pages: parsed.pages.length,
+        fallback: selectedPages.filter((page) => page.quality.signals.includes('fallback_selected')).length, tencentFallbackCalls,
+      });
     });
     return { parsedPages: parsed.pages.length, statusCounts };
   }
@@ -352,7 +380,8 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
     const pdf = this.pdfDocuments;
     if (!pdf) throw new Error('PDF_DOCUMENT_SERVICE_NOT_CONFIGURED');
     const pageCount = await pdf.pageCount(job.originalStorageKey);
-    const { acceptedFiles, failures } = await this.splitPdfRanges(job.originalStorageKey, splitPageRanges(pageCount, providerPageLimit()));
+    const selectedRanges = parseSelectedPageRanges(job.pageRange, pageCount, providerPageLimit());
+    const { acceptedFiles, failures } = await this.splitPdfRanges(job.originalStorageKey, selectedRanges);
     const statusCounts = {
       document_planned: 1,
       document_pending: acceptedFiles.length,
@@ -400,6 +429,69 @@ export class ImportWorkerService implements OnModuleInit, OnModuleDestroy {
       failures.push(...childResult.failures);
     }
     return { acceptedFiles, failures };
+  }
+
+  private async renewLease(job: ClaimedJob): Promise<void> {
+    try {
+      const now = this.now();
+      const leaseExpiresAt = new Date(now.getTime() + this.leaseMs);
+      const updated = await this.prisma.questionImportJob.updateMany({
+        where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner },
+        data: { leaseExpiresAt },
+      });
+      if (updated.count === 1) job.leaseExpiresAt = leaseExpiresAt;
+    } catch {
+      // Completion is still fenced by owner and a live lease; a failed heartbeat cannot steal ownership.
+    }
+  }
+
+  private async scheduleProviderPoll(job: ClaimedJob, externalTaskId: string, retryAfterMs: number): Promise<void> {
+    const now = this.now();
+    const retryAt = new Date(now.getTime() + Math.max(250, Math.min(retryAfterMs, 60_000)));
+    const updated = await this.prisma.questionImportJob.updateMany({
+      where: { id: job.id, state: 'running', leaseOwner: job.leaseOwner, leaseExpiresAt: { gt: now } },
+      data: {
+        state: 'queued', externalTaskId, retryAt, leaseOwner: null, leaseExpiresAt: null,
+        completedAt: null, error: Prisma.DbNull,
+      },
+    });
+    if (updated.count !== 1) throw new Error('QUESTION_IMPORT_LEASE_LOST');
+    await this.prisma.questionImportBatch.updateMany({
+      where: { id: job.batchId, status: { notIn: ['cancelled', 'expired', 'completed'] } },
+      data: { status: 'parsing', revision: { increment: 1 } },
+    });
+  }
+
+  private async updateAggregatedBatchState(
+    tx: Prisma.TransactionClient,
+    batchId: string,
+    providerSummary: Prisma.InputJsonObject,
+  ): Promise<void> {
+    if (typeof tx.questionImportJob.groupBy !== 'function') return;
+    const [jobGroups, candidateGroups, jobs] = await Promise.all([
+      tx.questionImportJob.groupBy({ by: ['state'], where: { batchId }, _count: { _all: true } }),
+      tx.questionImportCandidate.groupBy({ by: ['status'], where: { batchId }, _count: { _all: true } }),
+      tx.questionImportJob.findMany({ where: { batchId }, select: { cost: true } }),
+    ]);
+    const jobCounts = Object.fromEntries(jobGroups.map((group) => [group.state, group._count._all]));
+    const candidateCounts = Object.fromEntries(candidateGroups.map((group) => [group.status, group._count._all]));
+    const activeJobs = Number(jobCounts.pending ?? 0) + Number(jobCounts.queued ?? 0) + Number(jobCounts.running ?? 0);
+    const failedJobs = Number(jobCounts.failed ?? 0);
+    const monetaryCosts = jobs.map((entry) => numericCost(entry.cost)).filter((value): value is number => value !== null);
+    const status = activeJobs > 0
+      ? (failedJobs > 0 ? 'parsing_partial_failure' : 'parsing')
+      : (failedJobs > 0 ? 'parsing_partial_failure' : 'review');
+    await tx.questionImportBatch.update({
+      where: { id: batchId },
+      data: {
+        status,
+        statusCounts: { ...candidateCounts, jobs: jobCounts } as Prisma.InputJsonObject,
+        providerSummary,
+        costSummary: monetaryCosts.length > 0
+          ? { available: true, totalCost: monetaryCosts.reduce((total, value) => total + value, 0) }
+          : { available: false, totalCost: null, reason: 'provider-did-not-report-monetary-cost' },
+      },
+    });
   }
 
   start(): Promise<void> {
@@ -460,4 +552,30 @@ function safeJobError(error: unknown): Prisma.InputJsonObject {
   }
   const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : 'QUESTION_IMPORT_PROCESSING_FAILED';
   return { code: code || 'QUESTION_IMPORT_PROCESSING_FAILED' };
+}
+
+function numericCost(value: Prisma.JsonValue): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const candidate = (value as Prisma.JsonObject).totalCost ?? (value as Prisma.JsonObject).amount ?? (value as Prisma.JsonObject).cost;
+  return typeof candidate === 'number' && Number.isFinite(candidate) ? candidate : null;
+}
+
+export function parseSelectedPageRanges(pageRange: string | null | undefined, pageCount: number, limit: number): PdfPageRange[] {
+  if (!Number.isInteger(pageCount) || pageCount < 1 || !Number.isInteger(limit) || limit < 1) throw new Error('PDF pageRange cannot be planned');
+  if (!pageRange?.trim()) return splitPageRanges(pageCount, limit);
+  const selected: PdfPageRange[] = [];
+  for (const part of pageRange.split(',')) {
+    const match = /^\s*(\d+)(?:\s*-\s*(\d+))?\s*$/u.exec(part);
+    if (!match) throw new Error('PDF pageRange is invalid');
+    const start = Number(match[1]);
+    const requestedEnd = Number(match[2] ?? match[1]);
+    if (start < 1 || requestedEnd < start) throw new Error('PDF pageRange is invalid');
+    if (start > pageCount) continue;
+    const end = Math.min(requestedEnd, pageCount);
+    for (let pageStart = start; pageStart <= end; pageStart += limit) {
+      selected.push({ pageStart, pageEnd: Math.min(end, pageStart + limit - 1) });
+    }
+  }
+  if (selected.length === 0) throw new Error('PDF pageRange selects no pages in the document');
+  return selected;
 }

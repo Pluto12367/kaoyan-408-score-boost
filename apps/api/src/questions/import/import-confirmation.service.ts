@@ -6,6 +6,7 @@ import { QuestionsService } from '../questions.service';
 import { computeImportFingerprint } from './import-fingerprint';
 import type { ConfirmImportDto } from './dto/confirm-import.dto';
 import { ImportAssetService } from './import-asset.service';
+import { candidateImportIssues } from './import-validation';
 
 const CONFIRMATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_SERIALIZATION_ATTEMPTS = 3;
@@ -63,6 +64,10 @@ export class ImportConfirmationService {
   ) {
     return this.prisma.$transaction(async (tx) => {
       await lockBatch(tx, batchId);
+      const activeJobs = typeof tx.questionImportJob?.count === 'function'
+        ? await tx.questionImportJob.count({ where: { batchId, state: { in: ['pending', 'queued', 'running'] } } })
+        : 0;
+      if (activeJobs > 0) throw new ConflictException('Question import parsing is still in progress');
       const prior = await tx.questionImportConfirmation.findUnique({ where: { idempotencyKey } });
       if (prior) return this.replayOrReject(prior, batchId, candidateIds);
       await lockCandidates(tx, candidateIds);
@@ -138,6 +143,7 @@ export class ImportConfirmationService {
   private validateCandidate(candidate: QuestionImportCandidate): void {
     if (candidate.status === 'imported') throw new ConflictException('A candidate was already imported by a different confirmation');
     if (candidate.status !== 'approved') throw new BadRequestException('Only approved candidates can be confirmed');
+    if (candidateImportIssues(candidate).length > 0) throw new BadRequestException('Approved candidate is no longer complete or valid');
     if (!candidate.duplicateAction) throw new BadRequestException('A duplicate strategy is required');
     if (candidate.duplicateAction === 'new_version' && !candidate.targetFamilyId) {
       throw new BadRequestException('new_version requires a target question family');

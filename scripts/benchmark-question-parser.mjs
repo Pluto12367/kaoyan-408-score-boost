@@ -16,24 +16,38 @@ export function validateManifest(manifest) {
     for (const field of ['expectedFormulas', 'expectedImages']) {
       if (sample[field] != null && (!Number.isInteger(sample[field]) || sample[field] < 0)) throw new Error(`samples[${index}].${field} must be a non-negative integer when provided`);
     }
+    let groundTruth = null;
+    if (sample.groundTruth !== undefined) {
+      if (!Array.isArray(sample.groundTruth) || sample.groundTruth.length !== sample.expectedQuestions) throw new Error(`samples[${index}].groundTruth must contain expectedQuestions entries`);
+      const keys = new Set();
+      groundTruth = sample.groundTruth.map((entry, truthIndex) => {
+        if (!entry || typeof entry.key !== 'string' || !entry.key || keys.has(entry.key) || !Number.isInteger(entry.pageNumber) || entry.pageNumber < 1) throw new Error(`samples[${index}].groundTruth[${truthIndex}] is invalid`);
+        keys.add(entry.key);
+        return {
+          key: entry.key, pageNumber: entry.pageNumber,
+          answer: typeof entry.answer === 'string' && entry.answer.trim() ? entry.answer.trim().toUpperCase() : null,
+          hasFormula: typeof entry.hasFormula === 'boolean' ? entry.hasFormula : null,
+          hasImage: typeof entry.hasImage === 'boolean' ? entry.hasImage : null,
+        };
+      });
+    }
     return {
       kind: sample.kind,
       path: sample.path,
       expectedQuestions: sample.expectedQuestions,
       expectedFormulas: sample.expectedFormulas ?? null,
       expectedImages: sample.expectedImages ?? null,
+      groundTruth,
     };
   });
   return { samples };
 }
 
-export function summarizeBatch({ kind, expectedQuestions, expectedFormulas = null, expectedImages = null, elapsedMs, pageCount, batch, candidates }) {
+export function summarizeBatch({ kind, expectedQuestions, expectedFormulas = null, expectedImages = null, groundTruth = null, elapsedMs, pageCount, batch, candidates }) {
   const safeCandidates = Array.isArray(candidates) ? candidates : [];
   const detectedQuestions = safeCandidates.length;
   const complete = safeCandidates.filter((candidate) => REQUIRED_FIELDS.every((field) => hasValue(candidate?.[field]))).length;
-  const answers = safeCandidates.filter((candidate) => hasValue(candidate?.answer)).length;
-  const formulaCandidates = safeCandidates.filter((candidate) => Array.isArray(candidate?.formulas) && candidate.formulas.length > 0).length;
-  const imageCandidates = safeCandidates.filter((candidate) => Array.isArray(candidate?.assets) && candidate.assets.length > 0).length;
+  const matches = Array.isArray(groundTruth) ? matchGroundTruth(groundTruth, safeCandidates) : null;
   const warnings = safeCandidates.filter((candidate) => Array.isArray(candidate?.warnings) && candidate.warnings.length > 0).length;
   const cost = readCost(batch?.costSummary);
   const safePageCount = Math.max(1, Number.isInteger(pageCount) ? pageCount : 1);
@@ -46,12 +60,12 @@ export function summarizeBatch({ kind, expectedQuestions, expectedFormulas = nul
     pageCount: safePageCount,
     elapsedMs,
     metrics: {
-      precision: ratio(Math.min(detectedQuestions, expectedQuestions), detectedQuestions),
-      recall: ratio(Math.min(detectedQuestions, expectedQuestions), expectedQuestions),
+      precision: matches ? ratio(matches.length, detectedQuestions) : null,
+      recall: matches ? ratio(matches.length, expectedQuestions) : null,
       requiredFieldCompleteness: ratio(complete, detectedQuestions),
-      answerAssociation: ratio(answers, detectedQuestions),
-      formulaRetention: expectedFormulas === null ? null : ratio(Math.min(formulaCandidates, expectedFormulas), expectedFormulas),
-      imageRetention: expectedImages === null ? null : ratio(Math.min(imageCandidates, expectedImages), expectedImages),
+      answerAssociation: matches ? ratio(matches.filter(({ truth, candidate }) => truth.answer !== null && String(candidate.answer ?? '').trim().toUpperCase() === truth.answer).length, matches.filter(({ truth }) => truth.answer !== null).length) : null,
+      formulaRetention: matches ? booleanRetention(matches, 'hasFormula', (candidate) => Array.isArray(candidate.formulas) && candidate.formulas.length > 0) : null,
+      imageRetention: matches ? booleanRetention(matches, 'hasImage', (candidate) => Array.isArray(candidate.assetIds) && candidate.assetIds.length > 0) : null,
       manualWarningRate: ratio(warnings, detectedQuestions),
     },
     cost,
@@ -79,7 +93,7 @@ export async function runBenchmark(config, options = {}) {
     const completed = await waitForReview(fetchImpl, apiUrl, token, created.batchId, config.pollIntervalMs ?? 2_000, config.timeoutMs ?? 15 * 60_000);
     const candidates = await listCandidates(fetchImpl, apiUrl, token, created.batchId);
     const pageCount = pageCountFor(completed, candidates);
-    const summary = summarizeBatch({ kind: sample.kind, expectedQuestions: sample.expectedQuestions, expectedFormulas: sample.expectedFormulas, expectedImages: sample.expectedImages, elapsedMs: Date.now() - started, pageCount, batch: completed, candidates });
+    const summary = summarizeBatch({ kind: sample.kind, expectedQuestions: sample.expectedQuestions, expectedFormulas: sample.expectedFormulas, expectedImages: sample.expectedImages, groundTruth: sample.groundTruth, elapsedMs: Date.now() - started, pageCount, batch: completed, candidates });
     samples.push({ batchId: created.batchId, ...summary, candidateExport: redactCandidates(candidates) });
     log(`[benchmark-question-parser] completed ${sample.kind}: ${summary.detectedQuestions} candidates across ${pageCount} pages`);
   }
@@ -135,14 +149,18 @@ function formForSample(bytes, sample) {
 }
 
 function redactCandidates(candidates) {
-  return candidates.map((candidate) => ({ id: candidate.id, status: candidate.status, pageNumber: candidate.pageNumber ?? null, warningCodes: Array.isArray(candidate.warnings) ? candidate.warnings.map((warning) => warning?.code).filter(Boolean) : [], hasFormula: Boolean(candidate.formulas?.length), hasImage: Boolean(candidate.assets?.length) }));
+  return candidates.map((candidate) => ({ id: candidate.id, status: candidate.status, pageNumber: candidate.sourcePageNumber ?? candidate.pageNumber ?? null, warningCodes: Array.isArray(candidate.warnings) ? candidate.warnings.map((warning) => warning?.code).filter(Boolean) : [], hasFormula: Boolean(candidate.formulas?.length), hasImage: Boolean(candidate.assetIds?.length) }));
 }
 
 function aggregate(samples) {
   const pages = samples.reduce((total, sample) => total + sample.pageCount, 0);
   const elapsedMs = samples.reduce((total, sample) => total + sample.elapsedMs, 0);
   const totalCost = samples.reduce((total, sample) => total + (sample.cost ?? 0), 0);
-  const weighted = (key, denominator) => denominator === 0 ? 0 : round(samples.reduce((total, sample) => total + (sample.metrics[key] * (key === 'recall' ? sample.expectedQuestions : sample.detectedQuestions)), 0) / denominator);
+  const weighted = (key, denominator) => {
+    const scoped = samples.filter((sample) => sample.metrics[key] !== null);
+    if (scoped.length !== samples.length || denominator === 0) return null;
+    return round(scoped.reduce((total, sample) => total + (sample.metrics[key] * (key === 'recall' ? sample.expectedQuestions : sample.detectedQuestions)), 0) / denominator);
+  };
   const optionalWeighted = (key, expectedKey) => {
     const scoped = samples.filter((sample) => sample.metrics[key] !== null);
     const denominator = scoped.reduce((total, sample) => total + sample[expectedKey], 0);
@@ -169,6 +187,18 @@ function aggregate(samples) {
 
 function pageCountFor(batch, candidates) { return Math.max(1, ...[...(batch.assets ?? []), ...candidates].map((item) => Number(item?.pageNumber) || 0)); }
 function readCost(cost) { const value = cost?.totalCost ?? cost?.amount ?? cost?.cost; return Number.isFinite(Number(value)) ? Number(value) : null; }
+function matchGroundTruth(groundTruth, candidates) {
+  const remaining = [...candidates];
+  return groundTruth.flatMap((truth) => {
+    const index = remaining.findIndex((candidate) => Number(candidate.sourcePageNumber ?? candidate.pageNumber) === truth.pageNumber);
+    if (index < 0) return [];
+    return [{ truth, candidate: remaining.splice(index, 1)[0] }];
+  });
+}
+function booleanRetention(matches, field, observed) {
+  const scoped = matches.filter(({ truth }) => truth[field] === true);
+  return scoped.length === 0 ? null : ratio(scoped.filter(({ candidate }) => observed(candidate)).length, scoped.length);
+}
 function ratio(value, total) { return total === 0 ? 0 : round(value / total); }
 function round(value) { return Math.round(value * 10_000) / 10_000; }
 function hasValue(value) { return typeof value === 'string' ? value.trim().length > 0 : value !== undefined && value !== null; }
