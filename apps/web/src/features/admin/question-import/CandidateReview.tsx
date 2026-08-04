@@ -74,6 +74,7 @@ export function CandidateReview({
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [savingId, setSavingId] = useState<string>();
   const [saveError, setSaveError] = useState('');
+  const [confirming, setConfirming] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
 
   useEffect(() => {
@@ -145,8 +146,16 @@ export function CandidateReview({
       setConfirmVersion(true);
       return;
     }
-    await onConfirm(approved);
-    setConfirmVersion(false);
+    setConfirming(true);
+    setSaveError('');
+    try {
+      await onConfirm(approved);
+      setConfirmVersion(false);
+    } catch (reason) {
+      setSaveError(reason instanceof Error ? `确认导入失败：${reason.message}` : '确认导入失败；请刷新后重试。');
+    } finally {
+      setConfirming(false);
+    }
   }
 
   return (
@@ -313,8 +322,8 @@ export function CandidateReview({
       <footer className="question-import-confirm">
         <span>键盘：→ 下一题，A 通过当前无警告题。确认摘要：将提交所选且已通过的 {approved.length} 项。</span>
         {confirmVersion ? <p>包含“新版本”操作。请再次确认以创建不可变新版本。</p> : null}
-        <button type="button" disabled={!approved.length} onClick={() => void confirm()}>
-          确认导入
+        <button type="button" disabled={!approved.length || confirming} onClick={() => void confirm()}>
+          {confirming ? '确认中…' : '确认导入'}
         </button>
       </footer>
     </section>

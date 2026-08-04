@@ -45,9 +45,12 @@ test('admin question-import workspace exposes the operational review contract', 
   assert.match(review, /保存编辑/);
   assert.match(review, /drafts/);
   assert.doesNotMatch(review, /onChange=\{\(event\) => onUpdate/);
-  assert.match(workspace, /crypto\.randomUUID/);
+  assert.match(workspace, /generateQuestionImportIdempotencyKey/);
+  assert.doesNotMatch(workspace, /confirmQuestionImport\([\s\S]*crypto\.randomUUID\(\)/);
   assert.match(review, /\\uFEFF/);
   assert.match(review, /确认导入/);
+  assert.match(review, /确认导入失败/);
+  assert.match(review, /confirming/);
   assert.match(batches, /costSummary/);
   assert.match(batches, /providerSummary/);
   assert.match(upload, /后端尚未支持手动选择/);
