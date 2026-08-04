@@ -3,6 +3,7 @@ import type { AdminMetrics, AdminUserManagement, FeedbackList, ReviewQueue, Syst
 import { ModuleInlineUnavailable, ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
 import { riskLabel, reviewStatusLabel, roleLabel, trialStatusLabel } from '../../constants';
 import type { ModuleResource } from '../../hooks/moduleResource';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 import { InvitationManagementPanel } from './InvitationManagementPanel';
 import { ManagedUserCreationPanel } from './ManagedUserCreationPanel';
 import { StudentAccountActions } from './StudentAccountActions';
@@ -10,6 +11,7 @@ import { TeacherAuthorizationPanel } from './TeacherAuthorizationPanel';
 import { QuestionImportWorkspace } from './question-import/QuestionImportWorkspace';
 
 interface AdminWorkspaceProps {
+  activeSection?: RoleSection;
   metrics: ModuleResource<AdminMetrics>;
   users: ModuleResource<AdminUserManagement>;
   feedback: ModuleResource<FeedbackList>;
@@ -37,6 +39,7 @@ interface AdminWorkspaceProps {
 }
 
 export function AdminWorkspace(props: AdminWorkspaceProps) {
+  const shouldShow = (section: RoleSection) => !props.activeSection || props.activeSection === section;
   const metrics = props.metrics.data;
   const feedback = props.feedback.data;
   const users = props.users.data;
@@ -45,7 +48,7 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
 
   return (
     <>
-      {metrics ? (
+      {shouldShow('admin') ? metrics ? (
         <section id="admin" className="panel admin-panel">
           <div className="panel-heading">
             <div><p className="eyebrow">管理端数据看板</p><h3>试用期核心运营指标</h3></div>
@@ -88,13 +91,17 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         </section>
       ) : (
         <ModuleUnavailable id="admin" title="运营指标" resource={props.metrics} onRetry={props.onRetryMetrics} />
-      )}
+      ) : null}
 
-      <InvitationManagementPanel />
-      <ManagedUserCreationPanel onCreateManagedUser={props.onCreateManagedUser} />
-      <QuestionImportWorkspace />
+      {shouldShow('teacher') ? (
+        <>
+          <InvitationManagementPanel />
+          <ManagedUserCreationPanel onCreateManagedUser={props.onCreateManagedUser} />
+        </>
+      ) : null}
+      {shouldShow('question-import') ? <QuestionImportWorkspace /> : null}
 
-      {users ? (
+      {shouldShow('teacher') ? users ? (
         <section className="panel admin-users-panel">
           <div className="panel-heading">
             <div><p className="eyebrow">用户管理</p><h3>试用名单与角色状态</h3></div>
@@ -146,9 +153,9 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         </section>
       ) : (
         <ModuleUnavailable title="用户管理" resource={props.users} onRetry={props.onRetryUsers} />
-      )}
+      ) : null}
 
-      {users ? (
+      {shouldShow('teacher') && users ? (
         <TeacherAuthorizationPanel
           users={users}
           authorizations={props.teacherAuthorizations}
@@ -158,7 +165,7 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         />
       ) : null}
 
-      {reviewQueue ? (
+      {shouldShow('review') ? reviewQueue ? (
         <section id="review" className="panel review-panel">
           <div className="panel-heading">
             <div><p className="eyebrow">管理端内容审核</p><h3>待审核 {reviewQueue.pendingCount} 项 · 已通过 {reviewQueue.approvedCount} 项</h3></div>
@@ -188,9 +195,9 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         </section>
       ) : (
         <ModuleUnavailable id="review" title="内容审核" resource={props.reviewQueue} onRetry={props.onRetryReviewQueue} />
-      )}
+      ) : null}
 
-      {systemConfig ? (
+      {shouldShow('config') ? systemConfig ? (
         <section id="config" className="panel config-panel">
           <div className="panel-heading">
             <div><p className="eyebrow">管理端系统配置</p><h3>推荐策略参数</h3></div>
@@ -207,7 +214,7 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         </section>
       ) : (
         <ModuleUnavailable id="config" title="系统配置" resource={props.systemConfig} onRetry={props.onRetrySystemConfig} />
-      )}
+      ) : null}
     </>
   );
 }

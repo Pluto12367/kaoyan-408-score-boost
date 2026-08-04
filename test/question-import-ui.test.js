@@ -19,7 +19,9 @@ test('admin question-import workspace exposes the operational review contract', 
     source('apps/web/src/api/types.ts'),
   ]);
 
-  assert.match(navigation, /role === 'admin'[\s\S]*?#question-import/);
+  assert.match(navigation, /adminItems[\s\S]*?'question-import'[\s\S]*?题库文档导入/);
+  assert.match(navigation, /onNavigate/);
+  assert.doesNotMatch(navigation, /href="#question-import"/);
   assert.match(admin, /QuestionImportWorkspace/);
   assert.match(workspace, /2000[\s\S]*?4000[\s\S]*?10000/);
   assert.match(workspace, /clearTimeout/);

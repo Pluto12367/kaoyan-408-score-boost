@@ -37,5 +37,50 @@ export function QuestionImportWorkspace() {
   async function submit(file: File, metadata: CreateImportMetadata) { try { await createQuestionImport(file, metadata); localStorage.setItem(defaultsKey, JSON.stringify({ source: metadata.source, year: metadata.year, defaultSubject: metadata.defaultSubject, defaultChapter: metadata.defaultChapter })); const latest = await loadBatches(); startPolling(latest); } catch (reason) { setError(reason instanceof Error ? reason.message : '上传失败'); } }
   async function update(candidate: QuestionImportCandidate, patch: Record<string, unknown>) { await updateImportCandidate(candidate.id, candidate.revision, patch); await refreshCandidates(); }
   const pageCount = Math.max(1, Math.ceil(candidateTotal / 20));
-  return <section id="question-import" className="question-import-workspace"><NewImportPanel defaults={defaults} onSubmit={submit} />{error ? <p className="task-status">{error}</p> : null}<ImportBatchList batches={batches} detail={detail} selectedId={selectedId} onSelect={setSelectedId} onCancel={async (id) => { await cancelQuestionImport(id); await refreshSelected(id); }} onRetry={async (id, jobIds) => { await retryQuestionImport(id, jobIds); await refreshSelected(id); }} />{selectedId ? <><CandidateReview candidates={candidates} onBulkApprove={async (items) => { await bulkApproveImportCandidates(selectedId, items.map(({ id, revision }) => ({ id, revision }))); await refreshCandidates(); }} onUpdate={update} onConfirm={async (items) => { await confirmQuestionImport(selectedId, items.map((candidate) => candidate.id), generateQuestionImportIdempotencyKey()); await refreshCandidates(); await loadBatches(); }} /><div className="question-import-pagination"><button type="button" disabled={candidatePage === 1} onClick={() => setCandidatePage((page) => page - 1)}>上一页</button><span>第 {candidatePage} / {pageCount} 页，共 {candidateTotal} 项</span><button type="button" disabled={candidatePage >= pageCount} onClick={() => setCandidatePage((page) => page + 1)}>下一页</button></div></> : null}</section>;
+  const passedCount = candidates.filter((candidate) => candidate.status === 'approved' || candidate.status === 'imported').length;
+  const abnormalCount = candidates.filter((candidate) => candidate.status === 'needs_edit' || candidate.status === 'parse_failed').length;
+  const currentStep = !selectedId ? 0 : passedCount > 0 ? 2 : candidates.length ? 1 : 0;
+  const steps = ['上传文件', '审核候选题', '确认入库', '完成'];
+
+  return (
+    <section id="question-import" className="question-import-workspace">
+      <div className="panel question-import-overview">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">导入流程</p>
+            <h3>题库文档导入</h3>
+          </div>
+          <span>支持上传、审核、确认入库和结果反馈</span>
+        </div>
+        <ol className="question-import-stepper" aria-label="题库导入步骤">
+          {steps.map((step, index) => (
+            <li key={step} className={index <= currentStep ? 'active' : ''}>
+              <strong>{index + 1}</strong>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+        <div className="question-import-summary">
+          <article><strong>{candidateTotal || candidates.length}</strong><span>已识别</span></article>
+          <article><strong>{passedCount}</strong><span>通过</span></article>
+          <article><strong>{abnormalCount}</strong><span>异常</span></article>
+          <article><strong>{detail?.status ?? '待上传'}</strong><span>批次状态</span></article>
+        </div>
+      </div>
+
+      <NewImportPanel defaults={defaults} onSubmit={submit} />
+      {error ? <p className="task-status">{error}</p> : null}
+      <ImportBatchList batches={batches} detail={detail} selectedId={selectedId} onSelect={setSelectedId} onCancel={async (id) => { await cancelQuestionImport(id); await refreshSelected(id); }} onRetry={async (id, jobIds) => { await retryQuestionImport(id, jobIds); await refreshSelected(id); }} />
+      {selectedId ? (
+        <>
+          <CandidateReview candidates={candidates} onBulkApprove={async (items) => { await bulkApproveImportCandidates(selectedId, items.map(({ id, revision }) => ({ id, revision }))); await refreshCandidates(); }} onUpdate={update} onConfirm={async (items) => { await confirmQuestionImport(selectedId, items.map((candidate) => candidate.id), generateQuestionImportIdempotencyKey()); await refreshCandidates(); await loadBatches(); }} />
+          <div className="question-import-pagination">
+            <button type="button" disabled={candidatePage === 1} onClick={() => setCandidatePage((page) => page - 1)}>上一页</button>
+            <span>第 {candidatePage} / {pageCount} 页，共 {candidateTotal} 项</span>
+            <button type="button" disabled={candidatePage >= pageCount} onClick={() => setCandidatePage((page) => page + 1)}>下一页</button>
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
 }

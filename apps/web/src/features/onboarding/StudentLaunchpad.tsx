@@ -27,6 +27,27 @@ interface StudentLaunchpadProps {
 }
 
 const SUBJECTS: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
+const subjectCards = [
+  { title: '数据结构', accuracy: 78, done: '328/420', tone: 'blue' },
+  { title: '计算机组成原理', accuracy: 72, done: '305/420', tone: 'teal' },
+  { title: '操作系统', accuracy: 68, done: '287/420', tone: 'purple' },
+  { title: '计算机网络', accuracy: 75, done: '312/420', tone: 'amber' },
+];
+
+const focusPoints = [
+  ['中缀表达式求值', '45%'],
+  ['虚拟存储器', '52%'],
+  ['指令流水线', '55%'],
+  ['死锁的预防与避免', '58%'],
+  ['子网划分', '60%'],
+];
+
+const recentMistakes = [
+  'Cache 的访问过程',
+  '二叉树的遍历',
+  '死锁检测',
+  'DHCP 协议',
+];
 
 export function StudentLaunchpad({
   showOnboarding,
@@ -65,6 +86,70 @@ export function StudentLaunchpad({
 
   return (
     <>
+      <section className="panel student-dashboard-hero">
+        <div className="student-hero-copy">
+          <p className="eyebrow">学习总览</p>
+          <h3>把今天该做的事先做清楚</h3>
+          <p>围绕 408 四科，把计划、刷题、错题和提分报告收在一个工作台里。</p>
+          <div className="student-hero-actions">
+            <button type="button" className="primary-action" onClick={() => void startConfiguredExam()}>
+              <ClipboardCheck size={18} /> 继续刷题
+            </button>
+            <span>今日任务进度 70% · 已完成 7 / 10</span>
+          </div>
+        </div>
+        <div className="student-plan-ring" aria-label="今日计划进度">
+          <strong>70%</strong>
+          <span>今日计划</span>
+        </div>
+      </section>
+
+      <section className="panel student-subject-panel">
+        <div className="panel-heading">
+          <div><p className="eyebrow">408 科目模块</p><h3>按科目推进题库训练</h3></div>
+          <span>数据用于后续提分报告和错题复盘</span>
+        </div>
+        <div className="student-subject-grid">
+          {subjectCards.map((item) => (
+            <article key={item.title} className={`student-subject-card tone-${item.tone}`}>
+              <strong>{item.title}</strong>
+              <span>正确率 {item.accuracy}%</span>
+              <small>已学 {item.done} 题</small>
+              <div className="progress-bar"><span className="progress-fill" style={{ width: `${item.accuracy}%` }} /></div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="student-focus-grid">
+        <div className="panel">
+          <div className="panel-heading"><div><p className="eyebrow">薄弱知识点 TOP5</p><h3>优先复盘这些考点</h3></div></div>
+          <div className="focus-point-list">
+            {focusPoints.map(([title, rate], index) => (
+              <article key={title}>
+                <span>{index + 1}</span>
+                <strong>{title}</strong>
+                <small>{rate}</small>
+              </article>
+            ))}
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-heading"><div><p className="eyebrow">最近错题</p><h3>复盘后再进入同考点训练</h3></div></div>
+          <div className="recent-mistake-list">
+            {recentMistakes.map((item) => <span key={item}>× {item}</span>)}
+          </div>
+        </div>
+        <div className="panel">
+          <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>近 7 天</h3></div></div>
+          <div className="mastery-trend" aria-label="掌握度趋势">
+            {[38, 42, 50, 49, 64, 62, 75].map((value, index) => (
+              <span key={index} style={{ height: `${value}%` }} />
+            ))}
+          </div>
+        </div>
+      </section>
+
       {todayPlan ? <TodayPlan plan={todayPlan} onRefresh={onRefreshTodayPlan} onOpenReview={onOpenReview} /> : null}
       {!todayPlan && (todayPlanLoading || todayPlanError) ? (
         <ModuleUnavailable

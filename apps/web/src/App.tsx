@@ -3,7 +3,12 @@ import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator
 import { ExamSession } from './components/ExamSession';
 import { ErrorReasonSelector } from './components/ErrorReasonSelector';
 import { ExamReportView } from './components/ExamReport';
-import { RoleNavigation } from './layouts/RoleNavigation';
+import {
+  RoleNavigation,
+  defaultRoleSection,
+  isSectionAllowedForRole,
+  type RoleSection,
+} from './layouts/RoleNavigation';
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
 import { AdminWorkspace } from './features/admin/AdminWorkspace';
 import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
@@ -68,6 +73,29 @@ import {
   createInitialPaperSession,
 } from './constants';
 import { isStudentOverviewReady, resolveSessionQuestions, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
+
+function useRoleSectionNavigation(role?: UserRole) {
+  const resolvedRole = role ?? 'student';
+  const [activeSection, setActiveSection] = useState<RoleSection>(() => defaultRoleSection(resolvedRole));
+
+  useEffect(() => {
+    setActiveSection((current) => (
+      isSectionAllowedForRole(resolvedRole, current)
+        ? current
+        : defaultRoleSection(resolvedRole)
+    ));
+  }, [resolvedRole]);
+
+  function resetSectionForRole(nextRole: UserRole) {
+    setActiveSection(defaultRoleSection(nextRole));
+  }
+
+  const visibleSection = isSectionAllowedForRole(resolvedRole, activeSection)
+    ? activeSection
+    : defaultRoleSection(resolvedRole);
+
+  return { activeSection, setActiveSection, visibleSection, resetSectionForRole };
+}
 
 export function App() {
   const {
@@ -162,6 +190,7 @@ export function App() {
     refreshAssessmentHistory,
     updateAssessmentHistory,
   } = studentLearning;
+  const { activeSection, setActiveSection, visibleSection, resetSectionForRole } = useRoleSectionNavigation(sessionUser?.role);
 
   useEffect(() => {
     const resource = dashboardOverview.overview;
@@ -349,6 +378,7 @@ export function App() {
   }
 
   async function onRoleSwitch(role: UserRole) {
+    resetSectionForRole(role);
     const result = await handleRoleSwitch(role);
     setApiState(result);
   }
@@ -460,7 +490,7 @@ export function App() {
       setStageResult(null);
       setApiState('connected');
       setAssessmentStatus(`已生成 ${assessment.questions.length} 题阶段测评，预计 ${assessment.estimatedMinutes} 分钟。`);
-      document.getElementById('assessment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveSection('question');
     } catch {
       setAssessmentStatus('阶段测评生成失败，当前显示本地演示数据。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
@@ -489,7 +519,7 @@ export function App() {
       setTutorReply(reply);
       setApiState('connected');
       setTutorStatus(`已生成 ${reply.knowledgePointTitle} 的答疑解析。`);
-      document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveSection('ai');
     } catch {
       setTutorStatus('AI 答疑暂时不可用，请先查看标准解析。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
@@ -507,7 +537,7 @@ export function App() {
       setAiFollowUp(reply);
       setApiState('connected');
       setTutorStatus(`已生成 ${reply.reviewCards.length} 张复习卡片：${reply.relatedKnowledgePoint.title}`);
-      document.getElementById('ai')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setActiveSection('ai');
     } catch {
       setTutorStatus('AI 追问暂时不可用，请先查看标准解析和错题复盘建议。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
@@ -868,12 +898,20 @@ paperId: paper.id,
 
   if (shouldShowAuthGate) {
     return (
-      <main className="app-shell auth-shell">
+      <main className="app-shell auth-shell auth-shell-redesign">
         <section className="auth-gate">
           <div className="auth-brand">
-            <p className="eyebrow">408 Score Boost</p>
+            <span className="auth-orb" aria-hidden="true">408</span>
+            <p className="eyebrow">408 SCORE BOOST</p>
             <h1>计算机考研 408 提分系统</h1>
-            <p>登录后同步学习计划、练习记录、错题复盘和测评报告。新同学可以先注册学生账号。</p>
+            <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
+            <div className="auth-feature-grid" aria-label="系统能力">
+              <span>题库训练</span>
+              <span>错题复盘</span>
+              <span>学情分析</span>
+              <span>AI 辅助</span>
+            </div>
+            <p className="auth-role-copy">学生 / 教师 / 管理员均可进入对应工作台。</p>
           </div>
           <AccountPanel
             user={sessionUser}
@@ -900,7 +938,7 @@ paperId: paper.id,
           <p className="eyebrow">408 Score Boost</p>
           <h1>计算机考研 408 提分系统</h1>
         </div>
-        <RoleNavigation role={sessionUser?.role} />
+        <RoleNavigation role={sessionUser?.role} activeSection={activeSection} onNavigate={setActiveSection} />
       </aside>
 
       <section className="workspace">
@@ -932,7 +970,7 @@ paperId: paper.id,
         </header>
 
         <StudentLayout role={sessionUser?.role}>
-          {studentOverviewReady ? (
+          {studentOverviewReady && (visibleSection === 'dashboard' || visibleSection === 'plan') ? (
           <StudentLaunchpad
             showOnboarding={showOnboarding}
             todayPlan={todayPlan}
@@ -946,7 +984,7 @@ paperId: paper.id,
             onRefreshTodayPlan={refreshTodayPlan}
             onOpenReview={(questionId) => {
               setDetailQuestionId(questionId);
-              window.setTimeout(() => document.getElementById('wrong-question-detail')?.scrollIntoView({ behavior: 'smooth' }), 0);
+              setActiveSection('wrong-book');
             }}
             onResumeSession={(session) => {
               setResumedLearningSession(session);
@@ -980,7 +1018,7 @@ paperId: paper.id,
         </StudentLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady ? <>
+        {studentOverviewReady && (visibleSection === 'dashboard' || visibleSection === 'report') ? <>
         <StudentProgressOverview
           trialProgress={studentProgress.trialProgress}
           studyReminders={studentProgress.studyReminders}
@@ -1001,6 +1039,7 @@ paperId: paper.id,
 
         <AdminLayout role={sessionUser?.role}>
           <AdminWorkspace
+            activeSection={visibleSection}
             metrics={roleWorkspace.adminMetrics}
             users={roleWorkspace.adminUsers}
             feedback={roleWorkspace.feedback}
@@ -1029,7 +1068,7 @@ paperId: paper.id,
         </AdminLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady ? <>
+        {studentOverviewReady && (visibleSection === 'plan' || visibleSection === 'question' || visibleSection === 'report' || visibleSection === 'ai') ? <>
         <section id="wrong-book" className="panel">
           <div className="panel-heading">
             <div>
@@ -1066,9 +1105,9 @@ paperId: paper.id,
           <WeaknessReportPanel report={report} />
         </section>
 
-        <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} />
-        <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} />
-        <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
+        {(visibleSection === 'report' || visibleSection === 'question') ? <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} /> : null}
+        {visibleSection === 'report' ? <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} /> : null}
+        {visibleSection === 'ai' ? <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} /> : null}
         </> : null}
         </StudentLayout>
 
@@ -1096,7 +1135,7 @@ paperId: paper.id,
         </TeacherLayout>
 
         <StudentLayout role={sessionUser?.role}>
-          {studentOverviewReady ? (
+          {studentOverviewReady && visibleSection === 'wrong-book' ? (
           <MistakeWorkspace
             wrongQuestions={wrongQuestions}
             summary={studentLearning.wrongQuestionSummary}
@@ -1110,7 +1149,7 @@ paperId: paper.id,
               setRedoQuestionId(questionId);
               setDetailQuestionId(null);
               if (knowledgePointTitle) setPracticeStatus(`正在重做：${knowledgePointTitle}。请选择答案。`);
-              document.getElementById('question')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              setActiveSection('question');
             }}
           />
           ) : null}
