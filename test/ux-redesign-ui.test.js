@@ -46,6 +46,15 @@ test('auth gate uses the redesigned entry shell and role value proposition', asy
   assert.match(styles, /auth-orb/);
 });
 
+test('auth gate overrides the workspace two-column shell on desktop', async () => {
+  const styles = await source('apps/web/src/styles.css');
+  const authShellRule = styles.match(/\.auth-shell\s*\{[^}]+\}/)?.[0] ?? '';
+  const authGateRule = styles.match(/\.auth-gate\s*\{[^}]+\}/)?.[0] ?? '';
+
+  assert.match(authShellRule, /grid-template-columns:\s*1fr;/);
+  assert.match(authGateRule, /grid-column:\s*1\s*\/\s*-1;/);
+});
+
 test('question import workspace shows a clear import stepper and feedback summary', async () => {
   const workspace = await source('apps/web/src/features/admin/question-import/QuestionImportWorkspace.tsx');
   const styles = await source('apps/web/src/styles.css');

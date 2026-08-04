@@ -7,11 +7,13 @@
 .auth-shell {
   min-height: 100vh;
   display: grid;
+  grid-template-columns: 1fr;
   place-items: center;
   padding: 32px;
 }
 
 .auth-gate {
+  grid-column: 1 / -1;
   width: min(1040px, 100%);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
