@@ -1,0 +1,19 @@
+id: TEST-OS-SYNC-CHAPTER-001
+title: 进程同步章节测评
+assessment_type: chapter_test
+subject_id: OS
+chapter_id: OS-PROC
+knowledge_point_ids:
+  - OS-PROC-SYNC-KP-001
+  - OS-PROC-SYNC-KP-002
+  - OS-PROC-SYNC-KP-003
+duration_minutes: 30
+total_score: 20
+difficulty_distribution:
+  easy: 0.30
+  medium: 0.50
+  hard: 0.20
+question_ids:
+  - OS-PROC-SYNC-Q-001
+status: draft
+version: 1.0.0

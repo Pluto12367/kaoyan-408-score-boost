@@ -1,0 +1,54 @@
+error_tags:
+  - id: ERR-CONCEPT-UNCLEAR
+    category: knowledge
+    name: 概念不清
+    description: 对定义、边界或核心含义理解不完整。
+    recommended_actions:
+      - 查看核心概念卡
+      - 完成3道基础辨析题
+    default_review_days: [1, 3, 7]
+
+  - id: ERR-CONCEPT-CONFUSION
+    category: knowledge
+    name: 知识点混淆
+    description: 无法区分两个相似概念。
+    recommended_actions:
+      - 查看概念对比卡
+      - 完成3道易混辨析题
+    default_review_days: [1, 3, 7]
+
+  - id: ERR-FORMULA
+    category: knowledge
+    name: 公式记错
+    description: 公式本身、适用条件或变量含义记忆错误。
+    recommended_actions:
+      - 查看公式卡
+      - 完成2道公式应用题
+    default_review_days: [1, 2, 5]
+
+  - id: ERR-CALCULATION
+    category: calculation
+    name: 计算失误
+    description: 方法正确，但算术、位数、单位或符号出现错误。
+    recommended_actions:
+      - 重做原题
+      - 完成2道同参数类型变式题
+    default_review_days: [1, 3]
+
+  - id: ERR-CONDITION-MISSING
+    category: reading
+    name: 条件遗漏
+    description: 忽略题干中的限制条件、关键词或边界条件。
+    recommended_actions:
+      - 标记题干关键词
+      - 完成2道条件辨析题
+    default_review_days: [1, 3, 7]
+
+  - id: ERR-TIME
+    category: strategy
+    name: 时间不足
+    description: 未能在合理时间内完成题目。
+    recommended_actions:
+      - 完成限时训练
+      - 复盘耗时最长步骤
+    default_review_days: [1, 4]

@@ -1,0 +1,50 @@
+id: OS-PROC-SYNC-KP-002
+name: 信号量机制
+subject_id: OS
+chapter_id: OS-PROC
+section_id: OS-PROC-SYNC
+parent_id: OS-PROC-SYNC-KP-001
+definition: 信号量是用于表示可用资源数量或同步状态的整型变量，只能通过原子操作访问。
+syllabus_refs:
+  - SRC-SYL-2027-408-001
+importance_level: 5
+frequency_level: 5
+difficulty_level: 3
+stages:
+  - foundation
+  - strengthening
+  - sprint
+prerequisites:
+  - OS-PROC-SYNC-KP-001
+successors:
+  - OS-PROC-SYNC-KP-003
+question_types:
+  - single_choice
+  - calculation
+  - comprehensive
+estimated_learning_minutes:
+  weak: 100
+  normal: 70
+  strong: 40
+recommended_question_count:
+  foundation: 8
+  strengthening: 15
+  sprint: 8
+common_errors:
+  - 信号量初值设置错误
+  - 混淆资源信号量与互斮信号量
+mastery_requirements:
+  basic:
+    accuracy: 0.7
+    min_questions: 6
+  good:
+    accuracy: 0.82
+    min_questions: 10
+  excellent:
+    accuracy: 0.9
+    min_questions: 15
+source_ids:
+  - SRC-SYL-2027-408-001
+  - SRC-TEXTBOOK-OS-001
+status: draft
+version: 1.0.0

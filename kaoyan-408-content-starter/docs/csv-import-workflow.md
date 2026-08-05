@@ -1,9 +1,17 @@
 # CSV import workflow
 
-The first import-ready CSV is:
+The current import-ready starter bank is:
 
 ```text
-kaoyan-408-content-starter/imports/starter-40-questions.csv
+kaoyan-408-content-starter/imports/starter-320-questions.csv
+```
+
+It contains 320 original starter questions across 16 knowledge points.
+
+Regenerate the starter bank:
+
+```bash
+npm run questions:generate-starter
 ```
 
 Validate the file without touching the database:
@@ -36,5 +44,25 @@ Required CSV columns:
 stem,options,answer,analysis,knowledgePointIds,difficulty,type,source,year,expectedTimeSec
 ```
 
-Use `|` to separate multiple options or knowledge point ids. Current starter ids are
-`ds-tree`, `co-cache`, `os-sync`, and `net-tcp`.
+Use `|` to separate multiple options or knowledge point ids.
+
+Current starter ids:
+
+```text
+ds-list
+ds-tree
+ds-graph
+ds-sort
+co-data
+co-cache
+co-instruction
+co-cpu
+os-process
+os-sync
+os-memory
+os-file
+net-link
+net-ip
+net-tcp
+net-app
+```

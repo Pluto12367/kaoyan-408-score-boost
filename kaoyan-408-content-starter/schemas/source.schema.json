@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Source Registry",
+  "type": "object",
+  "required": [
+    "sources"
+  ],
+  "properties": {
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "source_type",
+          "rights_status",
+          "allowed_usage"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source_type": {
+            "type": "string",
+            "minLength": 1
+          },
+          "rights_status": {
+            "type": "string",
+            "enum": [
+              "PUBLIC_OFFICIAL",
+              "SELF_CREATED",
+              "AUTHORIZED",
+              "OPEN_LICENSE",
+              "LINK_ONLY",
+              "REVIEW_REQUIRED",
+              "PROHIBITED"
+            ]
+          },
+          "allowed_usage": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

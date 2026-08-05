@@ -1,0 +1,44 @@
+id: OS-PROC-BASIC-KP-001
+name: 进程基本概念
+subject_id: OS
+chapter_id: OS-PROC
+section_id: OS-PROC-BASIC
+parent_id: OS-PROC
+definition: 进程是程序的一次执行过程，是系统进行资源分配和调度的基本单位之一。
+syllabus_refs:
+  - SRC-SYL-2027-408-001
+importance_level: 5
+frequency_level: 5
+difficulty_level: 1
+stages:
+  - foundation
+prerequisites: []
+successors:
+  - OS-PROC-SYNC-KP-001
+question_types:
+  - single_choice
+estimated_learning_minutes:
+  weak: 30
+  normal: 20
+  strong: 10
+recommended_question_count:
+  foundation: 5
+  strengthening: 3
+  sprint: 2
+common_errors:
+  - 将程序与进程混为一谈
+mastery_requirements:
+  basic:
+    accuracy: 0.7
+    min_questions: 3
+  good:
+    accuracy: 0.8
+    min_questions: 5
+  excellent:
+    accuracy: 0.9
+    min_questions: 8
+source_ids:
+  - SRC-SYL-2027-408-001
+  - SRC-TEXTBOOK-OS-001
+status: draft
+version: 1.0.0

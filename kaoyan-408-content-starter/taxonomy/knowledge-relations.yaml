@@ -1,0 +1,18 @@
+relations:
+  - from: OS-PROC-BASIC-KP-001
+    to: OS-PROC-SYNC-KP-001
+    relation: PREREQUISITE
+    strength: strong
+    reason: 理解进程基本概念后，才能学习进程同步与互斥。
+
+  - from: OS-PROC-SYNC-KP-001
+    to: OS-PROC-SYNC-KP-002
+    relation: PREREQUISITE
+    strength: strong
+    reason: 理解同步和互斥后，才能理解信号量机制。
+
+  - from: OS-PROC-SYNC-KP-001
+    to: OS-PROC-SYNC-KP-003
+    relation: CONFUSED_WITH
+    strength: strong
+    reason: 同步关系和互斥关系经常在同一题目中同时出现。

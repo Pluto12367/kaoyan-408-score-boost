@@ -1,0 +1,16 @@
+difficulty_levels:
+  - level: 1
+    name: 很容易
+    description: 直接考查定义、结论或单一步骤。
+  - level: 2
+    name: 容易
+    description: 需要一次简单判断或运算。
+  - level: 3
+    name: 中等
+    description: 需要综合两个以上知识点或多个步骤。
+  - level: 4
+    name: 较难
+    description: 条件复杂，需要较强分析能力。
+  - level: 5
+    name: 很难
+    description: 多知识点综合，存在较强区分度。

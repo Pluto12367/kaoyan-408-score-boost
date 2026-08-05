@@ -1,0 +1,52 @@
+id: OS-PROC-SYNC-KP-003
+name: PV操作
+subject_id: OS
+chapter_id: OS-PROC
+section_id: OS-PROC-SYNC
+parent_id: OS-PROC-SYNC-KP-002
+definition: P操作用于申请资源或等待条件，V操作用于释放资源或通知条件满足，二者必须是原子操作。
+syllabus_refs:
+  - SRC-SYL-2027-408-001
+importance_level: 5
+frequency_level: 5
+difficulty_level: 4
+stages:
+  - foundation
+  - strengthening
+  - sprint
+prerequisites:
+  - OS-PROC-SYNC-KP-001
+  - OS-PROC-SYNC-KP-002
+successors: []
+question_types:
+  - single_choice
+  - calculation
+  - comprehensive
+  - subjective
+estimated_learning_minutes:
+  weak: 150
+  normal: 100
+  strong: 60
+recommended_question_count:
+  foundation: 10
+  strengthening: 18
+  sprint: 10
+common_errors:
+  - P操作与V操作顺序错误
+  - mutex、empty和full设置错误
+  - 忽略原子性
+mastery_requirements:
+  basic:
+    accuracy: 0.7
+    min_questions: 8
+  good:
+    accuracy: 0.82
+    min_questions: 12
+  excellent:
+    accuracy: 0.9
+    min_questions: 18
+source_ids:
+  - SRC-SYL-2027-408-001
+  - SRC-TEXTBOOK-OS-001
+status: draft
+version: 1.0.0

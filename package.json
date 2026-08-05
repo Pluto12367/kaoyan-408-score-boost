@@ -35,6 +35,7 @@
     "db:restore": "node scripts/restore-postgres.mjs",
     "questions:import": "node scripts/import-questions.mjs",
     "questions:import:dry-run": "node scripts/import-questions.mjs --dry-run",
+    "questions:generate-starter": "node scripts/generate-starter-320-questions.mjs",
     "users:create-teacher": "node scripts/create-teacher-user.mjs --role teacher",
     "users:create-admin": "node scripts/create-teacher-user.mjs --role admin",
     "smoke:migration": "npm run build:api && npm run build:web && node scripts/smoke-migration.mjs",
@@ -43,6 +44,8 @@
     "db:test:up": "docker compose -f compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f compose.test.yml down -v",
     "test:integration:postgres": "npm run build:api && node scripts/integration-postgres.mjs",
+    "test:integration:import-first": "npm run build:api && node scripts/integration-import-first.mjs",
+    "test:integration:content-import": "npm run build:api && node scripts/integration-content-import.mjs",
     "test:integration:question-import": "npm run build:api && node scripts/integration-question-import.mjs",
     "check:release": "npm test && npm run verify:api-build-layout && npm run build:web && npm run smoke:migration"
   }

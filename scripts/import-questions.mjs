@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { PrismaClient, Difficulty, QuestionType, Subject } from '@prisma/client';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
 
-const DEFAULT_FILE = 'kaoyan-408-content-starter/imports/starter-40-questions.csv';
+const DEFAULT_FILE = 'kaoyan-408-content-starter/imports/starter-320-questions.csv';
 
 const args = new Set(process.argv.slice(2));
 const dryRun = args.has('--dry-run');
@@ -12,6 +12,14 @@ const fileArg = process.argv.slice(2).find((arg) => !arg.startsWith('--'));
 const filePath = resolve(process.cwd(), fileArg ?? DEFAULT_FILE);
 
 const knowledgePointSeed = new Map([
+  ['ds-list', {
+    subject: Subject.DATA_STRUCTURE,
+    chapter: '线性表',
+    title: '线性表结构与操作',
+    importance: 5,
+    frequency: 5,
+    prerequisites: ['程序设计基础'],
+  }],
   ['ds-tree', {
     subject: Subject.DATA_STRUCTURE,
     chapter: '树与二叉树',
@@ -19,6 +27,30 @@ const knowledgePointSeed = new Map([
     importance: 5,
     frequency: 5,
     prerequisites: ['线性表'],
+  }],
+  ['ds-graph', {
+    subject: Subject.DATA_STRUCTURE,
+    chapter: '图',
+    title: '图的遍历与最短路径',
+    importance: 5,
+    frequency: 4,
+    prerequisites: ['树与二叉树'],
+  }],
+  ['ds-sort', {
+    subject: Subject.DATA_STRUCTURE,
+    chapter: '排序与查找',
+    title: '排序算法复杂度与稳定性',
+    importance: 5,
+    frequency: 5,
+    prerequisites: ['线性表'],
+  }],
+  ['co-data', {
+    subject: Subject.COMPUTER_ORGANIZATION,
+    chapter: '数据表示与运算',
+    title: '补码、浮点数与溢出判断',
+    importance: 5,
+    frequency: 5,
+    prerequisites: ['数制转换'],
   }],
   ['co-cache', {
     subject: Subject.COMPUTER_ORGANIZATION,
@@ -28,6 +60,30 @@ const knowledgePointSeed = new Map([
     frequency: 5,
     prerequisites: ['存储层次'],
   }],
+  ['co-instruction', {
+    subject: Subject.COMPUTER_ORGANIZATION,
+    chapter: '指令系统',
+    title: '寻址方式与指令格式',
+    importance: 4,
+    frequency: 4,
+    prerequisites: ['数据表示'],
+  }],
+  ['co-cpu', {
+    subject: Subject.COMPUTER_ORGANIZATION,
+    chapter: '中央处理器',
+    title: '数据通路与控制器',
+    importance: 5,
+    frequency: 4,
+    prerequisites: ['指令系统'],
+  }],
+  ['os-process', {
+    subject: Subject.OPERATING_SYSTEM,
+    chapter: '进程管理',
+    title: '进程状态、调度与上下文切换',
+    importance: 5,
+    frequency: 5,
+    prerequisites: ['操作系统引论'],
+  }],
   ['os-sync', {
     subject: Subject.OPERATING_SYSTEM,
     chapter: '进程管理',
@@ -36,6 +92,38 @@ const knowledgePointSeed = new Map([
     frequency: 5,
     prerequisites: ['进程状态'],
   }],
+  ['os-memory', {
+    subject: Subject.OPERATING_SYSTEM,
+    chapter: '内存管理',
+    title: '分页、分段与虚拟内存',
+    importance: 5,
+    frequency: 5,
+    prerequisites: ['进程管理'],
+  }],
+  ['os-file', {
+    subject: Subject.OPERATING_SYSTEM,
+    chapter: '文件系统',
+    title: '文件分配、目录与磁盘调度',
+    importance: 4,
+    frequency: 4,
+    prerequisites: ['I/O 管理'],
+  }],
+  ['net-link', {
+    subject: Subject.COMPUTER_NETWORK,
+    chapter: '数据链路层',
+    title: '差错控制、流量控制与 MAC',
+    importance: 4,
+    frequency: 4,
+    prerequisites: ['物理层基础'],
+  }],
+  ['net-ip', {
+    subject: Subject.COMPUTER_NETWORK,
+    chapter: '网络层',
+    title: 'IP、子网划分与路由',
+    importance: 5,
+    frequency: 5,
+    prerequisites: ['数据链路层'],
+  }],
   ['net-tcp', {
     subject: Subject.COMPUTER_NETWORK,
     chapter: '传输层',
@@ -43,6 +131,14 @@ const knowledgePointSeed = new Map([
     importance: 4,
     frequency: 5,
     prerequisites: ['滑动窗口'],
+  }],
+  ['net-app', {
+    subject: Subject.COMPUTER_NETWORK,
+    chapter: '应用层',
+    title: 'DNS、HTTP 与邮件协议',
+    importance: 4,
+    frequency: 4,
+    prerequisites: ['传输层'],
   }],
 ]);
 

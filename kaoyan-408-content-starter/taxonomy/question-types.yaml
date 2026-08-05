@@ -1,0 +1,15 @@
+question_types:
+  - id: single_choice
+    name: 单项选择题
+  - id: multiple_choice
+    name: 多项选择题
+  - id: judgment
+    name: 判断题
+  - id: fill_blank
+    name: 填空题
+  - id: calculation
+    name: 计算题
+  - id: comprehensive
+    name: 综合应用题
+  - id: subjective
+    name: 主观题

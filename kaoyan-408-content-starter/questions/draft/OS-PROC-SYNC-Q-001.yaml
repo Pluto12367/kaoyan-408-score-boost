@@ -1,0 +1,40 @@
+id: OS-PROC-SYNC-Q-001
+title: 判断同步与互斥关系
+subject_id: OS
+chapter_id: OS-PROC
+knowledge_point_ids:
+  - OS-PROC-SYNC-KP-001
+question_type: single_choice
+difficulty: 2
+stage: foundation
+stem: 某生产者进程产生数据后，消费者进程才能读取该数据。这种关系主要体现的是：
+options:
+  A: 进程互斥
+  B: 进程同步
+  C: 死锁
+  D: 进程调度
+answer:
+  type: single
+  value: B
+analysis: 生产者完成生产后消费者才能消费，二者存在明确的执行先后约束，因此主要体现进程同步。
+option_analysis:
+  A: 互斥强调同一时刻只能有一个进程访问临界资源，题干主要强调执行先后关系。
+  B: 正确。生产完成后才能消费，属于同步关系。
+  C: 题目没有出现循环等待、占有并等待等死锁条件。
+  D: 进程调度决定处理机分配，不是本题主要考点。
+estimated_time_seconds: 45
+common_error_tags:
+  - ERR-CONCEPT-CONFUSION
+prerequisite_ids:
+  - OS-PROC-BASIC-KP-001
+similar_question_ids: []
+source:
+  type: self_created
+  source_ids:
+    - SRC-SYL-2027-408-001
+copyright_status: SELF_CREATED
+review:
+  content_reviewer: ""
+  copyright_reviewer: ""
+  status: draft
+version: 1.0.0

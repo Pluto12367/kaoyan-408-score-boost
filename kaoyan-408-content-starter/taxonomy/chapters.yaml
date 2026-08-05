@@ -1,0 +1,25 @@
+chapters:
+  - id: OS-INTRO
+    subject_id: OS
+    name: 操作系统概述
+    order: 1
+
+  - id: OS-PROC
+    subject_id: OS
+    name: 进程管理
+    order: 2
+
+  - id: OS-MEM
+    subject_id: OS
+    name: 内存管理
+    order: 3
+
+  - id: OS-FILE
+    subject_id: OS
+    name: 文件管理
+    order: 4
+
+  - id: OS-IO
+    subject_id: OS
+    name: 输入输出管理
+    order: 5

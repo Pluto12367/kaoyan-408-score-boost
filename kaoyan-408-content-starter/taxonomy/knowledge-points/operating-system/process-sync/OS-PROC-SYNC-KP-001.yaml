@@ -1,0 +1,52 @@
+id: OS-PROC-SYNC-KP-001
+name: 进程同步与互斥
+subject_id: OS
+chapter_id: OS-PROC
+section_id: OS-PROC-SYNC
+parent_id: OS-PROC
+definition: 同步用于协调多个进程的执行先后顺序，互斥用于保证临界资源在同一时刻只能被一个进程访问。
+syllabus_refs:
+  - SRC-SYL-2027-408-001
+importance_level: 5
+frequency_level: 5
+difficulty_level: 2
+stages:
+  - foundation
+  - strengthening
+  - sprint
+prerequisites:
+  - OS-PROC-BASIC-KP-001
+successors:
+  - OS-PROC-SYNC-KP-002
+  - OS-PROC-SYNC-KP-003
+question_types:
+  - single_choice
+  - judgment
+  - comprehensive
+estimated_learning_minutes:
+  weak: 90
+  normal: 60
+  strong: 35
+recommended_question_count:
+  foundation: 8
+  strengthening: 12
+  sprint: 6
+common_errors:
+  - 将同步和互斥混为一谈
+  - 认为互斥一定包含同步
+  - 无法判断题目中的先后关系
+mastery_requirements:
+  basic:
+    accuracy: 0.7
+    min_questions: 5
+  good:
+    accuracy: 0.8
+    min_questions: 8
+  excellent:
+    accuracy: 0.9
+    min_questions: 12
+source_ids:
+  - SRC-SYL-2027-408-001
+  - SRC-TEXTBOOK-OS-001
+status: draft
+version: 1.0.0

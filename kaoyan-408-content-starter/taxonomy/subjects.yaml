@@ -1,0 +1,13 @@
+subjects:
+  - id: DS
+    name: 数据结构
+    order: 1
+  - id: CO
+    name: 计算机组成原理
+    order: 2
+  - id: OS
+    name: 操作系统
+    order: 3
+  - id: CN
+    name: 计算机网络
+    order: 4

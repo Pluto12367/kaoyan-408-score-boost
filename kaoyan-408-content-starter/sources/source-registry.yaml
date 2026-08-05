@@ -1,0 +1,41 @@
+sources:
+  - id: SRC-SYL-2027-408-001
+    title: 2027年全国硕士研究生招生考试计算机学科专业基础考试大纲
+    source_type: syllabus
+    organization: 待补充
+    author: ""
+    publisher: ""
+    edition: ""
+    year: 2027
+    url: ""
+    isbn: ""
+    local_path: sources/syllabus/2027-408-syllabus.pdf
+    rights_status: PUBLIC_OFFICIAL
+    allowed_usage:
+      - index
+      - summary
+      - citation
+    collected_at: "2026-07-13"
+    collector: jay
+    reviewer: ""
+    notes: 作为知识范围的最高依据。获得正式文件后补充发布机构和链接。
+
+  - id: SRC-TEXTBOOK-OS-001
+    title: 操作系统主教材
+    source_type: textbook
+    organization: ""
+    author: 待补充
+    publisher: 待补充
+    edition: 待补充
+    year: null
+    url: ""
+    isbn: ""
+    local_path: ""
+    rights_status: LINK_ONLY
+    allowed_usage:
+      - index
+      - original_summary
+    collected_at: "2026-07-13"
+    collector: jay
+    reviewer: ""
+    notes: 不直接复制教材正文和原题，只用于索引、核对和原创总结。
