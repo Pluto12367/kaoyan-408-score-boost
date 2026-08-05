@@ -68,7 +68,7 @@
 
 ## P2
 
-### P2-1 评估历史 / 试卷 / 系统配置转正式表
+### P2-1 评估历史 / 试卷 / 系统配置转正式表（已完成）
 
 - 闭环环节：阶段报告
 - 问题：`papers`、`assessmentHistoryItems`、`systemConfig` 存 `RuntimeState` JSON，不可查询、无审计、多实例不一致。
@@ -76,7 +76,7 @@
 - 涉及模块：`prisma/schema.prisma`（迁移）、`apps/api/src/study/study.service.ts`、`runtime-state.repository.ts`。
 - 验收标准：历史记录可 SQL 查询；旧 JSON 数据可迁移；API 响应兼容。
 - 风险：需要迁移与兼容层；与 P1-1 存在依赖，建议先做 P1-1 再评估。
-- 当前状态：未开始。
+- 当前状态：已完成（2026-08-05，迁移 `20260805100000_reporting_tables` + 三个 repository + 回填与持久化断言）。
 
 ### P2-2 掌握度口径统一
 

@@ -22,7 +22,9 @@ import { LearningProgressRepository, type TaskCompletionMetric } from './learnin
 import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { KnowledgePointRepository } from './knowledge-point.repository';
-import { RuntimeStateRepository } from './runtime-state.repository';
+import { AssessmentHistoryRepository } from './assessment-history.repository';
+import { PaperRepository } from './paper.repository';
+import { SystemConfigRepository } from './system-config.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
 import { ExamReviewPlanRepository, type ExamReviewPlanState } from './exam-review-plan.repository';
 import {
@@ -52,7 +54,9 @@ export class StudyService implements OnModuleInit {
     private readonly learningSessionRepository: LearningSessionRepository,
     private readonly learningProfileRepository: LearningProfileRepository,
     private readonly knowledgePointRepository: KnowledgePointRepository,
-    private readonly runtimeStateRepository: RuntimeStateRepository,
+    private readonly assessmentHistoryRepository: AssessmentHistoryRepository,
+    private readonly paperRepository: PaperRepository,
+    private readonly systemConfigRepository: SystemConfigRepository,
     private readonly reviewScheduleRepository: ReviewScheduleRepository,
     private readonly examReviewPlanRepository: ExamReviewPlanRepository,
     private readonly onboardingPlanRepository: OnboardingPlanRepository,
@@ -126,13 +130,16 @@ export class StudyService implements OnModuleInit {
     this.sevenDayPlansByUser.clear();
     for (const [userId, profile] of onboarding.profiles) this.onboardingProfiles.set(userId, profile);
     for (const [userId, plan] of onboarding.plans) this.sevenDayPlansByUser.set(userId, plan);
-    const runtimeState = await this.runtimeStateRepository.loadAll();
-    replaceArrayFromState(this.papers, runtimeState.get('papers'));
-    replaceArrayFromState(this.assessmentHistoryItems, runtimeState.get('assessmentHistoryItems'));
+    const persistedPapers = await this.paperRepository.loadAll();
+    if (persistedPapers.length > 0) this.papers.splice(0, this.papers.length, ...persistedPapers);
+    const persistedAssessmentHistory = await this.assessmentHistoryRepository.loadAll();
+    if (persistedAssessmentHistory.length > 0) {
+      this.assessmentHistoryItems.splice(0, this.assessmentHistoryItems.length, ...persistedAssessmentHistory);
+    }
     replaceFeedbackItems(this.feedbackItems, await this.feedbackRepository.list());
-    const savedSystemConfig = runtimeState.get('systemConfig');
-    if (savedSystemConfig && typeof savedSystemConfig === 'object') {
-      this.systemConfig = savedSystemConfig as typeof this.systemConfig;
+    const savedSystemConfig = await this.systemConfigRepository.load();
+    if (savedSystemConfig) {
+      this.systemConfig = { ...this.systemConfig, ...savedSystemConfig };
     }
     const savedReviewSchedules = await this.reviewScheduleRepository.loadAll();
     this.reviewSchedules.clear();
@@ -1200,7 +1207,7 @@ export class StudyService implements OnModuleInit {
     };
 
     this.papers.push(paper);
-    await this.runtimeStateRepository.save('papers', this.papers);
+    await this.paperRepository.save(paper);
     return paper;
   }
 
@@ -1350,7 +1357,7 @@ export class StudyService implements OnModuleInit {
       ],
     };
 
-    this.assessmentHistoryItems.push({
+    const historyItem: AssessmentHistoryItem = {
       id: `assessment-history-${Date.now()}`,
       paperId,
       userId,
@@ -1363,8 +1370,9 @@ export class StudyService implements OnModuleInit {
       unansweredCount: result.examSession.unansweredCount,
       weakPointTitle: weakKnowledgePoints[0] ?? '限时整卷训练',
       reviewSuggestion: this.createAssessmentReviewSuggestion(result.accuracyRate, weakKnowledgePoints[0], result.examSession.overtime),
-    });
-    await this.runtimeStateRepository.save('assessmentHistoryItems', this.assessmentHistoryItems);
+    };
+    this.assessmentHistoryItems.push(historyItem);
+    await this.assessmentHistoryRepository.save(historyItem);
 
     return result;
   }
@@ -1392,7 +1400,7 @@ export class StudyService implements OnModuleInit {
       updatedBy: input.updatedBy ?? 'admin-001',
       updatedAt: new Date().toISOString(),
     };
-    await this.runtimeStateRepository.save('systemConfig', this.systemConfig);
+    await this.systemConfigRepository.save(this.systemConfig);
 
     return { ...this.systemConfig, source: this.dataSource };
   }
@@ -3056,7 +3064,7 @@ export class StudyService implements OnModuleInit {
     const submittedAt = new Date().toISOString();
     const paper = session.resourceId ? this.papers.find((item) => item.id === session.resourceId) : undefined;
 
-    this.assessmentHistoryItems.push({
+    const historyItem: AssessmentHistoryItem = {
       id: `assessment-history-${Date.now()}-${randomUUID()}`,
       sessionId,
       paperId: paper?.id,
@@ -3070,8 +3078,9 @@ export class StudyService implements OnModuleInit {
       unansweredCount: totalQuestions - answeredCount,
       weakPointTitle,
       reviewSuggestion: this.createAssessmentReviewSuggestion(accuracyRate, weakPointTitle, overtime),
-    });
-    await this.runtimeStateRepository.save('assessmentHistoryItems', this.assessmentHistoryItems);
+    };
+    this.assessmentHistoryItems.push(historyItem);
+    await this.assessmentHistoryRepository.save(historyItem);
   }
 
   private applySessionProgress(session: PracticeSession, input: {
@@ -3563,11 +3572,6 @@ function validateTaskCompletionInput(input: {
   ) {
     throw new BadRequestException('Correct question count cannot exceed completed question count');
   }
-}
-
-function replaceArrayFromState<T>(target: T[], value: unknown) {
-  if (!Array.isArray(value)) return;
-  target.splice(0, target.length, ...(value as T[]));
 }
 
 function inferReviewReason(selfReportedReason: string, records: PracticeRecord[]) {

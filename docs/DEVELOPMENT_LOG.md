@@ -98,3 +98,16 @@
 - 截图或验证证据：content-import 脚本输出 `ok: true`；干跑输出知识点分布
 - 遗留问题：starter-320 为脚本生成自编题，正式体验前需按 review-checklist 抽样复核；生产镜像未内置导入脚本（手册已注明在主机目录执行）
 - 下一步：等待用户选择下一个候选功能（建议 P2-1 评估历史/试卷/系统配置转正式表，或先部署当前改动到腾讯云）
+
+### 2026-08-05 P2-1 评估历史 / 试卷 / 系统配置转正式表
+
+- 日期：2026-08-05
+- 任务：把 `papers`、`assessmentHistoryItems`、`systemConfig` 从 `RuntimeState` JSON 迁移为正式表，支持 SQL 查询、审计与多实例一致性。
+- 修改原因：RuntimeState JSON 不可查询、无审计、多实例不一致，且评估历史是"是否真正提高"的关键数据。
+- 修改文件：`prisma/schema.prisma`（新增 `AssessmentHistoryItem`/`Paper`/`SystemConfig` 模型）、`prisma/migrations/20260805100000_reporting_tables/migration.sql`（建表 + RuntimeState JSON 回填）、`apps/api/src/study/assessment-history.repository.ts`、`paper.repository.ts`、`system-config.repository.ts`（新增）、`study.service.ts`（读写切换到新表，移除 RuntimeState 依赖）、`study.module.ts`（注册新 provider）、`scripts/integration-postgres.mjs`（迁移回填 fixture 与表级持久化断言）、`docs/ARCHITECTURE.md`、`docs/PROJECT_CONTEXT.md`、`docs/ROADMAP.md`
+- 数据库变化：迁移 `20260805100000_reporting_tables`——新增三张表并从 `RuntimeState` 回填旧数据（幂等，`ON CONFLICT DO NOTHING`；遵循 feedback 迁移先例；不回删 RuntimeState 旧键以便回滚）
+- API 变化：无（`/assessment-history`、`/papers`、`/admin/system-config` 响应结构不变；`RuntimeStateRepository` 从 StudyService 移除）
+- 测试结果：`npx prisma generate` 通过；`npm run build:api` 通过；`npm test` 196 项：195 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` 通过（`ok: true`，含"旧 JSON 回填三表""Paper/AssessmentHistoryItem/SystemConfig 落表""重启后 API 数据恢复"断言）；`npm run test:integration:content-import` 通过（新 Schema 下 320 题导入闭环无回归）
+- 截图或验证证据：主集成输出 `ok: true`；迁移回填断言通过（legacy-assessment-history-fixture-001 / legacy-paper-fixture-001 / systemConfig 行）
+- 遗留问题：`RuntimeState` 旧键（papers/assessmentHistoryItems/systemConfig）未删除（保留以便回滚，后续可清理）；`questionReviewItems` 仍存 RuntimeState（审核队列，暂不迁移）
+- 下一步：等待用户选择下一个候选功能（建议部署当前改动到腾讯云，或 P2-2 掌握度口径统一）

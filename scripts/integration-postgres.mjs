@@ -59,6 +59,14 @@ async function main() {
   const migratedLearningSchedule = migratedReviewSchedules.find((item) => item.id === 'legacy-review-learning');
   assert(migratedLearningSchedule?.lastWrongRecordId === 'legacy-record-learning', 'migration should acknowledge an existing active wrong schedule');
   assert(migratedLearningSchedule?.redoCorrect === false && migratedLearningSchedule.timeSpentSec === 88, 'migration should recover a first wrong-answer time without review attempts');
+  const migratedAssessmentHistoryRow = await migrationPrisma.assessmentHistoryItem.findUnique({
+    where: { id: 'legacy-assessment-history-fixture-001' },
+  });
+  assert(migratedAssessmentHistoryRow?.title === '历史测评迁移' && migratedAssessmentHistoryRow.score === 66, 'reporting migration should backfill assessment history from runtime state');
+  const migratedPaperRow = await migrationPrisma.paper.findUnique({ where: { id: 'legacy-paper-fixture-001' } });
+  assert(migratedPaperRow?.title === '历史模拟卷' && migratedPaperRow.questionCount === 2, 'reporting migration should backfill papers from runtime state');
+  const migratedSystemConfigRow = await migrationPrisma.systemConfig.findFirst({ orderBy: { id: 'desc' } });
+  assert(migratedSystemConfigRow?.recommendation?.stageAssessmentQuestionLimit === 6, 'reporting migration should backfill system config from runtime state');
   await migrationPrisma.feedbackSubmission.deleteMany({
     where: { id: { startsWith: 'feedback-legacy-fixture-' } },
   });
@@ -69,6 +77,14 @@ async function main() {
   await migrationPrisma.knowledgePoint.deleteMany({
     where: { id: { startsWith: 'legacy-review-point-' } },
   });
+  await migrationPrisma.assessmentHistoryItem.deleteMany({
+    where: { id: { startsWith: 'legacy-assessment-history-fixture-' } },
+  });
+  await migrationPrisma.paper.deleteMany({
+    where: { id: { startsWith: 'legacy-paper-fixture-' } },
+  });
+  await migrationPrisma.systemConfig.deleteMany({});
+  await migrationPrisma.user.deleteMany({ where: { id: 'legacy-reporting-user' } });
   const invitationAdmin = await ensureInvitationAdmin(migrationPrisma);
   const primaryInvite = await createIntegrationInvitation(migrationPrisma, invitationAdmin.id, {
     maxUses: 20,
@@ -246,6 +262,14 @@ async function main() {
     })),
   }, studentHeaders);
   assert(submittedPaper.paperId === generatedPaper.id, 'generated paper should be submittable');
+  const reportingPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const persistedPaperRow = await reportingPrisma.paper.findUnique({ where: { id: generatedPaper.id } });
+  const persistedHistoryRow = await reportingPrisma.assessmentHistoryItem.findFirst({
+    where: { paperId: generatedPaper.id },
+  });
+  assert(persistedPaperRow?.title === generatedPaper.title, 'papers should persist to the Paper table');
+  assert(persistedHistoryRow?.userId === registered.user.id, 'assessment history should persist to the AssessmentHistoryItem table');
+  await reportingPrisma.$disconnect();
   await expectPostStatus(`${apiUrl}/feedback`, null, 400, studentHeaders);
   await expectPostStatus(`${apiUrl}/feedback`, {
     rating: 0,
@@ -435,6 +459,10 @@ async function main() {
     recommendation: { stageAssessmentQuestionLimit: 2 },
   }, { Authorization: `Bearer ${adminSession.token}` });
   assert(config.recommendation.stageAssessmentQuestionLimit === 2, 'admin role should update system configuration');
+  const configPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const persistedConfigRow = await configPrisma.systemConfig.findFirst({ orderBy: { id: 'desc' } });
+  assert(persistedConfigRow?.recommendation?.stageAssessmentQuestionLimit === 2, 'system config should persist to the SystemConfig table');
+  await configPrisma.$disconnect();
   const refreshed = await postJson(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken });
   assert(refreshed.refreshToken !== loggedIn.refreshToken, 'refresh should rotate the refresh token');
   await expectPostStatus(`${apiUrl}/auth/refresh`, { refreshToken: loggedIn.refreshToken }, 401);
@@ -2289,6 +2317,7 @@ async function prepareLegacyFeedbackMigrationFixture() {
     await cp(join(root, 'prisma'), temporaryPrisma, { recursive: true });
     await rm(join(temporaryPrisma, 'migrations', '20260715160000_feedback_submissions'), { recursive: true, force: true });
     await rm(join(temporaryPrisma, 'migrations', '20260716150000_review_schedule_recovery'), { recursive: true, force: true });
+    await rm(join(temporaryPrisma, 'migrations', '20260805100000_reporting_tables'), { recursive: true, force: true });
     const legacyDeploy = spawnSync(npx, [
       'prisma',
       'migrate',
@@ -2334,6 +2363,58 @@ async function prepareLegacyFeedbackMigrationFixture() {
           createdAt: 'not-a-valid-timestamp',
         },
       ]),
+    );
+    await fixturePrisma.$executeRawUnsafe(
+      'INSERT INTO "User" ("id", "name", "role", "createdAt", "updatedAt") VALUES ($1, $2, \'STUDENT\', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)',
+      'legacy-reporting-user',
+      '历史报告用户',
+    );
+    await fixturePrisma.$executeRawUnsafe(
+      'INSERT INTO "RuntimeState" ("key", "value", "updatedAt") VALUES ($1, $2::jsonb, CURRENT_TIMESTAMP)',
+      'assessmentHistoryItems',
+      JSON.stringify([
+        {
+          id: 'legacy-assessment-history-fixture-001',
+          paperId: 'legacy-paper-fixture-001',
+          userId: 'legacy-reporting-user',
+          title: '历史测评迁移',
+          submittedAt: '2026-07-10T08:00:00.000Z',
+          score: 66,
+          totalScore: 100,
+          accuracyRate: 66,
+          elapsedSec: 2400,
+          unansweredCount: 1,
+          weakPointTitle: 'Cache 映射与替换',
+          reviewSuggestion: '先复盘 Cache 映射与替换错题。',
+        },
+      ]),
+    );
+    await fixturePrisma.$executeRawUnsafe(
+      'INSERT INTO "RuntimeState" ("key", "value", "updatedAt") VALUES ($1, $2::jsonb, CURRENT_TIMESTAMP)',
+      'papers',
+      JSON.stringify([
+        {
+          id: 'legacy-paper-fixture-001',
+          title: '历史模拟卷',
+          paperType: '模拟卷',
+          questionCount: 2,
+          knowledgePointIds: ['co-cache'],
+          questions: [],
+          estimatedMinutes: 10,
+          createdBy: 'legacy-reporting-user',
+          createdAt: '2026-07-10T07:00:00.000Z',
+        },
+      ]),
+    );
+    await fixturePrisma.$executeRawUnsafe(
+      'INSERT INTO "RuntimeState" ("key", "value", "updatedAt") VALUES ($1, $2::jsonb, CURRENT_TIMESTAMP)',
+      'systemConfig',
+      JSON.stringify({
+        source: 'memory-api',
+        recommendation: { stageAssessmentQuestionLimit: 6, dailyTargetQuestionCount: 30, speedRiskMultiplier: 1.4 },
+        updatedBy: 'legacy-admin',
+        updatedAt: '2026-07-10T06:00:00.000Z',
+      }),
     );
     const legacyReviewFixtureStatements = [
       `INSERT INTO "User" ("id", "name", "role", "createdAt", "updatedAt")

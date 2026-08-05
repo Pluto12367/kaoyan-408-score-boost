@@ -48,9 +48,12 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 | LearningProgressRepository | `StudyTaskCompletion`、`WrongQuestionReview` 表 |
 | LearningProfileRepository | `User` 表的诊断字段 |
 | OnboardingPlanRepository | `StudyPlan`、`StudyTask` 表（advisory lock 事务） |
+| AssessmentHistoryRepository | `AssessmentHistoryItem` 表（评估历史，P2-1） |
+| PaperRepository | `Paper` 表（试卷快照，P2-1） |
+| SystemConfigRepository | `SystemConfig` 表（单行系统配置，P2-1） |
 | ReviewScheduleRepository | `ReviewSchedule`、`ReviewAttempt` 表 |
 | ExamReviewPlanRepository | `ExamReviewPlan` 表 + 合并考后任务进 `StudyTask` |
-| RuntimeStateRepository | `RuntimeState` 表（papers、assessmentHistoryItems、systemConfig、questionReviewItems） |
+| RuntimeStateRepository | `RuntimeState` 表（questionReviewItems；papers/评估历史/系统配置已迁移至正式表） |
 | FeedbackRepository | `FeedbackSubmission` 表 |
 | TeacherStudentAuthorizationRepository | `TeacherStudentAuthorization` 表 |
 | AdminUserRepository | 只读聚合 `User` + `OperationLog` + `PracticeRecord` |
@@ -73,7 +76,8 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 数据落库矩阵：
 
 - 正式表：User、Question 系、KnowledgePoint、PracticeRecord、LearningSession、WrongQuestionReview、StudyTaskCompletion、StudyPlan、StudyTask、ReviewSchedule、ReviewAttempt、ExamReviewPlan、RefreshToken、InvitationCode、InvitationRedemption、OperationLog、AuditEvent、FeedbackSubmission、TeacherStudentAuthorization。
-- RuntimeState JSON：papers、assessmentHistoryItems、systemConfig、questionReviewItems（非核心/过渡数据）。
+- 正式表（P2-1 后）：`AssessmentHistoryItem`、`Paper`、`SystemConfig`（原存 RuntimeState JSON，已由迁移 `20260805100000_reporting_tables` 回填）。
+- RuntimeState JSON：仅剩 `questionReviewItems`（题库审核队列）。
 - 纯内存实时计算：掌握度、薄弱报告、推荐题组、冲刺计划（无表，重启后可回放自 PracticeRecord）。
 
 ## 5. API 调用关系
@@ -109,7 +113,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 4. 错题联动：`ensureReviewSchedule` 对错题创建次日 `ReviewSchedule`；`listWrongQuestions` 由 `this.records` 实时推导错题本。
 5. 掌握度/薄弱：`getMasteryMap` 与 `computeWeaknessReport` 基于内存 records + **内置 4 个知识点** 实时计算（P0-1：导入知识点未参与）。
 6. 推荐与计划：`getRecommendedPracticeSet`、`getRecommendedReviewResources`、`generatePlan` 消费薄弱报告；`completeStudyTask`/`generatePostExamReviewTasks` 调整 `StudyTask`。
-7. 报告：`getExamReport` 由会话快照 + records 计算；`getAssessmentHistory` 读内存/RuntimeState（P1-1：会话提交不写历史）。
+7. 报告：`getExamReport` 由会话快照 + records 计算；`getAssessmentHistory` 读内存/`AssessmentHistoryItem` 表（P1-1 已修复会话提交写历史；P2-1 已转正式表）。
 
 ## 7. 认证流程
 
@@ -135,13 +139,13 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 4. 会话 revision 乐观锁 + 8 秒自动保存 + 题目快照，支持断点恢复与并发安全。
 5. 计划变更使用 PostgreSQL advisory lock，保证同一用户计划串行化；考后任务幂等合并。
 6. 导入管道：内容指纹去重、候选人工审核、资产留存、provider 可插拔。
-7. `RuntimeState` 承载过渡性数据（papers/评估历史/系统配置），已知演进方向是转正式表（P2-1）。
+7. 评估历史/试卷/系统配置已从 `RuntimeState` 迁移至正式表（P2-1 完成），`RuntimeState` 仅保留审核队列等运行时状态。
 8. 内容审核流水线：teacher/AI 内容 pending → approved / needs_recheck。
 
 ## 10. 已知架构风险（详见 docs/ROADMAP.md）
 
 - 知识点目录内存化且不读取 DB（P0-1）。
-- 评估历史双路径不一致（P1-1）。
+- 评估历史双路径不一致（P1-1 已修复）；评估历史/试卷/系统配置已转正式表（P2-1 完成）。
 - 内存缓存 + 多实例一致性（当前部署为单实例，多实例方案待确认）。
 - StudyService / App.tsx 巨型单文件（P2-3）。
 - 掌握度两套口径并存（P2-2）。

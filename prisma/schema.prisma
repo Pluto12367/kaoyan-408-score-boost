@@ -129,6 +129,7 @@ model User {
   createdInvitations    InvitationCode[]              @relation("CreatedInvitations")
   invitationRedemptions InvitationRedemption[]
   uploadedImportBatches QuestionImportBatch[]      @relation("QuestionImportUploader")
+  assessmentHistoryItems AssessmentHistoryItem[]
 }
 
 model FeedbackSubmission {
@@ -631,4 +632,45 @@ model ExamReviewPlan {
   user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+model AssessmentHistoryItem {
+  id               String   @id
+  sessionId        String?  @unique
+  paperId          String?
+  userId           String
+  title            String
+  submittedAt      DateTime
+  score            Int
+  totalScore       Int
+  accuracyRate     Int
+  elapsedSec       Int
+  unansweredCount  Int
+  weakPointTitle   String
+  reviewSuggestion String
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, submittedAt])
+}
+
+model Paper {
+  id                String   @id
+  title             String
+  paperType         String
+  questionCount     Int
+  knowledgePointIds String[]
+  questions         Json
+  estimatedMinutes  Int
+  createdBy         String
+  createdAt         DateTime @default(now())
+
+  @@index([createdBy, createdAt])
+}
+
+model SystemConfig {
+  id             Int      @id @default(autoincrement())
+  recommendation Json
+  updatedBy      String
+  updatedAt      DateTime @updatedAt
 }
