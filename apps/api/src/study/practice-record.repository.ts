@@ -104,7 +104,14 @@ export class PracticeRecordRepository {
       });
     }
 
+    // Seed records are demo data tied to the built-in question catalog. When
+    // the database already contains an imported bank (for example when a fresh
+    // database is populated with `npm run questions:import` before the first
+    // API boot), the built-in questions may not exist, so those seed records
+    // must be skipped instead of failing the startup with a foreign key error.
+    const seedQuestionIds = new Set(input.questions.map((question) => question.id));
     for (const record of input.seedRecords) {
+      if (!seedQuestionIds.has(record.questionId)) continue;
       await this.prisma.practiceRecord.upsert({
         where: { id: record.id },
         create: toPrismaRecord(record),
