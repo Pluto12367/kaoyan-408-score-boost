@@ -159,6 +159,20 @@ async function main() {
   }, 403, { Authorization: `Bearer ${loggedIn.accessToken}` });
   const teacherSession = await postJson(`${apiUrl}/auth/demo-login`, { role: 'teacher' });
   const teacherHeaders = { Authorization: `Bearer ${teacherSession.token}` };
+  const knowledgePointCatalog = await getJson(`${apiUrl}/knowledge-points`, teacherHeaders);
+  assert(knowledgePointCatalog.some((point) => point.id === 'co-cache'), 'learning engine should expose the seeded knowledge point catalog');
+  const createdKnowledgePoint = await postJson(`${apiUrl}/knowledge-points`, {
+    id: 'integration-kp-persist',
+    subject: '计算机组成原理',
+    chapter: '集成测试章节',
+    title: '集成测试知识点持久化',
+    importance: 3,
+    frequency: 3,
+    prerequisites: [],
+  }, teacherHeaders);
+  assert(createdKnowledgePoint.id === 'integration-kp-persist', 'teacher should create a knowledge point through the API');
+  const catalogAfterCreate = await getJson(`${apiUrl}/knowledge-points`, teacherHeaders);
+  assert(catalogAfterCreate.some((point) => point.id === 'integration-kp-persist'), 'created knowledge point should join the live catalog');
   const teacherQuestionCatalog = await getJson(`${apiUrl}/teacher/questions`, teacherHeaders);
   const teacherQuestionsById = new Map(teacherQuestionCatalog.map((question) => [question.id, question]));
   assert(teacherQuestionCatalog.some((question) => question.answer && question.analysis), 'teacher question catalog should retain answers and explanations');
@@ -915,6 +929,14 @@ async function main() {
   assert(partialExamReport.summary.subjectiveQuestionCount === 1, 'report should count unanswered comprehensive questions in the paper structure');
   assert(partialExamReport.subjectBreakdown.reduce((sum, item) => sum + item.totalQuestions, 0) === 2, 'subject breakdown should cover the whole paper including unanswered questions');
   assert(partialExamReport.knowledgePointLosses.some((item) => item.title), 'unanswered questions should contribute to knowledge-point losses');
+  const paperAssessmentHistory = await getJson(`${apiUrl}/assessment-history`, studentHeaders);
+  const paperHistoryItem = paperAssessmentHistory.items.find((item) => item.sessionId === partialExamSession.id);
+  assert(paperHistoryItem, 'a completed paper session should appear in assessment history');
+  assert(
+    paperHistoryItem.score === partialExamReport.summary.accuracyRate
+      && paperHistoryItem.unansweredCount === partialExamReport.summary.unansweredCount,
+    `paper session history should match the exam report result: ${JSON.stringify(paperHistoryItem)}`,
+  );
   const missingSnapshotPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
   await missingSnapshotPrisma.learningSession.update({
     where: { id: partialExamSession.id },
@@ -988,6 +1010,8 @@ async function main() {
   const reloggedIn = await postJson(`${apiUrl}/auth/login`, credentials);
   assert(reloggedIn.user.id === registered.user.id, 'student should log in again after an API restart');
   studentHeaders = { Authorization: `Bearer ${reloggedIn.accessToken}` };
+  const catalogAfterRestart = await getJson(`${apiUrl}/knowledge-points`, teacherHeaders);
+  assert(catalogAfterRestart.some((point) => point.id === 'integration-kp-persist'), 'created knowledge point should survive an API restart');
   await expectGetStatus(`${apiUrl}/exam/report/${partialExamSession.id}`, studentHeaders, 400);
   const restored = await waitForOverview(studentHeaders, (data) =>
     data.practiceRecords?.some((record) => record.id === created.id)

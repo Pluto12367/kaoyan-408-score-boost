@@ -21,6 +21,7 @@ import { PracticeRecordRepository } from './practice-record.repository';
 import { LearningProgressRepository, type TaskCompletionMetric } from './learning-progress.repository';
 import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
+import { KnowledgePointRepository } from './knowledge-point.repository';
 import { RuntimeStateRepository } from './runtime-state.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
 import { ExamReviewPlanRepository, type ExamReviewPlanState } from './exam-review-plan.repository';
@@ -50,6 +51,7 @@ export class StudyService implements OnModuleInit {
     private readonly learningProgressRepository: LearningProgressRepository,
     private readonly learningSessionRepository: LearningSessionRepository,
     private readonly learningProfileRepository: LearningProfileRepository,
+    private readonly knowledgePointRepository: KnowledgePointRepository,
     private readonly runtimeStateRepository: RuntimeStateRepository,
     private readonly reviewScheduleRepository: ReviewScheduleRepository,
     private readonly examReviewPlanRepository: ExamReviewPlanRepository,
@@ -101,6 +103,13 @@ export class StudyService implements OnModuleInit {
       seedRecords: this.records,
     });
     this.records.splice(0, this.records.length, ...records);
+    // Hydrate the knowledge point catalog from PostgreSQL so imported points
+    // participate in mastery, weakness, recommendation and planning. When the
+    // database is unavailable or still empty, the built-in catalog stays.
+    const persistedKnowledgePoints = await this.knowledgePointRepository.list();
+    if (persistedKnowledgePoints.length > 0) {
+      this.knowledgePoints.splice(0, this.knowledgePoints.length, ...persistedKnowledgePoints);
+    }
     await this.teacherStudentAuthorizations.initialize();
     const progress = await this.learningProgressRepository.load();
     replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
@@ -206,7 +215,7 @@ export class StudyService implements OnModuleInit {
     return this.knowledgePoints;
   }
 
-  createKnowledgePoint(input: Partial<KnowledgePoint>) {
+  async createKnowledgePoint(input: Partial<KnowledgePoint>) {
     const id = input.id?.trim();
     const subject = parseSubject(input.subject);
     const chapter = input.chapter?.trim();
@@ -230,6 +239,14 @@ export class StudyService implements OnModuleInit {
       prerequisites: input.prerequisites ?? [],
     };
 
+    try {
+      await this.knowledgePointRepository.save(point);
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') {
+        throw new BadRequestException(`Knowledge point ${id} already exists`);
+      }
+      throw error;
+    }
     this.knowledgePoints.push(point);
     this.questionsService.registerKnowledgePoint(point);
     return point;
@@ -2979,6 +2996,18 @@ export class StudyService implements OnModuleInit {
         synchronizationWarnings.push('workflow_result');
       }
 
+      if (session.type === 'paper') {
+        try {
+          await this.recordPaperAssessmentHistory(sessionId, userId, session, records);
+        } catch (error) {
+          this.logger.error(
+            `Assessment history synchronization failed after session ${sessionId} committed`,
+            error instanceof Error ? error.stack : String(error),
+          );
+          synchronizationWarnings.push('assessment_history');
+        }
+      }
+
       const correctCount = records.filter((r) => r.correct).length;
       const reportedTotalQuestions = session.type === 'paper' ? session.questionIds.length : records.length;
       return {
@@ -3003,6 +3032,46 @@ export class StudyService implements OnModuleInit {
     } finally {
       this.submittingSessionIds.delete(sessionId);
     }
+  }
+
+  private async recordPaperAssessmentHistory(
+    sessionId: string,
+    userId: string,
+    session: PracticeSession,
+    records: PracticeRecord[],
+  ) {
+    if (this.assessmentHistoryItems.some((item) => item.sessionId === sessionId)) return;
+    const totalQuestions = session.questionIds.length;
+    const answeredCount = session.questionIds.filter((questionId) => isAnswered(session.answers[questionId])).length;
+    const correctCount = records.filter((record) => record.correct).length;
+    const accuracyRate = totalQuestions ? Math.round((correctCount / totalQuestions) * 100) : 0;
+    const weakKnowledgePoints = [...new Set(
+      records
+        .filter((record) => !record.correct || record.mistakeReason !== null)
+        .map((record) => this.knowledgePoints.find((point) => point.id === record.knowledgePointId)?.title ?? record.knowledgePointId),
+    )].slice(0, 4);
+    const weakPointTitle = weakKnowledgePoints[0] ?? '限时整卷训练';
+    const elapsedSec = Math.round(session.totalActiveMs / 1000);
+    const overtime = elapsedSec > 180 * 60;
+    const submittedAt = new Date().toISOString();
+    const paper = session.resourceId ? this.papers.find((item) => item.id === session.resourceId) : undefined;
+
+    this.assessmentHistoryItems.push({
+      id: `assessment-history-${Date.now()}-${randomUUID()}`,
+      sessionId,
+      paperId: paper?.id,
+      userId,
+      title: paper?.title ?? `408 模拟卷 ${studyDateKey(submittedAt)}`,
+      submittedAt,
+      score: accuracyRate,
+      totalScore: 100,
+      accuracyRate,
+      elapsedSec,
+      unansweredCount: totalQuestions - answeredCount,
+      weakPointTitle,
+      reviewSuggestion: this.createAssessmentReviewSuggestion(accuracyRate, weakPointTitle, overtime),
+    });
+    await this.runtimeStateRepository.save('assessmentHistoryItems', this.assessmentHistoryItems);
   }
 
   private applySessionProgress(session: PracticeSession, input: {
@@ -3534,6 +3603,7 @@ export interface GeneratedPaper {
 export interface AssessmentHistoryItem {
   id: string;
   paperId?: string;
+  sessionId?: string;
   userId: string;
   title: string;
   submittedAt: string;

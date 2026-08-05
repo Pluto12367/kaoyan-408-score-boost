@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
 import { ExamSession } from './components/ExamSession';
 import { ErrorReasonSelector } from './components/ErrorReasonSelector';
@@ -23,6 +23,7 @@ import { MistakeWorkspace } from './features/mistakes/MistakeWorkspace';
 import { StageAssessmentPanel } from './features/assessment/StageAssessmentPanel';
 import { AssessmentHistoryPanel } from './features/assessment/AssessmentHistoryPanel';
 import { ReviewResourcesPanel } from './features/report/ReviewResourcesPanel';
+import { StageReportPanel } from './features/report/StageReportPanel';
 import { TutorPanel } from './features/tutor/TutorPanel';
 import { StudentProgressOverview } from './features/dashboard/StudentProgressOverview';
 import { LearningProfilePanel } from './features/report/LearningProfilePanel';
@@ -66,6 +67,7 @@ import {
   type StageAssessmentResult,
   type TutorReply,
 } from './api';
+import { computeStageReport } from '@kaoyan408/shared';
 import type { FeedbackDraft, UserProfile, UserRole } from '@kaoyan408/shared';
 import { useAuth } from './hooks/useAuth';
 import {
@@ -267,7 +269,30 @@ export function App() {
     }
   }
 
-  const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment } = overview;
+  const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment, practiceRecords } = overview;
+  const stageReport = useMemo(() => {
+    if (!studentLearning.assessmentHistory.data || !studentProgress.masteryMap.data || !studentLearning.wrongQuestionSummary.data) {
+      return null;
+    }
+    return computeStageReport({
+      records: practiceRecords,
+      assessments: studentLearning.assessmentHistory.data.items,
+      masteryPoints: studentProgress.masteryMap.data.subjects.flatMap((subject) =>
+        subject.points.map((point) => ({ ...point, subject: subject.subject })),
+      ),
+      wrongSummary: studentLearning.wrongQuestionSummary.data,
+      streakDays: learningCalendar.streakDays,
+    });
+  }, [
+    learningCalendar.streakDays,
+    practiceRecords,
+    studentLearning.assessmentHistory.data,
+    studentLearning.wrongQuestionSummary.data,
+    studentProgress.masteryMap.data,
+  ]);
+  const refreshStageReport = () => {
+    void Promise.allSettled([refreshAssessmentHistory(), refreshMasteryMap(), refreshWrongQuestionSummary()]);
+  };
   const examQuestions = latestPaper?.questions.length ? latestPaper.questions : questions;
   const examResourceId = latestPaper?.id ?? `mock-exam-${examQuestions.map((question) => question.id).join('-')}`;
   const practiceSessionQuestions = studentLearning.practiceSet.data?.questions ?? [];
@@ -1106,6 +1131,7 @@ paperId: paper.id,
         </section>
 
         {(visibleSection === 'report' || visibleSection === 'question') ? <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} /> : null}
+        {visibleSection === 'report' ? <StageReportPanel report={stageReport} onRetry={refreshStageReport} /> : null}
         {visibleSection === 'report' ? <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} /> : null}
         {visibleSection === 'ai' ? <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} /> : null}
         </> : null}

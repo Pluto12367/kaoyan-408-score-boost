@@ -729,6 +729,77 @@ button {
   margin-top: 16px;
 }
 
+.admin-ops-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 16px;
+  align-items: stretch;
+  margin-top: 16px;
+  padding: 22px;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 90% 12%, rgb(20 184 166 / 20%), transparent 28%),
+    linear-gradient(135deg, #0f172a, #1e3a8a);
+  color: #ffffff;
+}
+
+.admin-ops-hero h3,
+.admin-ops-hero p {
+  margin: 6px 0 0;
+}
+
+.admin-ops-hero .eyebrow,
+.admin-ops-hero p {
+  color: #cbd5e1;
+}
+
+.admin-health-card {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgb(191 219 254 / 20%);
+  border-radius: 16px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.admin-health-card strong {
+  color: #ffffff;
+  font-size: 36px;
+}
+
+.admin-health-card span,
+.admin-health-card small {
+  color: #dbeafe;
+}
+
+.admin-alert-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.admin-alert-strip article {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid #fed7aa;
+  border-radius: 14px;
+  background: #fff7ed;
+}
+
+.admin-alert-strip strong {
+  color: #9a3412;
+  font-size: 22px;
+}
+
+.admin-alert-strip span {
+  color: #7c2d12;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .admin-grid article {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -764,6 +835,42 @@ button {
 
 .admin-core-grid article {
   min-height: 112px;
+}
+
+.admin-workflow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.admin-workflow-grid article {
+  display: grid;
+  gap: 7px;
+  padding: 16px;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+}
+
+.admin-workflow-grid article > span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #ffffff;
+  font-weight: 900;
+}
+
+.admin-workflow-grid strong {
+  color: #0f172a;
+}
+
+.admin-workflow-grid small {
+  color: #64748b;
+  line-height: 1.45;
 }
 
 .admin-core-grid small {
@@ -2650,6 +2757,9 @@ button {
   .account-form,
   .two-column,
   .calendar-strip,
+  .admin-ops-hero,
+  .admin-alert-strip,
+  .admin-workflow-grid,
   .admin-grid,
   .admin-users-summary,
   .admin-users-list article,
@@ -3240,9 +3350,19 @@ button {
 }
 
 .student-subject-grid,
+.student-kpi-strip,
+.student-action-grid,
 .student-focus-grid {
   display: grid;
   gap: 14px;
+}
+
+.student-kpi-strip {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.student-action-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .student-subject-grid {
@@ -3250,7 +3370,87 @@ button {
 }
 
 .student-focus-grid {
-  grid-template-columns: 1.1fr 1fr 1fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.student-insight-card,
+.student-action-card,
+.student-schedule-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.student-insight-card {
+  display: grid;
+  gap: 8px;
+  min-height: 126px;
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 92%), rgb(248 250 252 / 96%)),
+    radial-gradient(circle at 90% 10%, rgb(37 99 235 / 18%), transparent 28%);
+  box-shadow: 0 18px 46px rgb(15 23 42 / 6%);
+}
+
+.student-insight-card > span {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.student-insight-card > strong {
+  color: #0f172a;
+  font-size: 30px;
+  line-height: 1;
+}
+
+.student-insight-card > small {
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.student-action-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 132px;
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgb(15 23 42 / 6%);
+}
+
+.student-action-card.tone-primary {
+  border-color: rgb(37 99 235 / 28%);
+  background:
+    radial-gradient(circle at 100% 0%, rgb(37 99 235 / 18%), transparent 34%),
+    #ffffff;
+}
+
+.student-action-card strong,
+.student-action-card span {
+  display: block;
+}
+
+.student-action-card strong {
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.student-action-card span {
+  margin-top: 6px;
+  color: #64748b;
+  line-height: 1.55;
+}
+
+.student-schedule-card {
+  padding: 18px;
+  border: 1px solid #dbeafe;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #eff6ff);
 }
 
 .student-subject-card {
@@ -3281,7 +3481,8 @@ button {
 }
 
 .focus-point-list,
-.recent-mistake-list {
+.recent-mistake-list,
+.week-focus-list {
   display: grid;
   gap: 10px;
   margin-top: 14px;
@@ -3307,6 +3508,30 @@ button {
 
 .focus-point-list small,
 .recent-mistake-list span {
+  color: #64748b;
+}
+
+.week-focus-list article {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 2px 10px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 72%);
+}
+
+.week-focus-list strong {
+  grid-row: span 2;
+  color: #1d4ed8;
+}
+
+.week-focus-list span {
+  color: #0f172a;
+  font-weight: 800;
+}
+
+.week-focus-list small {
   color: #64748b;
 }
 
@@ -3412,6 +3637,8 @@ button {
   }
 
   .auth-feature-grid,
+  .student-kpi-strip,
+  .student-action-grid,
   .student-subject-grid,
   .student-focus-grid,
   .question-import-stepper,
@@ -3435,4 +3662,52 @@ button {
   .task-completion-fields {
     width: 100%;
   }
+}
+
+/* ---- Stage report (阶段报告) ---- */
+.stage-report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin: 16px 0;
+}
+.stage-report-card {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.stage-report-card h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.stage-report-card strong {
+  font-size: 28px;
+  line-height: 1;
+}
+.stage-report-card p,
+.stage-report-card small {
+  margin: 6px 0 0;
+  display: block;
+  color: var(--muted);
+}
+.stage-report-card ul {
+  margin: 8px 0 0;
+  padding-left: 16px;
+  color: var(--muted);
+}
+.stage-report-summary,
+.stage-report-next {
+  margin: 10px 0 0;
+}
+.stage-report-badge {
+  color: var(--accent);
+  font-weight: 600;
+}
+.stage-report-badge-declined {
+  color: #c0392b;
+}
+.stage-report-badge-muted {
+  color: var(--muted);
+  font-weight: 400;
 }
