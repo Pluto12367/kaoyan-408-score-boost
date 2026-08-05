@@ -137,3 +137,16 @@
 - 截图或验证证据：新增测试 "change password request must carry the bearer token" 通过
 - 遗留问题：需重新部署线上（重建网关镜像）后教师才能正常改密；登录页文案与报错无关联
 - 下一步：重新部署到腾讯云（`./deploy/tencent-ip/deploy.sh`），管理员重置教师临时密码 → 教师改密 → 走学生闭环验收
+
+### 2026-08-05 修复：教师无授权学生时班级学情误报 403
+
+- 日期：2026-08-05
+- 任务：修复教师端"班级学情加载失败（403）/ 右上角 API 异常"。
+- 修改原因：`getTeacherClassAnalytics` 在教师**没有授权学生**时直接抛 `ForbiddenException`（403），前端把正常空状态当成错误；日志确认 `GET /teacher/class-analytics` 持续 403。
+- 修改文件：`apps/api/src/study/study.service.ts`（无授权学生时返回 200 空班级视图，演示学生回退仅保留给管理员的全局概览，避免数据泄漏）、`apps/web/src/features/teacher/TeacherWorkspace.tsx`（`studentCount===0` 时显示"暂未授权学生"空态提示）、`scripts/integration-postgres.mjs`（新增"无授权学生返回空班级视图"断言）
+- 数据库变化：无
+- API 变化：`GET /teacher/class-analytics` 对无授权学生的教师从 403 改为 200（空数据），其余行为不变
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 197 项：196 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` 通过（`ok: true`，含新增空班级断言，授权后断言无回归）
+- 截图或验证证据：集成测试新增断言 "teacher without authorized students should get an empty class view" 通过
+- 遗留问题：需重新部署线上后教师端生效；教师仍需管理员在"教师授权"中配置学生后班级学情才有数据
+- 下一步：重新部署到腾讯云，教师刷新教师端确认不再报 API 异常，然后走学生闭环验收

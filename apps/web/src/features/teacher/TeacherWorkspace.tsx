@@ -80,6 +80,9 @@ export function TeacherWorkspace(props: TeacherWorkspaceProps) {
             <span>更新于 {new Date(classAnalytics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
           <ModuleResourceMeta resource={props.classAnalytics} onRetry={props.onRetryClassAnalytics} />
+          {classAnalytics.overview.studentCount === 0 ? (
+            <p className="empty-state">暂未授权学生：请在管理端"用户管理 → 教师授权"中为学生配置本教师。</p>
+          ) : null}
           <div className="class-analytics-grid">
             <article><strong>{classAnalytics.overview.studentCount}</strong><span>班级学生</span></article>
             <article><strong>{classAnalytics.overview.averageAccuracyRate}%</strong><span>平均正确率</span></article>

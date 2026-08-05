@@ -978,10 +978,10 @@ export class StudyService implements OnModuleInit {
     const authorizedIds = teacherId
       ? this.teacherStudentAuthorizations.studentIds(teacherId)
       : [...new Set(this.teacherStudentAuthorizations.list().map((item) => item.studentId))];
-    if (teacherId && authorizedIds.length === 0) {
-      throw new ForbiddenException('Teacher has no authorized students');
-    }
-    const studentIds = authorizedIds.length ? authorizedIds : [this.student.id];
+    // A teacher without authorized students gets an empty class view instead of
+    // an error, so the workspace does not surface a normal state as a failure.
+    // The demo-student fallback is reserved for the admin's global overview.
+    const studentIds = teacherId ? authorizedIds : (authorizedIds.length ? authorizedIds : [this.student.id]);
     const students = studentIds.map((userId) => {
       const report = this.getOverviewReport(userId);
       const plan = this.generatePlan(userId);

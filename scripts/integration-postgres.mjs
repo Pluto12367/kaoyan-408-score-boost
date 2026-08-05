@@ -435,6 +435,8 @@ async function main() {
     teacherId: adminSession.user.id,
     studentId: registered.user.id,
   }, 400, adminHeaders);
+  const emptyClassAnalytics = await getJson(`${apiUrl}/teacher/class-analytics`, teacherHeaders);
+  assert(emptyClassAnalytics.overview.studentCount === 0, 'teacher without authorized students should get an empty class view');
   const grantedAuthorization = await postJson(`${apiUrl}/admin/teacher-authorizations`, {
     teacherId: teacherSession.user.id,
     studentId: registered.user.id,
