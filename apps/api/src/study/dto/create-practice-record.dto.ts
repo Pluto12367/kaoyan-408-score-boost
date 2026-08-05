@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreatePracticeRecordDto {
   @IsOptional()
@@ -41,4 +41,16 @@ export class CreatePracticeRecordDto {
   @IsInt()
   @Min(1)
   maxScore?: number;
+
+  @IsOptional()
+  @IsIn(['确定', '不确定', '完全不会'])
+  confidence?: '确定' | '不确定' | '完全不会';
+
+  @IsOptional()
+  @IsBoolean()
+  usedHint?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  answerModified?: boolean;
 }

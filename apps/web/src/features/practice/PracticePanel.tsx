@@ -2,6 +2,7 @@ import type { Question } from '@kaoyan408/shared';
 import type { PracticeSet, PracticeSetResult } from '../../api';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
+import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 
 interface PracticePanelProps {
   question: Question;
@@ -9,25 +10,86 @@ interface PracticePanelProps {
   practiceSetResult: PracticeSetResult | null;
   redoQuestionId: string | null;
   status: string;
+  submitting?: boolean;
+  answerResult?: PracticeAnswerResult | null;
+  hasNextQuestion?: boolean;
   onSubmitAnswer: (answer: string) => void;
+  onNextQuestion?: () => void;
   onSubmitPracticeSet: () => void;
+  onStartLearningMode?: () => void;
   onRetryPracticeSet: () => void;
 }
 
-export function PracticePanel({ question, practiceSet, practiceSetResult, redoQuestionId, status, onSubmitAnswer, onSubmitPracticeSet, onRetryPracticeSet }: PracticePanelProps) {
+function answerLetter(selectedAnswer: string | undefined, question: Question) {
+  if (!selectedAnswer) return '未作答';
+  const index = selectedAnswer.charCodeAt(0) - 65;
+  const option = question.options[index];
+  return option ? `${selectedAnswer}. ${option}` : selectedAnswer;
+}
+
+export function PracticePanel({
+  question,
+  practiceSet,
+  practiceSetResult,
+  redoQuestionId,
+  status,
+  submitting = false,
+  answerResult = null,
+  hasNextQuestion = false,
+  onSubmitAnswer,
+  onNextQuestion,
+  onSubmitPracticeSet,
+  onStartLearningMode,
+  onRetryPracticeSet,
+}: PracticePanelProps) {
   const set = practiceSet.data;
+  const answered = Boolean(answerResult);
   return (
     <article id="question" className="panel">
       <p className="eyebrow">题库训练</p>
       <h3>{question.stem}</h3>
       <div className="options">
         {question.options.map((option, index) => (
-          <button key={option} type="button" onClick={() => onSubmitAnswer(String.fromCharCode(65 + index))}>
+          <button
+            key={option}
+            type="button"
+            disabled={submitting || answered}
+            onClick={() => onSubmitAnswer(String.fromCharCode(65 + index))}
+          >
             {String.fromCharCode(65 + index)}. {option}
           </button>
         ))}
       </div>
       {redoQuestionId === question.id ? <p className="redo-badge">错题重做模式</p> : null}
+      {answerResult ? (
+        <div className={`answer-result ${answerResult.correct ? 'answer-correct' : 'answer-wrong'}`} role="status">
+          <div className="answer-result-head">
+            <strong>{answerResult.correct ? '回答正确' : '回答错误'}</strong>
+            <span>你的答案：{answerLetter(answerResult.selectedAnswer, question)}</span>
+            {!answerResult.correct && answerResult.correctAnswer ? (
+              <span>正确答案：{answerLetter(answerResult.correctAnswer, question)}</span>
+            ) : null}
+          </div>
+          {answerResult.knowledgePointTitle ? (
+            <p className="answer-result-kp"><strong>核心考点</strong>{answerResult.knowledgePointTitle}</p>
+          ) : null}
+          {answerResult.analysis ? (
+            <div className="answer-result-analysis"><strong>解析</strong><p>{answerResult.analysis}</p></div>
+          ) : (
+            <p className="muted">暂无标准解析，可稍后在错题本中查看或使用 AI 答疑。</p>
+          )}
+          {answerResult.mistakeReason ? (
+            <p className="answer-result-reason"><strong>本次错因</strong>{answerResult.mistakeReason}</p>
+          ) : null}
+          <div className="answer-result-actions">
+            {hasNextQuestion ? (
+              <button type="button" className="primary-action" onClick={onNextQuestion}>下一题</button>
+            ) : (
+              <span className="muted">当前题库已练完，可开始专项练习或前往错题本。</span>
+            )}
+          </div>
+        </div>
+      ) : null}
       <p className="practice-status">{status}</p>
       {set ? (
         <div className="practice-set">
@@ -36,7 +98,10 @@ export function PracticePanel({ question, practiceSet, practiceSetResult, redoQu
           <ModuleResourceMeta resource={practiceSet} onRetry={onRetryPracticeSet} />
           <span>{set.reason}</span>
           <ol>{set.questions.slice(0, 3).map((item) => <li key={item.id}>{item.stem}</li>)}</ol>
-          <button type="button" className="secondary-action" onClick={onSubmitPracticeSet}>开始专项练习</button>
+          <div className="practice-set-actions">
+            <button type="button" className="secondary-action" onClick={onSubmitPracticeSet}>开始专项练习（训练模式）</button>
+            {onStartLearningMode ? <button type="button" className="secondary-action" onClick={onStartLearningMode}>学习模式（边做边看解析）</button> : null}
+          </div>
           {practiceSetResult ? <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p> : null}
         </div>
       ) : <ModuleInlineUnavailable title="推荐题组" resource={practiceSet} onRetry={onRetryPracticeSet} />}

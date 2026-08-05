@@ -1,4 +1,5 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
+import type { ConfidenceLevel, MistakeReason } from '@kaoyan408/shared';
 import type { PracticeSetResult, StageAssessmentResult } from '../types';
 
 export interface SessionAnswer {
@@ -6,6 +7,9 @@ export interface SessionAnswer {
   timeSpentSec: number;
   selfScore?: number;
   maxScore?: number;
+  confidence?: ConfidenceLevel;
+  usedHint?: boolean;
+  answerModified?: boolean;
 }
 
 export interface SessionView {
@@ -48,7 +52,7 @@ export interface SessionSubmitResult {
   accuracyRate: number;
   totalActiveMs: number;
   workflowResult?: PracticeSetResult | StageAssessmentResult;
-  records: Array<{ questionId: string; correct: boolean; mistakeReason: string | null; timeSpentSec: number; gradingMode?: string; selfScore?: number; maxScore?: number }>;
+  records: Array<{ questionId: string; correct: boolean; mistakeReason: MistakeReason | null; timeSpentSec: number; gradingMode?: string; selfScore?: number; maxScore?: number; confidence?: ConfidenceLevel; usedHint?: boolean; answerModified?: boolean }>;
 }
 
 export async function startPracticeSession(input: {
@@ -95,7 +99,7 @@ export async function listActiveSessions(): Promise<ActiveSessionsResponse> {
 }
 
 export async function submitPracticeSession(sessionId: string, input: {
-  answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
+  answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: ConfidenceLevel; usedHint?: boolean; answerModified?: boolean }>;
   totalActiveMs?: number;
 }): Promise<SessionSubmitResult> {
   const response = await fetchWithAuth(`${API_BASE_URL}/sessions/practice/${sessionId}/submit`, {

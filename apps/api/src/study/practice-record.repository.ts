@@ -7,12 +7,14 @@ import {
 } from '@prisma/client';
 import type {
   KnowledgePoint,
+  ConfidenceLevel,
   MistakeReason,
   PracticeRecord,
   Question,
   UserProfile,
 } from '@kaoyan408/shared';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
+import { normalizeMistakeReason } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -168,6 +170,9 @@ function toDomainRecord(record: {
   gradingMode: string;
   selfScore: number | null;
   maxScore: number | null;
+  confidence: string | null;
+  usedHint: boolean;
+  answerModified: boolean;
 }): PracticeRecord {
   return {
       id: record.id,
@@ -184,6 +189,9 @@ function toDomainRecord(record: {
       gradingMode: record.gradingMode === 'self_assessed' ? 'self_assessed' : 'objective',
       selfScore: record.selfScore ?? undefined,
       maxScore: record.maxScore ?? undefined,
+      confidence: mapConfidence(record.confidence),
+      usedHint: record.usedHint,
+      answerModified: record.answerModified,
     };
 }
 
@@ -203,6 +211,9 @@ export function toPrismaRecord(record: PracticeRecord) {
     gradingMode: record.gradingMode ?? 'objective',
     selfScore: record.selfScore,
     maxScore: record.maxScore,
+    confidence: record.confidence,
+    usedHint: record.usedHint,
+    answerModified: record.answerModified,
   };
 }
 
@@ -225,15 +236,13 @@ function mapQuestionType(type: Question['type']): QuestionType {
   return QuestionType.SINGLE_CHOICE;
 }
 
+const CONFIDENCE_LEVELS = ['确定', '不确定', '完全不会'] as const;
+
+function mapConfidence(value: string | null): ConfidenceLevel | undefined {
+  if (value && (CONFIDENCE_LEVELS as readonly string[]).includes(value)) return value as ConfidenceLevel;
+  return undefined;
+}
+
 function mapMistakeReason(value: string | null): MistakeReason | null {
-  if (
-    value === '概念不清'
-    || value === '知识点混淆'
-    || value === '审题问题'
-    || value === '计算失误'
-    || value === '速度偏慢'
-  ) {
-    return value;
-  }
-  return null;
+  return normalizeMistakeReason(value);
 }

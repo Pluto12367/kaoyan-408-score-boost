@@ -1,17 +1,34 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
+import type { ConfidenceLevel, MistakeReason } from '@kaoyan408/shared';
 import type { PracticeSetResult, StageAssessmentResult, DiagnosticInput, DiagnosticProfile } from '../types';
+
+export interface PracticeAnswerResult {
+  id: string;
+  correct: boolean;
+  mistakeReason: MistakeReason | null;
+  analysis: string;
+  correctAnswer: string;
+  knowledgePointTitle: string;
+  selectedAnswer?: string;
+  confidence?: ConfidenceLevel;
+  usedHint?: boolean;
+  answerModified?: boolean;
+}
 
 export async function submitPracticeAnswer(input: {
   questionId: string; knowledgePointId: string;
   selectedAnswer: string; timeSpentSec: number;
-}) {
+  confidence?: ConfidenceLevel;
+  usedHint?: boolean;
+  answerModified?: boolean;
+}): Promise<PracticeAnswerResult> {
   const response = await fetchWithAuth(`${API_BASE_URL}/practice-records`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
   });
   if (!response.ok) throw new Error(`Practice submission failed with ${response.status}`);
-  return response.json() as Promise<{ id: string; correct: boolean; mistakeReason: string | null }>;
+  return response.json() as Promise<PracticeAnswerResult>;
 }
 
 export async function submitPracticeSet(input: {

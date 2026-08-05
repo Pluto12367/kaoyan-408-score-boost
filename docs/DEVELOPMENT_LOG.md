@@ -150,3 +150,27 @@
 - 截图或验证证据：集成测试新增断言 "teacher without authorized students should get an empty class view" 通过
 - 遗留问题：需重新部署线上后教师端生效；教师仍需管理员在"教师授权"中配置学生后班级学情才有数据
 - 下一步：重新部署到腾讯云，教师刷新教师端确认不再报 API 异常，然后走学生闭环验收
+- ### 2026-08-05 部署：教师端 403 修复与学生端快捷按钮导航上线（808c632 + eceb7a2）
+
+- 日期：2026-08-05
+- 任务：把 `808c632`（教师无授权学生时班级学情返回空视图）与 `eceb7a2`（学生端"查看错题复盘/生成提分报告"快捷按钮接入导航）部署到腾讯云 `43.128.30.191`。
+- 修改原因：修复教师端线上 API 异常（403）与学生端启动板快捷按钮无响应。
+- 修改文件：本次部署涉及的提交为 `apps/web/src/App.tsx`、`apps/web/src/features/onboarding/StudentLaunchpad.tsx`、`docs/ROADMAP.md`；无新增业务代码。
+- 数据库变化：无迁移；应用容器启动时 `prisma migrate deploy` 确认 schema up to date。
+- API 变化：无（学生端为纯前端导航修复；教师端 403→200 空视图来自 `808c632`，本次随部署生效）。
+- 测试结果：上轮 `npm run build:web` 通过；`npm test` 197 项：196 通过 / 1 跳过 / 0 失败；服务器部署输出显示构建成功、app/gateway/postgres 全部 healthy。
+- 截图或验证证据：服务器输出 `Updating 808c632..eceb7a2`、备份 `/backups/kaoyan408-20260805T070445Z.dump`、`Nest application successfully started`。
+- 遗留问题：学生端"提交错因并加入复习计划"卡在"提交中"仍未复现取证；教师班级学情需管理员先授权学生才有数据。
+- 下一步：线上验证学生闭环；若错因提交仍卡住，收集 F12 Network 状态码/x-request-id 或 `docker compose logs app --tail=200`。
+
+### 2026-08-05 实施：阶段 1 首页主行动收敛 + 阶段 3 剩余项（三模式 + 错因 8 类扩展）
+
+- 日期：2026-08-05
+- 任务：按 `docs/ux-implementation-roadmap.md` 完成阶段 1（首页"继续今日学习"主行动收敛）与阶段 3 剩余项（学习/训练/模拟三模式、答题元数据 confidence/usedHint/answerModified、错因 8 类）。
+- 修改原因：首页 hero 主按钮原为"继续刷题"（指向模拟考试准备），不符合"今天做什么"驾驶舱定位；练习会话缺少学习模式、自信度/提示/改答元数据；错因仅 5 类且部分占位，无法支撑"蒙题≠掌握"与针对性复习。
+- 修改文件：`packages/shared/src/domain.ts`（MistakeReason 8 类、ConfidenceLevel、PracticeRecord 元数据）、`packages/shared/src/learning.ts`（classifyMistake 新规则、normalizeMistakeReason、MISTAKE_SUGGESTIONS 8 键并导出）、`prisma/schema.prisma` + 新迁移 `20260805110000_practice_answer_metadata`、`apps/api/src/study/dto/*`、`practice-record.repository.ts`、`learning-session.repository.ts`、`study.service.ts`、`apps/web/src/components/ExamSession.tsx`（learningMode + 自信度/提示/改答）、`ErrorReasonSelector.tsx`（8 类）、`usePracticeSession.ts`、`sessions.ts`、`practice.ts`、`App.tsx`（学习模式入口与 onCheckAnswer、onContinueToday）、`StudentLaunchpad.tsx`、`TodayPlan.tsx`（focusTaskId 滚动定位）、`PracticePanel.tsx`（学习模式入口）、`styles.css`、`test/appLogic.test.js`、`test/ux-redesign-ui.test.js`、新增 `test/stage3-practice-metadata.test.js`
+- 数据库变化：增量迁移（`PracticeRecord` 加 `confidence TEXT NULL`、`usedHint BOOLEAN NOT NULL DEFAULT false`、`answerModified BOOLEAN NOT NULL DEFAULT false`），向后兼容，可回滚（删除迁移目录后 `migrate deploy` 不再应用）。
+- API 变化：`POST /practice-records`、`POST /sessions/practice/:id/save`、`POST /sessions/practice/:id/submit` 入参与响应 `records[]` 增加可选元数据字段（旧请求/响应兼容）；无破坏性变更。
+- 测试结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 210 项：208 通过 / 1 失败（`admin-user-email-ui`，根因为沙箱内 esbuild 读取父目录被拒，与本次改动无关）/ 1 跳过；`build:web` 的 tsc 阶段通过，vite/esbuild 阶段受同一沙箱限制，需在无沙箱环境补跑。
+- 遗留问题：学习模式每题即时核对复用 `POST /practice-records`（真实落库），完成后不批量提交会话，会留下一个 practice_set 草稿会话（可在"继续学习"横幅看到，属已知体验细节）；综合题在学习模式不自动判分（提示到训练/模拟模式提交自评）；错因中"公式记错/计算错误"主要靠自选，规则自动推断覆盖其余 6 类。
+- 下一步：在无沙箱环境补跑 `npm run build:web` 与 `npm run test:integration:postgres`；随后进入阶段 4（错题筛选 + 变式复测）。

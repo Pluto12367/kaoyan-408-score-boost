@@ -1,26 +1,32 @@
 import { useState } from 'react';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { reportWrongReason } from '../api/endpoints/review';
+import { normalizeMistakeReason } from '@kaoyan408/shared';
 
 interface Props {
   questionId: string;
   correct: boolean;
   timeSpentSec: number;
   isReview: boolean;
+  inferredReason?: string | null;
   onReported: (result: Awaited<ReturnType<typeof reportWrongReason>>) => void;
   onClose: () => void;
 }
 
 const REASONS = [
-  { value: '概念不清', label: '概念不清', hint: '公式、定义或原理理解有误' },
-  { value: '知识点混淆', label: '知识点混淆', hint: '把相似考点或相邻知识搞混了' },
-  { value: '审题问题', label: '审题问题', hint: '没注意到限制条件或关键词' },
-  { value: '计算失误', label: '计算失误', hint: '中间步骤出错或单位没换算' },
-  { value: '速度偏慢', label: '速度/超时', hint: '能做对但花的时间太长' },
+  { value: '知识点没学过', label: '知识点没学过', hint: '还没学到这个考点，需要先补基础' },
+  { value: '概念混淆', label: '概念混淆', hint: '公式、定义或原理理解有误' },
+  { value: '公式记错', label: '公式记错', hint: '公式本身记错了或记混了' },
+  { value: '计算错误', label: '计算错误', hint: '中间步骤出错或单位没换算' },
+  { value: '审题错误', label: '审题错误', hint: '没注意到限制条件或关键词' },
+  { value: '推理过程错误', label: '推理过程错误', hint: '思路对但中间推理跳步或出错' },
+  { value: '时间不足', label: '时间不足', hint: '能做对但时间不够或超时' },
+  { value: '蒙题', label: '蒙题', hint: '凭感觉或猜测作答' },
 ];
 
-export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isReview, onReported, onClose }: Props) {
-  const [reason, setReason] = useState('');
+export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isReview, inferredReason, onReported, onClose }: Props) {
+  const normalizedInferred = normalizeMistakeReason(inferredReason);
+  const [reason, setReason] = useState(() => (normalizedInferred ?? ''));
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -57,6 +63,11 @@ export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isRevie
         <p className="step-description">
           系统会根据你的自评 + 实际用时 + 历史正确率来安排下次复习时间。
         </p>
+        {normalizedInferred ? (
+          <p className="task-status">
+            系统判断本次错因为「{normalizedInferred}」，如符合可直接提交，也可以改为更贴切的原因。
+          </p>
+        ) : null}
 
         <div className="reason-list">
           {REASONS.map((r) => (

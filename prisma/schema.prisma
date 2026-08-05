@@ -485,6 +485,9 @@ model PracticeRecord {
   gradingMode      String           @default("objective")
   selfScore        Int?
   maxScore         Int?
+  confidence       String?
+  usedHint         Boolean          @default(false)
+  answerModified   Boolean          @default(false)
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   question         Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
   knowledgePoint   KnowledgePoint   @relation(fields: [knowledgePointId], references: [id])

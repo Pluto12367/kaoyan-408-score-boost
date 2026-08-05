@@ -18,7 +18,7 @@ interface MistakeWorkspaceProps {
 export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onRetrySummary }: MistakeWorkspaceProps) {
   const summaryData = summary.data;
   return (
-    <section className="panel">
+    <section id="wrong-book" className="panel">
       <div className="panel-heading">
         <div><p className="eyebrow">错题本</p><h3>自动收集需要回炉的题目</h3></div>
         <span>{wrongQuestions.length} 道待复盘</span>

@@ -1,6 +1,7 @@
 import { useState, type ComponentProps } from 'react';
 import { ClipboardCheck } from 'lucide-react';
-import type { Subject } from '@kaoyan408/shared';
+import type { Subject, WeaknessReport } from '@kaoyan408/shared';
+import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../api';
 import type { GeneratedPaper, PaperSubmitResult } from '../../api';
 import type { PrepareExamPaperInput } from '../../api/endpoints/exam';
 import type { SessionView } from '../../api/endpoints/sessions';
@@ -20,56 +21,24 @@ interface StudentLaunchpadProps {
   examResult: PaperSubmitResult | null;
   examQuestionCount: number;
   remoteSessionsEnabled: boolean;
+  report: WeaknessReport | null;
+  masteryMap: MasteryMap | null;
+  learningCalendar: LearningCalendar | null;
+  wrongQuestionSummary: WrongQuestionSummary | null;
   onOnboardingComplete: ComponentProps<typeof OnboardingWizard>['onComplete'];
   onRefreshTodayPlan: () => Promise<void>;
   onOpenReview: (questionId: string) => void;
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
   onNavigate: (section: RoleSection) => void;
+  onContinueToday: () => void;
 }
 
 const SUBJECTS: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
-const subjectCards = [
-  { title: '数据结构', accuracy: 78, done: '328/420', tone: 'blue' },
-  { title: '计算机组成原理', accuracy: 72, done: '305/420', tone: 'teal' },
-  { title: '操作系统', accuracy: 68, done: '287/420', tone: 'purple' },
-  { title: '计算机网络', accuracy: 75, done: '312/420', tone: 'amber' },
-];
-
-const focusPoints = [
-  ['中缀表达式求值', '45%'],
-  ['虚拟存储器', '52%'],
-  ['指令流水线', '55%'],
-  ['死锁的预防与避免', '58%'],
-  ['子网划分', '60%'],
-];
-
-const recentMistakes = [
-  'Cache 的访问过程',
-  '二叉树的遍历',
-  '死锁检测',
-  'DHCP 协议',
-];
-
-const kpiCards = [
-  ['今日任务', '7/10', '建议先完成 2 组专项题'],
-  ['连续学习', '12 天', '保持节奏比临时冲刺更稳'],
-  ['预计提分', '+18', '来自错题和薄弱点修复'],
-  ['待复盘', '24 题', '优先处理近 7 天错题'],
-];
-
 const quickActions = [
   ['开始专项训练', '按当前薄弱科目生成一组短练习', 'primary'],
   ['查看错题复盘', '回到错因、解析和同考点练习', 'soft'],
   ['生成提分报告', '查看四科掌握度和下一步建议', 'soft'],
-];
-
-const weekSchedule = [
-  ['周一', '数据结构', '树与图'],
-  ['周二', '组成原理', 'Cache'],
-  ['周三', '操作系统', '同步互斥'],
-  ['周四', '计算机网络', 'TCP/IP'],
-  ['周五', '混合训练', '限时刷题'],
 ];
 
 export function StudentLaunchpad({
@@ -81,12 +50,17 @@ export function StudentLaunchpad({
   examResult,
   examQuestionCount,
   remoteSessionsEnabled,
+  report,
+  masteryMap,
+  learningCalendar,
+  wrongQuestionSummary,
   onOnboardingComplete,
   onRefreshTodayPlan,
   onOpenReview,
   onResumeSession,
   onStartExam,
   onNavigate,
+  onContinueToday,
 }: StudentLaunchpadProps) {
   const [paperType, setPaperType] = useState<PrepareExamPaperInput['paperType']>('模拟卷');
   const [subject, setSubject] = useState<Subject>('数据结构');
@@ -106,6 +80,95 @@ export function StudentLaunchpad({
     }
   }
 
+  const todaySummary = todayPlan?.summary;
+  const heroProgressPercent = todaySummary && todaySummary.totalTasks > 0
+    ? `${todaySummary.completionRate ?? Math.round((todaySummary.completedTasks / todaySummary.totalTasks) * 100)}%`
+    : todayPlanLoading
+      ? '…'
+      : '--';
+  const todayPlanRemainingMinutes = todayPlan
+    ? todayPlan.priorityTasks.reduce((sum, task) => {
+        const done = task.status === 'completed' || task.completed;
+        return done ? sum : sum + (task.minutes ?? 0);
+      }, 0)
+    : 0;
+  const heroProgressText = todayPlan
+    ? `今日任务进度 ${heroProgressPercent} · 已完成 ${todaySummary?.completedTasks ?? 0} / ${todaySummary?.totalTasks ?? 0}${
+        todayPlanRemainingMinutes > 0 ? ` · 剩余约 ${todayPlanRemainingMinutes} 分钟` : ''
+      }`
+    : todayPlanLoading
+      ? '正在加载今日计划…'
+      : todayPlanError
+        ? '今日计划加载失败，可稍后重试'
+        : '完成今日计划后，这里会显示学习进度';
+
+  const kpiCards = [
+    {
+      label: '今日任务',
+      value: todaySummary ? `${todaySummary.completedTasks}/${todaySummary.totalTasks}` : '--',
+      helper: todayPlan
+        ? `剩余 ${todayPlan.priorityTasks.filter((task) => task.status !== 'completed' && !task.completed).length} 个核心任务`
+        : '完成今日计划后更新',
+    },
+    {
+      label: '连续学习',
+      value: todaySummary?.streakDays != null
+        ? `${todaySummary.streakDays} 天`
+        : learningCalendar
+          ? `${learningCalendar.streakDays} 天`
+          : '--',
+      helper: '保持节奏比临时冲刺更稳',
+    },
+    {
+      label: '预计提分',
+      value: report && (report.completionRate > 0 || report.weakPoints.length > 0)
+        ? `+${report.estimatedGain}`
+        : '--',
+      helper: report ? '来自错题和薄弱点修复' : '完成诊断与练习后估算',
+    },
+    {
+      label: '待复盘',
+      value: wrongQuestionSummary ? `${wrongQuestionSummary.pendingCount} 题` : '--',
+      helper: wrongQuestionSummary ? '优先处理近 7 天错题' : '暂无待复盘错题',
+    },
+  ];
+
+  const subjectTones = ['blue', 'teal', 'purple', 'amber'];
+  const subjectCards = (masteryMap?.subjects ?? []).map((subject, index) => ({
+    title: subject.subject,
+    accuracy: subject.averageMastery,
+    detail: `${subject.weakCount} 薄弱 · ${subject.reviewCount} 巩固 · ${subject.masteredCount} 掌握`,
+    tone: subjectTones[index % subjectTones.length],
+  }));
+
+  const focusPoints: Array<{ title: string; rate: string }> = (masteryMap?.weakestPoints ?? []).slice(0, 5)
+    .map((point) => ({ title: point.title, rate: `掌握 ${point.masteryRate}%` }));
+  if (focusPoints.length === 0) {
+    for (const point of (report?.weakPoints ?? []).slice(0, 5)) {
+      focusPoints.push({ title: point.title, rate: `正确率 ${point.accuracyRate}%` });
+    }
+  }
+
+  const recentMistakes = (wrongQuestionSummary?.priorityRedoItems ?? []).slice(0, 4)
+    .map((item) => ({ title: item.knowledgePointTitle || item.stem, count: item.wrongCount }));
+
+  const weekSchedule = todayPlan?.weekProgress?.length
+    ? todayPlan.weekProgress.map((day) => ({
+        day: day.date.slice(5),
+        subjectName: `第 ${day.taskCount} 项任务`,
+        topic: `${day.completedTasks}/${day.taskCount} 已完成 · ${day.totalMinutes} 分钟`,
+      }))
+    : (learningCalendar?.days ?? []).map((day) => ({
+        day: day.date.slice(5),
+        subjectName: `${day.completedTaskCount} 项任务`,
+        topic: `${day.practiceCount} 次练习`,
+      }));
+
+  const masteryTrend = (masteryMap?.subjects ?? []).map((subject) => ({
+    label: subject.subject.slice(0, 4),
+    value: subject.averageMastery,
+  }));
+
   if (showOnboarding) return <OnboardingWizard onComplete={onOnboardingComplete} />;
 
   return (
@@ -116,24 +179,24 @@ export function StudentLaunchpad({
           <h3>把今天该做的事先做清楚</h3>
           <p>围绕 408 四科，把计划、刷题、错题和提分报告收在一个工作台里。</p>
           <div className="student-hero-actions">
-            <button type="button" className="primary-action" onClick={() => void startConfiguredExam()}>
-              <ClipboardCheck size={18} /> 继续刷题
+            <button type="button" className="primary-action" onClick={onContinueToday}>
+              <ClipboardCheck size={18} /> 继续今日学习
             </button>
-            <span>今日任务进度 70% · 已完成 7 / 10</span>
+            <span>{heroProgressText}</span>
           </div>
         </div>
         <div className="student-plan-ring" aria-label="今日计划进度">
-          <strong>70%</strong>
+          <strong>{heroProgressPercent}</strong>
           <span>今日计划</span>
         </div>
       </section>
 
       <section className="student-kpi-strip" aria-label="学习关键指标">
-        {kpiCards.map(([label, value, helper]) => (
-          <article key={label} className="student-insight-card">
-            <span>{label}</span>
-            <strong>{value}</strong>
-            <small>{helper}</small>
+        {kpiCards.map((item) => (
+          <article key={item.label} className="student-insight-card">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.helper}</small>
           </article>
         ))}
       </section>
@@ -166,14 +229,16 @@ export function StudentLaunchpad({
           <span>数据用于后续提分报告和错题复盘</span>
         </div>
         <div className="student-subject-grid">
-          {subjectCards.map((item) => (
+          {subjectCards.length ? subjectCards.map((item) => (
             <article key={item.title} className={`student-subject-card tone-${item.tone}`}>
               <strong>{item.title}</strong>
-              <span>正确率 {item.accuracy}%</span>
-              <small>已学 {item.done} 题</small>
+              <span>平均掌握度 {item.accuracy}%</span>
+              <small>{item.detail}</small>
               <div className="progress-bar"><span className="progress-fill" style={{ width: `${item.accuracy}%` }} /></div>
             </article>
-          ))}
+          )) : (
+            <p className="empty-state">暂无科目掌握度数据，完成练习后自动更新。</p>
+          )}
         </div>
       </section>
 
@@ -181,39 +246,49 @@ export function StudentLaunchpad({
         <div className="panel student-insight-card">
           <div className="panel-heading"><div><p className="eyebrow">薄弱知识点 TOP5</p><h3>优先复盘这些考点</h3></div></div>
           <div className="focus-point-list">
-            {focusPoints.map(([title, rate], index) => (
-              <article key={title}>
+            {focusPoints.length ? focusPoints.map((item, index) => (
+              <article key={item.title}>
                 <span>{index + 1}</span>
-                <strong>{title}</strong>
-                <small>{rate}</small>
+                <strong>{item.title}</strong>
+                <small>{item.rate}</small>
               </article>
-            ))}
+            )) : (
+              <p className="empty-state">暂无薄弱知识点，完成诊断和练习后自动生成。</p>
+            )}
           </div>
         </div>
         <div className="panel student-insight-card">
           <div className="panel-heading"><div><p className="eyebrow">最近错题</p><h3>复盘后再进入同考点训练</h3></div></div>
           <div className="recent-mistake-list">
-            {recentMistakes.map((item) => <span key={item}>× {item}</span>)}
+            {recentMistakes.length ? recentMistakes.map((item) => (
+              <span key={item.title}>× {item.title} · {item.count} 次</span>
+            )) : (
+              <p className="empty-state">暂无近期错题，答错的题目会自动进入这里。</p>
+            )}
           </div>
         </div>
         <div className="panel student-schedule-card">
           <div className="panel-heading"><div><p className="eyebrow">本周学习节奏</p><h3>每天只盯一个重点</h3></div></div>
           <div className="week-focus-list">
-            {weekSchedule.map(([day, subjectName, topic]) => (
-              <article key={day}>
-                <strong>{day}</strong>
-                <span>{subjectName}</span>
-                <small>{topic}</small>
+            {weekSchedule.length ? weekSchedule.map((item) => (
+              <article key={item.day}>
+                <strong>{item.day}</strong>
+                <span>{item.subjectName}</span>
+                <small>{item.topic}</small>
               </article>
-            ))}
+            )) : (
+              <p className="empty-state">暂无本周安排，生成今日计划后自动填充。</p>
+            )}
           </div>
         </div>
         <div className="panel student-insight-card">
-          <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>近 7 天</h3></div></div>
+          <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>四科平均掌握度</h3></div></div>
           <div className="mastery-trend" aria-label="掌握度趋势">
-            {[38, 42, 50, 49, 64, 62, 75].map((value, index) => (
-              <span key={index} style={{ height: `${value}%` }} />
-            ))}
+            {masteryTrend.length ? masteryTrend.map((item, index) => (
+              <span key={index} style={{ height: `${item.value}%` }} title={`${item.label} ${item.value}%`} />
+            )) : (
+              <p className="empty-state">暂无趋势数据</p>
+            )}
           </div>
         </div>
       </section>

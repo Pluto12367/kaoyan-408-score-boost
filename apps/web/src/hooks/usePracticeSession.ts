@@ -6,6 +6,7 @@ import {
   savePracticeProgress,
   startPracticeSession,
   submitPracticeSession,
+  type SessionAnswer,
   type SessionSubmitResult,
   type SessionView,
 } from '../api/endpoints/sessions';
@@ -303,12 +304,24 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     if (saveTimerRef.current) clearInterval(saveTimerRef.current);
   }, []);
 
-  const updateAnswer = useCallback((questionId: string, selectedAnswer: string, timeSpentSec: number, selfScore?: number, maxScore?: number) => {
+  const updateAnswer = useCallback((questionId: string, selectedAnswer: string, timeSpentSec: number, selfScore?: number, maxScore?: number, meta?: Pick<SessionAnswer, 'confidence' | 'usedHint' | 'answerModified'>) => {
     const current = sessionRef.current;
     if (!current || current.completed) return;
+    const previous = current.answers[questionId];
     const next = {
       ...current,
-      answers: { ...current.answers, [questionId]: { selectedAnswer, timeSpentSec, selfScore, maxScore } },
+      answers: {
+        ...current.answers,
+        [questionId]: {
+          selectedAnswer,
+          timeSpentSec,
+          selfScore,
+          maxScore,
+          confidence: meta?.confidence ?? previous?.confidence,
+          usedHint: meta?.usedHint ?? previous?.usedHint,
+          answerModified: meta?.answerModified ?? previous?.answerModified,
+        },
+      },
     };
     revisionRef.current += 1;
     sessionRef.current = next;
@@ -353,6 +366,9 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       timeSpentSec: answer.timeSpentSec,
       selfScore: answer.selfScore,
       maxScore: answer.maxScore,
+      confidence: answer.confidence,
+      usedHint: answer.usedHint,
+      answerModified: answer.answerModified,
     }));
 
     try {

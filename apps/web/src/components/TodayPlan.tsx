@@ -7,16 +7,23 @@ import { validateTaskCompletionDraft, type TaskCompletionDraft } from '../featur
 
 interface Props {
   plan: TodayPlanType;
+  focusTaskId?: string | null;
   onRefresh: () => Promise<void>;
   onOpenReview?: (questionId: string) => void;
 }
 
-export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
+export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props) {
   const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
   const [dueReviewError, setDueReviewError] = useState('');
   const [actionError, setActionError] = useState('');
   const [activeActionTaskId, setActiveActionTaskId] = useState<string | null>(null);
   const [completionDrafts, setCompletionDrafts] = useState<Record<string, TaskCompletionDraft>>({});
+
+  useEffect(() => {
+    if (!focusTaskId) return;
+    const task = document.getElementById(`today-task-${focusTaskId}`);
+    task?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusTaskId]);
 
   function loadDueReviews() {
     setDueReviewError('');
@@ -132,7 +139,7 @@ export function TodayPlan({ plan, onRefresh, onOpenReview }: Props) {
           <p className="empty-state">今日任务已完成！继续保持节奏。</p>
         ) : (
           priorityTasks.map((task) => (
-            <article key={task.id} className={`task-card ${task.completed ? 'completed' : ''}`}>
+            <article key={task.id} id={`today-task-${task.id}`} className={`task-card ${task.completed ? 'completed' : ''} ${focusTaskId === task.id ? 'focused' : ''}`}>
               <div className="task-info">
                 <div className="task-header">
                   <span className={`priority-badge priority-${task.priority === '高' ? 'high' : task.priority === '中' ? 'medium' : 'low'}`}>

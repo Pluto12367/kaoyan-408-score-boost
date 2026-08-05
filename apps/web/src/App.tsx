@@ -33,7 +33,9 @@ import { useStudentLearningData } from './hooks/useStudentLearningData';
 import { useDashboardOverviewData } from './hooks/useDashboardOverviewData';
 import { useRoleWorkspaceData } from './hooks/useRoleWorkspaceData';
 import { ModuleUnavailable } from './components/ModuleResourceState';
+import { TodayPlan } from './components/TodayPlan';
 import type { SessionView } from './api/endpoints/sessions';
+import type { PracticeAnswerResult } from './api/endpoints/practice';
 import { isMockAllowed } from './api/env';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
@@ -68,7 +70,7 @@ import {
   type TutorReply,
 } from './api';
 import { computeStageReport } from '@kaoyan408/shared';
-import type { FeedbackDraft, UserProfile, UserRole } from '@kaoyan408/shared';
+import type { FeedbackDraft, MistakeReason, UserProfile, UserRole } from '@kaoyan408/shared';
 import { useAuth } from './hooks/useAuth';
 import {
   roleLabel,
@@ -142,11 +144,15 @@ export function App() {
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
   const [practiceStatus, setPracticeStatus] = useState('选择一个选项后，系统会自动判题并更新提分报告。');
+  const [practiceIndex, setPracticeIndex] = useState(0);
+  const [practiceSubmitting, setPracticeSubmitting] = useState(false);
+  const [practiceAnswerResult, setPracticeAnswerResult] = useState<PracticeAnswerResult | null>(null);
   const [reasonQueue, setReasonQueue] = useState<Array<{
     questionId: string;
     correct: boolean;
     timeSpentSec: number;
     isReview: boolean;
+    mistakeReason?: MistakeReason | null;
   }>>([]);
   const reasonPrompt = reasonQueue[0] ?? null;
   const practiceTimerRef = useRef<{ questionId: string; activeMs: number; startedAt: number | null }>({
@@ -167,6 +173,8 @@ export function App() {
   const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => isMockAllowed() ? createMockPaperSubmitResult() : null);
   const [paperSession, setPaperSession] = useState<PaperSubmitResult['examSession'] | null>(null);
   const [learningSessionType, setLearningSessionType] = useState<SessionView['type'] | null>(null);
+  const [learningSessionMode, setLearningSessionMode] = useState(false);
+  const [planFocusTaskId, setPlanFocusTaskId] = useState<string | null>(null);
   const [examReportSessionId, setExamReportSessionId] = useState<string | null>(null);
   const [resumedLearningSession, setResumedLearningSession] = useState<SessionView | null>(null);
   const [practiceSetResult, setPracticeSetResult] = useState<PracticeSetResult | null>(null);
@@ -321,7 +329,7 @@ export function App() {
     : learningSessionType === 'stage_assessment'
       ? stageAssessment.estimatedMinutes
       : 180;
-  const currentQuestion = (redoQuestionId ? questions.find((question) => question.id === redoQuestionId) : undefined) ?? questions[0];
+  const currentQuestion = (redoQuestionId ? questions.find((question) => question.id === redoQuestionId) : undefined) ?? questions[Math.min(practiceIndex, Math.max(0, questions.length - 1))];
 
   useEffect(() => {
     practiceTimerRef.current = {
@@ -414,15 +422,30 @@ export function App() {
   }
 
   async function handleSubmitDiagnostic() {
+    const targetScore = student.targetScore;
+    const currentScore = student.currentScore;
+    const remainingDays = student.remainingDays;
+    const dailyHours = student.dailyHours;
+    const weakestSubject = student.weakestSubject;
+    if (
+      targetScore == null ||
+      currentScore == null ||
+      remainingDays == null ||
+      dailyHours == null ||
+      !weakestSubject
+    ) {
+      setDiagnosticStatus('缺少目标分、当前水平、备考天数等基础信息，请先完成入学引导。');
+      return;
+    }
     setDiagnosticStatus('正在生成入学诊断...');
 
     try {
       const profile = await submitDiagnosticProfile({
-        targetScore: 118,
-        currentScore: 58,
-        remainingDays: 120,
-        dailyHours: 2.5,
-        weakestSubject: '操作系统',
+        targetScore,
+        currentScore,
+        remainingDays,
+        dailyHours,
+        weakestSubject,
       });
       const nextOverview = await fetchDashboardOverview();
       setOverview(nextOverview);
@@ -441,6 +464,8 @@ export function App() {
   }
 
   async function handleSubmitAnswer(selectedAnswer: string) {
+    if (practiceSubmitting || practiceAnswerResult) return;
+    setPracticeSubmitting(true);
     setPracticeStatus('正在提交答案...');
     const timeSpentSec = readPracticeElapsedSec();
 
@@ -451,25 +476,50 @@ export function App() {
         selectedAnswer,
         timeSpentSec,
       });
-      const nextOverview = await fetchDashboardOverview();
-      setOverview(nextOverview);
+      setPracticeAnswerResult(record);
       setApiState('connected');
-      await refreshStudyReminders();
-      await refreshSprintPlan();
-      await refreshMasteryMap();
-      await refreshWrongQuestionSummary();
+      void Promise.allSettled([
+        fetchDashboardOverview().then((nextOverview) => setOverview(nextOverview)),
+        refreshStudyReminders(),
+        refreshSprintPlan(),
+        refreshMasteryMap(),
+        refreshWrongQuestionSummary(),
+      ]);
       const isReview = redoQuestionId === currentQuestion.id;
       if (!record.correct || isReview) {
-        setReasonQueue([{ questionId: currentQuestion.id, correct: record.correct, timeSpentSec, isReview }]);
+        setReasonQueue([{
+          questionId: currentQuestion.id,
+          correct: record.correct,
+          timeSpentSec,
+          isReview,
+          mistakeReason: record.mistakeReason,
+        }]);
         setPracticeStatus(record.correct ? '重做正确，请确认本次错因以调整复习间隔。' : '回答错误，请选择最符合本次情况的错因。');
       } else {
-        setPracticeStatus('回答正确，已记录本次练习。');
+        setPracticeStatus('回答正确，已记录本次练习，可继续下一题。');
         restartPracticeTimer();
       }
     } catch {
-      setPracticeStatus('提交失败，当前显示本地演示数据。');
+      setPracticeStatus(isMockAllowed() ? '提交失败，当前显示本地演示数据。' : '提交失败，请重试。本次作答尚未保存。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
+    } finally {
+      setPracticeSubmitting(false);
     }
+  }
+
+  function handleNextQuestion() {
+    if (questions.length === 0) return;
+    if (practiceIndex >= questions.length - 1) {
+      setPracticeAnswerResult(null);
+      setRedoQuestionId(null);
+      setPracticeStatus('已到当前题库末尾，可开始专项练习或前往错题本复习。');
+      return;
+    }
+    setPracticeAnswerResult(null);
+    setRedoQuestionId(null);
+    setPracticeIndex(practiceIndex + 1);
+    restartPracticeTimer();
+    setPracticeStatus('选择选项后，系统会自动判题并更新提分报告。');
   }
 
   function handleSubmitPracticeSet() {
@@ -480,7 +530,47 @@ export function App() {
     }
     setResumedLearningSession(null);
     setLearningSessionType('practice_set');
-    setPracticeStatus('专项练习已开始，作答进度会自动保存。');
+    setLearningSessionMode(false);
+    setPracticeStatus('专项练习已开始（训练模式），作答进度会自动保存。');
+  }
+
+  function handleStartLearningMode() {
+    const practiceSet = studentLearning.practiceSet.data;
+    if (!practiceSet || practiceSet.questions.length === 0) {
+      setPracticeStatus('推荐题组尚未加载，无法进入学习模式，请先重新加载本模块。');
+      return;
+    }
+    setResumedLearningSession(null);
+    setLearningSessionType('practice_set');
+    setLearningSessionMode(true);
+    setPracticeStatus('学习模式已开始：每题作答后立即核对答案并查看解析。');
+  }
+
+  async function handleLearningCheckAnswer(input: {
+    questionId: string;
+    selectedAnswer: string;
+    timeSpentSec: number;
+    confidence?: '确定' | '不确定' | '完全不会';
+    usedHint?: boolean;
+    answerModified?: boolean;
+  }): Promise<PracticeAnswerResult> {
+    const question = activeLearningQuestions.find((item) => item.id === input.questionId);
+    if (!question) throw new Error('题目不存在，无法核对答案。');
+    return submitPracticeAnswer({
+      questionId: input.questionId,
+      knowledgePointId: question.knowledgePointIds[0],
+      selectedAnswer: input.selectedAnswer,
+      timeSpentSec: input.timeSpentSec,
+      confidence: input.confidence,
+      usedHint: input.usedHint,
+      answerModified: input.answerModified,
+    });
+  }
+
+  function handleContinueToday() {
+    const incomplete = todayPlan?.priorityTasks.find((task) => task.status !== 'completed' && !task.completed);
+    setPlanFocusTaskId(incomplete?.id ?? null);
+    setActiveSection('plan');
   }
 
   async function handleReviewWrongQuestion(questionId: string) {
@@ -514,10 +604,10 @@ export function App() {
       }));
       setStageResult(null);
       setApiState('connected');
-      setAssessmentStatus(`已生成 ${assessment.questions.length} 题阶段测评，预计 ${assessment.estimatedMinutes} 分钟。`);
-      setActiveSection('question');
+      setAssessmentStatus(`已生成 ${assessment.questions.length} 题阶段测评，预计 ${assessment.estimatedMinutes} 分钟，可在下方点击「开始阶段测评」。`);
+      setActiveSection('plan');
     } catch {
-      setAssessmentStatus('阶段测评生成失败，当前显示本地演示数据。');
+      setAssessmentStatus(isMockAllowed() ? '阶段测评生成失败，当前显示本地演示数据。' : '阶段测评生成失败，请稍后重试。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
@@ -529,6 +619,7 @@ export function App() {
     }
     setResumedLearningSession(null);
     setLearningSessionType('stage_assessment');
+    setLearningSessionMode(false);
     setAssessmentStatus('阶段测评已开始，作答进度会自动保存。');
   }
 
@@ -892,6 +983,7 @@ paperId: paper.id,
     setResumedLearningSession(null);
     setExamReportSessionId(null);
     setLearningSessionType('paper');
+    setLearningSessionMode(false);
     setApiState(isStaticDemoMode() ? 'mock' : 'connected');
   }
 
@@ -995,7 +1087,7 @@ paperId: paper.id,
         </header>
 
         <StudentLayout role={sessionUser?.role}>
-          {studentOverviewReady && (visibleSection === 'dashboard' || visibleSection === 'plan') ? (
+          {studentOverviewReady && visibleSection === 'dashboard' ? (
           <StudentLaunchpad
             showOnboarding={showOnboarding}
             todayPlan={todayPlan}
@@ -1005,7 +1097,12 @@ paperId: paper.id,
             examResult={paperResult}
             examQuestionCount={examQuestions.length}
             remoteSessionsEnabled={!isStaticDemoMode()}
+            report={report}
+            masteryMap={studentProgress.masteryMap.data}
+            learningCalendar={learningCalendar}
+            wrongQuestionSummary={studentLearning.wrongQuestionSummary.data}
             onNavigate={setActiveSection}
+            onContinueToday={handleContinueToday}
             onOnboardingComplete={handleOnboardingComplete}
             onRefreshTodayPlan={refreshTodayPlan}
             onOpenReview={(questionId) => {
@@ -1016,6 +1113,7 @@ paperId: paper.id,
               setResumedLearningSession(session);
               setExamReportSessionId(null);
               setLearningSessionType(session.type);
+              setLearningSessionMode(false);
             }}
             onStartExam={handlePrepareStudentExam}
           />
@@ -1044,7 +1142,7 @@ paperId: paper.id,
         </StudentLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady && (visibleSection === 'dashboard' || visibleSection === 'report') ? <>
+        {studentOverviewReady && visibleSection === 'report' ? <>
         <StudentProgressOverview
           trialProgress={studentProgress.trialProgress}
           studyReminders={studentProgress.studyReminders}
@@ -1060,6 +1158,9 @@ paperId: paper.id,
         <LearningProfilePanel profile={studentProgress.learningProfile} onRetry={refreshLearningProfile} />
         <FeedbackPanel status={feedbackStatus} onSubmit={handleSubmitFeedback} />
         <DiagnosticSummary student={student} plan={plan} status={diagnosticStatus} onSubmit={handleSubmitDiagnostic} />
+        <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} />
+        <StageReportPanel report={stageReport} onRetry={refreshStageReport} />
+        <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} />
         </> : null}
         </StudentLayout>
 
@@ -1094,8 +1195,8 @@ paperId: paper.id,
         </AdminLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady && (visibleSection === 'plan' || visibleSection === 'question' || visibleSection === 'report' || visibleSection === 'ai') ? <>
-        <section id="wrong-book" className="panel">
+        {studentOverviewReady && visibleSection === 'plan' ? <>
+        <section id="study-calendar" className="panel">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">学习日历</p>
@@ -1113,28 +1214,71 @@ paperId: paper.id,
           </div>
         </section>
 
+        {todayPlan ? (
+          <TodayPlan
+            plan={todayPlan}
+            focusTaskId={planFocusTaskId}
+            onRefresh={refreshTodayPlan}
+            onOpenReview={(questionId) => {
+              setDetailQuestionId(questionId);
+              setActiveSection('wrong-book');
+            }}
+          />
+        ) : todayPlanLoading || todayPlanError ? (
+          <ModuleUnavailable
+            title="今日计划"
+            resource={{ data: null, state: todayPlanLoading ? 'loading' : 'error', error: todayPlanError || undefined }}
+            onRetry={refreshTodayPlan}
+          />
+        ) : (
+          <section className="panel">
+            <div className="panel-heading">
+              <div><p className="eyebrow">今日计划</p><h3>暂未生成今日计划</h3></div>
+            </div>
+            <p className="empty-state">完成入学引导和入学诊断后，系统会自动生成今日学习任务。</p>
+          </section>
+        )}
+
         <StageAssessmentPanel assessment={stageAssessment} result={stageResult} status={assessmentStatus} onSubmit={handleSubmitAssessment} />
 
         {!todayPlan && isMockAllowed() ? <StudyPlanOverview plan={plan} /> : null}
+        </> : null}
+        </StudentLayout>
 
-        <section className="two-column">
-          <PracticePanel
-            question={currentQuestion}
-            practiceSet={studentLearning.practiceSet}
-            practiceSetResult={practiceSetResult}
-            redoQuestionId={redoQuestionId}
-            status={practiceStatus}
-            onSubmitAnswer={handleSubmitAnswer}
-            onSubmitPracticeSet={handleSubmitPracticeSet}
-            onRetryPracticeSet={refreshPracticeSet}
-          />
-          <WeaknessReportPanel report={report} />
-        </section>
+        <StudentLayout role={sessionUser?.role}>
+        {studentOverviewReady && visibleSection === 'question' ? (
+          questions.length > 0 ? <>
+          <section className="two-column">
+            <PracticePanel
+              question={currentQuestion}
+              practiceSet={studentLearning.practiceSet}
+              practiceSetResult={practiceSetResult}
+              redoQuestionId={redoQuestionId}
+              status={practiceStatus}
+              submitting={practiceSubmitting}
+              answerResult={practiceAnswerResult}
+              hasNextQuestion={practiceIndex < questions.length - 1}
+              onSubmitAnswer={handleSubmitAnswer}
+              onNextQuestion={handleNextQuestion}
+              onSubmitPracticeSet={handleSubmitPracticeSet}
+              onStartLearningMode={handleStartLearningMode}
+              onRetryPracticeSet={refreshPracticeSet}
+            />
+            <WeaknessReportPanel report={report} />
+          </section>
+          <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} />
+          </> : (
+            <div className="panel">
+              <div className="panel-heading"><div><p className="eyebrow">题库训练</p><h3>暂无可用题目</h3></div></div>
+              <p className="empty-state">题库暂未就绪，请先完成入学诊断，或等待教研更新题目后重试。</p>
+            </div>
+          )
+        ) : null}
+        </StudentLayout>
 
-        {(visibleSection === 'report' || visibleSection === 'question') ? <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} /> : null}
-        {visibleSection === 'report' ? <StageReportPanel report={stageReport} onRetry={refreshStageReport} /> : null}
-        {visibleSection === 'report' ? <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} /> : null}
-        {visibleSection === 'ai' ? <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} /> : null}
+        <StudentLayout role={sessionUser?.role}>
+        {studentOverviewReady && visibleSection === 'ai' ? <>
+        <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
         </> : null}
         </StudentLayout>
 
@@ -1191,11 +1335,17 @@ paperId: paper.id,
             resourceId={activeLearningResourceId}
             timeLimitMin={activeLearningTimeLimit}
             localMode={isStaticDemoMode()}
-            onExit={() => setLearningSessionType(null)}
+            learningMode={learningSessionMode}
+            onCheckAnswer={handleLearningCheckAnswer}
+            onExit={() => {
+              setLearningSessionType(null);
+              setLearningSessionMode(false);
+            }}
             onSubmit={(result) => {
               const completedType = learningSessionType;
               setLearningSessionType(null);
               setResumedLearningSession(null);
+              setLearningSessionMode(false);
               if (isStaticDemoMode() && completedType === 'paper') {
                 const mockResult = createMockPaperSubmitResult(latestPaper ?? undefined, student.id);
                 setPaperResult(mockResult);
@@ -1230,6 +1380,7 @@ paperId: paper.id,
                     correct: false,
                     timeSpentSec: record.timeSpentSec,
                     isReview: false,
+                    mistakeReason: record.mistakeReason,
                   })));
               }
               void Promise.allSettled([
@@ -1254,18 +1405,26 @@ paperId: paper.id,
       ) : null}
       {reasonPrompt ? (
         <ErrorReasonSelector
+          key={reasonPrompt.questionId}
           questionId={reasonPrompt.questionId}
           correct={reasonPrompt.correct}
           timeSpentSec={reasonPrompt.timeSpentSec}
           isReview={reasonPrompt.isReview}
+          inferredReason={reasonPrompt.mistakeReason ?? null}
           onClose={() => {
-            if (reasonPrompt.correct && reasonPrompt.isReview) setRedoQuestionId(null);
+            if (reasonPrompt.correct && reasonPrompt.isReview) {
+              setRedoQuestionId(null);
+              setPracticeAnswerResult(null);
+            }
             setReasonQueue((current) => current.slice(1));
             if (reasonQueue.length === 1) restartPracticeTimer();
             setPracticeStatus('已跳过错因自评，系统仍会保留本次练习记录。');
           }}
           onReported={(result) => {
-            if (reasonPrompt.correct && reasonPrompt.isReview) setRedoQuestionId(null);
+            if (reasonPrompt.correct && reasonPrompt.isReview) {
+              setRedoQuestionId(null);
+              setPracticeAnswerResult(null);
+            }
             setReasonQueue((current) => current.slice(1));
             if (reasonQueue.length === 1) restartPracticeTimer();
             setPracticeStatus(result.message);

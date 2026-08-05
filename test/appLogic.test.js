@@ -10,6 +10,7 @@ import {
   createTeacherQuestion,
   generateTutorReply,
   gradePracticeSessionAnswers,
+  normalizeMistakeReason,
   recommendPracticeSet,
   requireQuestionKnowledgePoint,
 } from '../packages/shared/dist/learning.js';
@@ -67,6 +68,30 @@ test('gradePracticeSessionAnswers scores objective and self-scored questions', (
   assert.equal(result.records[2].correct, false);
 });
 
+test('gradePracticeSessionAnswers classifies mistake reasons like the backend', () => {
+  const result = gradePracticeSessionAnswers({
+    questions: [
+      { id: 'q-slow-wrong', answer: 'C', expectedTimeSec: 90 },
+      { id: 'q-fast-wrong', answer: 'C', expectedTimeSec: 90 },
+      { id: 'q-slow-correct', answer: 'B', expectedTimeSec: 90 },
+      { id: 'q-no-time', answer: 'A' },
+      { id: 'q-unanswered', answer: 'A', expectedTimeSec: 90 },
+    ],
+    answers: {
+      'q-slow-wrong': { selectedAnswer: 'A', timeSpentSec: 180 },
+      'q-fast-wrong': { selectedAnswer: 'A', timeSpentSec: 45 },
+      'q-slow-correct': { selectedAnswer: 'B', timeSpentSec: 160 },
+      'q-no-time': { selectedAnswer: 'A', timeSpentSec: 100 },
+    },
+  });
+
+  assert.equal(result.records[0].mistakeReason, '概念混淆');
+  assert.equal(result.records[1].mistakeReason, '审题错误');
+  assert.equal(result.records[2].mistakeReason, '时间不足');
+  assert.equal(result.records[3].mistakeReason, null);
+  assert.equal(result.records[4].mistakeReason, null);
+});
+
 const knowledgePoints = [
   { id: 'ds-tree', subject: '数据结构', chapter: '树与二叉树', title: '树的遍历应用', importance: 5, frequency: 5 },
   { id: 'co-cache', subject: '计算机组成原理', chapter: '存储系统', title: 'Cache映射与替换', importance: 5, frequency: 5 },
@@ -76,10 +101,10 @@ const knowledgePoints = [
 
 const records = [
   { knowledgePointId: 'ds-tree', correct: true, timeSpentSec: 100, expectedTimeSec: 90, mistakeReason: null },
-  { knowledgePointId: 'ds-tree', correct: false, timeSpentSec: 160, expectedTimeSec: 90, mistakeReason: '知识点混淆' },
-  { knowledgePointId: 'co-cache', correct: false, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: '概念不清' },
-  { knowledgePointId: 'co-cache', correct: false, timeSpentSec: 120, expectedTimeSec: 100, mistakeReason: '概念不清' },
-  { knowledgePointId: 'os-sync', correct: false, timeSpentSec: 80, expectedTimeSec: 100, mistakeReason: '审题问题' },
+  { knowledgePointId: 'ds-tree', correct: false, timeSpentSec: 160, expectedTimeSec: 90, mistakeReason: '概念混淆' },
+  { knowledgePointId: 'co-cache', correct: false, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: '概念混淆' },
+  { knowledgePointId: 'co-cache', correct: false, timeSpentSec: 120, expectedTimeSec: 100, mistakeReason: '概念混淆' },
+  { knowledgePointId: 'os-sync', correct: false, timeSpentSec: 80, expectedTimeSec: 100, mistakeReason: '审题错误' },
   { knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 190, expectedTimeSec: 100, mistakeReason: null },
   { knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 170, expectedTimeSec: 100, mistakeReason: null },
 ];
@@ -108,15 +133,15 @@ test('computeWeaknessReport finds weak chapters and speed risk separately', () =
 
   assert.equal(report.accuracyRate, 42.9);
   assert.equal(report.weakPoints[0].knowledgePointId, 'co-cache');
-  assert.equal(report.weakPoints[0].suggestion, '强化概念辨析与映射过程');
+  assert.equal(report.weakPoints[0].suggestion, '建立相邻考点对比表，逐项写清区别');
   assert.equal(report.speedRisks[0].knowledgePointId, 'net-tcp');
   assert.match(report.summary, /预计提分空间/);
 });
 
 test('classifyMistake maps behavior to review-friendly reasons', () => {
-  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 45, expectedTimeSec: 90 }), '审题问题');
-  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 180, expectedTimeSec: 90 }), '概念不清');
-  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), '速度偏慢');
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 45, expectedTimeSec: 90 }), '审题错误');
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 180, expectedTimeSec: 90 }), '概念混淆');
+  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), '时间不足');
 });
 
 test('recommendPracticeSet chooses sprint review from weak and wrong questions', () => {
@@ -169,7 +194,7 @@ test('createPracticeRecord stores answer result with mistake reason and traceabl
   });
 
   assert.equal(record.correct, false);
-  assert.equal(record.mistakeReason, '概念不清');
+  assert.equal(record.mistakeReason, '概念混淆');
   assert.equal(record.knowledgePointId, 'os-sync');
   assert.equal(record.submittedAt, '2026-06-28');
 });
@@ -215,10 +240,37 @@ test('classifyMistake returns null for correct and fast answers', () => {
   assert.equal(classifyMistake({ correct: true, selectedAnswer: 'B', correctAnswer: 'B', timeSpentSec: 80, expectedTimeSec: 100 }), null);
 });
 
-test('classifyMistake returns 知识点混淆 for wrong answers at normal speed', () => {
-  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 95, expectedTimeSec: 100 }), '知识点混淆');
+test('classifyMistake returns 概念混淆 for wrong answers at normal speed', () => {
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 95, expectedTimeSec: 100 }), '概念混淆');
 });
 
+test('classifyMistake treats confident-but-wrong answers as 知识点没学过', () => {
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 95, expectedTimeSec: 100, confidence: '完全不会' }), '知识点没学过');
+});
+
+test('classifyMistake treats guessed-correct answers as 蒙题 instead of mastery', () => {
+  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 60, expectedTimeSec: 100, confidence: '完全不会' }), '蒙题');
+});
+
+test('classifyMistake returns 时间不足 for unanswered or overtime-correct answers', () => {
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: '', correctAnswer: 'C', timeSpentSec: 200, expectedTimeSec: 90 }), '时间不足');
+  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), '时间不足');
+});
+
+test('classifyMistake returns 推理过程错误 when a wrong answer used a hint', () => {
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 95, expectedTimeSec: 100, usedHint: true }), '推理过程错误');
+});
+
+test('normalizeMistakeReason maps legacy labels into the 8-class set', () => {
+  assert.equal(normalizeMistakeReason('概念不清'), '概念混淆');
+  assert.equal(normalizeMistakeReason('知识点混淆'), '概念混淆');
+  assert.equal(normalizeMistakeReason('审题问题'), '审题错误');
+  assert.equal(normalizeMistakeReason('计算失误'), '计算错误');
+  assert.equal(normalizeMistakeReason('速度偏慢'), '时间不足');
+  assert.equal(normalizeMistakeReason('蒙题'), '蒙题');
+  assert.equal(normalizeMistakeReason('不存在的错因'), null);
+  assert.equal(normalizeMistakeReason(null), null);
+});
 test('applyDiagnosticProfile sets 冲刺 stage when remainingDays <= 45 with adequate score', () => {
   const profile = applyDiagnosticProfile({ targetScore: 120, currentScore: 85, remainingDays: 30, dailyHours: 4, weakestSubject: '计算机网络' });
   assert.equal(profile.stage, '冲刺');

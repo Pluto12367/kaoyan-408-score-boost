@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Flag, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Clock, Flag, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Lightbulb } from 'lucide-react';
+import type { ConfidenceLevel } from '@kaoyan408/shared';
+import { MISTAKE_SUGGESTIONS } from '@kaoyan408/shared';
 import { usePracticeSession } from '../hooks/usePracticeSession';
 import type { SessionView, SessionSubmitResult } from '../api/endpoints/sessions';
+import type { PracticeAnswerResult } from '../api/endpoints/practice';
 
 interface Props {
   sessionType?: SessionView['type'];
@@ -14,15 +17,27 @@ interface Props {
     type?: string;
     analysis?: string;
     answer?: string;
+    expectedTimeSec?: number;
   }>;
   timeLimitMin?: number;
   resourceId?: string;
   localMode?: boolean;
+  learningMode?: boolean;
+  onCheckAnswer?: (input: {
+    questionId: string;
+    selectedAnswer: string;
+    timeSpentSec: number;
+    confidence?: ConfidenceLevel;
+    usedHint?: boolean;
+    answerModified?: boolean;
+  }) => Promise<PracticeAnswerResult>;
   onExit: () => void;
   onSubmit: (result: SessionSubmitResult) => void;
 }
 
-export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, localMode = false, onExit, onSubmit }: Props) {
+const CONFIDENCE_LEVELS: ConfidenceLevel[] = ['确定', '不确定', '完全不会'];
+
+export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, localMode = false, learningMode = false, onCheckAnswer, onExit, onSubmit }: Props) {
   const {
     session, saving, submitting, error, saveError, lastSavedAt,
     updateAnswer, setCurrentQuestion, toggleMark, saveNow, submitSession, getActiveElapsedMs,
@@ -35,16 +50,26 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
       id: question.id,
       answer: question.answer ?? '',
       subjective: question.type === '综合题',
+      expectedTimeSec: question.expectedTimeSec,
     })),
   });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [elapsedSec, setElapsedSec] = useState(0);
+  const [learningFeedback, setLearningFeedback] = useState<Record<string, PracticeAnswerResult>>({});
+  const [checkingAnswer, setCheckingAnswer] = useState(false);
+  const [checkError, setCheckError] = useState('');
+  const [hintVisible, setHintVisible] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const questionStartedAtRef = useRef(0);
   const questionTimeCarryMsRef = useRef(0);
   const totalTimeSec = timeLimitMin * 60;
-  const sessionLabel = sessionType === 'practice_set' ? '专项练习' : sessionType === 'stage_assessment' ? '阶段测评' : '模拟考试';
+  const isLearningMode = Boolean(learningMode);
+  const isPaperMode = sessionType === 'paper';
+  const sessionLabel = isLearningMode
+    ? '学习模式'
+    : sessionType === 'practice_set' ? '专项练习' : sessionType === 'stage_assessment' ? '阶段测评' : '模拟考试';
 
   // Timer
   useEffect(() => {
@@ -69,6 +94,8 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
   const missingSubjectiveScores = subjectiveQuestions.filter((question) =>
     isAnswered(question.id) && session?.answers[question.id]?.selfScore === undefined,
   );
+  const currentConfidence = session?.answers[currentQuestion?.id ?? '']?.confidence;
+  const currentUsedHint = session?.answers[currentQuestion?.id ?? '']?.usedHint ?? false;
 
   useEffect(() => {
     if (!session) return;
@@ -79,6 +106,7 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
   useEffect(() => {
     questionStartedAtRef.current = getActiveElapsedMs();
     questionTimeCarryMsRef.current = 0;
+    setHintVisible(false);
   }, [currentIndex, getActiveElapsedMs]);
 
   function goToQuestion(index: number) {
@@ -98,9 +126,69 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
   function handleSelectAnswer(optionIndex: number) {
     if (!currentQuestion || !session) return;
     const letter = String.fromCharCode(65 + optionIndex);
-    const previousTime = session.answers[currentQuestion.id]?.timeSpentSec ?? 0;
+    const previous = session.answers[currentQuestion.id];
+    const previousTime = previous?.timeSpentSec ?? 0;
     const elapsed = consumeQuestionTime();
-    updateAnswer(currentQuestion.id, letter, previousTime + elapsed);
+    const answerModified = Boolean(previous?.selectedAnswer && previous.selectedAnswer !== letter) || Boolean(previous?.answerModified);
+    updateAnswer(currentQuestion.id, letter, previousTime + elapsed, previous?.selfScore, previous?.maxScore, {
+      confidence: previous?.confidence,
+      usedHint: previous?.usedHint,
+      answerModified,
+    });
+  }
+
+  async function handleLearningSelect(optionIndex: number) {
+    if (!currentQuestion || !session) return;
+    if (learningFeedback[currentQuestion.id] || checkingAnswer) return;
+    const letter = String.fromCharCode(65 + optionIndex);
+    const previous = session.answers[currentQuestion.id];
+    const previousTime = previous?.timeSpentSec ?? 0;
+    const elapsed = consumeQuestionTime();
+    const timeSpentSec = previousTime + elapsed;
+    const answerModified = Boolean(previous?.selectedAnswer && previous.selectedAnswer !== letter) || Boolean(previous?.answerModified);
+    updateAnswer(currentQuestion.id, letter, timeSpentSec, previous?.selfScore, previous?.maxScore, {
+      confidence: previous?.confidence,
+      usedHint: previous?.usedHint,
+      answerModified,
+    });
+    if (!onCheckAnswer) {
+      setCheckError('学习模式暂不可用，请稍后重试。');
+      return;
+    }
+    setCheckingAnswer(true);
+    setCheckError('');
+    try {
+      const feedback = await onCheckAnswer({
+        questionId: currentQuestion.id,
+        selectedAnswer: letter,
+        timeSpentSec,
+        confidence: previous?.confidence,
+        usedHint: previous?.usedHint,
+        answerModified,
+      });
+      setLearningFeedback((current) => ({ ...current, [currentQuestion.id]: feedback }));
+    } catch (checkFailure) {
+      setCheckError(checkFailure instanceof Error ? `核对失败：${checkFailure.message}` : '核对失败，请检查网络后重试。');
+    } finally {
+      setCheckingAnswer(false);
+    }
+  }
+
+  function handleSetConfidence(level: ConfidenceLevel) {
+    if (!currentQuestion || !session) return;
+    const previous = session.answers[currentQuestion.id];
+    updateAnswer(currentQuestion.id, previous?.selectedAnswer ?? '', previous?.timeSpentSec ?? 0, previous?.selfScore, previous?.maxScore, {
+      confidence: level,
+    });
+  }
+
+  function handleShowHint() {
+    if (!currentQuestion || !session || currentUsedHint) return;
+    const previous = session.answers[currentQuestion.id];
+    updateAnswer(currentQuestion.id, previous?.selectedAnswer ?? '', previous?.timeSpentSec ?? 0, previous?.selfScore, previous?.maxScore, {
+      usedHint: true,
+    });
+    setHintVisible(true);
   }
 
   function handleSubjectiveAnswer(value: string) {
@@ -132,12 +220,19 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
 
   async function handleSubmit() {
     if (missingSubjectiveScores.length > 0) return;
+    setSubmitError('');
     try {
       flushCurrentQuestionTime();
       const result = await submitSession();
       if (timerRef.current) clearInterval(timerRef.current);
       onSubmit(result);
-    } catch { /* error */ }
+    } catch (submissionError) {
+      setSubmitError(
+        submissionError instanceof Error
+          ? `提交失败：${submissionError.message}`
+          : '提交失败，请检查网络后重试。你的作答已自动保存，不会丢失。',
+      );
+    }
   }
 
   async function handleExit() {
@@ -153,7 +248,8 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
   if (error) return <div className="panel"><p className="task-status">会话错误: {error}</p></div>;
   if (!session) return <div className="panel"><p className="task-status">正在加载{sessionLabel}...</p></div>;
 
-  const timerClass = remainingSec < 300 ? 'timer-danger' : remainingSec < 600 ? 'timer-warning' : '';
+  const timerClass = isLearningMode ? '' : remainingSec < 300 ? 'timer-danger' : remainingSec < 600 ? 'timer-warning' : '';
+  const learningFeedbackForCurrent = currentQuestion ? learningFeedback[currentQuestion.id] : undefined;
 
   return (
     <div className="exam-session">
@@ -161,8 +257,10 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
       <header className="exam-header">
         <div className={`exam-timer ${timerClass}`}>
           <Clock size={20} />
-          <span>{isOvertime ? '+' : ''}{remainingMin}:{String(remainingSecPart).padStart(2, '0')}</span>
-          {isOvertime ? <span className="overtime-badge">超时</span> : null}
+          <span>{isLearningMode
+            ? `${Math.floor(elapsedSec / 60)}:${String(elapsedSec % 60).padStart(2, '0')}`
+            : `${isOvertime ? '+' : ''}${remainingMin}:${String(remainingSecPart).padStart(2, '0')}`}</span>
+          {!isLearningMode && isOvertime ? <span className="overtime-badge">超时</span> : null}
         </div>
         <div className="exam-stats">
           <span>{answeredCount}/{questionIds.length} 已答</span>
@@ -177,11 +275,24 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
             <span className="saved-indicator">{lastSavedAt ? '已自动保存' : '等待首次保存'}</span>
           )}
         </div>
-        <button type="button" className="secondary-action" onClick={handleExit}>保存并退出</button>
-        <button type="button" className="primary-action" disabled={submitting} onClick={() => setShowSubmitConfirm(true)}>
-          {sessionType === 'paper' ? '交卷' : '提交'}
-        </button>
+        {isLearningMode ? (
+          <button type="button" className="primary-action" onClick={() => void handleExit()}>完成学习</button>
+        ) : (
+          <>
+            <button type="button" className="secondary-action" onClick={handleExit}>保存并退出</button>
+            <button type="button" className="primary-action" disabled={submitting} onClick={() => setShowSubmitConfirm(true)}>
+              {sessionType === 'paper' ? '交卷' : '提交'}
+            </button>
+          </>
+        )}
       </header>
+
+      {submitError ? (
+        <div className="module-error">
+          <span>{submitError}</span>
+          <button type="button" className="secondary-action" onClick={() => setSubmitError('')}>知道了</button>
+        </div>
+      ) : null}
 
       <div className="exam-body">
         {/* Question area */}
@@ -210,19 +321,21 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
                     placeholder="写出推导过程、关键步骤和最终结论"
                     onChange={(event) => handleSubjectiveAnswer(event.target.value)}
                   />
-                  <small>评分点将在确认交卷时展示，由你自行核对评分。</small>
+                  <small>{isLearningMode ? '学习模式暂不自动判分，综合题请到训练或模拟模式提交自评。' : '评分点将在确认交卷时展示，由你自行核对评分。'}</small>
                 </div>
               ) : (
                 <div className="question-options">
                   {currentQuestion.options.map((option, i) => {
                     const letter = String.fromCharCode(65 + i);
                     const selected = session.answers[currentQuestion.id]?.selectedAnswer;
+                    const locked = isLearningMode && Boolean(learningFeedback[currentQuestion.id]);
                     return (
                       <button
                         key={letter}
                         type="button"
                         className={`option-btn ${selected === letter ? 'selected' : ''}`}
-                        onClick={() => handleSelectAnswer(i)}
+                        disabled={locked || checkingAnswer}
+                        onClick={() => (isLearningMode ? void handleLearningSelect(i) : handleSelectAnswer(i))}
                       >
                         <span className="option-letter">{letter}</span>
                         <span>{option}</span>
@@ -232,6 +345,51 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
                   })}
                 </div>
               )}
+              {!isPaperMode ? (
+                <div className="learning-controls">
+                  <div className="confidence-selector" role="group" aria-label="作答自信程度">
+                    <span className="control-label">自信程度</span>
+                    {CONFIDENCE_LEVELS.map((level) => (
+                      <button
+                        key={level}
+                        type="button"
+                        className={currentConfidence === level ? 'active' : ''}
+                        onClick={() => handleSetConfidence(level)}
+                      >
+                        {level}
+                      </button>
+                    ))}
+                  </div>
+                  <button type="button" className="secondary-action hint-button" disabled={currentUsedHint} onClick={handleShowHint}>
+                    <Lightbulb size={14} /> {currentUsedHint ? '已查看提示' : '查看提示'}
+                  </button>
+                </div>
+              ) : null}
+              {hintVisible && currentUsedHint ? (
+                <div className="hint-box">提示：先回顾本题所属知识点的定义、公式与典型条件，再核对题干限制条件。</div>
+              ) : null}
+              {isLearningMode && learningFeedbackForCurrent ? (
+                <div className={`answer-result ${learningFeedbackForCurrent.correct ? 'answer-correct' : 'answer-wrong'}`} role="status">
+                  <div className="answer-result-head">
+                    <strong>{learningFeedbackForCurrent.correct ? '回答正确' : '回答错误'}</strong>
+                    <span>你的答案：{session.answers[currentQuestion.id]?.selectedAnswer}</span>
+                    <span>正确答案：{learningFeedbackForCurrent.correctAnswer}</span>
+                  </div>
+                  {learningFeedbackForCurrent.knowledgePointTitle ? (
+                    <p className="answer-result-kp"><strong>核心考点</strong>{learningFeedbackForCurrent.knowledgePointTitle}</p>
+                  ) : null}
+                  {learningFeedbackForCurrent.analysis ? (
+                    <div className="answer-result-analysis"><strong>解析</strong><p>{learningFeedbackForCurrent.analysis}</p></div>
+                  ) : (
+                    <p className="muted">暂无标准解析，可在错题本中查看或使用 AI 答疑。</p>
+                  )}
+                  {learningFeedbackForCurrent.mistakeReason ? (
+                    <p className="answer-result-reason"><strong>本次错因</strong>{learningFeedbackForCurrent.mistakeReason} · {MISTAKE_SUGGESTIONS[learningFeedbackForCurrent.mistakeReason]}</p>
+                  ) : null}
+                </div>
+              ) : null}
+              {isLearningMode && checkingAnswer ? <p className="practice-status">正在核对答案...</p> : null}
+              {isLearningMode && checkError ? <p className="task-status">{checkError}</p> : null}
               <div className="question-nav">
                 <button type="button" className="secondary-action" disabled={currentIndex === 0}
                   onClick={() => goToQuestion(currentIndex - 1)}>
@@ -321,6 +479,7 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
             {missingSubjectiveScores.length > 0 ? (
               <p className="task-status">请先完成 {missingSubjectiveScores.length} 道综合题评分点自评。</p>
             ) : null}
+            {submitError ? <p className="task-status">{submitError}</p> : null}
             <div className="confirm-actions">
               <button type="button" className="secondary-action" onClick={() => setShowSubmitConfirm(false)}>返回检查</button>
               <button type="button" className="primary-action" disabled={submitting || missingSubjectiveScores.length > 0} onClick={handleSubmit}>

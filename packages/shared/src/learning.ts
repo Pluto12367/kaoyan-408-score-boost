@@ -1,4 +1,5 @@
 import type {
+  ConfidenceLevel,
   DiagnosticProfile,
   DailyTask,
   KnowledgePoint,
@@ -17,13 +18,41 @@ const PHASES: Record<StudyStage, string> = {
   冲刺: '真题冲刺',
 };
 
-const MISTAKE_SUGGESTIONS: Record<MistakeReason, string> = {
-  概念不清: '强化概念辨析与映射过程',
-  知识点混淆: '建立相邻考点对比表',
-  审题问题: '训练关键词圈画与条件复述',
-  计算失误: '补做限时计算与过程校验',
-  速度偏慢: '加入限时套题和步骤压缩训练',
+const MISTAKE_REASONS: MistakeReason[] = [
+  '知识点没学过',
+  '概念混淆',
+  '公式记错',
+  '计算错误',
+  '审题错误',
+  '推理过程错误',
+  '时间不足',
+  '蒙题',
+];
+
+export const MISTAKE_SUGGESTIONS: Record<MistakeReason, string> = {
+  知识点没学过: '先回到教材补学该考点，再用基础题确认概念',
+  概念混淆: '建立相邻考点对比表，逐项写清区别',
+  公式记错: '整理公式卡片，做题前先默写一遍',
+  计算错误: '补做限时计算与过程校验，保留草稿步骤',
+  审题错误: '训练关键词圈画与条件复述',
+  推理过程错误: '回看解题步骤，标出断点后再做同类题',
+  时间不足: '加入限时套题和步骤压缩训练',
+  蒙题: '重做同知识点基础题，确保不是凭感觉答对',
 };
+
+const LEGACY_MISTAKE_REASON_MAP: Record<string, MistakeReason> = {
+  概念不清: '概念混淆',
+  知识点混淆: '概念混淆',
+  审题问题: '审题错误',
+  计算失误: '计算错误',
+  速度偏慢: '时间不足',
+};
+
+export function normalizeMistakeReason(value: string | null | undefined): MistakeReason | null {
+  if (!value) return null;
+  if ((MISTAKE_REASONS as string[]).includes(value)) return value as MistakeReason;
+  return LEGACY_MISTAKE_REASON_MAP[value] ?? null;
+}
 
 export function requireQuestionKnowledgePoint<T extends Pick<Question, 'knowledgePointIds'>>(question: T): T {
   if (!question.knowledgePointIds || question.knowledgePointIds.length === 0) {
@@ -39,14 +68,22 @@ export function classifyMistake(input: {
   correctAnswer: string;
   timeSpentSec: number;
   expectedTimeSec: number;
+  confidence?: ConfidenceLevel;
+  usedHint?: boolean;
 }): MistakeReason | null {
   const slow = input.timeSpentSec > input.expectedTimeSec * 1.45;
+  const tooFast = input.timeSpentSec < input.expectedTimeSec * 0.65;
+  const answered = Boolean(input.selectedAnswer?.trim());
 
-  if (input.correct && slow) return '速度偏慢';
+  if (input.correct && input.confidence === '完全不会') return '蒙题';
+  if (input.correct && slow) return '时间不足';
   if (input.correct) return null;
-  if (!input.selectedAnswer || input.timeSpentSec < input.expectedTimeSec * 0.65) return '审题问题';
-  if (input.selectedAnswer !== input.correctAnswer && slow) return '概念不清';
-  return '知识点混淆';
+  if (!answered) return '时间不足';
+  if (tooFast) return '审题错误';
+  if (slow) return '概念混淆';
+  if (input.confidence === '完全不会') return '知识点没学过';
+  if (input.usedHint) return '推理过程错误';
+  return '概念混淆';
 }
 
 export function applyDiagnosticProfile(input: {
@@ -77,6 +114,9 @@ export function createPracticeRecord(input: {
   selectedAnswer?: string;
   timeSpentSec: number;
   submittedAt?: string;
+  confidence?: ConfidenceLevel;
+  usedHint?: boolean;
+  answerModified?: boolean;
 }): PracticeRecord {
   const correct = input.selectedAnswer === input.question.answer;
   const mistakeReason = classifyMistake({
@@ -85,6 +125,8 @@ export function createPracticeRecord(input: {
     correctAnswer: input.question.answer,
     timeSpentSec: input.timeSpentSec,
     expectedTimeSec: input.question.expectedTimeSec,
+    confidence: input.confidence,
+    usedHint: input.usedHint,
   });
 
   return {
@@ -98,6 +140,9 @@ export function createPracticeRecord(input: {
     expectedTimeSec: input.question.expectedTimeSec,
     mistakeReason,
     submittedAt: input.submittedAt ?? new Date().toISOString().slice(0, 10),
+    confidence: input.confidence,
+    usedHint: input.usedHint,
+    answerModified: input.answerModified,
   };
 }
 
@@ -250,12 +295,16 @@ export interface SessionGradingAnswer {
   timeSpentSec: number;
   selfScore?: number;
   maxScore?: number;
+  confidence?: ConfidenceLevel;
+  usedHint?: boolean;
+  answerModified?: boolean;
 }
 
 export interface SessionGradingQuestion {
   id: string;
   answer: string;
   subjective?: boolean;
+  expectedTimeSec?: number;
 }
 
 export function gradePracticeSessionAnswers(input: {
@@ -270,15 +319,29 @@ export function gradePracticeSessionAnswers(input: {
     const correct = question.subjective
       ? selectedAnswer.length > 0 && maxScore > 0 && selfScore / maxScore >= 0.6
       : selectedAnswer.length > 0 && selectedAnswer === question.answer;
+    const mistakeReason = selectedAnswer.length > 0 && question.expectedTimeSec !== undefined
+      ? classifyMistake({
+          correct,
+          selectedAnswer,
+          correctAnswer: question.answer,
+          timeSpentSec: answer?.timeSpentSec ?? 0,
+          expectedTimeSec: question.expectedTimeSec,
+          confidence: answer?.confidence,
+          usedHint: answer?.usedHint,
+        })
+      : null;
 
     return {
       questionId: question.id,
       correct,
-      mistakeReason: correct ? null : '待复盘',
+      mistakeReason,
       timeSpentSec: answer?.timeSpentSec ?? 0,
       gradingMode: question.subjective ? 'self_scored' : 'automatic',
       selfScore: answer?.selfScore,
       maxScore: answer?.maxScore,
+      confidence: answer?.confidence,
+      usedHint: answer?.usedHint,
+      answerModified: answer?.answerModified,
     };
   });
   const correctCount = records.filter((record) => record.correct).length;

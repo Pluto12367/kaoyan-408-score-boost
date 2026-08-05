@@ -8,7 +8,16 @@ export type UserRole = 'student' | 'teacher' | 'admin';
 export type Difficulty = '基础' | '中等' | '困难';
 export type QuestionType = '选择题' | '综合题' | '判断题';
 export type StudyStage = '基础' | '强化' | '冲刺';
-export type MistakeReason = '概念不清' | '知识点混淆' | '审题问题' | '计算失误' | '速度偏慢';
+export type ConfidenceLevel = '确定' | '不确定' | '完全不会';
+export type MistakeReason =
+  | '知识点没学过'
+  | '概念混淆'
+  | '公式记错'
+  | '计算错误'
+  | '审题错误'
+  | '推理过程错误'
+  | '时间不足'
+  | '蒙题';
 
 export interface UserProfile {
   id: string;
@@ -64,6 +73,9 @@ export interface PracticeRecord {
   gradingMode?: 'objective' | 'self_assessed';
   selfScore?: number;
   maxScore?: number;
+  confidence?: ConfidenceLevel;
+  usedHint?: boolean;
+  answerModified?: boolean;
 }
 
 export interface DailyTask {

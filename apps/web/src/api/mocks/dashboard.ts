@@ -62,7 +62,7 @@ export function createMockOverview(): DashboardOverview {
       subject: '计算机组成原理',
       chapter: '存储系统',
       wrongCount: 2,
-      latestMistakeReason: '概念不清',
+      latestMistakeReason: '概念混淆',
       latestSubmittedAt: '2026-06-22',
       reviewStatus: 'pending',
       reviewedAt: null,
@@ -414,11 +414,11 @@ export function createMockAiFollowUp(): AiFollowUp {
 export function createMockWrongQuestionSummary(): WrongQuestionSummary {
   return {
     userId: student.id, pendingCount: 1, reviewedCount: 0, resolvedCount: 0, totalWrongCount: 1,
-    mistakeReasonStats: [{ reason: '概念不清', count: 2 }, { reason: '审题问题', count: 1 }],
+    mistakeReasonStats: [{ reason: '概念混淆', count: 2 }, { reason: '审题错误', count: 1 }],
     priorityRedoItems: [{
       questionId: questions[0].id, stem: questions[0].stem,
       knowledgePointTitle: 'Cache 映射与替换', wrongCount: 2,
-      latestMistakeReason: '概念不清', reviewStatus: 'pending',
+      latestMistakeReason: '概念混淆', reviewStatus: 'pending',
       nextAction: '先标记复盘，写出错误原因后再重做。',
     }],
     nextReviewActions: ['先复盘 1 道待处理错题，补全错因。', '优先重做 Cache 映射与替换，它的错误次数最高。'],
@@ -462,7 +462,7 @@ export function createMockPaperSubmitResult(paper?: GeneratedPaper, userId = stu
       selectedAnswer: reviewQuestion.answer === 'A' ? 'B' : 'A',
       correctAnswer: reviewQuestion.answer, correct: false,
       knowledgePointId: reviewPoint.id, knowledgePointTitle: reviewPoint.title,
-      subject: reviewPoint.subject, mistakeReason: '概念不清',
+      subject: reviewPoint.subject, mistakeReason: '概念混淆',
     }],
     weakKnowledgePoints: [reviewPoint.title],
     syncedPracticeRecordCount: paper.questions.length,

@@ -213,12 +213,19 @@ export class StudyController {
   @Post('practice-records')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
-  createPracticeRecord(
+  async createPracticeRecord(
     @CurrentUser() user: UserProfile,
     @Body() input: CreatePracticeRecordDto,
   ) {
     if (input.userId) this.assertAccess(user, input.userId);
-    return this.studyService.createPracticeRecord({ ...input, userId: user.id });
+    const record = await this.studyService.createPracticeRecord({ ...input, userId: user.id });
+    const feedback = await this.studyService.getPracticeFeedback(record.questionId);
+    return {
+      ...record,
+      analysis: feedback.analysis,
+      correctAnswer: feedback.correctAnswer,
+      knowledgePointTitle: feedback.knowledgePointTitle,
+    };
   }
 
   @Post('study-tasks/:taskId/complete')

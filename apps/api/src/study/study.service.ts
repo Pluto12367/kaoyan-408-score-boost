@@ -94,8 +94,8 @@ export class StudyService implements OnModuleInit {
   }
 
   private readonly records: PracticeRecord[] = [
-    { id: 'r-001', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: '概念不清', submittedAt: '2026-06-21' },
-    { id: 'r-002', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 120, expectedTimeSec: 100, mistakeReason: '概念不清', submittedAt: '2026-06-22' },
+    { id: 'r-001', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: '概念混淆', submittedAt: '2026-06-21' },
+    { id: 'r-002', userId: 'u-001', questionId: 'q-001', knowledgePointId: 'co-cache', correct: false, timeSpentSec: 120, expectedTimeSec: 100, mistakeReason: '概念混淆', submittedAt: '2026-06-22' },
     { id: 'r-003', userId: 'u-001', questionId: 'q-002', knowledgePointId: 'net-tcp', correct: true, timeSpentSec: 180, expectedTimeSec: 100, mistakeReason: null, submittedAt: '2026-06-24' },
   ];
 
@@ -1875,7 +1875,7 @@ export class StudyService implements OnModuleInit {
           title: `${title} 错因检查清单`,
           summary: wrongQuestion
             ? `该考点已有 ${wrongQuestion.wrongCount} 次错误，优先检查：${wrongQuestion.latestMistakeReason ?? '概念混淆'}。`
-            : '按概念不清、条件遗漏、计算失误、审题偏差四类检查最近错因。',
+            : '按知识点没学过、概念混淆、公式记错、计算错误、审题错误、推理过程错误、时间不足、蒙题八类检查最近错因。',
           estimatedMinutes: 8,
           difficulty: '基础' as const,
           actionText: '去错题本复盘',
@@ -1976,6 +1976,22 @@ export class StudyService implements OnModuleInit {
     return savedRecord;
   }
 
+  async getPracticeFeedback(questionId: string) {
+    const question = await this.questionsService.findQuestionById(questionId);
+    if (!question) {
+      return { analysis: '', correctAnswer: '', knowledgePointTitle: '' };
+    }
+    const knowledgePointId = question.knowledgePointIds[0];
+    const knowledgePoint = knowledgePointId
+      ? this.knowledgePoints.find((point) => point.id === knowledgePointId)
+      : undefined;
+    return {
+      analysis: question.analysis,
+      correctAnswer: question.answer,
+      knowledgePointTitle: knowledgePoint?.title ?? '',
+    };
+  }
+
   private buildPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }): PracticeRecord {
     const question = input.questionSnapshot ?? this.questions.find((item) => item.id === input.questionId);
     if (!question) {
@@ -1996,6 +2012,8 @@ export class StudyService implements OnModuleInit {
       correctAnswer: question.answer,
       timeSpentSec: input.timeSpentSec,
       expectedTimeSec,
+      confidence: input.confidence,
+      usedHint: input.usedHint,
     });
 
     return {
@@ -2013,6 +2031,9 @@ export class StudyService implements OnModuleInit {
       gradingMode: isSubjective ? 'self_assessed' : 'objective',
       selfScore: input.selfScore,
       maxScore: input.maxScore,
+      confidence: input.confidence,
+      usedHint: input.usedHint,
+      answerModified: input.answerModified,
     };
   }
 
@@ -2856,7 +2877,7 @@ export class StudyService implements OnModuleInit {
 
   async savePracticeProgress(sessionId: string, userId: string, input: {
     revision: number;
-    answers?: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
+    answers?: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean }>;
     currentIndex?: number;
     markedQuestions?: string[];
     totalActiveMs?: number;
@@ -2897,7 +2918,7 @@ export class StudyService implements OnModuleInit {
   }
 
   async submitPracticeSession(sessionId: string, userId: string, input: {
-    answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
+    answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean }>;
     totalActiveMs?: number;
   }) {
     const session = this.getOwnSession(sessionId, userId);
@@ -2929,6 +2950,9 @@ export class StudyService implements OnModuleInit {
           timeSpentSec: answer.timeSpentSec,
           selfScore: answer.selfScore,
           maxScore: answer.maxScore,
+          confidence: answer.confidence,
+          usedHint: answer.usedHint,
+          answerModified: answer.answerModified,
         };
       }
       this.applySessionProgress(submittedSession, { totalActiveMs: input.totalActiveMs });
@@ -2952,6 +2976,9 @@ export class StudyService implements OnModuleInit {
           sessionId,
           selfScore: answer.selfScore,
           maxScore: answer.maxScore,
+          confidence: answer.confidence,
+          usedHint: answer.usedHint,
+          answerModified: answer.answerModified,
           questionSnapshot: snapshotQuestions.get(answer.questionId),
         }),
       );
@@ -3125,6 +3152,9 @@ export class StudyService implements OnModuleInit {
     timeSpentSec: number;
     selfScore?: number;
     maxScore?: number;
+    confidence?: '确定' | '不确定' | '完全不会';
+    usedHint?: boolean;
+    answerModified?: boolean;
   }) {
     if (typeof answer.selectedAnswer !== 'string' || answer.selectedAnswer.length > 10_000) {
       throw new BadRequestException(`Answer for ${questionId} is invalid`);
@@ -3140,6 +3170,15 @@ export class StudyService implements OnModuleInit {
     }
     if (answer.selfScore != null && answer.maxScore != null && answer.selfScore > answer.maxScore) {
       throw new BadRequestException(`Self score for ${questionId} cannot exceed its maximum score`);
+    }
+    if (answer.confidence != null && !['确定', '不确定', '完全不会'].includes(answer.confidence)) {
+      throw new BadRequestException(`Confidence for ${questionId} is invalid`);
+    }
+    if (answer.usedHint != null && typeof answer.usedHint !== 'boolean') {
+      throw new BadRequestException(`Used hint flag for ${questionId} is invalid`);
+    }
+    if (answer.answerModified != null && typeof answer.answerModified !== 'boolean') {
+      throw new BadRequestException(`Answer modified flag for ${questionId} is invalid`);
     }
   }
 
@@ -3686,7 +3725,7 @@ interface PracticeSession {
   resourceId?: string;
   questionIds: string[];
   questionSnapshot: Question[];
-  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number }>;
+  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean }>;
   markedQuestions: string[];
   currentIndex: number;
   revision: number;

@@ -4,6 +4,7 @@ import {
   ArrayNotEmpty,
   ArrayUnique,
   IsArray,
+  IsBoolean,
   IsIn,
   IsInt,
   IsObject,
@@ -44,6 +45,9 @@ export class SaveLearningSessionDto {
     timeSpentSec: number;
     selfScore?: number;
     maxScore?: number;
+    confidence?: '确定' | '不确定' | '完全不会';
+    usedHint?: boolean;
+    answerModified?: boolean;
   }>;
 
   @IsOptional()
@@ -88,6 +92,18 @@ export class SubmitLearningSessionAnswerDto {
   @Min(1)
   @Max(150)
   maxScore?: number;
+
+  @IsOptional()
+  @IsIn(['确定', '不确定', '完全不会'])
+  confidence?: '确定' | '不确定' | '完全不会';
+
+  @IsOptional()
+  @IsBoolean()
+  usedHint?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  answerModified?: boolean;
 }
 
 export class SubmitLearningSessionDto {

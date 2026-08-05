@@ -13,7 +13,7 @@ export function DiagnosticSummary({ student, plan, status, onSubmit }: Diagnosti
     <section className="panel diagnostic-panel">
       <div className="panel-heading">
         <div><p className="eyebrow">入学诊断</p><h3>根据目标和基础生成阶段计划</h3></div>
-        <button type="button" className="secondary-action" onClick={onSubmit}><Target size={18} /> 提交演示诊断</button>
+        <button type="button" className="secondary-action" onClick={onSubmit}><Target size={18} /> 开始入学诊断</button>
       </div>
       <p className="task-status">{status}</p>
       <div className="diagnostic-grid">

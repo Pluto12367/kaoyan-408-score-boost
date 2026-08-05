@@ -35,7 +35,7 @@ test('redesigned student workspace exposes preview-aligned learning dashboard se
   assert.match(launchpad, /student-insight-card/);
   assert.match(launchpad, /student-subject-grid/);
   assert.match(launchpad, /student-focus-grid/);
-  assert.match(launchpad, /继续刷题/);
+  assert.match(launchpad, /继续今日学习/);
   assert.match(launchpad, /开始专项训练/);
   assert.match(launchpad, /查看错题复盘/);
   assert.match(launchpad, /本周学习节奏/);
@@ -46,6 +46,19 @@ test('redesigned student workspace exposes preview-aligned learning dashboard se
   assert.match(styles, /student-kpi-strip/);
   assert.match(styles, /student-action-grid/);
   assert.match(styles, /student-schedule-card/);
+});
+
+test('student dashboard drives all preview sections from real data props instead of fabricated numbers', async () => {
+  const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
+
+  assert.doesNotMatch(launchpad, /328\/420/);
+  assert.doesNotMatch(launchpad, /已完成 7 \/ 10/);
+  assert.doesNotMatch(launchpad, /\[38, 42, 50/);
+  assert.doesNotMatch(launchpad, /待复盘', '24 题/);
+  assert.match(launchpad, /heroProgressText/);
+  assert.match(launchpad, /masteryMap/);
+  assert.match(launchpad, /wrongQuestionSummary/);
+  assert.match(launchpad, /掌握度趋势/);
 });
 
 test('auth gate uses the redesigned entry shell and role value proposition', async () => {
