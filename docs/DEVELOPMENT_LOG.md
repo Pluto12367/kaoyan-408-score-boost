@@ -124,3 +124,16 @@
 - 截图或验证证据：服务器命令输出（`Database schema is up to date!`、`Import complete. created=320`、`{"questions":326,"knowledgePoints":16}`、`gateway_http=200`）；部署前自动备份 `/backups/kaoyan408-20260805T025841Z.dump`
 - 遗留问题：内容为脚本生成自编题，正式体验前建议抽样复核；生产镜像未内置导入脚本（本次采用 docker cp 进容器执行的方式）；服务器仓库落后本日志 1 个提交（纯文档，无需重新部署）
 - 下一步：等待用户在线上用管理员账号验收学生闭环（邀请码 → 注册 → 诊断 → 做题 → 错题 → 报告），或继续 P2-2 掌握度口径统一
+
+### 2026-08-05 修复：改密请求未携带 Bearer 令牌（教师无法改密）
+
+- 日期：2026-08-05
+- 任务：修复临时密码用户（mustChangePassword=true）无法完成改密的问题。
+- 修改原因：教师端线上验证发现改密页提交后报 "Bearer access token is required"。根因：前端 `changePassword` 走 `requestAuthSession`（普通 `fetch`），未携带 Authorization 头，而后端 `POST /auth/change-password` 受 RoleGuard 保护。
+- 修改文件：`apps/web/src/api/endpoints/auth.ts`（改密改用 `fetchWithAuth`，自动携带 Bearer 并支持 401 刷新重试）、`test/change-password-auth.test.js`（新增源码级回归测试）
+- 数据库变化：无
+- API 变化：无（修复前端调用，接口契约不变）
+- 测试结果：`npm run build:web` 通过；`npm test` 197 项：196 通过 / 1 跳过 / 0 失败（含新增改密回归测试；首次运行 question-import-ui 出现瞬时 spawn EPERM，重跑全绿）
+- 截图或验证证据：新增测试 "change password request must carry the bearer token" 通过
+- 遗留问题：需重新部署线上（重建网关镜像）后教师才能正常改密；登录页文案与报错无关联
+- 下一步：重新部署到腾讯云（`./deploy/tencent-ip/deploy.sh`），管理员重置教师临时密码 → 教师改密 → 走学生闭环验收

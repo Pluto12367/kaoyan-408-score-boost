@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../client';
+import { API_BASE_URL, fetchWithAuth } from '../client';
 import type { AuthSession, ChangePasswordInput, UserRole } from '../types';
 
 export async function loginAsRole(role: UserRole): Promise<AuthSession> {
@@ -34,7 +34,16 @@ export async function logoutAccount(refreshToken?: string): Promise<void> {
 }
 
 export async function changePassword(input: ChangePasswordInput): Promise<AuthSession> {
-  return requestAuthSession('/auth/change-password', input);
+  const response = await fetchWithAuth(`${API_BASE_URL}/auth/change-password`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { message?: string } | null;
+    throw new Error(payload?.message ?? `Authentication failed with ${response.status}`);
+  }
+  return response.json() as Promise<AuthSession>;
 }
 
 async function requestAuthSession(path: string, body: object): Promise<AuthSession> {
