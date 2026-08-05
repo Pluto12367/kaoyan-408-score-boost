@@ -111,3 +111,16 @@
 - 截图或验证证据：主集成输出 `ok: true`；迁移回填断言通过（legacy-assessment-history-fixture-001 / legacy-paper-fixture-001 / systemConfig 行）
 - 遗留问题：`RuntimeState` 旧键（papers/assessmentHistoryItems/systemConfig）未删除（保留以便回滚，后续可清理）；`questionReviewItems` 仍存 RuntimeState（审核队列，暂不迁移）
 - 下一步：等待用户选择下一个候选功能（建议部署当前改动到腾讯云，或 P2-2 掌握度口径统一）
+
+### 2026-08-05 腾讯云升级部署（1515c31 + starter-320 内容导入）
+
+- 日期：2026-08-05
+- 任务：把全部已完成改动（P0-1/P1-1/P1-2/P1-4/A3/P2-1 等，提交 `1515c31`）升级部署到腾讯云服务器 `43.128.30.191`，并导入 starter-320 题库。
+- 修改原因：服务器仍运行旧提交 `333ec3c`；升级后需让新功能（知识点目录、评估历史正式表、阶段报告、内容库）在线上生效。
+- 修改文件：无业务代码改动（本次为部署操作 + 本日志记录）
+- 数据库变化：生产库自动执行迁移 `20260805100000_reporting_tables`（21 migrations 全部应用，`migrate status` 显示 up to date；`SystemConfig` 旧配置回填 1 行，history/papers 原库无数据）；随后导入 starter-320（`created=320`，题目 326、知识点 16）
+- API 变化：无
+- 测试结果：`/health` 返回 `dataSource: postgresql`；`/api/questions` 返回脱敏题目；三个容器 healthy；登录页可访问；管理员账号已存在
+- 截图或验证证据：服务器命令输出（`Database schema is up to date!`、`Import complete. created=320`、`{"questions":326,"knowledgePoints":16}`、`gateway_http=200`）；部署前自动备份 `/backups/kaoyan408-20260805T025841Z.dump`
+- 遗留问题：内容为脚本生成自编题，正式体验前建议抽样复核；生产镜像未内置导入脚本（本次采用 docker cp 进容器执行的方式）；服务器仓库落后本日志 1 个提交（纯文档，无需重新部署）
+- 下一步：等待用户在线上用管理员账号验收学生闭环（邀请码 → 注册 → 诊断 → 做题 → 错题 → 报告），或继续 P2-2 掌握度口径统一
