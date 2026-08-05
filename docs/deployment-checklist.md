@@ -7,6 +7,7 @@
 ## 发布前必须完成
 
 - [ ] 使用 `.env.staging.example` 创建未提交的 `.env.staging`，替换所有占位值。
+- [ ] （可选）按 [内容入库手册](docs/operations/content-import-runbook.md) 导入 starter-320 题库，并确认推荐题组与阶段测验非空。
 - [ ] 运行 `npm run validate:env -- --file .env.staging`，确认环境门禁通过。
 - [ ] 运行 `npm run check:release`，确认单元测试、前后端构建和迁移冒烟测试通过。
 - [ ] 运行 `npm run test:integration:postgres`，确认注册、诊断、练习、错题、退出重登和会话恢复通过。

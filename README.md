@@ -12,6 +12,8 @@ npm start
 
 管理员可使用 CSV/XLSX 模板导入题目；PDF 需要明确来源与处理权确认，并在审核页逐题确认。详见 [管理员导入手册](docs/admin/question-document-import.md) 和 [PDF 基准与发布门禁](docs/operations/question-import-benchmark.md)。在管理员验收三份合法 PDF 的实际质量、成本和耗时前，生产环境仅允许小型 PDF 测试文件，Excel/CSV 不受此限制。
 
+内置 starter 题库（320 道自编题）的批量入库与验证流程见[内容入库手册](docs/operations/content-import-runbook.md)。
+
 静态预览打开 `http://localhost:4173`。使用本地 API 和 PostgreSQL 进行全栈开发时运行：
 
 ```bash
