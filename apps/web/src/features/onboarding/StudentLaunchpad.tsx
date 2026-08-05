@@ -49,6 +49,27 @@ const recentMistakes = [
   'DHCP 协议',
 ];
 
+const kpiCards = [
+  ['今日任务', '7/10', '建议先完成 2 组专项题'],
+  ['连续学习', '12 天', '保持节奏比临时冲刺更稳'],
+  ['预计提分', '+18', '来自错题和薄弱点修复'],
+  ['待复盘', '24 题', '优先处理近 7 天错题'],
+];
+
+const quickActions = [
+  ['开始专项训练', '按当前薄弱科目生成一组短练习', 'primary'],
+  ['查看错题复盘', '回到错因、解析和同考点练习', 'soft'],
+  ['生成提分报告', '查看四科掌握度和下一步建议', 'soft'],
+];
+
+const weekSchedule = [
+  ['周一', '数据结构', '树与图'],
+  ['周二', '组成原理', 'Cache'],
+  ['周三', '操作系统', '同步互斥'],
+  ['周四', '计算机网络', 'TCP/IP'],
+  ['周五', '混合训练', '限时刷题'],
+];
+
 export function StudentLaunchpad({
   showOnboarding,
   todayPlan,
@@ -104,6 +125,36 @@ export function StudentLaunchpad({
         </div>
       </section>
 
+      <section className="student-kpi-strip" aria-label="学习关键指标">
+        {kpiCards.map(([label, value, helper]) => (
+          <article key={label} className="student-insight-card">
+            <span>{label}</span>
+            <strong>{value}</strong>
+            <small>{helper}</small>
+          </article>
+        ))}
+      </section>
+
+      <section className="student-action-grid" aria-label="常用学习动作">
+        {quickActions.map(([title, description, tone], index) => (
+          <article key={title} className={`student-action-card tone-${tone}`}>
+            <div>
+              <strong>{title}</strong>
+              <span>{description}</span>
+            </div>
+            <button
+              type="button"
+              className={tone === 'primary' ? 'primary-action' : 'secondary-action'}
+              onClick={() => {
+                if (index === 0) void startConfiguredExam();
+              }}
+            >
+              {index === 0 ? '立即开始' : '查看'}
+            </button>
+          </article>
+        ))}
+      </section>
+
       <section className="panel student-subject-panel">
         <div className="panel-heading">
           <div><p className="eyebrow">408 科目模块</p><h3>按科目推进题库训练</h3></div>
@@ -122,7 +173,7 @@ export function StudentLaunchpad({
       </section>
 
       <section className="student-focus-grid">
-        <div className="panel">
+        <div className="panel student-insight-card">
           <div className="panel-heading"><div><p className="eyebrow">薄弱知识点 TOP5</p><h3>优先复盘这些考点</h3></div></div>
           <div className="focus-point-list">
             {focusPoints.map(([title, rate], index) => (
@@ -134,13 +185,25 @@ export function StudentLaunchpad({
             ))}
           </div>
         </div>
-        <div className="panel">
+        <div className="panel student-insight-card">
           <div className="panel-heading"><div><p className="eyebrow">最近错题</p><h3>复盘后再进入同考点训练</h3></div></div>
           <div className="recent-mistake-list">
             {recentMistakes.map((item) => <span key={item}>× {item}</span>)}
           </div>
         </div>
-        <div className="panel">
+        <div className="panel student-schedule-card">
+          <div className="panel-heading"><div><p className="eyebrow">本周学习节奏</p><h3>每天只盯一个重点</h3></div></div>
+          <div className="week-focus-list">
+            {weekSchedule.map(([day, subjectName, topic]) => (
+              <article key={day}>
+                <strong>{day}</strong>
+                <span>{subjectName}</span>
+                <small>{topic}</small>
+              </article>
+            ))}
+          </div>
+        </div>
+        <div className="panel student-insight-card">
           <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>近 7 天</h3></div></div>
           <div className="mastery-trend" aria-label="掌握度趋势">
             {[38, 42, 50, 49, 64, 62, 75].map((value, index) => (

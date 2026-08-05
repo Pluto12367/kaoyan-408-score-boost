@@ -55,6 +55,23 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
             <span>更新于 {new Date(metrics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
           <ModuleResourceMeta resource={props.metrics} onRetry={props.onRetryMetrics} />
+          <div className="admin-ops-hero">
+            <div>
+              <p className="eyebrow">运营总览</p>
+              <h3>今天先处理高风险内容和活跃学生留存</h3>
+              <p>把题库、审核、试用反馈和系统质量收成一个操作面板，减少管理员来回找入口。</p>
+            </div>
+            <div className="admin-health-card">
+              <span>系统健康</span>
+              <strong>{metrics.core.apiFailureRate.rate === null ? '待积累' : `${100 - metrics.core.apiFailureRate.rate}%`}</strong>
+              <small>接口稳定度 · 样本 {metrics.core.apiFailureRate.denominator}</small>
+            </div>
+          </div>
+          <div className="admin-alert-strip" aria-label="今日处理优先级">
+            <article><strong>{metrics.pendingReviewCount}</strong><span>今日处理优先级：待审核内容</span></article>
+            <article><strong>{metrics.topWeakPoint ?? '暂无'}</strong><span>学生集中薄弱点</span></article>
+            <article><strong>{feedback?.averageRating ?? '-'}</strong><span>试用平均反馈</span></article>
+          </div>
           <div className="admin-grid">
             <article><strong>{metrics.activeStudentCount}</strong><span>活跃学生</span></article>
             <article><strong>{metrics.questionCount}</strong><span>题库题目</span></article>
@@ -67,6 +84,12 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
           <div className="panel-heading admin-core-heading">
             <div><p className="eyebrow">可靠内测指标</p><h4>学习闭环与系统质量</h4></div>
             <span>无样本时显示“待积累”</span>
+          </div>
+          <div className="admin-workflow-grid">
+            <article><span>1</span><strong>导入题库</strong><small>先补足 408 高频考点</small></article>
+            <article><span>2</span><strong>审核内容</strong><small>处理风险题目和 AI 答疑</small></article>
+            <article><span>3</span><strong>观察学习</strong><small>看活跃、正确率和留存</small></article>
+            <article><span>4</span><strong>调整策略</strong><small>根据指标更新推荐参数</small></article>
           </div>
           <div className="admin-grid admin-core-grid">
             {coreMetricEntries.map(([key, label]) => {

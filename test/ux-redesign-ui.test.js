@@ -29,11 +29,23 @@ test('redesigned student workspace exposes preview-aligned learning dashboard se
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
 
   assert.match(launchpad, /student-dashboard-hero/);
+  assert.match(launchpad, /student-kpi-strip/);
+  assert.match(launchpad, /student-action-grid/);
+  assert.match(launchpad, /student-schedule-card/);
+  assert.match(launchpad, /student-insight-card/);
   assert.match(launchpad, /student-subject-grid/);
   assert.match(launchpad, /student-focus-grid/);
   assert.match(launchpad, /继续刷题/);
+  assert.match(launchpad, /开始专项训练/);
+  assert.match(launchpad, /查看错题复盘/);
+  assert.match(launchpad, /本周学习节奏/);
   assert.match(launchpad, /薄弱知识点 TOP5/);
   assert.match(launchpad, /掌握度趋势/);
+
+  const styles = await source('apps/web/src/styles.css');
+  assert.match(styles, /student-kpi-strip/);
+  assert.match(styles, /student-action-grid/);
+  assert.match(styles, /student-schedule-card/);
 });
 
 test('auth gate uses the redesigned entry shell and role value proposition', async () => {
@@ -66,4 +78,18 @@ test('question import workspace shows a clear import stepper and feedback summar
   assert.match(workspace, /完成/);
   assert.match(workspace, /导入流程/);
   assert.match(styles, /question-import-stepper/);
+});
+
+test('admin workspace exposes richer operations dashboard sections', async () => {
+  const workspace = await source('apps/web/src/features/admin/AdminWorkspace.tsx');
+  const styles = await source('apps/web/src/styles.css');
+
+  assert.match(workspace, /admin-ops-hero/);
+  assert.match(workspace, /admin-alert-strip/);
+  assert.match(workspace, /admin-workflow-grid/);
+  assert.match(workspace, /admin-health-card/);
+  assert.match(workspace, /运营总览/);
+  assert.match(workspace, /今日处理优先级/);
+  assert.match(styles, /admin-ops-hero/);
+  assert.match(styles, /admin-workflow-grid/);
 });
