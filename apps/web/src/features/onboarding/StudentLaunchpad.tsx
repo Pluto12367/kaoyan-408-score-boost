@@ -7,6 +7,7 @@ import type { SessionView } from '../../api/endpoints/sessions';
 import { OnboardingWizard } from '../../components/OnboardingWizard';
 import { ResumeSessionBanner } from '../../components/ResumeSessionBanner';
 import { TodayPlan } from '../../components/TodayPlan';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import { ModuleUnavailable } from '../../components/ModuleResourceState';
 
@@ -24,6 +25,7 @@ interface StudentLaunchpadProps {
   onOpenReview: (questionId: string) => void;
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
+  onNavigate: (section: RoleSection) => void;
 }
 
 const SUBJECTS: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
@@ -84,6 +86,7 @@ export function StudentLaunchpad({
   onOpenReview,
   onResumeSession,
   onStartExam,
+  onNavigate,
 }: StudentLaunchpadProps) {
   const [paperType, setPaperType] = useState<PrepareExamPaperInput['paperType']>('模拟卷');
   const [subject, setSubject] = useState<Subject>('数据结构');
@@ -147,6 +150,8 @@ export function StudentLaunchpad({
               className={tone === 'primary' ? 'primary-action' : 'secondary-action'}
               onClick={() => {
                 if (index === 0) void startConfiguredExam();
+                if (index === 1) onNavigate('wrong-book');
+                if (index === 2) onNavigate('report');
               }}
             >
               {index === 0 ? '立即开始' : '查看'}

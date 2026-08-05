@@ -1005,6 +1005,7 @@ paperId: paper.id,
             examResult={paperResult}
             examQuestionCount={examQuestions.length}
             remoteSessionsEnabled={!isStaticDemoMode()}
+            onNavigate={setActiveSection}
             onOnboardingComplete={handleOnboardingComplete}
             onRefreshTodayPlan={refreshTodayPlan}
             onOpenReview={(questionId) => {
