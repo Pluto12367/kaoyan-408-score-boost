@@ -21,7 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
-- 分支/提交：`codex/deployment-ready`，阶段 7（AI 答疑真实上下文 + 分层提示 + AiTutorLog 写库）已完成但**尚未提交**（沙箱 `.git` 只读，需用户手动 `git add/commit/push`）
+- 分支/提交：`codex/deployment-ready`，阶段 7 已提交并推送（commit `d60b1f4`，已与 origin 同步）
 - 本次范围：阶段 7：DeepSeek V4-Flash 真实模型调用（`AI_API_KEY` 配置后启用，未配置回退标准解析模板）；提示词自动携带题目/选项/标准答案/解析/知识点/错因/最近错题；四层分层提示（考点→思路→部分步骤→完整解析，一次生成、前端逐层展开）；5 类快捷追问 + 自由提问；`AiTutorLog` 写库（真实调用成功/失败均记录）；`.env.development` 加入 .gitignore 防 Key 泄露
 - 模型选择：DeepSeek `deepseek-v4-flash`（base `https://api.deepseek.com`，输入约 ¥1/百万、输出约 ¥2/百万，旧模型名 deepseek-chat/reasoner 已于 2026-07-24 弃用）
 - 验证结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 248 项：246 通过 / 1 失败（`admin user cards show email` 沙箱 esbuild `Access denied`，与本次无关）/ 1 跳过；新增 14 项 stage 7 测试全过；`npm run build:web` 需用户本机补跑
@@ -34,6 +34,14 @@
   6. 下一阶段建议：阶段 8（错题筛选服务端化 / 移动端验收 / AI 变式题入库），或按 roadmap 进入剩余 P1 项。
 - 手动验收（阶段 7）：①首页 → 练习 → 提交答案后点“讲解当前题”，页面出现“DeepSeek 助教讲解”（未配 Key 时仍显示“基于标准解析的助教讲解”）；②四层提示逐层展开：考点→思路→部分步骤→完整解析；③5 个快捷问题可用：简化解释/选项错误/类似题/只提示思路/概念对比；④自由输入框提问；⑤追问生成回复+复习卡片；⑥数据库 `AiTutorLog` 表出现记录（真实调用成功/失败均有）；⑦请求超时出现“重试”按钮，其他学习数据不受影响。
 
+- 服务器接通 AI 答疑检查清单（别人能用 AI 答疑的前置条件，按顺序执行）：
+  1. 代码已在服务器：SSH 后 `git pull origin codex/deployment-ready`，`git log --oneline -1` 应为 `d60b1f4`（`deploy.sh` 不会自动 pull，必须先手动拉取）。
+  2. 服务器 `.env.production` 必须有非空 `AI_API_KEY`（用 `grep '^AI_API_KEY=' .env.production` 验证；`compose.production.yml` 71-75 行已透传 AI_* 变量）。
+  3. 执行 `./deploy/tencent-ip/deploy.sh`（会重新 build web+api 并重启容器）。
+  4. 验证：`curl -fsS http://127.0.0.1/health`；`docker compose --env-file .env.production -f compose.production.yml exec app printenv AI_API_KEY` 输出非空。
+  5. 浏览器线上验证：进任意题目点“讲解当前题”，标题变为“DeepSeek 助教讲解”才算接通；仍显示“基于标准解析的助教讲解”= 模板降级（Key 未生效或代码未更新）。
+  6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
+  7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
 
 ### 2026-08-06 阶段 4：错题筛选与变式复测闭环
