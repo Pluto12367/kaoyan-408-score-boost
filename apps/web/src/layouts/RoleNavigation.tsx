@@ -53,10 +53,10 @@ const studentItems: NavigationItem[] = [
 // dashboard + plan fold into 首页; ai (AI 答疑) becomes 学习; report is 我的.
 const studentBottomItems: NavigationItem[] = [
   { id: 'dashboard', label: '首页', icon: Home },
-  { id: 'ai', label: '学习', icon: BookOpen },
+  { id: 'ai', label: '答疑', icon: BookOpen },
   { id: 'question', label: '练习', icon: PenLine },
   { id: 'wrong-book', label: '错题', icon: ShieldCheck },
-  { id: 'report', label: '我的', icon: User },
+  { id: 'report', label: '报告', icon: User },
 ];
 
 export function defaultRoleSection(role: UserRole = 'student'): RoleSection {

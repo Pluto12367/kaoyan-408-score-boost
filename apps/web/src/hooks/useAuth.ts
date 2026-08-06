@@ -6,6 +6,7 @@ import {
   setActiveAuthSession,
   clearStoredAuthSession,
 } from '../api/client';
+import { refreshSessionOnce } from '../api/refreshGate';
 import {
   loginAsRole,
   loginAccount,
@@ -27,7 +28,7 @@ export function useAuth() {
   useEffect(() => {
     const stored = loadStoredAuthSession();
     if (!stored?.refreshToken) return;
-    refreshAuthSession(stored.refreshToken)
+    refreshSessionOnce(stored.refreshToken, refreshAuthSession)
       .then((session) => applyAuthenticatedSession(session, '登录状态已恢复。'))
       .catch(() => clearAccountSession('登录已过期，请重新登录。'));
   }, []);
@@ -36,7 +37,7 @@ export function useAuth() {
   useEffect(() => {
     if (!authSession?.refreshToken || !authSession.expiresIn) return;
     const timeout = window.setTimeout(() => {
-      refreshAuthSession(authSession.refreshToken!)
+      refreshSessionOnce(authSession.refreshToken!, refreshAuthSession)
         .then((session) => applyAuthenticatedSession(session, '登录状态已自动续期。'))
         .catch(() => clearAccountSession('登录已过期，请重新登录。'));
     }, Math.max(30_000, (authSession.expiresIn - 60) * 1000));

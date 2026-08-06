@@ -1,0 +1,55 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import ts from 'typescript';
+
+const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+
+async function loadAttemptState() {
+  const moduleSource = await source('apps/web/src/features/practice/practiceAttemptState.ts');
+  const compiled = ts.transpileModule(moduleSource, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  return import(`data:text/javascript;base64,${Buffer.from(compiled).toString('base64')}`);
+}
+
+function makeState(overrides = {}) {
+  return {
+    answerResult: { id: 'r-1', correct: true, mistakeReason: null, timeSpentSec: 30, expectedTimeSec: 90, analysis: 'a', correctAnswer: 'A', knowledgePointTitle: 'kp' },
+    submitting: false,
+    reasonQueue: [{ questionId: 'q-1', correct: false, timeSpentSec: 20, isReview: false }],
+    redoQuestionId: 'q-1',
+    variantOfQuestionId: 'v-1',
+    index: 3,
+    ...overrides,
+  };
+}
+
+test('P2-08: restartAttempt resets the attempt and returns to the first question', async () => {
+  const { restartAttempt } = await loadAttemptState();
+  const next = restartAttempt(makeState());
+
+  assert.equal(next.answerResult, null);
+  assert.equal(next.submitting, false);
+  assert.deepEqual(next.reasonQueue, []);
+  assert.equal(next.redoQuestionId, null);
+  assert.equal(next.variantOfQuestionId, null);
+  assert.equal(next.index, 0);
+});
+
+test('P2-08: App wires 再来一组 and 重新练习本组 through shared attempt state', async () => {
+  const app = await source('apps/web/src/App.tsx');
+  assert.match(app, /restartAttempt,/, 'App should import the shared restart transition');
+  assert.match(app, /applyPracticeAttemptState\(restartAttempt\(readPracticeAttemptState\(\)\)\)/, 'question-bank restart must go through the shared transition');
+  assert.match(app, /onRestartPracticeSet=\{handleRestartPracticeSet\}/, 'App should pass the practice-set restart handler');
+  assert.match(app, /onRestartQuestionBank=\{handleRestartQuestionBank\}/, 'App should pass the question-bank restart handler');
+  assert.match(app, /再来一组：同知识点训练已开始/, 'practice-set restart should have clear status copy');
+});
+
+test('P2-08: PracticePanel offers 再来一组 after a set and 重新练习本组 after the bank ends', async () => {
+  const panel = await source('apps/web/src/features/practice/PracticePanel.tsx');
+  assert.match(panel, /onRestartPracticeSet\?: \(\) => void;/, 'panel should accept the set-restart prop');
+  assert.match(panel, /onRestartQuestionBank\?: \(\) => void;/, 'panel should accept the bank-restart prop');
+  assert.match(panel, /再来一组（同知识点）/, 'panel should render the same-knowledge-point restart button');
+  assert.match(panel, /重新练习本组/, 'panel should render the bank restart button');
+});

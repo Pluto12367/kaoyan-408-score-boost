@@ -93,7 +93,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
 
       <div className="report-summary-grid">
         <article className="report-conclusion-card">
-          <h4>本周预计提升</h4>
+          <h4>预测分数</h4>
           {predicted
             ? <><strong>{predicted.minScore}–{predicted.maxScore} 分</strong><p>参考值 {predicted.bestEstimate} 分 · {predicted.basis}</p></>
             : <><strong>--</strong><p>完成练习后基于正确率、掌握度与剩余天数生成</p></>}

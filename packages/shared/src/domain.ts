@@ -77,6 +77,7 @@ export interface PracticeRecord {
   usedHint?: boolean;
   answerModified?: boolean;
   variantQuestionId?: string;
+  knowledgePointIds?: string[];
 }
 
 export interface DailyTask {

@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import {
+  accumulateTaskProgress,
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildStudyPlan,
   buildTemplateFollowUp,
@@ -12,6 +13,7 @@ import {
   filterWrongQuestions,
   nextReviewIntervalDays,
   postExamTaskId,
+  rebalanceTaskLoad,
   type AiFollowUpDraft,
   type AiTutorContext,
   type AiTutorFollowUpMode,
@@ -24,6 +26,8 @@ import {
   type Question,
   type StudyStage,
   type Subject,
+  type TaskProgress,
+  type TaskRebalanceMode,
   type UserProfile,
   type WrongQuestionFilter,
   type WrongQuestionMasteryStatus,
@@ -37,7 +41,7 @@ import { LearningProgressRepository, type TaskCompletionMetric } from './learnin
 import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { KnowledgePointRepository } from './knowledge-point.repository';
-import { AssessmentHistoryRepository } from './assessment-history.repository';
+import { AssessmentHistoryRepository, type PersistedAssessmentHistoryItem } from './assessment-history.repository';
 import { PaperRepository } from './paper.repository';
 import { SystemConfigRepository } from './system-config.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
@@ -48,6 +52,7 @@ import {
   type OnboardingProfileState,
   type ScheduledStudyTaskState,
   type SevenDayPlanState,
+  type TaskRebalanceAdjustment,
 } from './onboarding-plan.repository';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
@@ -55,6 +60,7 @@ import { TeacherStudentAuthorizationRepository } from './teacher-student-authori
 import { AdminUserRepository, type ManagedUserRecord, type TrialStatus } from './admin-user.repository';
 import { FEEDBACK_SCENES, FeedbackRepository, type FeedbackRecord, type FeedbackScene } from './feedback.repository';
 import { studyDateKey } from './study-date';
+import { UserEventRepository } from './user-event.repository';
 
 const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
 
@@ -81,7 +87,24 @@ export class StudyService implements OnModuleInit {
     private readonly teacherStudentAuthorizations: TeacherStudentAuthorizationRepository,
     private readonly adminUsers: AdminUserRepository,
     private readonly feedbackRepository: FeedbackRepository,
+    private readonly userEventRepository: UserEventRepository,
   ) {}
+
+  private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
+    try {
+      await this.userEventRepository.record(userId, type, payload);
+    } catch (error) {
+      this.logger.warn(
+        `User event ${type} recording failed`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  async recordUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
+    await this.trackUserEvent(userId, type, payload);
+    return { userId, type, recordedAt: new Date().toISOString() };
+  }
 
   private readonly student: UserProfile = {
     id: 'u-001',
@@ -695,6 +718,7 @@ export class StudyService implements OnModuleInit {
   private readonly planMutationTails = new Map<string, Promise<void>>();
   private readonly postponedTasks = new Map<string, { userId: string; postponeCount: number; nextAvailableAt: string }>();
   private readonly startedTasks = new Set<string>();
+  private readonly taskProgressByUser = new Map<string, Map<string, TaskProgress>>();
 
   getOnboardingStatus(userId: string) {
     const profile = this.onboardingProfiles.get(userId);
@@ -766,6 +790,7 @@ export class StudyService implements OnModuleInit {
       const priorityTasks = dayTasks.map((task) => ({
         ...task,
         completed: task.status === 'completed',
+        progress: this.getTaskProgressView(userId, task),
       }));
 
       return {
@@ -807,6 +832,12 @@ export class StudyService implements OnModuleInit {
       },
       priorityTasks: availableTasks.slice(0, 3).map((task) => ({
         ...task,
+        progress: this.getTaskProgressView(userId, {
+          id: task.id,
+          questionCount: task.questionCount,
+          minutes: task.minutes,
+          completed: task.completed,
+        }),
         status: task.completed
           ? 'completed' as const
           : this.startedTasks.has(`${userId}@${task.id}`)
@@ -822,6 +853,77 @@ export class StudyService implements OnModuleInit {
       checkpoint: plan.checkpoint,
       weekProgress: [],
     };
+  }
+
+  private getTaskProgressView(userId: string, task: {
+    id: string;
+    questionCount: number;
+    minutes: number;
+    status?: string;
+    completed?: boolean;
+  }): TaskProgress & { reachedTarget: boolean } {
+    if (task.status === 'completed' || task.completed) {
+      const metrics = this.taskCompletionMetricsByUser.get(userId)?.get(task.id);
+      return {
+        completedQuestionCount: metrics?.completedQuestionCount ?? task.questionCount,
+        correctCount: metrics?.correctCount ?? task.questionCount,
+        minutesSpent: metrics?.minutesSpent ?? task.minutes,
+        reachedTarget: true,
+      };
+    }
+    const current = this.taskProgressByUser.get(userId)?.get(task.id);
+    return current
+      ? { ...current, reachedTarget: current.completedQuestionCount >= task.questionCount }
+      : { completedQuestionCount: 0, correctCount: 0, minutesSpent: 0, reachedTarget: false };
+  }
+
+  private findTodayPracticeTask(userId: string, knowledgePointId: string): { id: string; questionCount: number } | null {
+    const today = todayKey();
+    const scheduled = this.sevenDayPlansByUser.get(userId)?.tasks.find((task) =>
+      task.scheduledDate === today
+      && task.knowledgePointId === knowledgePointId
+      && task.status !== 'completed'
+      && task.mode !== '考后复盘'
+      && !task.id.startsWith('exam-review-'),
+    );
+    if (scheduled) return { id: scheduled.id, questionCount: scheduled.questionCount };
+    const fallback = this.generatePlan(userId).dailyTasks.find((task) =>
+      task.knowledgePointId === knowledgePointId && !task.completed,
+    );
+    return fallback ? { id: fallback.id, questionCount: fallback.questionCount } : null;
+  }
+
+  // P1-02: 练习记录按知识点自动累计到今日任务；达到计划题数即自动完成（补录表单降级为差额补登）。
+  private async applyPracticeProgressToTasks(userId: string, record: PracticeRecord) {
+    const task = this.findTodayPracticeTask(userId, record.knowledgePointId);
+    if (!task) return;
+    const byUser = this.taskProgressByUser.get(userId) ?? new Map<string, TaskProgress>();
+    const current = byUser.get(task.id) ?? { completedQuestionCount: 0, correctCount: 0, minutesSpent: 0 };
+    const next = accumulateTaskProgress({
+      current,
+      correct: record.correct,
+      timeSpentSec: record.timeSpentSec,
+      questionTarget: task.questionCount,
+    });
+    byUser.set(task.id, next.progress);
+    this.taskProgressByUser.set(userId, byUser);
+
+    if (next.reachedTarget) {
+      try {
+        await this.completeStudyTask(task.id, {
+          userId,
+          completedQuestionCount: next.progress.completedQuestionCount,
+          correctCount: next.progress.correctCount,
+          minutesSpent: next.progress.minutesSpent,
+          selfRating: 3,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Auto-complete task ${task.id} failed after practice`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
   }
 
   async startTask(userId: string, taskId: string) {
@@ -905,6 +1007,92 @@ export class StudyService implements OnModuleInit {
       message: postponeCount >= 3
         ? '已多次延后，建议优先完成或标记为已完成。'
         : `任务已延后，${delayHours} 小时后重新出现在今日计划。`,
+    };
+  }
+
+  async rescheduleTask(userId: string, taskId: string, scheduledDate: string) {
+    return this.withPlanMutation(userId, () => this.rescheduleTaskUnlocked(userId, taskId, scheduledDate));
+  }
+
+  private async rescheduleTaskUnlocked(userId: string, taskId: string, scheduledDate: string) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(scheduledDate)) {
+      throw new BadRequestException('scheduledDate must be in YYYY-MM-DD format');
+    }
+    const scheduled = this.findScheduledTask(userId, taskId);
+    if (!scheduled) throw new BadRequestException(`Study task ${taskId} was not found`);
+    if (scheduled.status === 'completed') throw new BadRequestException('Completed task cannot be rescheduled');
+    if (this.onboardingPlanRepository.enabled) {
+      const persisted = await this.onboardingPlanRepository.rescheduleTask(userId, taskId, scheduledDate);
+      if (!persisted) throw new BadRequestException(`Study task ${taskId} was not found`);
+      Object.assign(scheduled, persisted);
+    } else {
+      scheduled.scheduledDate = scheduledDate;
+      scheduled.status = 'pending';
+      scheduled.nextAvailableAt = undefined;
+    }
+    return { taskId, scheduledDate, message: `任务已重新安排到 ${scheduledDate}。` };
+  }
+
+  async rebalanceTasks(userId: string, mode: TaskRebalanceMode) {
+    return this.withPlanMutation(userId, () => this.rebalanceTasksUnlocked(userId, mode));
+  }
+
+  private async rebalanceTasksUnlocked(userId: string, mode: TaskRebalanceMode) {
+    const plan = this.sevenDayPlansByUser.get(userId);
+    if (!plan) throw new BadRequestException('No scheduled plan is available for rebalancing');
+    const today = todayKey();
+    const horizon = new Date();
+    horizon.setUTCDate(horizon.getUTCDate() + 7);
+    const horizonKey = horizon.toISOString().slice(0, 10);
+    const affected = plan.tasks.filter((task) =>
+      task.scheduledDate >= today
+      && task.scheduledDate <= horizonKey
+      && task.status !== 'completed'
+      && task.mode !== '考后复盘'
+      && !task.id.startsWith('exam-review-'),
+    );
+    const adjustments = rebalanceTaskLoad({ tasks: affected, mode });
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const tomorrowKey = tomorrow.toISOString().slice(0, 10);
+    const repoAdjustments: TaskRebalanceAdjustment[] = adjustments.map((item) => ({
+      ...item,
+      ...(item.status === 'postponed'
+        ? { scheduledDate: tomorrowKey, nextAvailableAt: new Date(`${tomorrowKey}T00:00:00.000Z`) }
+        : {}),
+    }));
+
+    if (this.onboardingPlanRepository.enabled) {
+      const persisted = await this.onboardingPlanRepository.rebalanceTasks(userId, repoAdjustments);
+      if (!persisted) throw new BadRequestException('Rebalance failed: study plan was not found');
+      for (const task of persisted) {
+        const cached = this.findScheduledTask(userId, task.id);
+        if (cached) Object.assign(cached, task);
+      }
+    } else {
+      for (const item of repoAdjustments) {
+        const task = plan.tasks.find((candidate) => candidate.id === item.id);
+        if (!task) continue;
+        if (item.questionCount != null) task.questionCount = item.questionCount;
+        if (item.minutes != null) task.minutes = item.minutes;
+        if (item.status === 'postponed') {
+          task.status = 'postponed';
+          task.postponeCount += 1;
+          task.scheduledDate = item.scheduledDate ?? task.scheduledDate;
+          task.nextAvailableAt = item.nextAvailableAt?.toISOString();
+        }
+      }
+    }
+
+    const postponedCount = repoAdjustments.filter((item) => item.status === 'postponed').length;
+    return {
+      userId,
+      mode,
+      adjustedTaskCount: repoAdjustments.length,
+      postponedCount,
+      message: mode === 'reduce'
+        ? '已降低本周任务量（题量与时长约降 30%），优先保证完成质量。'
+        : `已只保留高优先级任务，${postponedCount} 个非高优先级任务顺延到明日。`,
     };
   }
 
@@ -1183,6 +1371,41 @@ export class StudyService implements OnModuleInit {
       items,
       summary: this.buildAssessmentHistorySummary(items),
     };
+  }
+
+  async importAssessmentHistory(userId: string, input: {
+    title: string;
+    score: number;
+    totalScore: number;
+    occurredAt?: string;
+  }): Promise<PersistedAssessmentHistoryItem> {
+    const title = input.title?.trim();
+    if (!title || title.length > 100) {
+      throw new BadRequestException('title must contain 1 to 100 characters');
+    }
+    if (!Number.isFinite(input.totalScore) || input.totalScore <= 0) {
+      throw new BadRequestException('totalScore must be a positive number');
+    }
+    if (!Number.isFinite(input.score) || input.score < 0 || input.score > input.totalScore) {
+      throw new BadRequestException('score must be between 0 and totalScore');
+    }
+    const item: PersistedAssessmentHistoryItem = {
+      id: `imported-${randomUUID()}`,
+      userId,
+      title,
+      submittedAt: input.occurredAt ?? new Date().toISOString(),
+      score: input.score,
+      totalScore: input.totalScore,
+      accuracyRate: Math.round((input.score / input.totalScore) * 100),
+      elapsedSec: 0,
+      unansweredCount: 0,
+      weakPointTitle: '',
+      reviewSuggestion: '历史成绩导入，用于对比当前备考水平。',
+    };
+    this.assessmentHistoryItems.push(item);
+    await this.assessmentHistoryRepository.save(item);
+    await this.trackUserEvent(userId, 'assessment.import', { title: item.title, score: item.score, totalScore: item.totalScore });
+    return item;
   }
 
   async generatePaper(input: {
@@ -1500,6 +1723,7 @@ export class StudyService implements OnModuleInit {
     await this.learningProgressRepository.saveWrongQuestionReview(userId, questionId, reviewedAt);
     reviewed.set(questionId, reviewedAt);
     this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
+    await this.trackUserEvent(userId, 'wrong.review', { questionId });
 
     return {
       ...wrongQuestion,
@@ -2037,6 +2261,11 @@ export class StudyService implements OnModuleInit {
     if (!savedRecord.correct) {
       await this.ensureReviewSchedule(savedRecord);
     }
+    await this.applyPracticeProgressToTasks(input.userId, savedRecord);
+    await this.trackUserEvent(input.userId, 'practice.submit', {
+      questionId: savedRecord.questionId,
+      correct: savedRecord.correct,
+    });
     const variantProgress = input.variantQuestionId
       ? await this.applyVariantRetest(savedRecord, input.variantQuestionId)
       : null;
@@ -2102,6 +2331,7 @@ export class StudyService implements OnModuleInit {
       usedHint: input.usedHint,
       answerModified: input.answerModified,
       variantQuestionId: input.variantQuestionId,
+      knowledgePointIds: [...question.knowledgePointIds],
     };
   }
 
@@ -2253,6 +2483,10 @@ export class StudyService implements OnModuleInit {
       completedAt,
     });
     this.taskCompletionMetricsByUser.set(userId, taskMetrics);
+    await this.trackUserEvent(userId, 'task.complete', {
+      taskId,
+      scheduledDate: (task as { scheduledDate?: string }).scheduledDate,
+    });
     const adjustment = this.createTaskCompletionAdjustment(task, {
       completedQuestionCount: input.completedQuestionCount,
       correctCount: input.correctCount,
@@ -2875,11 +3109,15 @@ export class StudyService implements OnModuleInit {
       days: dates.map((date) => {
         const tasks = plan.tasks.filter((task) => task.scheduledDate === date);
         const completedTasks = tasks.filter((task) => task.status === 'completed').length;
+        const priorityRank = (value: string) => (value === '高' ? 0 : value === '中' ? 1 : 2);
+        const topTask = [...tasks].sort((left, right) => priorityRank(left.priority) - priorityRank(right.priority))[0];
         return {
           date,
           taskCount: tasks.length,
           completedTasks,
           totalMinutes: tasks.reduce((sum, task) => sum + task.minutes, 0),
+          focusTitle: topTask?.title ?? '',
+          focusCompleted: topTask ? topTask.status === 'completed' : false,
         };
       }),
     };
@@ -3192,6 +3430,10 @@ export class StudyService implements OnModuleInit {
       Object.assign(session, submittedSession);
       this.practiceSessions.set(sessionId, session);
       this.records.push(...records);
+      for (const record of records) {
+        await this.applyPracticeProgressToTasks(userId, record);
+      }
+      await this.trackUserEvent(userId, 'session.submit', { sessionId, type: session.type });
       const synchronizationWarnings: string[] = [];
       for (const record of records) {
         if (!record.correct) {
@@ -3519,12 +3761,21 @@ export class StudyService implements OnModuleInit {
       .sort((left, right) => right.importance - left.importance || right.frequency - left.frequency)[0];
     if (!fallbackPoint) throw new BadRequestException('No knowledge point is available for post-exam review');
 
+    // P1-04: 复习任务只从「本场考试」取材——有失分用失分考点，全对用本场覆盖考点做限时巩固，
+    // 不再回退到与本次考试无关的全局最重要知识点。
+    const session = this.getOwnSession(sessionId, userId);
+    const lossPoints = report.knowledgePointLosses
+      .map((loss) => this.knowledgePoints.find((item) => item.id === loss.knowledgePointId))
+      .filter((point): point is KnowledgePoint => Boolean(point));
+    const coveredPoints = this.collectExamCoveredPoints(session);
+    const sourcePoints = lossPoints.length > 0 ? lossPoints : coveredPoints;
+    const isPerfect = report.knowledgePointLosses.length === 0;
+
     const days = Array.from({ length: 3 }, (_, index) => {
       const date = new Date(localToday);
       date.setUTCDate(localToday.getUTCDate() + index + 1);
-      const loss = report.knowledgePointLosses[index] ?? report.knowledgePointLosses[0];
-      const point = loss
-        ? this.knowledgePoints.find((item) => item.id === loss.knowledgePointId) ?? fallbackPoint
+      const point = sourcePoints.length > 0
+        ? sourcePoints[Math.min(index, sourcePoints.length - 1)]
         : fallbackPoint;
 
       return {
@@ -3537,7 +3788,11 @@ export class StudyService implements OnModuleInit {
         questionCount: index === 0 ? 15 : index === 1 ? 12 : 8,
         minutes: index === 0 ? 90 : index === 1 ? 60 : 45,
         tasks: [
-          index === 0 ? `复盘 ${point.title} 的错题，写出每道题的错因。` : '',
+          isPerfect
+            ? `限时复练 ${point.title}，保持本场考试的正确率与速度。`
+            : index === 0
+              ? `复盘 ${point.title} 的错题，写出每道题的错因。`
+              : '',
           index <= 1 ? `完成 ${point.title} 同考点专项训练。` : '',
           `限时完成 ${index === 0 ? 15 : index === 1 ? 12 : 8} 题，目标正确率 ${70 + index * 5}% 以上。`,
         ].filter(Boolean),
@@ -3551,12 +3806,14 @@ export class StudyService implements OnModuleInit {
         examSessionId: sessionId,
         generatedAt: new Date().toISOString(),
         examAccuracyRate: report.summary.accuracyRate,
-        weakPointTitles: report.knowledgePointLosses.length
-          ? report.knowledgePointLosses.slice(0, 3).map((point) => point.title)
+        weakPointTitles: sourcePoints.length > 0
+          ? sourcePoints.slice(0, 3).map((point) => point.title)
           : [fallbackPoint.title],
         days: [],
         recommendation: report.summary.accuracyRate >= 80
-          ? '本次考试表现较好，重点保持限时训练节奏，巩固已掌握考点。'
+          ? isPerfect
+            ? '本次考试全部答对，复习任务针对本场覆盖考点做限时巩固，保持节奏。'
+            : '本次考试表现较好，重点保持限时训练节奏，巩固已掌握考点。'
           : report.summary.accuracyRate >= 60
             ? '本次考试处于中间水平，优先复盘错题知识点，再做同考点专项训练。'
             : '基础还存在明显短板，建议暂停新题，先回到高频考点的概念和例题。',
@@ -3574,7 +3831,7 @@ export class StudyService implements OnModuleInit {
       questionCount: day.questionCount,
       scheduledDate: day.date,
       priority: '高',
-      reason: `来源考试 ${sessionId}，正确率 ${reviewPlan.examAccuracyRate}%。`,
+      reason: `来源${isPerfect ? '本场考试覆盖考点（全对巩固）' : '本场考试失分考点'}，正确率 ${reviewPlan.examAccuracyRate}%。`,
       nextAction: day.tasks.join('；'),
       status: 'pending',
       postponeCount: 0,
@@ -3587,6 +3844,20 @@ export class StudyService implements OnModuleInit {
     this.examReviewPlans.set(sessionId, persisted.reviewPlan);
     this.sevenDayPlansByUser.set(userId, persisted.studyPlan);
     return persisted.reviewPlan;
+  }
+
+  private collectExamCoveredPoints(session: PracticeSession): KnowledgePoint[] {
+    const covered: KnowledgePoint[] = [];
+    const seen = new Set<string>();
+    for (const question of session.questionSnapshot) {
+      for (const pointId of question.knowledgePointIds ?? []) {
+        if (seen.has(pointId)) continue;
+        seen.add(pointId);
+        const point = this.knowledgePoints.find((item) => item.id === pointId);
+        if (point) covered.push(point);
+      }
+    }
+    return covered;
   }
 
   getExamScoreHistory(userId: string) {

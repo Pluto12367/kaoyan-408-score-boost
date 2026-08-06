@@ -19,10 +19,10 @@ export class QuestionsService implements OnModuleInit {
   private static readonly questions: Question[] = [
     {
       id: 'q-001',
-      stem: '直接映射 Cache 中，主存块号 29 应映射到 Cache 的哪一行？',
+      stem: '直接映射 Cache（共 8 行）中，主存块号 29 应映射到 Cache 的哪一行？',
       options: ['1', '3', '5', '7'],
-      answer: 'B',
-      analysis: '直接映射行号等于主存块号对 Cache 行数取模。',
+      answer: 'C',
+      analysis: '直接映射行号 = 主存块号 mod Cache 行数 = 29 mod 8 = 5，映射到第 5 行。',
       knowledgePointIds: ['co-cache'],
       difficulty: '中等',
       type: '选择题',

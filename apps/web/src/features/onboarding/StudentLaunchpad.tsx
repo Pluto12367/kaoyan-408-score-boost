@@ -7,10 +7,8 @@ import type { PrepareExamPaperInput } from '../../api/endpoints/exam';
 import type { SessionView } from '../../api/endpoints/sessions';
 import { OnboardingWizard } from '../../components/OnboardingWizard';
 import { ResumeSessionBanner } from '../../components/ResumeSessionBanner';
-import { TodayPlan } from '../../components/TodayPlan';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
-import { ModuleUnavailable } from '../../components/ModuleResourceState';
 
 interface StudentLaunchpadProps {
   showOnboarding: boolean;
@@ -26,7 +24,6 @@ interface StudentLaunchpadProps {
   learningCalendar: LearningCalendar | null;
   wrongQuestionSummary: WrongQuestionSummary | null;
   onOnboardingComplete: ComponentProps<typeof OnboardingWizard>['onComplete'];
-  onRefreshTodayPlan: () => Promise<void>;
   onOpenReview: (questionId: string) => void;
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
@@ -55,7 +52,6 @@ export function StudentLaunchpad({
   learningCalendar,
   wrongQuestionSummary,
   onOnboardingComplete,
-  onRefreshTodayPlan,
   onOpenReview,
   onResumeSession,
   onStartExam,
@@ -120,11 +116,11 @@ export function StudentLaunchpad({
       helper: '保持节奏比临时冲刺更稳',
     },
     {
-      label: '预计提分',
+      label: '预计提分空间',
       value: report && (report.completionRate > 0 || report.weakPoints.length > 0)
-        ? `+${report.estimatedGain}`
+        ? `${report.estimatedGain} 分`
         : '--',
-      helper: report ? '来自错题和薄弱点修复' : '完成诊断与练习后估算',
+      helper: report ? '基于薄弱点和目标分估算（与报告口径一致）' : '完成诊断与练习后估算',
     },
     {
       label: '待复盘',
@@ -155,7 +151,7 @@ export function StudentLaunchpad({
   const weekSchedule = todayPlan?.weekProgress?.length
     ? todayPlan.weekProgress.map((day) => ({
         day: day.date.slice(5),
-        subjectName: `第 ${day.taskCount} 项任务`,
+        subjectName: day.focusTitle || `第 ${day.taskCount} 项任务`,
         topic: `${day.completedTasks}/${day.taskCount} 已完成 · ${day.totalMinutes} 分钟`,
       }))
     : (learningCalendar?.days ?? []).map((day) => ({
@@ -310,14 +306,6 @@ export function StudentLaunchpad({
         </div>
       </section>
 
-      {todayPlan ? <TodayPlan plan={todayPlan} onRefresh={onRefreshTodayPlan} onOpenReview={onOpenReview} /> : null}
-      {!todayPlan && (todayPlanLoading || todayPlanError) ? (
-        <ModuleUnavailable
-          title="今日计划"
-          resource={{ data: null, state: todayPlanLoading ? 'loading' : 'error', error: todayPlanError || undefined }}
-          onRetry={onRefreshTodayPlan}
-        />
-      ) : null}
       <ResumeSessionBanner
         enabled={remoteSessionsEnabled}
         allowedTypes={['practice_set', 'stage_assessment', 'paper']}

@@ -100,7 +100,7 @@ export function StudentProgressOverview({
         <div className="sprint-days">
           {sprint.days.map((day) => (
             <article key={day.date}>
-              <div><strong>第 {day.dayIndex} 天 · {day.focus}</strong><span>{day.date} · {day.minutes} 分钟</span></div>
+              <div><strong>第 {day.dayIndex} 天 · {day.focus}</strong><span>{day.date} · 计划 {day.minutes} 分钟</span></div>
               <p>{day.reason}</p>
               <footer><span>{day.questionTarget} 题</span><span>{day.reviewTarget} 道复盘</span></footer>
             </article>

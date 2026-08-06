@@ -4,6 +4,12 @@ import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { CompleteStudyTaskDto } from './dto/complete-study-task.dto';
 import {
+  ImportAssessmentHistoryDto,
+  RebalanceTasksDto,
+  RescheduleTaskDto,
+} from './dto/plan-adjustment.dto';
+import { RecordUserEventDto } from './dto/user-event.dto';
+import {
   SaveLearningSessionDto,
   StartLearningSessionDto,
   SubmitLearningSessionDto,
@@ -355,6 +361,38 @@ export class StudyController {
     @Param('taskId') taskId: string,
   ) {
     return this.studyService.postponeTask(user.id, taskId);
+  }
+
+  @Post('tasks/:taskId/reschedule')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  rescheduleTask(
+    @CurrentUser() user: UserProfile,
+    @Param('taskId') taskId: string,
+    @Body() input: RescheduleTaskDto,
+  ) {
+    return this.studyService.rescheduleTask(user.id, taskId, input.scheduledDate);
+  }
+
+  @Post('tasks/rebalance')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  rebalanceTasks(@CurrentUser() user: UserProfile, @Body() input: RebalanceTasksDto) {
+    return this.studyService.rebalanceTasks(user.id, input.mode);
+  }
+
+  @Post('assessment-history/import')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  importAssessmentHistory(@CurrentUser() user: UserProfile, @Body() input: ImportAssessmentHistoryDto) {
+    return this.studyService.importAssessmentHistory(user.id, input);
+  }
+
+  @Post('events')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  recordUserEvent(@CurrentUser() user: UserProfile, @Body() input: RecordUserEventDto) {
+    return this.studyService.recordUserEvent(user.id, input.type, input.payload);
   }
 
   @Post('tasks/:taskId/start')

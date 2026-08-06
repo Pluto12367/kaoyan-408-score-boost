@@ -479,6 +479,12 @@ async function main() {
   }, studentHeaders);
   assert(created.id && created.correct === false && created.userId === registered.user.id, 'practice submission without userId should use the authenticated student');
   assert(Math.abs(Date.now() - Date.parse(created.submittedAt)) < 60_000, 'practice submissions should retain their real submission time for deterministic recovery ordering');
+  const eventCountPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const userEventCount = await eventCountPrisma.userEvent.count({
+    where: { userId: registered.user.id, type: 'practice.submit' },
+  });
+  await eventCountPrisma.$disconnect();
+  assert(userEventCount >= 1, 'practice submissions should write a behavior event to UserEvent');
   await expectPostStatus(`${apiUrl}/practice-records`, {
     userId: 'u-001',
     questionId: 'q-002',
@@ -1168,7 +1174,7 @@ async function main() {
   }, teacherHeaders);
   const submittedSession = await postJson(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
     answers: [
-      { questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 },
+      { questionId: 'q-001', selectedAnswer: 'C', timeSpentSec: 73 },
       { questionId: subjectiveQuestion.id, selectedAnswer: 'tag, line index, block offset', timeSpentSec: 240, selfScore: 7, maxScore: 10 },
     ],
     totalActiveMs: 2500,
@@ -1176,7 +1182,7 @@ async function main() {
   assert(submittedSession.completed === true, 'restored session should be submittable');
   assert(submittedSession.records.some((record) => record.questionId === subjectiveQuestion.id && record.gradingMode === 'self_assessed'), 'comprehensive question should use self assessment');
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/submit`, {
-    answers: [{ questionId: 'q-001', selectedAnswer: 'B', timeSpentSec: 73 }],
+    answers: [{ questionId: 'q-001', selectedAnswer: 'C', timeSpentSec: 73 }],
   }, 400, studentHeaders);
   await expectPostStatus(`${apiUrl}/sessions/practice/${startedSession.id}/save`, {
     revision: 4,

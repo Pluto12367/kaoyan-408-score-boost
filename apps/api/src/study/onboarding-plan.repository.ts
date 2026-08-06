@@ -59,6 +59,15 @@ export interface CompletedTaskMutation {
   futureTask: ScheduledStudyTaskState | null;
 }
 
+export interface TaskRebalanceAdjustment {
+  id: string;
+  questionCount?: number;
+  minutes?: number;
+  status?: 'postponed';
+  scheduledDate?: string;
+  nextAvailableAt?: Date | null;
+}
+
 export function nearestAvailableStudyDate(
   tasks: ReadonlyArray<Pick<ScheduledStudyTaskState, 'scheduledDate'>>,
   scheduledDate: string,
@@ -234,6 +243,60 @@ export class OnboardingPlanRepository {
         },
       });
       return this.mapTask(updated);
+    });
+  }
+
+  async rescheduleTask(userId: string, taskId: string, scheduledDate: string) {
+    if (!this.enabled) return null;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+      const task = await tx.studyTask.findFirst({
+        where: { id: taskId, plan: { userId, status: 'ACTIVE' } },
+      });
+      if (!task) return null;
+      if (task.status === 'completed') throw new BadRequestException('Completed task cannot be rescheduled');
+      const updated = await tx.studyTask.update({
+        where: { id: task.id },
+        data: { scheduledDate, status: 'pending', nextAvailableAt: null },
+      });
+      return this.mapTask(updated);
+    });
+  }
+
+  async rebalanceTasks(userId: string, adjustments: TaskRebalanceAdjustment[]) {
+    if (!this.enabled) return null;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+      const plan = await tx.studyPlan.findFirst({
+        where: { userId, status: 'ACTIVE' },
+        include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!plan) return null;
+      const byId = new Map(adjustments.map((item) => [item.id, item]));
+      const updated = await Promise.all(
+        plan.tasks
+          .filter((task) => byId.has(task.id))
+          .map((task) => {
+            const adjustment = byId.get(task.id)!;
+            return tx.studyTask.update({
+              where: { id: task.id },
+              data: {
+                ...(adjustment.questionCount != null ? { questionCount: adjustment.questionCount } : {}),
+                ...(adjustment.minutes != null ? { minutes: adjustment.minutes } : {}),
+                ...(adjustment.status === 'postponed'
+                  ? {
+                      status: 'postponed',
+                      postponeCount: task.postponeCount + 1,
+                      scheduledDate: adjustment.scheduledDate ?? task.scheduledDate,
+                      nextAvailableAt: adjustment.nextAvailableAt ?? task.nextAvailableAt,
+                    }
+                  : {}),
+              },
+            });
+          }),
+      );
+      return updated.map((task) => this.mapTask(task));
     });
   }
 

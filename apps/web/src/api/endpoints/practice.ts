@@ -14,6 +14,8 @@ export interface PracticeAnswerResult {
   id: string;
   correct: boolean;
   mistakeReason: MistakeReason | null;
+  timeSpentSec: number;
+  expectedTimeSec: number;
   analysis: string;
   correctAnswer: string;
   knowledgePointTitle: string;

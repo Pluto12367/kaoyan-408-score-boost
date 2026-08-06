@@ -24,9 +24,11 @@ const REASONS = [
   { value: '蒙题', label: '蒙题', hint: '凭感觉或猜测作答' },
 ];
 
+const REDO_CORRECT_REASON = { value: '已完成复盘', label: '已完成复盘', hint: '重做/复测通过，无需填写错因' };
+
 export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isReview, inferredReason, onReported, onClose }: Props) {
   const normalizedInferred = normalizeMistakeReason(inferredReason);
-  const [reason, setReason] = useState(() => (normalizedInferred ?? ''));
+  const [reason, setReason] = useState(() => (normalizedInferred ?? (correct ? REDO_CORRECT_REASON.value : '')));
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -55,7 +57,7 @@ export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isRevie
         <div className="panel-heading">
           <div>
             <p className="eyebrow">错题复盘</p>
-            <h3>{correct ? '你做对了，但答题速度如何？' : '这道题为什么做错了？'}</h3>
+            <h3>{correct ? '重做已答对，确认本次复盘结果' : '这道题为什么做错了？'}</h3>
           </div>
           <button type="button" className="secondary-action" onClick={onClose}>跳过</button>
         </div>
@@ -70,6 +72,22 @@ export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isRevie
         ) : null}
 
         <div className="reason-list">
+          {correct ? (
+            <label key={REDO_CORRECT_REASON.value} className={`reason-option ${reason === REDO_CORRECT_REASON.value ? 'selected' : ''}`}>
+              <input
+                type="radio"
+                name="errorReason"
+                value={REDO_CORRECT_REASON.value}
+                checked={reason === REDO_CORRECT_REASON.value}
+                onChange={() => setReason(REDO_CORRECT_REASON.value)}
+              />
+              <div>
+                <strong>{REDO_CORRECT_REASON.label}</strong>
+                <span>{REDO_CORRECT_REASON.hint}</span>
+              </div>
+              {reason === REDO_CORRECT_REASON.value ? <CheckCircle2 size={16} /> : null}
+            </label>
+          ) : null}
           {REASONS.map((r) => (
             <label key={r.value} className={`reason-option ${reason === r.value ? 'selected' : ''}`}>
               <input

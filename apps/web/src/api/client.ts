@@ -1,4 +1,5 @@
 import type { AuthSession } from './types';
+import { refreshSessionOnce } from './refreshGate';
 
 const AUTH_STORAGE_KEY = 'kaoyan408.auth.session';
 let activeAuthSession: AuthSession | null = null;
@@ -60,18 +61,33 @@ export async function authenticatedFetch(url: string, init: RequestInit = {}): P
   }
   if (response.status !== 401 || !session?.refreshToken) return reportFailedResponse(url, init, response);
 
+  const usedToken = session.accessToken ?? session.token;
+  const current = getActiveAuthSession();
+  const currentToken = current?.accessToken ?? current?.token;
+  const canUseCurrentSession = Boolean(currentToken) && currentToken !== usedToken;
+
   let refreshed: AuthSession;
   try {
-    const { refreshAuthSession } = await import('./endpoints/auth');
-    refreshed = await refreshAuthSession(session.refreshToken);
+    if (canUseCurrentSession && current) {
+      // 另一个并发请求已经刷新成功：直接用新会话重试，避免重复消费一次性 refresh token。
+      refreshed = current;
+    } else {
+      const { refreshAuthSession } = await import('./endpoints/auth');
+      refreshed = await refreshSessionOnce(session.refreshToken, refreshAuthSession);
+    }
     storeAuthSession(refreshed);
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent<AuthSession>('auth-session-updated', { detail: refreshed }));
     }
   } catch {
-    clearStoredAuthSession();
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('auth-session-expired'));
+    // 只有刷新确实失败、且没有其他并发请求替换会话时才登出，避免把已续期会话清掉。
+    const after = getActiveAuthSession();
+    const afterToken = after?.accessToken ?? after?.token;
+    if (afterToken === usedToken) {
+      clearStoredAuthSession();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth-session-expired'));
+      }
     }
     return reportFailedResponse(url, init, response);
   }

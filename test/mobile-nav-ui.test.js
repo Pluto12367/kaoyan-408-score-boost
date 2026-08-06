@@ -13,7 +13,7 @@ test('stage 6: student bottom navigation keeps five unique tabs', async () => {
 
   assert.equal(ids.length, 5, `expected 5 bottom tabs, got ${ids.length}`);
   assert.equal(new Set(ids).size, 5, 'bottom tab ids must be unique');
-  assert.deepEqual(labels, ['首页', '学习', '练习', '错题', '我的']);
+  assert.deepEqual(labels, ['首页', '答疑', '练习', '错题', '报告']);
   // dashboard tab stays active when the merged plan section is open
   assert.match(navigation, /item\.id === 'dashboard'[\s\S]*?activeSection === 'plan'/);
   assert.match(navigation, /className="bottom-nav"/);

@@ -22,10 +22,11 @@ import { BetaMetricsService } from './beta-metrics.service';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
 import { AdminUserRepository } from './admin-user.repository';
 import { FeedbackRepository } from './feedback.repository';
+import { UserEventRepository } from './user-event.repository';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule],
   controllers: [StudyController],
-  providers: [StudyService, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
+  providers: [StudyService, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
 })
 export class StudyModule {}

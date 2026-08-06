@@ -69,3 +69,18 @@ export function advanceQuestion(
     ...(nextIndex === undefined ? {} : { index: nextIndex }),
   };
 }
+
+/**
+ * 重新开始入口：回到题库第一题，清理本次答题尝试的全部状态（P2-08）。
+ */
+export function restartAttempt(state: PracticeAttemptState): PracticeAttemptState {
+  return {
+    ...state,
+    answerResult: null,
+    submitting: false,
+    reasonQueue: [],
+    redoQuestionId: null,
+    variantOfQuestionId: null,
+    index: 0,
+  };
+}

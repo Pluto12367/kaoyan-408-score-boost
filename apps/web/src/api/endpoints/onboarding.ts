@@ -44,12 +44,20 @@ export interface TodayPlan {
     startedAt?: string;
     nextAvailableAt?: string;
     completed?: boolean;
+    progress?: {
+      completedQuestionCount: number;
+      correctCount: number;
+      minutesSpent: number;
+      reachedTarget: boolean;
+    };
   }>;
   weekProgress: Array<{
     date: string;
     taskCount: number;
     completedTasks: number;
     totalMinutes: number;
+    focusTitle?: string;
+    focusCompleted?: boolean;
   }>;
   reviewDue: number;
   checkpoint: string;
@@ -99,6 +107,32 @@ export async function startTask(taskId: string) {
     taskId: string;
     status: 'in_progress';
     startedAt: string;
+    message: string;
+  }>;
+}
+
+export async function rescheduleTask(taskId: string, scheduledDate: string) {
+  const response = await fetchWithAuth(`${API_BASE_URL}/tasks/${taskId}/reschedule`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scheduledDate }),
+  });
+  if (!response.ok) throw new Error(`Task reschedule failed with ${response.status}`);
+  return response.json() as Promise<{ taskId: string; scheduledDate: string; message: string }>;
+}
+
+export async function rebalanceTasks(mode: 'reduce' | 'priority_only') {
+  const response = await fetchWithAuth(`${API_BASE_URL}/tasks/rebalance`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
+  if (!response.ok) throw new Error(`Task rebalance failed with ${response.status}`);
+  return response.json() as Promise<{
+    userId: string;
+    mode: 'reduce' | 'priority_only';
+    adjustedTaskCount: number;
+    postponedCount: number;
     message: string;
   }>;
 }

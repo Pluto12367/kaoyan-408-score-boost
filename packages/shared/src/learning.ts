@@ -55,6 +55,62 @@ export function normalizeMistakeReason(value: string | null | undefined): Mistak
   return LEGACY_MISTAKE_REASON_MAP[value] ?? null;
 }
 
+export function isSlowAnswer(timeSpentSec: number, expectedTimeSec: number): boolean {
+  return timeSpentSec > expectedTimeSec * 1.45;
+}
+
+export interface TaskProgress {
+  completedQuestionCount: number;
+  correctCount: number;
+  minutesSpent: number;
+}
+
+// P1-02: 练习记录按知识点累计到今日任务进度；达到计划题数即视为达标（reachedTarget）。
+export function accumulateTaskProgress(input: {
+  current: TaskProgress;
+  correct: boolean;
+  timeSpentSec: number;
+  questionTarget: number;
+}): { progress: TaskProgress; reachedTarget: boolean } {
+  const completedQuestionCount = input.current.completedQuestionCount + 1;
+  const correctCount = input.current.correctCount + (input.correct ? 1 : 0);
+  const minutesSpent = input.current.minutesSpent + Math.max(1, Math.round(input.timeSpentSec / 60));
+  return {
+    progress: { completedQuestionCount, correctCount, minutesSpent },
+    reachedTarget: completedQuestionCount >= input.questionTarget,
+  };
+}
+
+export type TaskRebalanceMode = 'reduce' | 'priority_only';
+
+export interface TaskLoadAdjustment {
+  id: string;
+  questionCount?: number;
+  minutes?: number;
+  status?: 'postponed';
+}
+
+// 阶段2：逾期/超载时按模式调整任务负载。
+// reduce：题量与分钟数降为 70%（设下限保证可执行）；priority_only：非高优先级任务延期。
+export function rebalanceTaskLoad(input: {
+  tasks: Array<{ id: string; priority: string; status: string; questionCount: number; minutes: number }>;
+  mode: TaskRebalanceMode;
+}): TaskLoadAdjustment[] {
+  return input.tasks.map((task) => {
+    if (task.status === 'completed') return { id: task.id };
+    if (input.mode === 'priority_only') {
+      return task.priority === '高'
+        ? { id: task.id }
+        : { id: task.id, status: 'postponed' as const };
+    }
+    return {
+      id: task.id,
+      questionCount: Math.max(5, Math.round(task.questionCount * 0.7)),
+      minutes: Math.max(20, Math.round(task.minutes * 0.7)),
+    };
+  });
+}
+
 export function requireQuestionKnowledgePoint<T extends Pick<Question, 'knowledgePointIds'>>(question: T): T {
   if (!question.knowledgePointIds || question.knowledgePointIds.length === 0) {
     throw new Error('题目至少绑定一个知识点');
@@ -72,12 +128,11 @@ export function classifyMistake(input: {
   confidence?: ConfidenceLevel;
   usedHint?: boolean;
 }): MistakeReason | null {
-  const slow = input.timeSpentSec > input.expectedTimeSec * 1.45;
+  const slow = isSlowAnswer(input.timeSpentSec, input.expectedTimeSec);
   const tooFast = input.timeSpentSec < input.expectedTimeSec * 0.65;
   const answered = Boolean(input.selectedAnswer?.trim());
 
   if (input.correct && input.confidence === '完全不会') return '蒙题';
-  if (input.correct && slow) return '时间不足';
   if (input.correct) return null;
   if (!answered) return '时间不足';
   if (tooFast) return '审题错误';
@@ -144,6 +199,7 @@ export function createPracticeRecord(input: {
     confidence: input.confidence,
     usedHint: input.usedHint,
     answerModified: input.answerModified,
+    knowledgePointIds: [...input.question.knowledgePointIds],
   };
 }
 
@@ -507,9 +563,15 @@ export function computeMasteryReport(input: {
 }): UnifiedMasteryReport {
   const grouped = new Map<string, PracticeRecord[]>();
   for (const record of input.records) {
-    const bucket = grouped.get(record.knowledgePointId) ?? [];
-    bucket.push(record);
-    grouped.set(record.knowledgePointId, bucket);
+    // P2-4: multi-knowledge-point records count toward every related point.
+    const pointIds = record.knowledgePointIds?.length
+      ? record.knowledgePointIds
+      : [record.knowledgePointId];
+    for (const pointId of pointIds) {
+      const bucket = grouped.get(pointId) ?? [];
+      bucket.push(record);
+      grouped.set(pointId, bucket);
+    }
   }
 
   const catalogIds = new Set(input.knowledgePoints.map((point) => point.id));
@@ -546,7 +608,7 @@ export function computeMasteryReport(input: {
     const attempts = items.length + (extras.practiceCount ?? 0);
     const totalCorrect = recordCorrect + (extras.correctCount ?? 0);
     const totalWrong = recordWrong + (extras.wrongCount ?? 0);
-    const slowCount = items.filter((item) => item.timeSpentSec > item.expectedTimeSec * 1.45).length;
+    const slowCount = items.filter((item) => isSlowAnswer(item.timeSpentSec, item.expectedTimeSec)).length;
     const rawAccuracy = attempts ? (totalCorrect / attempts) * 100 : 0;
     const practiceCoverage = Math.min(100, attempts * 25);
     const masteryRate = attempts

@@ -20,7 +20,16 @@ export function ApiStateIndicator({ state, lastSyncAt, source, onRetry }: Props)
   const { label, className, icon } = config[state];
 
   return (
-    <span className={`api-pill ${className}`} title={lastSyncAt ? `上次同步: ${new Date(lastSyncAt).toLocaleString('zh-CN')}` : undefined}>
+    <span
+      className={`api-pill ${className}`}
+      title={
+        state === 'mock'
+          ? '演示模式：数据保存在本地，未连接真实后端；生产环境不会出现此提示。'
+          : lastSyncAt
+            ? `上次同步: ${new Date(lastSyncAt).toLocaleString('zh-CN')}`
+            : undefined
+      }
+    >
       {icon} {label}
       {state === 'error' && onRetry ? (
         <button type="button" className="retry-btn" onClick={onRetry}>重试</button>

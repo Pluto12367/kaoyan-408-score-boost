@@ -21,6 +21,8 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，第二轮 UX/工程收尾改动（2026-08-06）**尚未提交**；P2-01~P2-08 全部关闭，阶段2（动态计划 + 历史成绩导入）、P2-4 多知识点、P2-5 演示标识、P3-1 教师端分页、错题筛选服务端化、行为埋点已完成；全量 `npm test` 311 项 310 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
+- 分支/提交：`codex/deployment-ready`，本轮（2026-08-06）UX 收尾改动**尚未提交**；工作区含 P1-01/P1-02/P1-03(seed)/P1-04/P1-05/P1-06/P1-07/P1-08/P2-02/P2-04/P2-07 修复与 8 个新测试文件；`npm test` 285/286 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
 - 分支/提交：`codex/deployment-ready`，阶段 7 已提交并推送（commit `d60b1f4`，已与 origin 同步）
 - 本次范围：阶段 7：DeepSeek V4-Flash 真实模型调用（`AI_API_KEY` 配置后启用，未配置回退标准解析模板）；提示词自动携带题目/选项/标准答案/解析/知识点/错因/最近错题；四层分层提示（考点→思路→部分步骤→完整解析，一次生成、前端逐层展开）；5 类快捷追问 + 自由提问；`AiTutorLog` 写库（真实调用成功/失败均记录）；`.env.development` 加入 .gitignore 防 Key 泄露
 - 模型选择：DeepSeek `deepseek-v4-flash`（base `https://api.deepseek.com`，输入约 ¥1/百万、输出约 ¥2/百万，旧模型名 deepseek-chat/reasoner 已于 2026-07-24 弃用）
@@ -43,6 +45,49 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-06 第二轮收尾：P2 全清 + 阶段2 + 埋点 + 多知识点 + 教师端分页
+
+- 日期：2026-08-06
+- 任务：关闭 UX backlog 全部 P2 项；实施阶段2 动态计划（重新安排/减负/只留高优先级）与历史成绩导入；P2-4 多知识点记录；P2-5 演示模式标识；P3-1 教师端学情报告分页与 AI 占位；错题筛选服务端化；行为埋点（UserEvent）。
+- 修改原因：用户要求继续清空剩余 open 项，并指定 P2-06/P2-08/P2-01/03 优先。
+- 修改文件：
+  - 前端：`StudentLaunchpad.tsx`（移除首页 TodayPlan 整套任务卡、KPI 口径统一）、`TodayPlan.tsx`（重新安排/降低本周任务量/只保留高优先级 + 任务进度）、`PracticePanel.tsx`/`practiceAttemptState.ts`（restartAttempt、再来一组）、`MistakeWorkspace.tsx`（服务端筛选 + 空态口径）、`ReportSummaryPanel.tsx`/`StudentProgressOverview.tsx`（预测分数/提分空间/计划时长口径）、`RoleNavigation.tsx`（已有）、`DiagnosticSummary.tsx`（历史成绩导入）、`TeacherWorkspace.tsx`（按 section 分页 + AI 占位）、`ApiStateIndicator.tsx`/`App.tsx`（演示横幅）、`styles.css`、`api/endpoints/onboarding.ts`、`api/endpoints/dashboard.ts`
+  - 后端：`study.service.ts`（rescheduleTask/rebalanceTasks/importAssessmentHistory/recordUserEvent + 5 类行为事件）、`study.controller.ts`（3 个新路由）、`onboarding-plan.repository.ts`（rescheduleTask/rebalanceTasks）、`user-event.repository.ts`（新增）、`study.module.ts`、`dto/plan-adjustment.dto.ts`、`dto/user-event.dto.ts`（新增）、`practice-record.repository.ts`（knowledgePointIds 映射）
+  - 共享：`learning.ts`（`isSlowAnswer`/`TaskProgress`/`accumulateTaskProgress`/`rebalanceTaskLoad`/多知识点归因）、`domain.ts`（`knowledgePointIds`）
+  - 数据：迁移 `20260806120000_practice_record_knowledge_points`（`PracticeRecord.knowledgePointIds TEXT[]`）、`20260806130000_user_events`（`UserEvent` 表）
+  - 测试：新增 `p2-kpi-consistency`、`practice-restart`、`p2-info-architecture`、`demo-mode-banner`、`teacher-placeholder-sections`、`practice-multi-kp`、`plan-adjustment`、`user-events`；更新 `mobile-nav-ui`、`p2-ux-cleanup`；集成脚本新增 UserEvent 断言
+- 数据库变化：两个纯增量迁移（可回滚：删除迁移目录后 `migrate deploy` 不再应用；旧行默认空数组/无事件）
+- API 变化：新增 `POST /tasks/:id/reschedule`、`POST /tasks/rebalance`、`POST /assessment-history/import`、`POST /events`；`GET /today/plan` 进度字段、`PracticeRecord.knowledgePointIds` 为向后兼容新增
+- 测试结果：`npm test` 311 项：310 通过 / 0 失败 / 1 跳过（PDF 渲染依赖）；`npm run build:api`、`npm run build:web` 通过；`npm run test:integration:postgres` `ok: true`（含新迁移与 UserEvent 断言）
+- 遗留问题：
+  1. P2-3（StudyService/App.tsx 整体拆分）为大规模重构，按 AGENTS.md 需用户确认后单独实施；已先行完成行为不变的安全抽取（纯函数入 shared、多知识点归因、计划调整逻辑）。
+  2. AI 变式题入库评估结论为暂缓（需教研审核流与模型成本确认），现有 `findSimilarQuestions` 变式复测继续支撑闭环。
+  3. 埋点目前覆盖服务端核心动作 + `POST /events`，前端细粒度事件（如“点击推荐任务”）未接入。
+  4. 测试容器 `kaoyan408-test-postgres-1` 仍在运行；Docker Desktop 已启动。
+- 下一步：确认后提交；如要继续 P2-3 拆分或前端埋点、AI 变式题入库，需用户确认范围。
+
+### 2026-08-06 UX 收尾批量修复（P1 全部 + P2 三项）
+
+- 日期：2026-08-06
+- 任务：按 `docs/ux-problem-backlog.md` 批量关闭 P1-01~P1-08 与 P2-02/P2-04/P2-07，覆盖令牌刷新并发、任务-练习联动、考后复习推荐、错题口径、练习反馈文案与移动导航。
+- 修改原因：上一轮审计清单中剩余影响体验的项；用户要求“一直执行任务直到优化全部完成”。
+- 修改文件：
+  - `apps/web/src/api/refreshGate.ts`（新增，single-flight 刷新门控）、`apps/web/src/api/client.ts`、`apps/web/src/hooks/useAuth.ts`
+  - `packages/shared/src/learning.ts`（`isSlowAnswer`、`TaskProgress`、`accumulateTaskProgress`、`classifyMistake` 答对不再返回错因）
+  - `apps/api/src/study/study.service.ts`（任务进度自动累计/达标自动完成、今日计划返回 progress、考后复习按本场考点取材、周摘要 focusTitle）
+  - `apps/api/src/questions/questions.service.ts`、`apps/web/src/mockData.ts`（q-001 种子题干/答案自洽）
+  - `apps/web/src/api/endpoints/practice.ts`、`onboarding.ts`、`features/practice/PracticePanel.tsx`、`components/TodayPlan.tsx`、`components/ErrorReasonSelector.tsx`、`features/mistakes/MistakeWorkspace.tsx`、`features/onboarding/StudentLaunchpad.tsx`、`layouts/RoleNavigation.tsx`、`App.tsx`
+  - 测试：新增 `refresh-single-flight.test.js`、`practice-slow-feedback.test.js`、`post-exam-review-source.test.js`、`task-progress-auto.test.js`、`wrong-review-metrics.test.js`、`p2-ux-cleanup.test.js`、`error-reason-default.test.js`、`seed-question-consistency.test.js`；更新 `appLogic.test.js`、`mobile-nav-ui.test.js`
+- 数据库变化：无（无迁移；任务进度为内存态，自动完成沿用 `StudyTask.completed` 持久化）
+- API 变化：`GET /today/plan` 的 `priorityTasks[].progress` 与 `weekProgress[].focusTitle/focusCompleted` 为新增可选字段（向后兼容）；`POST /practice-records` 响应透传 `timeSpentSec/expectedTimeSec`（原已在响应中）；`classifyMistake` 对答对题不再返回「时间不足」（值语义修正，字段结构不变）
+- 测试结果：`npm test` 全量 286 项：285 通过 / 0 失败 / 1 跳过（PDF 渲染依赖）；`npm run build:api`、`npm run build:web`（tsc + vite）通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm run test:integration:postgres` 通过（`{"ok": true, "source": "postgresql", ...}`，修复集成脚本中 q-001 的旧答案 B→C 后全绿）
+- 截图或验证证据：无截图；测试输出汇总 `81 pass / 0 fail`
+- 遗留问题：
+  1. P1-02「开始/继续今日学习」会话化跳题未实施（roadmap 阶段 2）；任务进度为内存态（与既有 `taskCompletionMetricsByUser` 一致）。
+  2. P2-01/P2-03/P2-05/P2-06/P2-08 仍 open（未在本轮范围）。
+  3. 测试容器 `kaoyan408-test-postgres-1` 仍在运行（`npm run db:test:down` 可清理）；Docker Desktop 本次为跑集成测试已启动。
+- 下一步：确认后提交（需用户明确要求，AGENTS.md §9 不自动提交）。
 
 ### 2026-08-06 阶段 4：错题筛选与变式复测闭环
 

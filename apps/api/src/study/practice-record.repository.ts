@@ -174,6 +174,7 @@ function toDomainRecord(record: {
   usedHint: boolean;
   answerModified: boolean;
   variantQuestionId: string | null;
+  knowledgePointIds: string[];
 }): PracticeRecord {
   return {
       id: record.id,
@@ -194,6 +195,7 @@ function toDomainRecord(record: {
       usedHint: record.usedHint,
       answerModified: record.answerModified,
       variantQuestionId: record.variantQuestionId ?? undefined,
+      knowledgePointIds: record.knowledgePointIds.length ? record.knowledgePointIds : undefined,
     };
 }
 
@@ -217,6 +219,7 @@ export function toPrismaRecord(record: PracticeRecord) {
     usedHint: record.usedHint,
     answerModified: record.answerModified,
     variantQuestionId: record.variantQuestionId,
+    knowledgePointIds: record.knowledgePointIds ?? [],
   };
 }
 

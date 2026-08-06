@@ -1,4 +1,4 @@
-import type { Question } from '@kaoyan408/shared';
+import { isSlowAnswer, type Question } from '@kaoyan408/shared';
 import type { PracticeSet, PracticeSetResult } from '../../api';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
@@ -17,6 +17,8 @@ interface PracticePanelProps {
   onNextQuestion?: () => void;
   onSubmitPracticeSet: () => void;
   onStartLearningMode?: () => void;
+  onRestartPracticeSet?: () => void;
+  onRestartQuestionBank?: () => void;
   onRetryPracticeSet: () => void;
 }
 
@@ -40,6 +42,8 @@ export function PracticePanel({
   onNextQuestion,
   onSubmitPracticeSet,
   onStartLearningMode,
+  onRestartPracticeSet,
+  onRestartQuestionBank,
   onRetryPracticeSet,
 }: PracticePanelProps) {
   const set = practiceSet.data;
@@ -78,19 +82,27 @@ export function PracticePanel({
           ) : (
             <p className="muted">暂无标准解析，可稍后在错题本中查看或使用 AI 答疑。</p>
           )}
-          {answerResult.mistakeReason ? (
+          {!answerResult.correct && answerResult.mistakeReason ? (
             <p className="answer-result-reason"><strong>本次错因</strong>{answerResult.mistakeReason}</p>
           ) : null}
+          {answerResult.correct
+            && answerResult.expectedTimeSec != null
+            && isSlowAnswer(answerResult.timeSpentSec, answerResult.expectedTimeSec) ? (
+              <p className="answer-result-speed"><strong>用时偏慢</strong>建议控制在 {answerResult.expectedTimeSec} 秒内，避免考场时间压力。</p>
+            ) : null}
           <div className="answer-result-actions">
             {hasNextQuestion ? (
               <button type="button" className="primary-action" onClick={onNextQuestion}>下一题</button>
             ) : (
-              <span className="muted">当前题库已练完，可开始专项练习或前往错题本。</span>
+              <span className="muted">当前题库已练完，可在下方开始专项练习或前往错题本。</span>
             )}
+            {!hasNextQuestion && onRestartQuestionBank ? (
+              <button type="button" className="secondary-action" onClick={onRestartQuestionBank}>重新练习本组</button>
+            ) : null}
           </div>
         </div>
       ) : null}
-      <p className="practice-status">{status}</p>
+      {!answerResult ? <p className="practice-status">{status}</p> : null}
       {set ? (
         <div className="practice-set">
           <strong>{set.title}</strong>
@@ -102,7 +114,14 @@ export function PracticePanel({
             <button type="button" className="secondary-action" onClick={onSubmitPracticeSet}>开始专项练习（训练模式）</button>
             {onStartLearningMode ? <button type="button" className="secondary-action" onClick={onStartLearningMode}>学习模式（边做边看解析）</button> : null}
           </div>
-          {practiceSetResult ? <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p> : null}
+          {practiceSetResult ? (
+            <div className="practice-set-result">
+              <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p>
+              {onRestartPracticeSet ? (
+                <button type="button" className="secondary-action" onClick={onRestartPracticeSet}>再来一组（同知识点）</button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : <ModuleInlineUnavailable title="推荐题组" resource={practiceSet} onRetry={onRetryPracticeSet} />}
       <p className="muted">答案解析会由标准解析优先提供，AI 只负责补充讲解和相似题推荐。</p>

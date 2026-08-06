@@ -3,8 +3,10 @@ import type { GeneratedPaper, PaperSubmitResult, Question, TeacherClassAnalytics
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { createInitialPaperSession } from '../../constants';
 import type { ModuleResource } from '../../hooks/moduleResource';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 
 interface TeacherWorkspaceProps {
+  activeSection: RoleSection;
   questions: ModuleResource<Question[]>;
   classAnalytics: ModuleResource<TeacherClassAnalytics>;
   latestPaper: GeneratedPaper | null;
@@ -25,12 +27,89 @@ interface TeacherWorkspaceProps {
   onSubmitPaper: () => void;
 }
 
-export function TeacherWorkspace(props: TeacherWorkspaceProps) {
+export function TeacherWorkspace({ activeSection, ...props }: TeacherWorkspaceProps) {
   const questions = props.questions.data;
   const classAnalytics = props.classAnalytics.data;
   const knowledgePointCount = questions
     ? new Set(questions.flatMap((question) => question.knowledgePointIds)).size
     : 0;
+
+  const classAnalyticsPanel = classAnalytics ? (
+    <div className="class-analytics-panel">
+      <div className="class-analytics-heading">
+        <div><p className="eyebrow">班级学情分析</p><h3>{classAnalytics.className}</h3></div>
+        <span>更新于 {new Date(classAnalytics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
+      </div>
+      <ModuleResourceMeta resource={props.classAnalytics} onRetry={props.onRetryClassAnalytics} />
+      {classAnalytics.overview.studentCount === 0 ? (
+        <p className="empty-state">暂未授权学生：请在管理端"用户管理 → 教师授权"中为学生配置本教师。</p>
+      ) : null}
+      <div className="class-analytics-grid">
+        <article><strong>{classAnalytics.overview.studentCount}</strong><span>班级学生</span></article>
+        <article><strong>{classAnalytics.overview.averageAccuracyRate}%</strong><span>平均正确率</span></article>
+        <article><strong>{classAnalytics.overview.averageCompletionRate}%</strong><span>任务完成率</span></article>
+        <article><strong>{classAnalytics.overview.pendingWrongQuestionCount}</strong><span>待复盘错题</span></article>
+      </div>
+      <div className="class-analytics-columns">
+        <div>
+          <strong>四科薄弱分布</strong>
+          <div className="subject-weakness-list">
+            {classAnalytics.subjectWeakness.map((item) => (
+              <article key={item.subject}><div><span>{item.subject}</span><small>掌握度 {item.averageMastery}% · 薄弱点 {item.weakPointCount}</small></div><p>{item.recommendation}</p></article>
+            ))}
+          </div>
+        </div>
+        <div>
+          <strong>风险学生</strong>
+          <div className="risk-student-list">
+            {classAnalytics.atRiskStudents.map((item) => <article key={item.userId}><span>{item.name} · {item.riskType}</span><p>{item.reason}</p><small>{item.nextAction}</small></article>)}
+          </div>
+        </div>
+      </div>
+      <div className="weak-point-teaching-list">
+        {classAnalytics.weakKnowledgePoints.slice(0, 3).map((item) => (
+          <article key={item.knowledgePointId}><strong>{item.title}</strong><span>{item.subject} · 正确率 {item.accuracyRate}% · 错题 {item.wrongCount}</span><p>{item.recommendedAction}</p></article>
+        ))}
+      </div>
+      <div className="teaching-actions">{classAnalytics.teachingActions.map((action) => <span key={action}>{action}</span>)}</div>
+    </div>
+  ) : (
+    <ModuleInlineUnavailable title="班级学情" resource={props.classAnalytics} onRetry={props.onRetryClassAnalytics} />
+  );
+
+  if (activeSection === 'report') {
+    return (
+      <section id="teacher-report" className="panel teacher-panel">
+        <div className="panel-heading">
+          <div><p className="eyebrow">教师端 · 学情报告</p><h3>班级学情报告</h3></div>
+          <div className="panel-actions">
+            <button type="button" className="secondary-action" onClick={props.onRetryClassAnalytics}>刷新报告</button>
+          </div>
+        </div>
+        <p className="task-status">基于授权学生的练习、错题与测评数据生成，数据以班级学情接口为准。</p>
+        {classAnalyticsPanel}
+      </section>
+    );
+  }
+
+  if (activeSection === 'ai') {
+    return (
+      <section id="teacher-ai" className="panel teacher-panel">
+        <div className="panel-heading">
+          <div><p className="eyebrow">教师端 · AI 辅助</p><h3>AI 辅助（建设中）</h3></div>
+        </div>
+        <div className="ai-placeholder">
+          <p>AI 辅助功能正在建设中，后续将支持：</p>
+          <ul>
+            <li>按班级错题自动生成讲评建议</li>
+            <li>试卷讲解与典型错误解读</li>
+            <li>薄弱考点的课堂复习提示</li>
+          </ul>
+          <p className="muted">当前以标准题库与班级学情为准，不会展示未经实现的功能。</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section id="teacher" className="panel teacher-panel">
@@ -73,48 +152,7 @@ export function TeacherWorkspace(props: TeacherWorkspaceProps) {
         <ModuleInlineUnavailable title="题库" resource={props.questions} onRetry={props.onRetryQuestions} />
       )}
 
-      {classAnalytics ? (
-        <div className="class-analytics-panel">
-          <div className="class-analytics-heading">
-            <div><p className="eyebrow">班级学情分析</p><h3>{classAnalytics.className}</h3></div>
-            <span>更新于 {new Date(classAnalytics.generatedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-          <ModuleResourceMeta resource={props.classAnalytics} onRetry={props.onRetryClassAnalytics} />
-          {classAnalytics.overview.studentCount === 0 ? (
-            <p className="empty-state">暂未授权学生：请在管理端"用户管理 → 教师授权"中为学生配置本教师。</p>
-          ) : null}
-          <div className="class-analytics-grid">
-            <article><strong>{classAnalytics.overview.studentCount}</strong><span>班级学生</span></article>
-            <article><strong>{classAnalytics.overview.averageAccuracyRate}%</strong><span>平均正确率</span></article>
-            <article><strong>{classAnalytics.overview.averageCompletionRate}%</strong><span>任务完成率</span></article>
-            <article><strong>{classAnalytics.overview.pendingWrongQuestionCount}</strong><span>待复盘错题</span></article>
-          </div>
-          <div className="class-analytics-columns">
-            <div>
-              <strong>四科薄弱分布</strong>
-              <div className="subject-weakness-list">
-                {classAnalytics.subjectWeakness.map((item) => (
-                  <article key={item.subject}><div><span>{item.subject}</span><small>掌握度 {item.averageMastery}% · 薄弱点 {item.weakPointCount}</small></div><p>{item.recommendation}</p></article>
-                ))}
-              </div>
-            </div>
-            <div>
-              <strong>风险学生</strong>
-              <div className="risk-student-list">
-                {classAnalytics.atRiskStudents.map((item) => <article key={item.userId}><span>{item.name} · {item.riskType}</span><p>{item.reason}</p><small>{item.nextAction}</small></article>)}
-              </div>
-            </div>
-          </div>
-          <div className="weak-point-teaching-list">
-            {classAnalytics.weakKnowledgePoints.slice(0, 3).map((item) => (
-              <article key={item.knowledgePointId}><strong>{item.title}</strong><span>{item.subject} · 正确率 {item.accuracyRate}% · 错题 {item.wrongCount}</span><p>{item.recommendedAction}</p></article>
-            ))}
-          </div>
-          <div className="teaching-actions">{classAnalytics.teachingActions.map((action) => <span key={action}>{action}</span>)}</div>
-        </div>
-      ) : (
-        <ModuleInlineUnavailable title="班级学情" resource={props.classAnalytics} onRetry={props.onRetryClassAnalytics} />
-      )}
+      {classAnalyticsPanel}
 
       {props.latestPaper && props.paperSession ? (
         <div className="paper-session-panel">

@@ -23,6 +23,7 @@ import {
   advanceQuestion,
   beginRedo,
   beginVariantRetest,
+  restartAttempt,
   type PracticeAttemptState,
 } from './features/practice/practiceAttemptState';
 import {
@@ -556,6 +557,7 @@ export function App() {
       setApiState('connected');
       void Promise.allSettled([
         fetchDashboardOverview().then((nextOverview) => setOverview(nextOverview)),
+        refreshTodayPlan(),
         refreshStudyReminders(),
         refreshSprintPlan(),
         refreshMasteryMap(),
@@ -623,6 +625,28 @@ export function App() {
     setLearningSessionType('practice_set');
     setLearningSessionMode(false);
     setPracticeStatus('专项练习已开始（训练模式），作答进度会自动保存。');
+  }
+
+  function handleRestartPracticeSet() {
+    const practiceSet = studentLearning.practiceSet.data;
+    if (!practiceSet) {
+      setPracticeStatus('推荐题组尚未加载，请先重新加载本模块。');
+      return;
+    }
+    invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+    setPracticeSetResult(null);
+    setResumedLearningSession(null);
+    setLearningSessionType('practice_set');
+    setLearningSessionMode(false);
+    setPracticeStatus('再来一组：同知识点训练已开始，作答进度会自动保存。');
+  }
+
+  function handleRestartQuestionBank() {
+    if (questions.length === 0) return;
+    invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+    applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
+    restartPracticeTimer();
+    setPracticeStatus('已重新开始题库训练，选择选项后系统会自动判题。');
   }
 
   function handleStartLearningMode() {
@@ -1182,6 +1206,11 @@ paperId: paper.id,
             ) : null}
           </div>
         </header>
+        {apiState === 'mock' ? (
+          <div className="demo-mode-banner" role="status">
+            演示模式：数据保存在本地，未连接真实后端；生产环境不会出现此提示。
+          </div>
+        ) : null}
 
         <StudentLayout role={sessionUser?.role}>
           {studentOverviewReady && visibleSection === 'dashboard' ? (
@@ -1201,7 +1230,6 @@ paperId: paper.id,
             onNavigate={setActiveSection}
             onContinueToday={handleContinueToday}
             onOnboardingComplete={handleOnboardingComplete}
-            onRefreshTodayPlan={refreshTodayPlan}
             onOpenReview={(questionId) => {
               setDetailQuestionId(questionId);
               setActiveSection('wrong-book');
@@ -1367,6 +1395,8 @@ paperId: paper.id,
               onNextQuestion={handleNextQuestion}
               onSubmitPracticeSet={handleSubmitPracticeSet}
               onStartLearningMode={handleStartLearningMode}
+              onRestartPracticeSet={handleRestartPracticeSet}
+              onRestartQuestionBank={handleRestartQuestionBank}
               onRetryPracticeSet={refreshPracticeSet}
             />
             <WeaknessReportPanel report={report} />
@@ -1389,6 +1419,7 @@ paperId: paper.id,
 
         <TeacherLayout role={sessionUser?.role}>
           <TeacherWorkspace
+            activeSection={visibleSection}
             questions={roleWorkspace.questions}
             classAnalytics={roleWorkspace.classAnalytics}
             latestPaper={latestPaper}
@@ -1498,6 +1529,7 @@ paperId: paper.id,
               }
               void Promise.allSettled([
                 refreshOverview(),
+                refreshTodayPlan(),
                 refreshPracticeSet(),
                 refreshLearningProfile(),
                 refreshTrialProgress(),

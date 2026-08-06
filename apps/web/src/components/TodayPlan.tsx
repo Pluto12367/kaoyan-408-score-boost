@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Clock, CheckCircle2, AlertCircle, BookOpen, RotateCcw } from 'lucide-react';
 import { completeStudyTask } from '../api/endpoints/practice';
-import { postponeTask, startTask, type TodayPlan as TodayPlanType } from '../api/endpoints/onboarding';
+import {
+  postponeTask,
+  rebalanceTasks,
+  rescheduleTask,
+  startTask,
+  type TodayPlan as TodayPlanType,
+} from '../api/endpoints/onboarding';
 import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
 import { validateTaskCompletionDraft, type TaskCompletionDraft } from '../features/plan/taskCompletionDraft';
 
@@ -18,6 +24,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
   const [actionError, setActionError] = useState('');
   const [activeActionTaskId, setActiveActionTaskId] = useState<string | null>(null);
   const [completionDrafts, setCompletionDrafts] = useState<Record<string, TaskCompletionDraft>>({});
+  const [rescheduleDates, setRescheduleDates] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (!focusTaskId) return;
@@ -81,6 +88,37 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
     }
   }
 
+  async function handleReschedule(taskId: string) {
+    const scheduledDate = rescheduleDates[taskId];
+    if (!scheduledDate) {
+      setActionError('请先选择要重新安排的日期。');
+      return;
+    }
+    setActionError('');
+    setActiveActionTaskId(taskId);
+    try {
+      await rescheduleTask(taskId, scheduledDate);
+      await onRefresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '任务重新安排失败，请重试。');
+    } finally {
+      setActiveActionTaskId(null);
+    }
+  }
+
+  async function handleRebalance(mode: 'reduce' | 'priority_only') {
+    setActionError('');
+    setActiveActionTaskId('rebalance');
+    try {
+      await rebalanceTasks(mode);
+      await onRefresh();
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : '计划调整失败，请重试。');
+    } finally {
+      setActiveActionTaskId(null);
+    }
+  }
+
   function updateCompletionDraft(taskId: string, field: keyof TaskCompletionDraft, value: number | undefined) {
     setCompletionDrafts((current) => ({
       ...current,
@@ -112,6 +150,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
             <article key={day.date} className={index === 0 ? 'active' : ''}>
               <strong>第 {index + 1} 天</strong>
               <span>{day.date.slice(5)} · {day.completedTasks}/{day.taskCount} 项</span>
+              {day.focusTitle ? <small>{day.focusTitle}</small> : null}
               <small>{day.totalMinutes} 分钟</small>
             </article>
           ))}
@@ -152,11 +191,25 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
                   <span><Clock size={12} /> {task.minutes} 分钟</span>
                   <span><BookOpen size={12} /> {task.questionCount} 题</span>
                 </div>
+                {task.progress && (task.progress.completedQuestionCount > 0 || task.progress.reachedTarget) ? (
+                  <div className="task-progress">
+                    <div className="progress-bar">
+                      <div
+                        className="progress-fill"
+                        style={{ width: `${Math.min(100, Math.round((task.progress.completedQuestionCount / task.questionCount) * 100))}%` }}
+                      />
+                    </div>
+                    <span>已答 {task.progress.completedQuestionCount}/{task.questionCount} 题 · 正确 {task.progress.correctCount} 题</span>
+                  </div>
+                ) : null}
                 <p className="task-reason">{task.reason}</p>
               </div>
               <div className="task-actions">
                 {task.status === 'in_progress' ? (
                   <div className="task-completion-fields">
+                    {task.progress && task.progress.completedQuestionCount > 0 ? (
+                      <p className="muted">练习记录已自动累计，可补录差额后确认完成。</p>
+                    ) : null}
                     <label><span>完成题数</span><input type="number" min={0} max={200} placeholder={`计划 ${task.questionCount} 题`} value={completionDrafts[task.id]?.completedQuestionCount ?? ''} onChange={(event) => updateCompletionDraft(task.id, 'completedQuestionCount', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
                     <label><span>正确题数</span><input type="number" min={0} max={completionDrafts[task.id]?.completedQuestionCount ?? 200} value={completionDrafts[task.id]?.correctCount ?? ''} onChange={(event) => updateCompletionDraft(task.id, 'correctCount', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
                     <label><span>实际分钟</span><input type="number" min={1} max={600} placeholder={`计划 ${task.minutes} 分钟`} value={completionDrafts[task.id]?.minutesSpent ?? ''} onChange={(event) => updateCompletionDraft(task.id, 'minutesSpent', event.target.value === '' ? undefined : Number(event.target.value))} /></label>
@@ -179,6 +232,19 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
                   </button>
                 ) : null}
               </div>
+              {!task.completed && task.status !== 'completed' ? (
+                <div className="task-adjust-row" aria-label="计划调整">
+                  <input
+                    type="date"
+                    aria-label="重新安排日期"
+                    value={rescheduleDates[task.id] ?? ''}
+                    onChange={(event) => setRescheduleDates((current) => ({ ...current, [task.id]: event.target.value }))}
+                  />
+                  <button type="button" className="secondary-action" disabled={activeActionTaskId === task.id} onClick={() => handleReschedule(task.id)}>重新安排</button>
+                  <button type="button" className="secondary-action" disabled={activeActionTaskId === task.id} onClick={() => handleRebalance('reduce')}>降低本周任务量</button>
+                  <button type="button" className="secondary-action" disabled={activeActionTaskId === task.id} onClick={() => handleRebalance('priority_only')}>只保留高优先级</button>
+                </div>
+              ) : null}
             </article>
           ))
         )}

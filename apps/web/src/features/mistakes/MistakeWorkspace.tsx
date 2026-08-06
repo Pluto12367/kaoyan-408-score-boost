@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { filterWrongQuestions, type WrongQuestionFilter, type WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import type { WrongQuestion, WrongQuestionSummary } from '../../api';
+import { fetchWrongQuestions } from '../../api/endpoints/dashboard';
+import { isMockAllowed } from '../../api/env';
 import { WrongQuestionDetailView } from '../../components/WrongQuestionDetail';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
@@ -76,8 +78,38 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
     reviewedWithinDays: reviewedWithinDays ? Number(reviewedWithinDays) : undefined,
     importance: importance ? Number(importance) : undefined,
   };
-  const filteredQuestions = useMemo(() => filterWrongQuestions(wrongQuestions, filters), [wrongQuestions, subject, chapter, knowledgePointId, masteryStatus, mistakeReason, minWrongCount, reviewedWithinDays, importance]);
+  const filterKey = JSON.stringify(filters);
+  const clientFiltered = useMemo(
+    () => filterWrongQuestions(wrongQuestions, filters),
+    [wrongQuestions, filterKey],
+  );
+  const [reloadKey, setReloadKey] = useState(0);
+  const [serverQuestions, setServerQuestions] = useState<WrongQuestion[] | null>(null);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    setListLoading(true);
+    setListError('');
+    fetchWrongQuestions(filters)
+      .then((items) => {
+        if (!cancelled) setServerQuestions(items);
+      })
+      .catch((error) => {
+        if (!cancelled) setListError(error instanceof Error ? error.message : '错题筛选加载失败，请重试。');
+      })
+      .finally(() => {
+        if (!cancelled) setListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterKey, reloadKey]);
   const hasActiveFilter = Boolean(subject || chapter || knowledgePointId || masteryStatus || mistakeReason || minWrongCount || reviewedWithinDays || importance);
+  const displayQuestions = listError && isMockAllowed()
+    ? clientFiltered
+    : (serverQuestions ?? wrongQuestions);
 
   function resetFilters() {
     setSubject('');
@@ -94,7 +126,7 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
     <section id="wrong-book" className="panel">
       <div className="panel-heading">
         <div><p className="eyebrow">错题本</p><h3>自动收集需要回炉的题目</h3></div>
-        <span>{wrongQuestions.length} 道待复盘</span>
+        <span>{summaryData?.pendingCount ?? wrongQuestions.length} 道待复盘</span>
       </div>
       <p className="task-status">{status}</p>
       {summaryData ? <ModuleResourceMeta resource={summary} onRetry={onRetrySummary} /> : null}
@@ -176,9 +208,24 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
         {hasActiveFilter ? <button type="button" className="secondary-action" onClick={resetFilters}>清除筛选</button> : null}
       </div>
       <div className="wrong-list">
-        {filteredQuestions.length === 0 ? (
-          <p className="task-status">{wrongQuestions.length === 0 ? '错题本还是空的，答错的题目会自动出现在这里。' : '没有符合当前筛选条件的错题。'}</p>
-        ) : filteredQuestions.map((item) => (
+        {listLoading ? (
+          <p className="task-status">正在加载筛选结果...</p>
+        ) : listError ? (
+          <div className="module-error">
+            <span>{listError}</span>
+            <button type="button" className="secondary-action" onClick={() => setReloadKey((current) => current + 1)}>重新加载</button>
+          </div>
+        ) : displayQuestions.length === 0 ? (
+          <p className="task-status">
+            {hasActiveFilter
+              ? '没有符合当前筛选条件的错题。'
+              : wrongQuestions.length === 0
+              ? (summaryData?.resolvedCount ?? 0) > 0
+                ? `当前没有待处理错题，历史已通过重做解决 ${summaryData?.resolvedCount ?? 0} 道。`
+                : '错题本还是空的，答错的题目会自动出现在这里。'
+              : '当前没有待处理错题。'}
+          </p>
+        ) : displayQuestions.map((item) => (
           <article key={item.questionId} className="wrong-row">
             <div>
               <div className="wrong-row-head">

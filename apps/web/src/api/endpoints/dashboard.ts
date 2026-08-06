@@ -10,6 +10,7 @@ import type {
   PracticeSet,
   ReviewResourceRecommendation,
   AssessmentHistory,
+  AssessmentHistoryItem,
   WrongQuestionSummary,
   WrongQuestionFilter,
   StageAssessment,
@@ -78,6 +79,21 @@ export async function fetchAssessmentHistory(): Promise<AssessmentHistory> {
   const response = await fetchWithAuth(`${API_BASE_URL}/assessment-history`);
   if (!response.ok) throw new Error(`Assessment history request failed with ${response.status}`);
   return response.json() as Promise<AssessmentHistory>;
+}
+
+export async function importAssessmentHistory(input: {
+  title: string;
+  score: number;
+  totalScore: number;
+  occurredAt?: string;
+}): Promise<AssessmentHistoryItem> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/assessment-history/import`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Assessment history import failed with ${response.status}`);
+  return response.json() as Promise<AssessmentHistoryItem>;
 }
 
 export async function fetchWrongQuestionSummary(): Promise<WrongQuestionSummary> {

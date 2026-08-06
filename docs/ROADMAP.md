@@ -22,7 +22,7 @@
   3. `POST /knowledge-points` 新建知识点后重启 API 仍存在；
   4. 空库与已导入库两种顺序部署 API 均能正常启动。
 - 风险：内存与 DB 一致性；既有 `PracticeRecord` 对缺失知识点的兜底显示。
-- 当前状态：未开始。
+- 当前状态：已完成（2026-08-05，`KnowledgePointRepository` 接入 StudyService，导入知识点参与掌握度/薄弱/推荐/计划；`POST /knowledge-points` 持久化；空库/已导入库两种启动顺序均已覆盖）。
 
 ## P1
 
@@ -34,7 +34,7 @@
 - 涉及模块：`apps/api/src/study/study.service.ts`（submitPracticeSession / getAssessmentHistory）、评估历史存储（RuntimeState JSON 或新表，方案待确认）。
 - 验收标准：UI 完成一次模拟考试后历史面板出现该次记录；重复提交不产生重复项。
 - 风险：历史去重；既有 RuntimeState JSON 历史迁移。
-- 当前状态：未开始。
+- 当前状态：已完成（2026-08-05，P1-1 会话提交幂等写评估历史；P2-1 转正式表）。
 
 ### P1-2 全新库"先导入后启动"启动崩溃修复
 
@@ -44,7 +44,7 @@
 - 涉及模块：`apps/api/src/questions/questions.service.ts`、`apps/api/src/study/practice-record.repository.ts`。
 - 验收标准：空库 → import → 启动成功；空库 → 启动 → import 也成功。
 - 风险：低。
-- 当前状态：待确认（需实测复现）。
+- 当前状态：已完成（2026-08-05，A1/P1-2 修复：seed 记录按题库目录过滤，`test:integration:import-first` 验证两种启动顺序）。
 
 ### P1-3 AI 答疑降级或真实化
 
@@ -54,7 +54,7 @@
 - 涉及模块：`apps/api/src/study/study.service.ts`、`apps/web/src/App.tsx`、`AiTutorLog` 表。
 - 验收标准：答疑请求不再依赖硬编码答案；每次答疑可审计（表或日志）。
 - 风险：若接入模型需外部依赖与成本确认，范围易膨胀。
-- 当前状态：未开始。
+- 当前状态：已完成（2026-08-06，阶段 7：DeepSeek 真实调用 + 四层提示 + 上下文携带 + `AiTutorLog` 写库；未配置 Key 时降级标准解析模板并明确标识）。
 
 ### P1-4 题库内容正式入库与推荐体验
 
@@ -64,7 +64,7 @@
 - 涉及模块：`scripts/import-questions.mjs`、`kaoyan-408-content-starter/`、部署文档（`docs/deployment-checklist.md` 等）。
 - 验收标准：导入可重复执行（指纹去重幂等）；推荐题组与阶段测验非空；导入后学习闭环（错题/掌握度/推荐）可用。
 - 风险：内容质量需教研复核（`docs/content-guideline.md`、`docs/review-checklist.md`）。
-- 当前状态：待确认（脚本已可用，流程未固化）。
+- 当前状态：已完成（2026-08-05，A2/P1-4：`content-import` 幂等入库 + 操作手册 + 集成验证；腾讯云已导入 320 题）。
 
 ## P2
 
@@ -86,7 +86,7 @@
 - 涉及模块：`packages/shared/src/learning.ts`、`apps/api/src/study/study.service.ts`。
 - 验收标准：同一数据集下 mastery-map 与 weakness 报告结论一致；既有前端展示无破坏。
 - 风险：算法变更影响推荐与计划输出。
-- 当前状态：未开始。
+- 当前状态：已完成（2026-08-06，阶段 5：`computeMasteryReport` 统一口径，mastery-map 与薄弱报告同一结论）。
 
 ### P2-3 StudyService / App.tsx 拆分
 
@@ -96,7 +96,7 @@
 - 涉及模块：`apps/api/src/study/`、`apps/web/src/App.tsx`。
 - 验收标准：重构后 `npm test`、集成测试、UI 冒烟全绿；端点响应逐字节兼容（或至少语义兼容）。
 - 风险：纯重构也需完整回归；禁止与功能开发混在同一提交。
-- 当前状态：未开始。
+- 当前状态：待确认（评估完成：`StudyService` 约 3800 行、`App.tsx` 约 1600 行；已先行把可复用纯逻辑抽到 shared：`accumulateTaskProgress`/`rebalanceTaskLoad`/`isSlowAnswer`/多知识点归因等。整体拆分属大规模重构，按 AGENTS.md 需用户确认后单独实施）。
 
 ### P2-4 多知识点题目记录优化
 
@@ -106,7 +106,7 @@
 - 涉及模块：`prisma/schema.prisma`（迁移，待确认）、`apps/api/src/study/study.service.ts`、`practice-record.repository.ts`。
 - 验收标准：多知识点题答错后各关联知识点均能体现掌握度变化。
 - 风险：记录量增长；统计口径变化。
-- 当前状态：未开始。
+- 当前状态：已完成（2026-08-06，迁移 `20260806120000_practice_record_knowledge_points`：`PracticeRecord.knowledgePointIds TEXT[]` 快照全部关联知识点，掌握度归因计入每个关联点；集成测试通过）。
 
 ### P2-5 演示模式标识与本地开发体验
 
@@ -116,7 +116,7 @@
 - 涉及模块：`apps/web/src/components/ApiStateIndicator.tsx`、`apps/web/src/api/env.ts`、`docs/`。
 - 验收标准：演示模式下界面明确标注数据来源；生产环境无任何演示标识。
 - 风险：低。
-- 当前状态：未开始。
+- 当前状态：已完成（2026-08-06，演示模式横幅 + API pill 提示「演示数据/未连接真实后端」，生产禁 mock 门禁保持）。
 
 ### P3-1 教师端学情报告与 AI 辅助页面（占位导航待实现）
 
@@ -126,7 +126,13 @@
 - 涉及模块：`apps/web/src/layouts/RoleNavigation.tsx`（teacherItems）、`apps/web/src/features/teacher/TeacherWorkspace.tsx`
 - 验收标准：点击两项导航能进入对应页面并有真实数据（或明确标注"建设中"）。
 - 风险：范围膨胀；实现需在核心闭环稳定后进行。
-- 当前状态：未开始（占位保留）。
+- 当前状态：已完成（2026-08-06，教师端按导航分页：学情报告独立页复用班级学情数据，AI 辅助为诚实「建设中」占位，不展示假功能）。
+
+## 2026-08-06 追加项
+
+- 错题筛选服务端化：`MistakeWorkspace` 改调 `GET /wrong-questions` 服务端筛选（8 维），演示模式保留客户端兜底；状态：已完成。
+- 行为埋点：`UserEvent` 表（迁移 `20260806130000_user_events`）+ `POST /events` + 核心闭环动作（practice.submit / session.submit / task.complete / wrong.review / assessment.import）best-effort 落库；状态：已完成。
+- AI 变式题入库：**评估结论——暂缓**。现有 `findSimilarQuestions` 同知识点变式复测已支撑掌握判定闭环；AI 生成题目入库需要教研审核流、模型成本与内容质量门禁（AGENTS.md「无真实数据支持的 AI 功能」红线），建议在内容审核管道稳定后单独立项。
 
 ## 明确不做（避免范围膨胀）
 

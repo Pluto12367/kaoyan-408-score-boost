@@ -10,6 +10,7 @@ import {
   createTeacherQuestion,
   generateTutorReply,
   gradePracticeSessionAnswers,
+  isSlowAnswer,
   normalizeMistakeReason,
   recommendPracticeSet,
   requireQuestionKnowledgePoint,
@@ -87,7 +88,7 @@ test('gradePracticeSessionAnswers classifies mistake reasons like the backend', 
 
   assert.equal(result.records[0].mistakeReason, '概念混淆');
   assert.equal(result.records[1].mistakeReason, '审题错误');
-  assert.equal(result.records[2].mistakeReason, '时间不足');
+  assert.equal(result.records[2].mistakeReason, null);
   assert.equal(result.records[3].mistakeReason, null);
   assert.equal(result.records[4].mistakeReason, null);
 });
@@ -141,7 +142,7 @@ test('computeWeaknessReport finds weak chapters and speed risk separately', () =
 test('classifyMistake maps behavior to review-friendly reasons', () => {
   assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 45, expectedTimeSec: 90 }), '审题错误');
   assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 180, expectedTimeSec: 90 }), '概念混淆');
-  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), '时间不足');
+  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), null);
 });
 
 test('recommendPracticeSet chooses sprint review from weak and wrong questions', () => {
@@ -202,9 +203,9 @@ test('createPracticeRecord stores answer result with mistake reason and traceabl
 test('generateTutorReply explains the question and recommends next actions', () => {
   const reply = generateTutorReply({
     question: {
-      stem: '直接映射 Cache 中，主存块号 29 应映射到 Cache 的哪一行？',
-      analysis: '直接映射行号等于主存块号对 Cache 行数取模。',
-      answer: 'B',
+      stem: '直接映射 Cache（共 8 行）中，主存块号 29 应映射到 Cache 的哪一行？',
+      analysis: '直接映射行号 = 主存块号 mod Cache 行数 = 29 mod 8 = 5，映射到第 5 行。',
+      answer: 'C',
       knowledgePointIds: ['co-cache'],
     },
     knowledgePoints,
@@ -212,7 +213,7 @@ test('generateTutorReply explains the question and recommends next actions', () 
   });
 
   assert.match(reply, /Cache映射与替换/);
-  assert.match(reply, /正确答案是 B/);
+  assert.match(reply, /正确答案是 C/);
   assert.match(reply, /相似题/);
 });
 
@@ -236,8 +237,9 @@ test('createTeacherQuestion adds a valid question with generated id', () => {
 
 // ---- Additional tests for edge cases ----
 
-test('classifyMistake returns null for correct and fast answers', () => {
+test('classifyMistake returns null for correct answers regardless of speed', () => {
   assert.equal(classifyMistake({ correct: true, selectedAnswer: 'B', correctAnswer: 'B', timeSpentSec: 80, expectedTimeSec: 100 }), null);
+  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), null);
 });
 
 test('classifyMistake returns 概念混淆 for wrong answers at normal speed', () => {
@@ -252,9 +254,14 @@ test('classifyMistake treats guessed-correct answers as 蒙题 instead of master
   assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 60, expectedTimeSec: 100, confidence: '完全不会' }), '蒙题');
 });
 
-test('classifyMistake returns 时间不足 for unanswered or overtime-correct answers', () => {
+test('classifyMistake returns 时间不足 only for unanswered answers', () => {
   assert.equal(classifyMistake({ correct: false, selectedAnswer: '', correctAnswer: 'C', timeSpentSec: 200, expectedTimeSec: 90 }), '时间不足');
-  assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), '时间不足');
+});
+
+test('isSlowAnswer flags answers over 145% of the expected time', () => {
+  assert.equal(isSlowAnswer(160, 90), true);
+  assert.equal(isSlowAnswer(100, 90), false);
+  assert.equal(isSlowAnswer(130, 90), false);
 });
 
 test('classifyMistake returns 推理过程错误 when a wrong answer used a hint', () => {
