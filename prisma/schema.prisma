@@ -488,6 +488,7 @@ model PracticeRecord {
   confidence       String?
   usedHint         Boolean          @default(false)
   answerModified   Boolean          @default(false)
+  variantQuestionId String?
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   question         Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
   knowledgePoint   KnowledgePoint   @relation(fields: [knowledgePointId], references: [id])

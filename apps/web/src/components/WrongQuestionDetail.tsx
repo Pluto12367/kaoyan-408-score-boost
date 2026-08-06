@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { BookOpen, RotateCcw, CheckCircle, Clock, AlertCircle } from 'lucide-react';
-import { fetchWrongQuestionDetail, saveWrongQuestionNote, type WrongQuestionDetail as DetailType } from '../api/endpoints/review';
+import { BookOpen, RotateCcw, CheckCircle, Clock, AlertCircle, Target } from 'lucide-react';
+import { fetchWrongQuestionDetail, saveWrongQuestionNote, type WrongQuestionDetail as DetailType, type WrongQuestionDetailLayerItem } from '../api/endpoints/review';
 
 interface Props {
   questionId: string;
   onRedo: (questionId: string) => void;
+  onPracticeVariant?: (questionId: string, variantOfQuestionId: string) => void;
   onClose: () => void;
 }
 
-export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) {
+export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant, onClose }: Props) {
   const [detail, setDetail] = useState<DetailType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
@@ -37,6 +38,27 @@ export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) 
     } catch (saveError) {
       setNoteStatus(saveError instanceof Error ? saveError.message : '保存失败');
     }
+  }
+
+  function renderLayer(title: string, description: string, items: WrongQuestionDetailLayerItem[]) {
+    if (items.length === 0) return null;
+    return (
+      <div className="review-layer">
+        <div className="review-layer-head">
+          <span className="layer-tag">{title}</span>
+          <p>{description}</p>
+        </div>
+        {items.map((q) => (
+          <div key={q.questionId} className="review-layer-row">
+            <div>
+              <strong>{q.knowledgePointTitle ?? q.difficulty}</strong>
+              <p>{q.stem}</p>
+            </div>
+            <button type="button" className="secondary-action" onClick={() => onPracticeVariant?.(q.questionId, questionId)}>练习</button>
+          </div>
+        ))}
+      </div>
+    );
   }
 
   return (
@@ -91,10 +113,14 @@ export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) 
           <div className="status-grid">
             {rs.inferredReason ? <span>系统综合判断 <strong>{rs.inferredReason}</strong></span> : null}
             <span>连续正确 <strong>{rs.consecutiveCorrect}</strong> 次</span>
+            {detail.masteryCriteria ? <span>变式答对 <strong>{detail.masteryCriteria.variantCorrectCount}</strong> 次</span> : null}
             <span>已复习 <strong>{rs.reviewCount}</strong> 次</span>
             <span>下次复习 <strong>{rs.nextReviewAt.slice(0, 10)}</strong></span>
             <span>自评原因 <strong>{rs.selfReportedReason}</strong></span>
           </div>
+          {detail.masteryStatus ? (
+            <p className="task-status">系统判定：{detail.masteryStatus}（依据：连续正确 {detail.masteryCriteria?.consecutiveCorrect ?? 0} 次 + 变式答对 {detail.masteryCriteria?.variantCorrectCount ?? 0} 次）</p>
+          ) : null}
         </div>
       ) : null}
 
@@ -125,7 +151,25 @@ export function WrongQuestionDetailView({ questionId, onRedo, onClose }: Props) 
         </div>
       ) : null}
 
-      {/* Similar questions */}
+      {/* Four-layer review path */}
+      <div className="review-layers">
+        <div className="review-layers-head">
+          <strong><Target size={14} /> 复测路径</strong>
+          <p>按顺序完成：原题 → 变式 → 易混辨析 → 综合应用，连续答对可升级掌握状态。</p>
+        </div>
+        <div className="review-layer">
+          <div className="review-layer-head">
+            <span className="layer-tag">原题回顾</span>
+            <p>先回顾原题与解析，确认是否已理解核心考点。</p>
+          </div>
+          <button type="button" className="secondary-action" onClick={() => onRedo(questionId)}>重做原题</button>
+        </div>
+        {renderLayer('变式题', '同考点变式，连续答对可推动掌握状态升级。', detail.reviewLayers.variants)}
+        {renderLayer('易混辨析', '同章节易混知识点辨析，帮助区分易错条件。', detail.reviewLayers.confusingConcepts)}
+        {renderLayer('综合应用', '综合应用题，检验跨考点综合运用能力。', detail.reviewLayers.comprehensive)}
+      </div>
+
+      {/* Similar questions (legacy read-only list) */}
       {detail.similarQuestions.length > 0 ? (
         <div className="similar-questions">
           <strong>相似题目</strong>

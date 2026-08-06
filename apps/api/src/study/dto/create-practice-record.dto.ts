@@ -53,4 +53,8 @@ export class CreatePracticeRecordDto {
   @IsOptional()
   @IsBoolean()
   answerModified?: boolean;
+
+  @IsOptional()
+  @IsString()
+  variantQuestionId?: string;
 }

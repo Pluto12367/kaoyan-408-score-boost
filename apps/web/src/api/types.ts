@@ -158,6 +158,19 @@ export interface PracticeSetResult {
   nextActions: string[];
 }
 
+export type WrongQuestionMasteryStatus = '未掌握' | '复习中' | '已掌握';
+
+export interface WrongQuestionFilter {
+  subject?: string;
+  chapter?: string;
+  knowledgePointId?: string;
+  mistakeReason?: string;
+  minWrongCount?: number;
+  masteryStatus?: WrongQuestionMasteryStatus;
+  reviewedWithinDays?: number;
+  importance?: number;
+}
+
 // ---- Wrong Questions ----
 export interface WrongQuestion {
   questionId: string;
@@ -173,6 +186,13 @@ export interface WrongQuestion {
   latestSubmittedAt: string;
   reviewStatus: 'pending' | 'reviewed';
   reviewedAt?: string | null;
+  masteryStatus: WrongQuestionMasteryStatus;
+  masteryCriteria?: {
+    stability: string;
+    consecutiveCorrect: number;
+    variantCorrectCount: number;
+  };
+  importance?: number;
   nextAction?: string;
   similarQuestions?: Array<{
     id: string;
@@ -188,6 +208,7 @@ export interface WrongQuestionSummary {
   reviewedCount: number;
   resolvedCount: number;
   totalWrongCount: number;
+  masteryStats: Array<{ status: WrongQuestionMasteryStatus; count: number }>;
   mistakeReasonStats: Array<{ reason: string; count: number }>;
   priorityRedoItems: Array<{
     questionId: string;

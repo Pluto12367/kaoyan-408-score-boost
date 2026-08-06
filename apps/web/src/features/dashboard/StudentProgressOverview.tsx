@@ -1,3 +1,4 @@
+import { estimatePredictedScore } from '@kaoyan408/shared';
 import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { MasteryMap, SprintPlan, StudyReminders, TrialProgress } from '../../api';
 import { masteryStatusLabel, priorityLabel } from '../../constants';
@@ -33,6 +34,18 @@ export function StudentProgressOverview({
   const reminders = studyReminders.data;
   const sprint = sprintPlan.data;
   const mastery = masteryMap.data;
+  const averageMastery = mastery && mastery.subjects.length
+    ? Math.round(mastery.subjects.reduce((sum, subject) => sum + subject.averageMastery, 0) / mastery.subjects.length)
+    : null;
+  const predicted = report.completionRate > 0 || report.weakPoints.length > 0
+    ? estimatePredictedScore({
+        currentScore: student.currentScore ?? 0,
+        targetScore: student.targetScore ?? 100,
+        accuracyRate: report.accuracyRate,
+        averageMastery: averageMastery ?? report.accuracyRate,
+        remainingDays: student.remainingDays ?? 0,
+      })
+    : null;
 
   return (
     <>
@@ -126,6 +139,7 @@ export function StudentProgressOverview({
         <Metric title="正确率" value={`${report.accuracyRate}%`} caption="近 20 次练习统计" />
         <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
         <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
+        <Metric title="预测分数" value={predicted ? `${predicted.minScore}–${predicted.maxScore} 分` : '--'} caption={predicted ? predicted.disclaimer : '完成练习后估算'} />
       </section>
     </>
   );

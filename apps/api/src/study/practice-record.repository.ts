@@ -173,6 +173,7 @@ function toDomainRecord(record: {
   confidence: string | null;
   usedHint: boolean;
   answerModified: boolean;
+  variantQuestionId: string | null;
 }): PracticeRecord {
   return {
       id: record.id,
@@ -192,6 +193,7 @@ function toDomainRecord(record: {
       confidence: mapConfidence(record.confidence),
       usedHint: record.usedHint,
       answerModified: record.answerModified,
+      variantQuestionId: record.variantQuestionId ?? undefined,
     };
 }
 
@@ -214,6 +216,7 @@ export function toPrismaRecord(record: PracticeRecord) {
     confidence: record.confidence,
     usedHint: record.usedHint,
     answerModified: record.answerModified,
+    variantQuestionId: record.variantQuestionId,
   };
 }
 

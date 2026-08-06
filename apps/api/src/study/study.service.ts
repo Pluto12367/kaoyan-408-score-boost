@@ -4,15 +4,22 @@ import {
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildStudyPlan,
   classifyMistake,
+  computeMasteryReport,
   computeWeaknessReport,
+  deriveMasteryStatus,
+  filterWrongQuestions,
+  nextReviewIntervalDays,
   postExamTaskId,
   type DiagnosticProfile,
   type KnowledgePoint,
+  type MasteryPointExtras,
   type PracticeRecord,
   type Question,
   type StudyStage,
   type Subject,
   type UserProfile,
+  type WrongQuestionFilter,
+  type WrongQuestionMasteryStatus,
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
@@ -507,52 +514,47 @@ export class StudyService implements OnModuleInit {
       wrongByPoint.set(item.knowledgePointId, (wrongByPoint.get(item.knowledgePointId) ?? 0) + item.wrongCount);
     }
 
-    const subjectMaps = subjects.map((subject) => {
-      const points = this.knowledgePoints
-        .filter((point) => point.subject === subject)
-        .map((point) => {
-          const records = this.records.filter((record) => record.userId === userId && record.knowledgePointId === point.id);
-          const taskIds = new Set(this.sevenDayPlansByUser.get(userId)?.tasks
-            .filter((task) => task.knowledgePointId === point.id)
-            .map((task) => task.id) ?? []);
-          const taskMetrics = [...(this.taskCompletionMetricsByUser.get(userId)?.entries() ?? [])]
-            .filter(([taskId]) => taskIds.has(taskId))
-            .map(([, metric]) => metric);
-          const taskQuestionCount = taskMetrics.reduce((sum, metric) => sum + metric.completedQuestionCount, 0);
-          const taskCorrectCount = taskMetrics.reduce((sum, metric) => sum + metric.correctCount, 0);
-          const correctCount = records.filter((record) => record.correct).length + taskCorrectCount;
-          const practiceCount = records.length + taskQuestionCount;
-          const wrongCount = records.filter((record) => !record.correct).length + Math.max(0, taskQuestionCount - taskCorrectCount) + (wrongByPoint.get(point.id) ?? 0);
-          const accuracyRate = practiceCount ? Math.round((correctCount / practiceCount) * 100) : 0;
-          const practiceCoverage = Math.min(100, practiceCount * 25);
-          const masteryRate = practiceCount
-            ? Math.round((accuracyRate * 0.7) + (practiceCoverage * 0.3))
-            : Math.max(10, Math.round((point.frequency + point.importance) * 6));
-          const status: MasteryStatus = masteryRate < 60 || wrongCount >= 2
-            ? 'weak'
-            : masteryRate < 80 || practiceCount < 3
-              ? 'review'
-              : 'mastered';
+    const extrasByPoint = new Map<string, MasteryPointExtras>();
+    for (const point of this.knowledgePoints) {
+      const taskIds = new Set(this.sevenDayPlansByUser.get(userId)?.tasks
+        .filter((task) => task.knowledgePointId === point.id)
+        .map((task) => task.id) ?? []);
+      const taskMetrics = [...(this.taskCompletionMetricsByUser.get(userId)?.entries() ?? [])]
+        .filter(([taskId]) => taskIds.has(taskId))
+        .map(([, metric]) => metric);
+      const taskQuestionCount = taskMetrics.reduce((sum, metric) => sum + metric.completedQuestionCount, 0);
+      const taskCorrectCount = taskMetrics.reduce((sum, metric) => sum + metric.correctCount, 0);
+      extrasByPoint.set(point.id, {
+        practiceCount: taskQuestionCount,
+        correctCount: taskCorrectCount,
+        wrongCount: Math.max(0, taskQuestionCount - taskCorrectCount) + (wrongByPoint.get(point.id) ?? 0),
+      });
+    }
 
-          return {
-            knowledgePointId: point.id,
-            title: point.title,
-            chapter: point.chapter,
-            importance: point.importance,
-            frequency: point.frequency,
-            masteryRate,
-            accuracyRate,
-            practiceCount,
-            wrongCount,
-            status,
-            nextAction: status === 'weak'
-              ? '先复盘错题，再做 5 道同考点基础题。'
-              : status === 'review'
-                ? '补 3 道变式题，并记录易混点。'
-                : '进入限时训练，保持速度和稳定性。',
-            actionAnchor: status === 'weak' ? '#wrong-book' : '#question',
-          };
-        });
+    const model = computeMasteryReport({
+      knowledgePoints: this.knowledgePoints,
+      records: this.records.filter((record) => record.userId === userId),
+      targetScore: this.getStudent(userId).targetScore ?? 115,
+      extrasByPoint,
+    });
+
+    const subjectMaps = subjects.map((subject) => {
+      const points = model.points
+        .filter((point) => point.subject === subject)
+        .map((point) => ({
+          knowledgePointId: point.knowledgePointId,
+          title: point.title,
+          chapter: point.chapter,
+          importance: point.importance,
+          frequency: point.frequency,
+          masteryRate: point.masteryRate,
+          accuracyRate: point.accuracyRate,
+          practiceCount: point.attempts,
+          wrongCount: point.wrongCount,
+          status: point.status,
+          nextAction: point.nextAction,
+          actionAnchor: point.status === 'weak' ? '#wrong-book' : '#question',
+        }));
       const averageMastery = points.length
         ? Math.round(points.reduce((sum, point) => sum + point.masteryRate, 0) / points.length)
         : 0;
@@ -1435,7 +1437,7 @@ export class StudyService implements OnModuleInit {
     return aiReviewItem;
   }
 
-  listWrongQuestions(userId = this.student.id) {
+  listWrongQuestions(userId = this.student.id, filters: WrongQuestionFilter = {}) {
     const grouped = new Map<string, PracticeRecord[]>();
     const reviewedQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
     for (const record of this.records.filter((item) => item.userId === userId)) {
@@ -1444,7 +1446,7 @@ export class StudyService implements OnModuleInit {
       grouped.set(record.questionId, bucket);
     }
 
-    return [...grouped.entries()].flatMap(([questionId, records]) => {
+    const items = [...grouped.entries()].flatMap(([questionId, records]) => {
       const latestRecord = records[records.length - 1];
       if (latestRecord.correct) {
         return [];
@@ -1453,6 +1455,7 @@ export class StudyService implements OnModuleInit {
       const question = this.questions.find((item) => item.id === questionId);
       const knowledgePoint = this.knowledgePoints.find((item) => item.id === latestRecord.knowledgePointId);
       const wrongCount = records.filter((record) => !record.correct).length;
+      const mastery = this.getMasteryState(userId, questionId);
 
       return [{
         questionId,
@@ -1468,8 +1471,13 @@ export class StudyService implements OnModuleInit {
         latestSubmittedAt: latestRecord.submittedAt,
         reviewStatus: reviewedQuestions.has(questionId) ? 'reviewed' : 'pending',
         reviewedAt: reviewedQuestions.get(questionId) ?? null,
+        masteryStatus: mastery.masteryStatus,
+        masteryCriteria: mastery.masteryCriteria,
+        importance: knowledgePoint?.importance ?? 0,
       }];
     });
+
+    return filterWrongQuestions(items, filters);
   }
 
   async reviewWrongQuestion(questionId: string, userId = this.student.id) {
@@ -1561,10 +1569,10 @@ export class StudyService implements OnModuleInit {
       : consecutiveCorrect >= 1 ? 'review'
       : 'learning';
 
-    // Spaced repetition intervals
-    const intervals = [1, 3, 7, 14]; // days
-    const intervalIndex = Math.min(consecutiveCorrect, intervals.length - 1);
-    const nextIntervalDays = consecutiveCorrect === 0 ? 1 : intervals[intervalIndex];
+    // Spaced repetition intervals; a correct-but-slow review keeps a shorter interval
+    const latestRecord = questionRecords[questionRecords.length - 1];
+    const slowReview = input.redoCorrect && input.timeSpentSec > (latestRecord?.expectedTimeSec ?? 60) * 1.45;
+    const nextIntervalDays = nextReviewIntervalDays({ consecutiveCorrect, slowReview });
 
     const nextReviewAt = new Date(now);
     nextReviewAt.setUTCDate(nextReviewAt.getUTCDate() + nextIntervalDays);
@@ -1679,6 +1687,7 @@ export class StudyService implements OnModuleInit {
     const schedule = this.reviewSchedules.get(key);
     const reviewHistory = this.reviewAttemptsByKey.get(key) ?? [];
     const similar = this.findSimilarQuestions(questionId, point?.id ?? '');
+    const mastery = this.getMasteryState(userId, questionId);
 
     return {
       questionId,
@@ -1706,6 +1715,9 @@ export class StudyService implements OnModuleInit {
       note: schedule?.note ?? '',
       reviewHistory,
       similarQuestions: similar,
+      reviewLayers: this.buildReviewLayers(questionId, question, point),
+      masteryStatus: mastery.masteryStatus,
+      masteryCriteria: mastery.masteryCriteria,
       recommendation: schedule?.stability === 'mastered'
         ? '已稳定掌握，保持定期限时训练。'
         : schedule?.stability === 'review'
@@ -1714,6 +1726,45 @@ export class StudyService implements OnModuleInit {
     };
   }
 
+  private buildReviewLayers(questionId: string, question: Question | undefined, point: KnowledgePoint | undefined) {
+    const toItem = (item: Question) => {
+      const itemPoint = this.knowledgePoints.find((p) => item.knowledgePointIds.includes(p.id));
+      return {
+        questionId: item.id,
+        stem: item.stem,
+        difficulty: item.difficulty,
+        source: item.source,
+        type: item.type,
+        knowledgePointId: itemPoint?.id,
+        knowledgePointTitle: itemPoint?.title,
+      };
+    };
+    const samePoint = this.questions.filter(
+      (item) => item.id !== questionId && point && item.knowledgePointIds.includes(point.id),
+    );
+    const confusing = this.questions.filter((item) => {
+      if (item.id === questionId || !point) return false;
+      const itemPoint = this.knowledgePoints.find((p) => item.knowledgePointIds.includes(p.id));
+      return Boolean(itemPoint && itemPoint.subject === point.subject && itemPoint.id !== point.id
+        && (!point.chapter || itemPoint.chapter === point.chapter));
+    });
+    const comprehensive = this.questions.filter(
+      (item) => item.id !== questionId && (item.type === '综合题' || item.difficulty === '困难'),
+    );
+    return {
+      original: question ? {
+        questionId: question.id,
+        stem: question.stem,
+        answer: question.answer,
+        analysis: question.analysis,
+        difficulty: question.difficulty,
+        source: question.source,
+      } : null,
+      variants: samePoint.slice(0, 3).map(toItem),
+      confusingConcepts: confusing.slice(0, 3).map(toItem),
+      comprehensive: comprehensive.slice(0, 3).map(toItem),
+    };
+  }
   getWrongQuestionSummary(userId = this.student.id) {
     const wrongQuestions = this.listWrongQuestions(userId);
     const reviewedQuestions = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
@@ -1766,6 +1817,10 @@ export class StudyService implements OnModuleInit {
       reviewedCount,
       resolvedCount,
       totalWrongCount: wrongQuestions.length,
+      masteryStats: (['未掌握', '复习中', '已掌握'] as const).map((status) => ({
+        status,
+        count: wrongQuestions.filter((item) => item.masteryStatus === status).length,
+      })),
       mistakeReasonStats: [...mistakeReasonCounts.entries()]
         .map(([reason, count]) => ({ reason, count }))
         .sort((left, right) => right.count - left.count),
@@ -1973,7 +2028,10 @@ export class StudyService implements OnModuleInit {
     if (!savedRecord.correct) {
       await this.ensureReviewSchedule(savedRecord);
     }
-    return savedRecord;
+    const variantProgress = input.variantQuestionId
+      ? await this.applyVariantRetest(savedRecord, input.variantQuestionId)
+      : null;
+    return variantProgress ? { ...savedRecord, variantProgress } : savedRecord;
   }
 
   async getPracticeFeedback(questionId: string) {
@@ -2034,6 +2092,77 @@ export class StudyService implements OnModuleInit {
       confidence: input.confidence,
       usedHint: input.usedHint,
       answerModified: input.answerModified,
+      variantQuestionId: input.variantQuestionId,
+    };
+  }
+
+  private async applyVariantRetest(record: PracticeRecord, originalQuestionId: string) {
+    if (originalQuestionId === record.questionId) return null;
+    const key = scheduleKey(record.userId, originalQuestionId);
+    const existing = this.reviewSchedules.get(key);
+    if (!existing) return null;
+
+    const now = new Date();
+    const consecutiveCorrect = record.correct ? existing.consecutiveCorrect + 1 : 0;
+    const stability: ReviewSchedule['stability'] =
+      consecutiveCorrect >= 3 ? 'mastered'
+      : consecutiveCorrect >= 1 ? 'review'
+      : 'learning';
+    const slowReview = record.correct && record.timeSpentSec > record.expectedTimeSec * 1.45;
+    const nextIntervalDays = nextReviewIntervalDays({ consecutiveCorrect, slowReview });
+    const nextReviewAt = new Date(now.getTime() + nextIntervalDays * 86_400_000).toISOString();
+
+    const schedule: ReviewSchedule = {
+      ...existing,
+      redoCorrect: record.correct,
+      timeSpentSec: record.timeSpentSec,
+      consecutiveCorrect,
+      stability,
+      nextReviewAt,
+      reviewCount: existing.reviewCount + 1,
+      lastReviewedAt: now.toISOString(),
+    };
+    this.reviewSchedules.set(key, schedule);
+    const attempt: ReviewAttemptState = {
+      redoCorrect: record.correct,
+      timeSpentSec: record.timeSpentSec,
+      inferredReason: '变式题复测',
+      nextIntervalDays,
+      reviewedAt: now.toISOString(),
+    };
+    const attempts = this.reviewAttemptsByKey.get(key) ?? [];
+    attempts.push(attempt);
+    this.reviewAttemptsByKey.set(key, attempts);
+    await this.reviewScheduleRepository.saveReview(schedule, attempt);
+
+    const reviewed = this.wrongQuestionReviewDatesByUser.get(record.userId) ?? new Map<string, string>();
+    reviewed.set(originalQuestionId, now.toISOString());
+    this.wrongQuestionReviewDatesByUser.set(record.userId, reviewed);
+    await this.learningProgressRepository.saveWrongQuestionReview(record.userId, originalQuestionId, now.toISOString());
+
+    return {
+      originalQuestionId,
+      consecutiveCorrect,
+      stability,
+      nextReviewInDays: nextIntervalDays,
+      message: record.correct
+        ? stability === 'mastered'
+          ? '变式题连续答对 3 次，已标记为已掌握。'
+          : `变式题答对，连续正确 ${consecutiveCorrect} 次。`
+        : '变式题仍答错，原错题连续正确已清零，建议先回顾解析。',
+    };
+  }
+
+  private getMasteryState(userId: string, questionId: string) {
+    const schedule = this.reviewSchedules.get(scheduleKey(userId, questionId));
+    const stability = schedule?.stability ?? 'learning';
+    const consecutiveCorrect = schedule?.consecutiveCorrect ?? 0;
+    const variantCorrectCount = this.records.filter(
+      (record) => record.userId === userId && record.variantQuestionId === questionId && record.correct,
+    ).length;
+    return {
+      masteryStatus: deriveMasteryStatus({ stability, consecutiveCorrect }),
+      masteryCriteria: { stability, consecutiveCorrect, variantCorrectCount },
     };
   }
 
@@ -3714,8 +3843,6 @@ export interface ReviewResource {
   actionText: string;
   actionAnchor: string;
 }
-
-type MasteryStatus = 'weak' | 'review' | 'mastered';
 
 // Phase 4 session types
 interface PracticeSession {

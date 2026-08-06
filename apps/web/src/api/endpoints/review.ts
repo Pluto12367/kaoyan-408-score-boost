@@ -28,6 +28,16 @@ export interface DueReviewsResponse {
   nextAction: string;
 }
 
+export interface WrongQuestionDetailLayerItem {
+  questionId: string;
+  stem: string;
+  difficulty: string;
+  source: string;
+  type?: string;
+  knowledgePointId?: string;
+  knowledgePointTitle?: string;
+}
+
 export interface WrongQuestionDetail {
   questionId: string;
   stem: string;
@@ -36,6 +46,12 @@ export interface WrongQuestionDetail {
   knowledgePointTitle: string;
   subject: string;
   chapter: string;
+  masteryStatus: '未掌握' | '复习中' | '已掌握';
+  masteryCriteria: {
+    stability: string;
+    consecutiveCorrect: number;
+    variantCorrectCount: number;
+  };
   attemptHistory: Array<{
     date: string;
     selectedAnswer?: string;
@@ -61,6 +77,12 @@ export interface WrongQuestionDetail {
     reviewedAt: string;
   }>;
   similarQuestions: Array<{ id: string; stem: string; difficulty: string; source: string }>;
+  reviewLayers: {
+    original: WrongQuestionDetailLayerItem | null;
+    variants: WrongQuestionDetailLayerItem[];
+    confusingConcepts: WrongQuestionDetailLayerItem[];
+    comprehensive: WrongQuestionDetailLayerItem[];
+  };
   recommendation: string;
 }
 

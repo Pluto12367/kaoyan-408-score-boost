@@ -11,6 +11,7 @@ import type {
   ReviewResourceRecommendation,
   AssessmentHistory,
   WrongQuestionSummary,
+  WrongQuestionFilter,
   StageAssessment,
   WrongQuestion,
   TeacherStudentAuthorization,
@@ -83,6 +84,17 @@ export async function fetchWrongQuestionSummary(): Promise<WrongQuestionSummary>
   const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/summary`);
   if (!response.ok) throw new Error(`Wrong question summary request failed with ${response.status}`);
   return response.json() as Promise<WrongQuestionSummary>;
+}
+
+export async function fetchWrongQuestions(filters: WrongQuestionFilter = {}): Promise<WrongQuestion[]> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== undefined && value !== null && value !== '') params.set(key, String(value));
+  }
+  const query = params.toString();
+  const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions${query ? `?${query}` : ''}`);
+  if (!response.ok) throw new Error(`Wrong questions request failed with ${response.status}`);
+  return response.json() as Promise<WrongQuestion[]>;
 }
 
 export async function fetchStageAssessment(): Promise<StageAssessment> {

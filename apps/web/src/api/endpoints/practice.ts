@@ -2,6 +2,14 @@ import { API_BASE_URL, fetchWithAuth } from '../client';
 import type { ConfidenceLevel, MistakeReason } from '@kaoyan408/shared';
 import type { PracticeSetResult, StageAssessmentResult, DiagnosticInput, DiagnosticProfile } from '../types';
 
+export interface VariantRetestProgress {
+  originalQuestionId: string;
+  consecutiveCorrect: number;
+  stability: string;
+  nextReviewInDays: number;
+  message: string;
+}
+
 export interface PracticeAnswerResult {
   id: string;
   correct: boolean;
@@ -13,6 +21,7 @@ export interface PracticeAnswerResult {
   confidence?: ConfidenceLevel;
   usedHint?: boolean;
   answerModified?: boolean;
+  variantProgress?: VariantRetestProgress;
 }
 
 export async function submitPracticeAnswer(input: {
@@ -21,6 +30,7 @@ export async function submitPracticeAnswer(input: {
   confidence?: ConfidenceLevel;
   usedHint?: boolean;
   answerModified?: boolean;
+  variantQuestionId?: string;
 }): Promise<PracticeAnswerResult> {
   const response = await fetchWithAuth(`${API_BASE_URL}/practice-records`, {
     method: 'POST',

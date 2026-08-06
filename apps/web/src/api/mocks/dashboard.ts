@@ -66,6 +66,9 @@ export function createMockOverview(): DashboardOverview {
       latestSubmittedAt: '2026-06-22',
       reviewStatus: 'pending',
       reviewedAt: null,
+      masteryStatus: '未掌握',
+      masteryCriteria: { stability: 'learning', consecutiveCorrect: 0, variantCorrectCount: 0 },
+      importance: 4,
     }],
     learningCalendar: createMockLearningCalendar(),
     stageAssessment: createMockStageAssessment(),
@@ -414,6 +417,7 @@ export function createMockAiFollowUp(): AiFollowUp {
 export function createMockWrongQuestionSummary(): WrongQuestionSummary {
   return {
     userId: student.id, pendingCount: 1, reviewedCount: 0, resolvedCount: 0, totalWrongCount: 1,
+    masteryStats: [{ status: '未掌握', count: 1 }, { status: '复习中', count: 0 }, { status: '已掌握', count: 0 }],
     mistakeReasonStats: [{ reason: '概念混淆', count: 2 }, { reason: '审题错误', count: 1 }],
     priorityRedoItems: [{
       questionId: questions[0].id, stem: questions[0].stem,

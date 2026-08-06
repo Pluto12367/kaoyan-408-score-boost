@@ -9,6 +9,7 @@ import type {
   StudyPlan,
   StudyStage,
   Subject,
+  WeakPoint,
   WeaknessReport,
 } from './domain';
 
@@ -151,60 +152,20 @@ export function computeWeaknessReport(input: {
   records: PracticeRecord[];
   targetScore: number;
 }): WeaknessReport {
-  const pointMap = new Map(input.knowledgePoints.map((point) => [point.id, point]));
-  const grouped = new Map<string, PracticeRecord[]>();
-
-  for (const record of input.records) {
-    const bucket = grouped.get(record.knowledgePointId) ?? [];
-    bucket.push(record);
-    grouped.set(record.knowledgePointId, bucket);
-  }
-
-  const correctCount = input.records.filter((record) => record.correct).length;
-  const accuracyRate = input.records.length ? round1((correctCount / input.records.length) * 100) : 0;
-
-  const scored = [...grouped.entries()].map(([knowledgePointId, items]) => {
-    const point = pointMap.get(knowledgePointId);
-    const wrongItems = items.filter((item) => !item.correct);
-    const slowItems = items.filter((item) => item.timeSpentSec > item.expectedTimeSec * 1.45);
-    const wrongRate = items.length ? wrongItems.length / items.length : 1;
-    const reason = topReason(wrongItems.map((item) => item.mistakeReason).filter(Boolean) as MistakeReason[]);
-    const weaknessScore = wrongRate * 100 + (point?.importance ?? 3) * 8 + (point?.frequency ?? 3) * 6;
-
-    return {
-      knowledgePointId,
-      subject: point?.subject ?? ('未分类' as const),
-      chapter: point?.chapter ?? '未分类',
-      title: point?.title ?? knowledgePointId,
-      attempts: items.length,
-      wrongCount: wrongItems.length,
-      slowCount: slowItems.length,
-      accuracyRate: round1(((items.length - wrongItems.length) / items.length) * 100),
-      topReason: reason,
-      suggestion: reason ? MISTAKE_SUGGESTIONS[reason] : '补做同源题并复述解题步骤',
-      weaknessScore,
-    };
+  const model = computeMasteryReport({
+    knowledgePoints: input.knowledgePoints,
+    records: input.records,
+    targetScore: input.targetScore,
   });
 
-  const weakPoints = scored
-    .filter((item) => item.wrongCount > 0)
-    .sort((a, b) => b.weaknessScore - a.weaknessScore)
-    .slice(0, 5);
-
-  const speedRisks = scored
-    .filter((item) => item.wrongCount === 0 && item.slowCount > 0)
-    .sort((a, b) => b.slowCount - a.slowCount);
-
-  const estimatedGain = Math.max(8, Math.round((100 - accuracyRate) * 0.45 + Math.max(input.targetScore - 95, 0) * 0.18));
-
   return {
-    accuracyRate,
-    completionRate: input.records.length ? Math.min(100, Math.round((input.records.length / 20) * 100)) : 0,
-    weakPoints,
-    speedRisks,
-    mistakeReasons: countReasons(input.records),
-    estimatedGain,
-    summary: `当前正确率 ${accuracyRate}%，预计提分空间 ${estimatedGain} 分；优先处理 ${weakPoints[0]?.chapter ?? '高频章节'}。`,
+    accuracyRate: model.accuracyRate,
+    completionRate: model.completionRate,
+    weakPoints: model.weakPoints.map(toWeaknessPoint),
+    speedRisks: model.speedRisks.map(toWeaknessPoint),
+    mistakeReasons: model.mistakeReasons,
+    estimatedGain: model.estimatedGain,
+    summary: model.summary,
   };
 }
 
@@ -425,4 +386,285 @@ export function generateTutorReply(input: {
     `复习建议：先复述${point?.chapter ?? '本章'}的核心定义，再做 3 道相似题确认是否真正掌握。`,
     '相似题：建议继续练习同章节的真题改编题，并记录错因。',
   ].join('\n');
+}
+
+// ---- Wrong-question mastery, filtering and review intervals (Stage 4) ----
+
+export const REVIEW_INTERVAL_DAYS = [1, 3, 7, 14] as const;
+
+export type WrongQuestionMasteryStatus = '未掌握' | '复习中' | '已掌握';
+
+export function nextReviewIntervalDays(input: {
+  consecutiveCorrect: number;
+  slowReview?: boolean;
+}): number {
+  if (input.consecutiveCorrect <= 0) return 1;
+  const index = Math.min(input.consecutiveCorrect, REVIEW_INTERVAL_DAYS.length - 1);
+  if (input.slowReview) return REVIEW_INTERVAL_DAYS[Math.max(0, index - 1)];
+  return REVIEW_INTERVAL_DAYS[index];
+}
+
+export function deriveMasteryStatus(input: {
+  stability?: string | null;
+  consecutiveCorrect?: number;
+}): WrongQuestionMasteryStatus {
+  if (input.stability === 'mastered') return '已掌握';
+  if (input.stability === 'review' || (input.consecutiveCorrect ?? 0) >= 1) return '复习中';
+  return '未掌握';
+}
+
+export interface WrongQuestionFilterItem {
+  subject: string;
+  chapter: string;
+  knowledgePointId: string;
+  latestMistakeReason?: string | null;
+  wrongCount: number;
+  masteryStatus: WrongQuestionMasteryStatus;
+  reviewedAt?: string | null;
+  importance?: number;
+}
+
+export interface WrongQuestionFilter {
+  subject?: string;
+  chapter?: string;
+  knowledgePointId?: string;
+  mistakeReason?: string;
+  minWrongCount?: number;
+  masteryStatus?: WrongQuestionMasteryStatus;
+  reviewedWithinDays?: number;
+  importance?: number;
+}
+
+export function filterWrongQuestions<T extends WrongQuestionFilterItem>(
+  items: T[],
+  filter: WrongQuestionFilter = {},
+  now: number = Date.now(),
+): T[] {
+  const reviewedCutoff = filter.reviewedWithinDays == null
+    ? null
+    : now - filter.reviewedWithinDays * 86_400_000;
+  return items.filter((item) => {
+    if (filter.subject && item.subject !== filter.subject) return false;
+    if (filter.chapter && item.chapter !== filter.chapter) return false;
+    if (filter.knowledgePointId && item.knowledgePointId !== filter.knowledgePointId) return false;
+    if (filter.mistakeReason && item.latestMistakeReason !== filter.mistakeReason) return false;
+    if (filter.minWrongCount != null && item.wrongCount < filter.minWrongCount) return false;
+    if (filter.masteryStatus && item.masteryStatus !== filter.masteryStatus) return false;
+    if (filter.importance != null && (item.importance ?? 0) < filter.importance) return false;
+    if (reviewedCutoff != null) {
+      if (!item.reviewedAt) return false;
+      if (Date.parse(item.reviewedAt) < reviewedCutoff) return false;
+    }
+    return true;
+  });
+}
+// ---- Unified mastery model and predicted score (Stage 5) ----
+
+export type MasteryStatus = 'weak' | 'review' | 'mastered';
+
+export interface MasteryPointMetrics {
+  knowledgePointId: string;
+  subject: Subject | '未分类';
+  chapter: string;
+  title: string;
+  importance: number;
+  frequency: number;
+  attempts: number;
+  correctCount: number;
+  wrongCount: number;
+  slowCount: number;
+  accuracyRate: number;
+  masteryRate: number;
+  status: MasteryStatus;
+  weaknessScore: number;
+  topReason: MistakeReason | null;
+  suggestion: string;
+  nextAction: string;
+}
+
+export interface MasteryPointExtras {
+  practiceCount?: number;
+  correctCount?: number;
+  wrongCount?: number;
+}
+
+export interface UnifiedMasteryReport {
+  accuracyRate: number;
+  completionRate: number;
+  points: MasteryPointMetrics[];
+  weakPoints: MasteryPointMetrics[];
+  speedRisks: MasteryPointMetrics[];
+  mistakeReasons: Record<string, number>;
+  estimatedGain: number;
+  summary: string;
+}
+
+export function computeMasteryReport(input: {
+  knowledgePoints: KnowledgePoint[];
+  records: PracticeRecord[];
+  targetScore: number;
+  extrasByPoint?: ReadonlyMap<string, MasteryPointExtras>;
+}): UnifiedMasteryReport {
+  const grouped = new Map<string, PracticeRecord[]>();
+  for (const record of input.records) {
+    const bucket = grouped.get(record.knowledgePointId) ?? [];
+    bucket.push(record);
+    grouped.set(record.knowledgePointId, bucket);
+  }
+
+  const catalogIds = new Set(input.knowledgePoints.map((point) => point.id));
+  const unknownGroups = [...grouped.entries()]
+    .filter(([id]) => !catalogIds.has(id))
+    .map(([id, items]) => ({
+      id,
+      point: {
+        subject: '未分类' as Subject,
+        chapter: '未分类',
+        title: id,
+        importance: 3,
+        frequency: 3,
+      },
+      items,
+    }));
+
+  const allGroups: Array<{
+    id: string;
+    point: Pick<KnowledgePoint, 'subject' | 'chapter' | 'title' | 'importance' | 'frequency'>;
+    items: PracticeRecord[];
+  }> = [
+    ...input.knowledgePoints.map((point) => ({ id: point.id, point, items: grouped.get(point.id) ?? [] })),
+    ...unknownGroups,
+  ];
+
+  const correctCount = input.records.filter((record) => record.correct).length;
+  const accuracyRate = input.records.length ? round1((correctCount / input.records.length) * 100) : 0;
+
+  const points = allGroups.map(({ id, point, items }) => {
+    const extras = input.extrasByPoint?.get(id) ?? {};
+    const recordCorrect = items.filter((item) => item.correct).length;
+    const recordWrong = items.length - recordCorrect;
+    const attempts = items.length + (extras.practiceCount ?? 0);
+    const totalCorrect = recordCorrect + (extras.correctCount ?? 0);
+    const totalWrong = recordWrong + (extras.wrongCount ?? 0);
+    const slowCount = items.filter((item) => item.timeSpentSec > item.expectedTimeSec * 1.45).length;
+    const rawAccuracy = attempts ? (totalCorrect / attempts) * 100 : 0;
+    const practiceCoverage = Math.min(100, attempts * 25);
+    const masteryRate = attempts
+      ? Math.round(Math.round(rawAccuracy) * 0.7 + practiceCoverage * 0.3)
+      : Math.max(10, Math.round((point.frequency + point.importance) * 6));
+    const status: MasteryStatus = masteryRate < 60 || totalWrong >= 2
+      ? 'weak'
+      : masteryRate < 80 || attempts < 3
+        ? 'review'
+        : 'mastered';
+    const wrongRate = attempts ? totalWrong / attempts : 1;
+    const weaknessScore = wrongRate * 100 + (point.importance ?? 3) * 8 + (point.frequency ?? 3) * 6;
+    const wrongItems = items.filter((item) => !item.correct);
+    const reason = topReason(wrongItems.map((item) => item.mistakeReason).filter(Boolean) as MistakeReason[]);
+
+    return {
+      knowledgePointId: id,
+      subject: point.subject,
+      chapter: point.chapter,
+      title: point.title,
+      importance: point.importance,
+      frequency: point.frequency,
+      attempts,
+      correctCount: totalCorrect,
+      wrongCount: totalWrong,
+      slowCount,
+      accuracyRate: round1(rawAccuracy),
+      masteryRate,
+      status,
+      weaknessScore,
+      topReason: reason,
+      suggestion: reason ? MISTAKE_SUGGESTIONS[reason] : '补做同源题并复述解题步骤',
+      nextAction: status === 'weak'
+        ? '先复盘错题，再做 5 道同考点基础题。'
+        : status === 'review'
+          ? '补 3 道变式题，并记录易混点。'
+          : '进入限时训练，保持速度和稳定性。',
+    };
+  });
+
+  const weakPoints = points
+    .filter((item) => item.wrongCount > 0)
+    .sort((left, right) => right.weaknessScore - left.weaknessScore)
+    .slice(0, 5);
+
+  const speedRisks = points
+    .filter((item) => item.wrongCount === 0 && item.slowCount > 0)
+    .sort((left, right) => right.slowCount - left.slowCount);
+
+  const estimatedGain = Math.max(8, Math.round((100 - accuracyRate) * 0.45 + Math.max(input.targetScore - 95, 0) * 0.18));
+
+  return {
+    accuracyRate,
+    completionRate: input.records.length ? Math.min(100, Math.round((input.records.length / 20) * 100)) : 0,
+    points,
+    weakPoints,
+    speedRisks,
+    mistakeReasons: countReasons(input.records),
+    estimatedGain,
+    summary: `当前正确率 ${accuracyRate}%，预计提分空间 ${estimatedGain} 分；优先处理 ${weakPoints[0]?.chapter ?? '高频章节'}。`,
+  };
+}
+
+function toWeaknessPoint(point: MasteryPointMetrics): WeakPoint {
+  return {
+    knowledgePointId: point.knowledgePointId,
+    subject: point.subject,
+    chapter: point.chapter,
+    title: point.title,
+    attempts: point.attempts,
+    wrongCount: point.wrongCount,
+    slowCount: point.slowCount,
+    accuracyRate: point.accuracyRate,
+    topReason: point.topReason,
+    suggestion: point.suggestion,
+    weaknessScore: point.weaknessScore,
+  };
+}
+
+export interface PredictedScoreEstimate {
+  minScore: number;
+  maxScore: number;
+  bestEstimate: number;
+  disclaimer: '仅为估算';
+  basis: string;
+}
+
+export function estimatePredictedScore(input: {
+  currentScore: number;
+  targetScore: number;
+  accuracyRate: number;
+  averageMastery: number;
+  remainingDays: number;
+  scoreTrend?: number;
+}): PredictedScoreEstimate {
+  const accuracy = clamp01(input.accuracyRate / 100);
+  const mastery = clamp01(input.averageMastery / 100);
+  const timeFactor = clamp01(input.remainingDays / 240);
+  const progress = Math.min(1, mastery * 0.5 + accuracy * 0.3 + timeFactor * 0.2);
+  const rawGain = (input.targetScore - input.currentScore) * progress * 0.5;
+  const trendBoost = input.scoreTrend == null ? 0 : clampNumberValue(Math.round(input.scoreTrend * 0.4), -6, 6);
+  const bestEstimate = clampNumberValue(Math.round(input.currentScore + rawGain + trendBoost), 0, 150);
+  const halfRange = Math.max(5, Math.round((1 - progress) * 14));
+
+  return {
+    minScore: Math.max(0, bestEstimate - halfRange),
+    maxScore: Math.min(150, bestEstimate + halfRange),
+    bestEstimate,
+    disclaimer: '仅为估算',
+    basis: `基于当前正确率 ${input.accuracyRate}%、平均掌握度 ${input.averageMastery}% 与剩余 ${input.remainingDays} 天估算`,
+  };
+}
+
+function clamp01(value: number) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function clampNumberValue(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
 }

@@ -6,11 +6,13 @@ interface TutorPanelProps {
   reply: TutorReply | null;
   followUp: AiFollowUp | null;
   status: string;
+  failed?: boolean;
+  onRetry?: () => void;
   onAskTutor: () => void;
   onAskFollowUp: (message: string) => void;
 }
 
-export function TutorPanel({ reply, followUp, status, onAskTutor, onAskFollowUp }: TutorPanelProps) {
+export function TutorPanel({ reply, followUp, status, failed = false, onRetry, onAskTutor, onAskFollowUp }: TutorPanelProps) {
   return (
     <section id="ai" className="panel tutor-panel">
       <div className="panel-heading">
@@ -18,6 +20,12 @@ export function TutorPanel({ reply, followUp, status, onAskTutor, onAskFollowUp 
         <button type="button" className="secondary-action" onClick={onAskTutor}><Brain size={18} /> 讲解当前题</button>
       </div>
       <p className="task-status">{status}</p>
+      {failed ? (
+        <div className="module-error" role="alert">
+          <span>AI 请求超时或失败，你的其他学习数据不受影响。可稍后重试，或先查看标准解析。</span>
+          {onRetry ? <button type="button" className="secondary-action" onClick={onRetry}>重试</button> : null}
+        </div>
+      ) : null}
       <p className="ai-safety-note">AI 解释仅作辅助，最终以标准答案、标准解析和教师审核内容为准。</p>
       <div className="follow-up-actions">
         <button type="button" onClick={() => onAskFollowUp('为什么我选 A 不对？')}>为什么选 A 不对</button>

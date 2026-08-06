@@ -76,6 +76,7 @@ export interface PracticeRecord {
   confidence?: ConfidenceLevel;
   usedHint?: boolean;
   answerModified?: boolean;
+  variantQuestionId?: string;
 }
 
 export interface DailyTask {

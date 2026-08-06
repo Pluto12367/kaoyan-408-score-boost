@@ -5,6 +5,7 @@ import { ErrorReasonSelector } from './components/ErrorReasonSelector';
 import { ExamReportView } from './components/ExamReport';
 import {
   RoleNavigation,
+  StudentBottomNav,
   defaultRoleSection,
   isSectionAllowedForRole,
   type RoleSection,
@@ -24,6 +25,7 @@ import { StageAssessmentPanel } from './features/assessment/StageAssessmentPanel
 import { AssessmentHistoryPanel } from './features/assessment/AssessmentHistoryPanel';
 import { ReviewResourcesPanel } from './features/report/ReviewResourcesPanel';
 import { StageReportPanel } from './features/report/StageReportPanel';
+import { ReportSummaryPanel } from './features/report/ReportSummaryPanel';
 import { TutorPanel } from './features/tutor/TutorPanel';
 import { StudentProgressOverview } from './features/dashboard/StudentProgressOverview';
 import { LearningProfilePanel } from './features/report/LearningProfilePanel';
@@ -78,9 +80,22 @@ import {
 } from './constants';
 import { isStudentOverviewReady, resolveSessionQuestions, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
 
+const SECTION_STORAGE_KEY = 'kaoyan408:last-section';
+
+function readStoredSection(role: UserRole): RoleSection {
+  if (typeof window === 'undefined') return defaultRoleSection(role);
+  try {
+    const stored = window.sessionStorage.getItem(SECTION_STORAGE_KEY);
+    if (stored && isSectionAllowedForRole(role, stored as RoleSection)) return stored as RoleSection;
+  } catch {
+    // Ignore storage access errors and fall back to the default section.
+  }
+  return defaultRoleSection(role);
+}
+
 function useRoleSectionNavigation(role?: UserRole) {
   const resolvedRole = role ?? 'student';
-  const [activeSection, setActiveSection] = useState<RoleSection>(() => defaultRoleSection(resolvedRole));
+  const [activeSection, setActiveSection] = useState<RoleSection>(() => readStoredSection(resolvedRole));
 
   useEffect(() => {
     setActiveSection((current) => (
@@ -89,6 +104,14 @@ function useRoleSectionNavigation(role?: UserRole) {
         : defaultRoleSection(resolvedRole)
     ));
   }, [resolvedRole]);
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(SECTION_STORAGE_KEY, activeSection);
+    } catch {
+      // Ignore storage write errors.
+    }
+  }, [activeSection]);
 
   function resetSectionForRole(nextRole: UserRole) {
     setActiveSection(defaultRoleSection(nextRole));
@@ -99,6 +122,16 @@ function useRoleSectionNavigation(role?: UserRole) {
     : defaultRoleSection(resolvedRole);
 
   return { activeSection, setActiveSection, visibleSection, resetSectionForRole };
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('AI 请求超时，请稍后重试。')), ms);
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
 }
 
 export function App() {
@@ -159,12 +192,14 @@ export function App() {
     questionId: '', activeMs: 0, startedAt: null,
   });
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
+  const [variantOfQuestionId, setVariantOfQuestionId] = useState<string | null>(null);
   const [detailQuestionId, setDetailQuestionId] = useState<string | null>(null);
   const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
   const [aiFollowUp, setAiFollowUp] = useState<AiFollowUp | null>(() => isMockAllowed() ? createMockAiFollowUp() : null);
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
+  const [tutorFailed, setTutorFailed] = useState(false);
   const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
   const [configStatus, setConfigStatus] = useState('推荐策略参数会影响阶段测评和每日训练建议。');
   const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
@@ -470,11 +505,13 @@ export function App() {
     const timeSpentSec = readPracticeElapsedSec();
 
     try {
+      const isVariant = variantOfQuestionId !== null && variantOfQuestionId !== currentQuestion.id;
       const record = await submitPracticeAnswer({
         questionId: currentQuestion.id,
         knowledgePointId: currentQuestion.knowledgePointIds[0],
         selectedAnswer,
         timeSpentSec,
+        variantQuestionId: isVariant ? variantOfQuestionId : undefined,
       });
       setPracticeAnswerResult(record);
       setApiState('connected');
@@ -486,7 +523,21 @@ export function App() {
         refreshWrongQuestionSummary(),
       ]);
       const isReview = redoQuestionId === currentQuestion.id;
-      if (!record.correct || isReview) {
+      if (isVariant) {
+        if (record.correct) {
+          setPracticeStatus(record.variantProgress?.message ?? '变式题回答正确，已更新掌握状态。');
+          restartPracticeTimer();
+        } else {
+          setReasonQueue([{
+            questionId: currentQuestion.id,
+            correct: false,
+            timeSpentSec,
+            isReview: false,
+            mistakeReason: record.mistakeReason,
+          }]);
+          setPracticeStatus('变式题回答错误，请选择错因；原错题复习进度已重置。');
+        }
+      } else if (!record.correct || isReview) {
         setReasonQueue([{
           questionId: currentQuestion.id,
           correct: record.correct,
@@ -512,11 +563,13 @@ export function App() {
     if (practiceIndex >= questions.length - 1) {
       setPracticeAnswerResult(null);
       setRedoQuestionId(null);
+      setVariantOfQuestionId(null);
       setPracticeStatus('已到当前题库末尾，可开始专项练习或前往错题本复习。');
       return;
     }
     setPracticeAnswerResult(null);
     setRedoQuestionId(null);
+    setVariantOfQuestionId(null);
     setPracticeIndex(practiceIndex + 1);
     restartPracticeTimer();
     setPracticeStatus('选择选项后，系统会自动判题并更新提分报告。');
@@ -625,37 +678,41 @@ export function App() {
 
   async function handleAskTutor() {
     setTutorStatus('AI 助教正在整理解析...');
+    setTutorFailed(false);
 
     try {
-      const reply = await requestTutorReply({
+      const reply = await withTimeout(requestTutorReply({
         questionId: currentQuestion.id,
         selectedAnswer: 'A',
         prompt: '请解释这道题的考点和易错点。',
-      });
+      }), 25000);
       setTutorReply(reply);
       setApiState('connected');
       setTutorStatus(`已生成 ${reply.knowledgePointTitle} 的答疑解析。`);
       setActiveSection('ai');
     } catch {
-      setTutorStatus('AI 答疑暂时不可用，请先查看标准解析。');
+      setTutorFailed(true);
+      setTutorStatus('AI 答疑超时或不可用，可稍后重试，或先查看标准解析。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
 
   async function handleAskFollowUp(message: string) {
     setTutorStatus('AI 正在整理追问解释和复习卡片...');
+    setTutorFailed(false);
 
     try {
-      const reply = await requestAiFollowUp({
+      const reply = await withTimeout(requestAiFollowUp({
         questionId: currentQuestion.id,
         message,
-      });
+      }), 25000);
       setAiFollowUp(reply);
       setApiState('connected');
       setTutorStatus(`已生成 ${reply.reviewCards.length} 张复习卡片：${reply.relatedKnowledgePoint.title}`);
       setActiveSection('ai');
     } catch {
-      setTutorStatus('AI 追问暂时不可用，请先查看标准解析和错题复盘建议。');
+      setTutorFailed(true);
+      setTutorStatus('AI 追问超时或不可用，可稍后重试，或先查看标准解析和错题复盘建议。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
     }
   }
@@ -1050,13 +1107,14 @@ paperId: paper.id,
 
   return (
     <main className="app-shell">
-      <aside className="sidebar">
+      <aside className={(sessionUser?.role ?? 'student') === 'student' ? 'sidebar sidebar-student' : 'sidebar'}>
         <div>
           <p className="eyebrow">408 Score Boost</p>
           <h1>计算机考研 408 提分系统</h1>
         </div>
         <RoleNavigation role={sessionUser?.role} activeSection={activeSection} onNavigate={setActiveSection} />
       </aside>
+      <StudentBottomNav role={sessionUser?.role} activeSection={activeSection} onNavigate={setActiveSection} />
 
       <section className="workspace">
         <header className="topbar">
@@ -1143,6 +1201,13 @@ paperId: paper.id,
 
         <StudentLayout role={sessionUser?.role}>
         {studentOverviewReady && visibleSection === 'report' ? <>
+        <ReportSummaryPanel
+          student={student}
+          report={report}
+          stageReport={stageReport}
+          masteryMap={studentProgress.masteryMap.data}
+          onRetry={refreshStageReport}
+        />
         <StudentProgressOverview
           trialProgress={studentProgress.trialProgress}
           studyReminders={studentProgress.studyReminders}
@@ -1278,7 +1343,7 @@ paperId: paper.id,
 
         <StudentLayout role={sessionUser?.role}>
         {studentOverviewReady && visibleSection === 'ai' ? <>
-        <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
+        <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} failed={tutorFailed} onRetry={handleAskTutor} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
         </> : null}
         </StudentLayout>
 
@@ -1318,8 +1383,16 @@ paperId: paper.id,
             onRetrySummary={refreshWrongQuestionSummary}
             onRedo={(questionId, knowledgePointTitle) => {
               setRedoQuestionId(questionId);
+              setVariantOfQuestionId(null);
               setDetailQuestionId(null);
               if (knowledgePointTitle) setPracticeStatus(`正在重做：${knowledgePointTitle}。请选择答案。`);
+              setActiveSection('question');
+            }}
+            onPracticeVariant={(questionId, variantOfQuestionId) => {
+              setVariantOfQuestionId(variantOfQuestionId);
+              setRedoQuestionId(questionId);
+              setDetailQuestionId(null);
+              setPracticeStatus('正在复测变式题：答对可推动原错题掌握度。');
               setActiveSection('question');
             }}
           />

@@ -21,16 +21,59 @@
 
 ## 当前状态（下次开工先看这里）
 
-- 分支/提交：`codex/deployment-ready` @ `5030dec`（已推送 origin，工作树干净）
-- 本次范围：阶段 0（数据真实性 + section 收敛）+ 阶段 1（首页驾驶舱主行动收敛）+ 阶段 3 剩余项（练习三模式 + 错因 8 类扩展）
+- 分支/提交：`codex/deployment-ready`，阶段 4 + 阶段 5 + 阶段 6 改动已完成但**尚未提交**（沙箱 `.git` 只读，需用户手动 `git add/commit/push`）
+- 本次范围：阶段 4（错题筛选 + 变式复测闭环）+ 阶段 5（报告与掌握度）+ 阶段 6（移动端与边界状态）：学生端 ≤720px 底部导航 5 项（首页/学习/练习/错题/我的）、刷新后恢复上次 section（sessionStorage）、AI 答疑超时提示 + 重试、答题选项点击区 ≥44px、移动端侧边栏隐藏与工作区留白
+- 验证结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 227 通过 / 1 失败（`admin-user-email-ui` 因沙箱 esbuild `Access denied` 失败，与本次代码无关；1 跳过）；`npm run build:web` 在沙箱内 vite 阶段被 esbuild 目录遍历限制阻断（`vite.config.ts` 加载失败），需在非沙箱环境补跑
 - 遗留事项：
-  1. 完整门禁 `npm run check:release` 尚未在非沙箱环境跑通：`npm test` 208/210（1 项 `admin-user-email-ui` 因沙箱 esbuild `Access denied` 失败，与本次代码无关；1 跳过）；`build:web` vite 阶段未跑完。
-  2. 线上服务器是否已部署 `5030dec` 未确认；若需线上验收，按 `docs/deploy-to-tencent-ip.md` §5 升级，回滚用 `deploy/tencent-ip/rollback.sh eceb7a2`。
-  3. 已知限制：学习模式会留下 practice_set 草稿会话（“继续学习”横幅可见）；综合题学习模式不自动判分，需到训练/模拟模式提交自评。
-  4. 下一阶段建议：阶段 4（错题筛选 + 变式复测），答题元数据（confidence/usedHint/answerModified）已落库。
-- 手动验收 5 条：①首页 hero“继续今日学习”→ 今日计划定位；②推荐题组“学习模式”→ 每题即时解析 + 自信度/提示；③“训练模式”→ 组内无解析、提交后错因 8 类；④模拟卷严格计时、无自信度/提示；⑤错题复盘错因 8 类、旧错因自动归一。
+  1. 手动提交并推送阶段 4 + 阶段 5 + 阶段 6 改动（迁移 `20260806100000_variant_retest` + 20 个文件 + 3 个新测试）；提交后线上按 `docs/deploy-to-tencent-ip.md` §5 升级并在服务器跑 `db:migrate:deploy`。
+  2. 非沙箱环境补跑完整门禁：`npm run build:web`、`npm run check:release`、集成测试（`npm run test:integration:postgres`，需本地/测试库）。
+  3. `fetchWrongQuestions(filters)` 端点已提供但 UI 暂用前端筛选（数据来自 overview），后续可切换为服务端筛选。
+  4. 已知限制：学习模式会留下 practice_set 草稿会话（“继续学习”横幅可见）；综合题学习模式不自动判分，需到训练/模拟模式提交自评。
+  5. 阶段 6 解读：底部导航“学习”= AI 答疑（ai 区），因 roadmap 将 dashboard+plan 并入“首页”后 5 项各需唯一内容；若产品上希望“学习”= 今日计划，需调整映射并复核“首页”内容。
+  6. 下一阶段建议：阶段 7（AI 答疑与智能推荐：真实上下文 + 分层提示 + AiTutorLog 写库）。
+- 手动验收（阶段 4-6）：①错题本筛选与掌握徽标；②四层复测路径；③变式题连续答对 3 次升级“已掌握”；④重做正确但超时复习间隔不拉长；⑤导入题库后掌握度地图 ≥16 知识点；⑥报告页第一屏为结论；⑦预测分数带“仅为估算”；⑧首页近 7 天趋势为真实数据；⑨手机宽度（≤720px）下底部出现 5 项固定导航，侧边栏隐藏；⑩刷新后回到上次所在页面；⑪AI 答疑超时/失败出现“重试”按钮；⑫答题选项点击区域 ≥44px。
 
 ## 历史记录
+
+### 2026-08-06 阶段 4：错题筛选与变式复测闭环
+
+- 日期：2026-08-06
+- 任务：错题本可筛选、三态掌握状态推导、变式题复测驱动“已掌握”判定、四层复测路径、间隔复习纳入答题用时。
+- 修改原因：路线图阶段 4 要求；原错题本无筛选与掌握状态，“已掌握”只能靠手动重做且无变式复测。
+- 修改文件：`packages/shared/src/learning.ts`、`packages/shared/src/domain.ts`、`apps/api/src/study/study.service.ts`、`apps/api/src/study/study.controller.ts`、`apps/api/src/study/practice-record.repository.ts`、`apps/api/src/study/dto/create-practice-record.dto.ts`、`prisma/schema.prisma`、`apps/web/src/App.tsx`、`apps/web/src/api/types.ts`、`apps/web/src/api/endpoints/dashboard.ts`、`apps/web/src/api/endpoints/review.ts`、`apps/web/src/api/endpoints/practice.ts`、`apps/web/src/api/mocks/dashboard.ts`、`apps/web/src/features/mistakes/MistakeWorkspace.tsx`、`apps/web/src/components/WrongQuestionDetail.tsx`、`apps/web/src/styles.css`、`test/wrong-question-filter.test.js`、`docs/DEVELOPMENT_LOG.md`
+- 数据库变化：新增迁移 `20260806100000_variant_retest`（`PracticeRecord.variantQuestionId TEXT`，可空，纯增量向后兼容）。
+- API 变化：`GET /wrong-questions` 新增可选 query `subject/chapter/knowledgePointId/mistakeReason/minWrongCount/masteryStatus/reviewedWithinDays/importance`；`GET /wrong-questions/summary` 新增 `masteryStats`；`POST /practice-records` 新增可选 `variantQuestionId` 并返回 `variantProgress`；`GET /wrong-questions/:id/detail` 新增 `masteryStatus/masteryCriteria/reviewLayers`；错题列表项新增 `masteryStatus/masteryCriteria/importance`。
+- 测试结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 216/218（新增 8 项 stage 4 全过；`admin-user-email-ui` 沙箱 esbuild 环境失败与本次无关；1 跳过）。
+- 截图或验证证据：`npm test` 输出包含 8 项 `stage 4:` 通过。
+- 遗留问题：`npm run build:web` 在沙箱内 esbuild 无法读取目录上层（`vite.config.ts` 加载失败），需非沙箱补跑；UI 筛选暂为前端过滤，`fetchWrongQuestions` 待接入。
+- 下一步：提交并推送当前改动，然后进入阶段 5（报告与掌握度）。
+
+
+### 2026-08-06 阶段 6：移动端与边界状态
+
+- 日期：2026-08-06
+- 任务：学生端移动底部导航 ≤5 项；刷新恢复上次所在页面；AI 答疑超时/失败重试；答题选项点击区与移动端布局修正。
+- 修改原因：路线图阶段 6 要求；此前学生端无移动底部导航、刷新后回到默认 section、AI 失败只有文字提示无重试。
+- 修改文件：`apps/web/src/layouts/RoleNavigation.tsx`、`apps/web/src/App.tsx`、`apps/web/src/features/tutor/TutorPanel.tsx`、`apps/web/src/styles.css`、`test/mobile-nav-ui.test.js`（新增）、`docs/DEVELOPMENT_LOG.md`
+- 数据库变化：无
+- API 变化：无
+- 测试结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 227 通过 / 1 失败（`admin-user-email-ui` 沙箱 esbuild 环境失败，与本次无关）/ 1 跳过；新增 5 项 `stage 6:` 测试全过
+- 截图或验证证据：`node --test test\mobile-nav-ui.test.js` 输出 5 项 `stage 6:` 通过
+- 遗留问题：`npm run build:web` 需非沙箱补跑；底部导航“学习”tab 与 AI 答疑的映射是设计解读，需产品确认；横向溢出仅做了常见区域修正，需真机/浏览器逐页核对
+- 下一步：提交并推送阶段 4 + 阶段 5 + 阶段 6 改动，然后进入阶段 7（AI 答疑与智能推荐）
+
+### 2026-08-06 阶段 5：报告与掌握度
+
+- 日期：2026-08-06
+- 任务：掌握度口径统一并接入 DB 知识点；报告“结论先行”；预测分数区间与免责文案；首页掌握度趋势改为近 7 天真实数据。
+- 修改原因：路线图阶段 5 要求；原 `getMasteryMap`（API）与 `computeWeaknessReport`（shared）两套口径，报告与地图对同一知识点可能给出不一致结论；报告页第一屏是图表而非结论；无预测分数；趋势图为当前快照而非 7 天趋势。
+- 修改文件：`packages/shared/src/learning.ts`、`apps/api/src/study/study.service.ts`、`apps/web/src/App.tsx`、`apps/web/src/features/report/ReportSummaryPanel.tsx`（新增）、`apps/web/src/features/dashboard/StudentProgressOverview.tsx`、`apps/web/src/features/onboarding/StudentLaunchpad.tsx`、`apps/web/src/styles.css`、`test/mastery-report.test.js`（新增）、`docs/DEVELOPMENT_LOG.md`
+- 数据库变化：无（无迁移；DB 知识点接入在阶段 0 已通过 `KnowledgePointRepository.list()` 完成）
+- API 变化：无端点/响应结构变化；`GET /mastery-map` 内部改由 shared `computeMasteryReport` 计算，响应结构保持兼容
+- 测试结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 222 通过 / 1 失败（`admin-user-email-ui` 沙箱 esbuild 环境失败，与本次无关）/ 1 跳过；新增 6 项 `stage 5:` 测试全过
+- 截图或验证证据：`node --test test\mastery-report.test.js` 输出 6 项 `stage 5:` 通过
+- 遗留问题：`npm run build:web` 需非沙箱补跑；预测分数基于正确率/平均掌握度/剩余天数的启发式估算，属明确标注的“仅为估算”
+- 下一步：提交并推送阶段 4 + 阶段 5 改动，然后进入阶段 6（移动端与边界状态）
 
 ### 2026-08-05 项目接管分析与 AI 开发上下文文档建立
 

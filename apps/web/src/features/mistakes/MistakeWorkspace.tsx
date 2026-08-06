@@ -1,3 +1,5 @@
+import { useMemo, useState } from 'react';
+import { filterWrongQuestions, type WrongQuestionFilter, type WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import type { WrongQuestion, WrongQuestionSummary } from '../../api';
 import { WrongQuestionDetailView } from '../../components/WrongQuestionDetail';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
@@ -12,11 +14,60 @@ interface MistakeWorkspaceProps {
   onCloseDetail: () => void;
   onReview: (questionId: string) => void;
   onRedo: (questionId: string, knowledgePointTitle?: string) => void;
+  onPracticeVariant?: (questionId: string, variantOfQuestionId: string) => void;
   onRetrySummary: () => void;
 }
 
-export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onRetrySummary }: MistakeWorkspaceProps) {
+const MASTERY_OPTIONS: Array<{ value: WrongQuestionMasteryStatus | ''; label: string }> = [
+  { value: '', label: '全部掌握状态' },
+  { value: '未掌握', label: '未掌握' },
+  { value: '复习中', label: '复习中' },
+  { value: '已掌握', label: '已掌握' },
+];
+
+const IMPORTANCE_OPTIONS = [
+  { value: '', label: '全部重要程度' },
+  { value: '4', label: '重要（≥4）' },
+  { value: '3', label: '较重要（≥3）' },
+];
+
+const FALLBACK_REASONS = [
+  '知识点没学过', '概念混淆', '公式记错', '计算错误',
+  '审题错误', '推理过程错误', '时间不足', '蒙题',
+];
+
+export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onRetrySummary }: MistakeWorkspaceProps) {
   const summaryData = summary.data;
+  const [subject, setSubject] = useState('');
+  const [masteryStatus, setMasteryStatus] = useState<WrongQuestionMasteryStatus | ''>('');
+  const [mistakeReason, setMistakeReason] = useState('');
+  const [importance, setImportance] = useState('');
+
+  const subjectOptions = useMemo(() => {
+    const values = [...new Set(wrongQuestions.map((item) => item.subject).filter(Boolean))];
+    return values.length ? values : ['计算机组成原理', '数据结构', '操作系统', '计算机网络'];
+  }, [wrongQuestions]);
+  const reasonOptions = useMemo(() => {
+    const values = [...new Set(wrongQuestions.map((item) => item.latestMistakeReason).filter((value): value is string => Boolean(value)))];
+    return values.length ? values : FALLBACK_REASONS;
+  }, [wrongQuestions]);
+
+  const filters: WrongQuestionFilter = {
+    subject: subject || undefined,
+    masteryStatus: masteryStatus || undefined,
+    mistakeReason: mistakeReason || undefined,
+    importance: importance ? Number(importance) : undefined,
+  };
+  const filteredQuestions = useMemo(() => filterWrongQuestions(wrongQuestions, filters), [wrongQuestions, subject, masteryStatus, mistakeReason, importance]);
+  const hasActiveFilter = Boolean(subject || masteryStatus || mistakeReason || importance);
+
+  function resetFilters() {
+    setSubject('');
+    setMasteryStatus('');
+    setMistakeReason('');
+    setImportance('');
+  }
+
   return (
     <section id="wrong-book" className="panel">
       <div className="panel-heading">
@@ -43,13 +94,47 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
         <article><strong>闭环建议</strong><ul>{summaryData.nextReviewActions.map((action) => <li key={action}>{action}</li>)}</ul></article>
       </div>
       </> : <ModuleInlineUnavailable title="错题摘要" resource={summary} onRetry={onRetrySummary} />}
+      <div className="wrong-filter-bar" role="group" aria-label="错题筛选">
+        <label>
+          <span>科目</span>
+          <select value={subject} onChange={(event) => setSubject(event.target.value)}>
+            <option value="">全部</option>
+            {subjectOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>掌握状态</span>
+          <select value={masteryStatus} onChange={(event) => setMasteryStatus(event.target.value as WrongQuestionMasteryStatus | '')}>
+            {MASTERY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>错因</span>
+          <select value={mistakeReason} onChange={(event) => setMistakeReason(event.target.value)}>
+            <option value="">全部</option>
+            {reasonOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>重要程度</span>
+          <select value={importance} onChange={(event) => setImportance(event.target.value)}>
+            {IMPORTANCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        {hasActiveFilter ? <button type="button" className="secondary-action" onClick={resetFilters}>清除筛选</button> : null}
+      </div>
       <div className="wrong-list">
-        {wrongQuestions.map((item) => (
+        {filteredQuestions.length === 0 ? (
+          <p className="task-status">{wrongQuestions.length === 0 ? '错题本还是空的，答错的题目会自动出现在这里。' : '没有符合当前筛选条件的错题。'}</p>
+        ) : filteredQuestions.map((item) => (
           <article key={item.questionId} className="wrong-row">
             <div>
-              <strong>{item.knowledgePointTitle}</strong>
-              <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}</p>
-              <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}</small>
+              <div className="wrong-row-head">
+                <strong>{item.knowledgePointTitle}</strong>
+                <span className={`mastery-badge mastery-${item.masteryStatus}`}>{item.masteryStatus}</span>
+              </div>
+              <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}{item.importance ? ` / 重要度 ${item.importance}` : ''}</p>
+              <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}{item.masteryCriteria ? ` · 连续正确 ${item.masteryCriteria.consecutiveCorrect} 次` : ''}</small>
               <span>{item.stem}</span>
             </div>
             <button type="button" onClick={() => onOpenDetail(item.questionId)}>详情与笔记</button>
@@ -58,7 +143,7 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
           </article>
         ))}
       </div>
-      {detailQuestionId ? <WrongQuestionDetailView questionId={detailQuestionId} onClose={onCloseDetail} onRedo={(questionId) => onRedo(questionId)} /> : null}
+      {detailQuestionId ? <WrongQuestionDetailView questionId={detailQuestionId} onClose={onCloseDetail} onRedo={(questionId) => onRedo(questionId)} onPracticeVariant={onPracticeVariant} /> : null}
     </section>
   );
 }

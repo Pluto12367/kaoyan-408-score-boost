@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import type { Subject } from '@kaoyan408/shared';
+import type { Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { CompleteStudyTaskDto } from './dto/complete-study-task.dto';
@@ -101,8 +101,25 @@ export class StudyController {
   listWrongQuestions(
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
+    @Query('subject') subject?: string,
+    @Query('chapter') chapter?: string,
+    @Query('knowledgePointId') knowledgePointId?: string,
+    @Query('mistakeReason') mistakeReason?: string,
+    @Query('minWrongCount') minWrongCount?: string,
+    @Query('masteryStatus') masteryStatus?: string,
+    @Query('reviewedWithinDays') reviewedWithinDays?: string,
+    @Query('importance') importance?: string,
   ) {
-    return this.studyService.listWrongQuestions(this.resolveUserId(user, viewUserId));
+    return this.studyService.listWrongQuestions(this.resolveUserId(user, viewUserId), this.parseWrongQuestionFilters({
+      subject,
+      chapter,
+      knowledgePointId,
+      mistakeReason,
+      minWrongCount,
+      masteryStatus,
+      reviewedWithinDays,
+      importance,
+    }));
   }
 
   @Get('wrong-questions/summary')
@@ -622,4 +639,39 @@ export class StudyController {
       throw new ForbiddenException('You can only access your own data');
     }
   }
+
+  private parseWrongQuestionFilters(input: {
+    subject?: string;
+    chapter?: string;
+    knowledgePointId?: string;
+    mistakeReason?: string;
+    minWrongCount?: string;
+    masteryStatus?: string;
+    reviewedWithinDays?: string;
+    importance?: string;
+  }): WrongQuestionFilter {
+    if (input.masteryStatus && !['未掌握', '复习中', '已掌握'].includes(input.masteryStatus)) {
+      throw new BadRequestException('masteryStatus must be one of 未掌握/复习中/已掌握');
+    }
+    return {
+      subject: input.subject,
+      chapter: input.chapter,
+      knowledgePointId: input.knowledgePointId,
+      mistakeReason: input.mistakeReason,
+      minWrongCount: parseOptionalPositiveInt(input.minWrongCount, 'minWrongCount'),
+      masteryStatus: input.masteryStatus as WrongQuestionMasteryStatus | undefined,
+      reviewedWithinDays: parseOptionalPositiveInt(input.reviewedWithinDays, 'reviewedWithinDays'),
+      importance: parseOptionalPositiveInt(input.importance, 'importance'),
+    };
+  }
 }
+
+function parseOptionalPositiveInt(value: string | undefined, label: string): number | undefined {
+  if (value === undefined || value === '') return undefined;
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new BadRequestException(`${label} must be a positive integer`);
+  }
+  return parsed;
+}
+

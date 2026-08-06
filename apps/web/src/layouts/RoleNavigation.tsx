@@ -1,4 +1,4 @@
-import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, ShieldCheck, Target, Upload, type LucideIcon } from 'lucide-react';
+import { Activity, BookOpen, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Home, PenLine, ShieldCheck, Target, Upload, User, type LucideIcon } from 'lucide-react';
 import type { UserRole } from '@kaoyan408/shared';
 
 export type RoleSection =
@@ -49,6 +49,16 @@ const studentItems: NavigationItem[] = [
   { id: 'ai', label: 'AI 答疑', icon: Brain },
 ];
 
+// Mobile (<=720px) bottom navigation for students: keeps to five tabs.
+// dashboard + plan fold into 首页; ai (AI 答疑) becomes 学习; report is 我的.
+const studentBottomItems: NavigationItem[] = [
+  { id: 'dashboard', label: '首页', icon: Home },
+  { id: 'ai', label: '学习', icon: BookOpen },
+  { id: 'question', label: '练习', icon: PenLine },
+  { id: 'wrong-book', label: '错题', icon: ShieldCheck },
+  { id: 'report', label: '我的', icon: User },
+];
+
 export function defaultRoleSection(role: UserRole = 'student'): RoleSection {
   if (role === 'admin') return 'admin';
   if (role === 'teacher') return 'teacher';
@@ -66,10 +76,11 @@ export function navigationItemsForRole(role: UserRole = 'student') {
 }
 
 export function RoleNavigation({ role = 'student', activeSection, onNavigate }: RoleNavigationProps) {
-  const items = navigationItemsForRole(role);
+  const resolvedRole = role ?? 'student';
+  const items = navigationItemsForRole(resolvedRole);
 
   return (
-    <nav aria-label={`${role}功能`}>
+    <nav aria-label={`${resolvedRole}功能`}>
       {items.map((item) => {
         const Icon = item.icon;
         const active = item.id === activeSection;
@@ -82,6 +93,39 @@ export function RoleNavigation({ role = 'student', activeSection, onNavigate }: 
             onClick={() => onNavigate(item.id)}
           >
             <Icon size={18} />
+            {item.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+// Mobile (<=720px) bottom navigation for students, rendered outside the
+// sidebar so it stays visible when the sidebar is hidden.
+export function StudentBottomNav({
+  role = 'student',
+  activeSection,
+  onNavigate,
+}: RoleNavigationProps) {
+  if ((role ?? 'student') !== 'student') return null;
+
+  return (
+    <nav className="bottom-nav" aria-label="移动端导航">
+      {studentBottomItems.map((item) => {
+        const Icon = item.icon;
+        const active = item.id === 'dashboard'
+          ? activeSection === 'dashboard' || activeSection === 'plan'
+          : item.id === activeSection;
+        return (
+          <button
+            key={item.id}
+            type="button"
+            className={active ? 'active' : ''}
+            aria-current={active ? 'page' : undefined}
+            onClick={() => onNavigate(item.id)}
+          >
+            <Icon size={20} />
             {item.label}
           </button>
         );

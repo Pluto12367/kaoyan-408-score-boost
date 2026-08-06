@@ -164,9 +164,16 @@ export function StudentLaunchpad({
         topic: `${day.practiceCount} 次练习`,
       }));
 
-  const masteryTrend = (masteryMap?.subjects ?? []).map((subject) => ({
-    label: subject.subject.slice(0, 4),
-    value: subject.averageMastery,
+  const trendDays = (learningCalendar?.days ?? []).slice(-7);
+  const trendMaxPractice = Math.max(1, ...trendDays.map((day) => day.practiceCount));
+  const currentAverageMastery = masteryMap?.subjects.length
+    ? Math.round(masteryMap.subjects.reduce((sum, subject) => sum + subject.averageMastery, 0) / masteryMap.subjects.length)
+    : null;
+  const masteryTrend = trendDays.map((day) => ({
+    label: day.date.slice(5),
+    value: Math.max(8, Math.round((day.practiceCount / trendMaxPractice) * 100)),
+    practiceCount: day.practiceCount,
+    completedTaskCount: day.completedTaskCount,
   }));
 
   if (showOnboarding) return <OnboardingWizard onComplete={onOnboardingComplete} />;
@@ -282,14 +289,15 @@ export function StudentLaunchpad({
           </div>
         </div>
         <div className="panel student-insight-card">
-          <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>四科平均掌握度</h3></div></div>
-          <div className="mastery-trend" aria-label="掌握度趋势">
+          <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>近 7 天练习节奏</h3></div></div>
+          <div className="mastery-trend" aria-label="近 7 天掌握度趋势">
             {masteryTrend.length ? masteryTrend.map((item, index) => (
-              <span key={index} style={{ height: `${item.value}%` }} title={`${item.label} ${item.value}%`} />
+              <span key={index} style={{ height: `${item.value}%` }} title={`${item.label} · 练习 ${item.practiceCount} 题 · 完成任务 ${item.completedTaskCount} 项`} />
             )) : (
               <p className="empty-state">暂无趋势数据</p>
             )}
           </div>
+          <p className="mastery-trend-caption">{currentAverageMastery != null ? `当前平均掌握度 ${currentAverageMastery}%（来自掌握度地图）` : '完成练习后展示平均掌握度'}</p>
         </div>
       </section>
 
