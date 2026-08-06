@@ -4341,3 +4341,97 @@ button.student-plan-ring:hover,
     grid-template-columns: 1fr;
   }
 }
+/* ---- Stage 7: AI 答疑分层提示与快捷提问 ---- */
+.tutor-prompt-row {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 4px;
+  align-items: center;
+}
+.tutor-prompt-input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  color: #172033;
+}
+.tutor-prompt-input:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  border-color: #2563eb;
+}
+.tutor-hint-layers {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.hint-layer {
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.hint-layer-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  color: #172033;
+}
+.hint-layer-toggle span {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+  font-size: 12px;
+}
+.hint-layer-toggle strong {
+  font-weight: 600;
+}
+.hint-layer-content {
+  padding: 0 12px 12px;
+  margin: 0;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  color: #334155;
+}
+.hint-layer-open {
+  border-color: rgba(37, 99, 235, 0.5);
+}
+.follow-up-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.follow-up-actions button {
+  padding: 8px 12px;
+  border: 1px solid #d8dee8;
+  border-radius: 8px;
+  background: #fff;
+  color: #2563eb;
+  font-size: 13px;
+  cursor: pointer;
+}
+.follow-up-actions button:hover {
+  background: rgba(37, 99, 235, 0.08);
+}
+@media (max-width: 720px) {
+  .tutor-prompt-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .tutor-prompt-input {
+    width: 100%;
+  }
+}

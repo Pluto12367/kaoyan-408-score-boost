@@ -14,7 +14,7 @@ export async function requestTutorReply(input: {
 }
 
 export async function requestAiFollowUp(input: {
-  questionId: string; message: string;
+  questionId: string; message: string; mode?: string;
 }): Promise<AiFollowUp> {
   const response = await fetchWithAuth(`${API_BASE_URL}/ai/follow-up`, {
     method: 'POST',

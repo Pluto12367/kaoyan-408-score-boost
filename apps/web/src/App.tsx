@@ -683,7 +683,7 @@ export function App() {
     try {
       const reply = await withTimeout(requestTutorReply({
         questionId: currentQuestion.id,
-        selectedAnswer: 'A',
+        selectedAnswer: practiceAnswerResult?.selectedAnswer,
         prompt: '请解释这道题的考点和易错点。',
       }), 25000);
       setTutorReply(reply);
@@ -697,7 +697,7 @@ export function App() {
     }
   }
 
-  async function handleAskFollowUp(message: string) {
+  async function handleAskFollowUp(message: string, mode?: string) {
     setTutorStatus('AI 正在整理追问解释和复习卡片...');
     setTutorFailed(false);
 
@@ -705,6 +705,7 @@ export function App() {
       const reply = await withTimeout(requestAiFollowUp({
         questionId: currentQuestion.id,
         message,
+        mode,
       }), 25000);
       setAiFollowUp(reply);
       setApiState('connected');

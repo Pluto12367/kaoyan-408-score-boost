@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import type { Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
+import type { AiTutorFollowUpMode, Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { CompleteStudyTaskDto } from './dto/complete-study-task.dto';
@@ -222,7 +222,7 @@ export class StudyController {
   @Roles('student', 'teacher', 'admin')
   createAiFollowUp(
     @CurrentUser() user: UserProfile,
-    @Body() input: { questionId: string; message?: string },
+    @Body() input: { questionId: string; message?: string; mode?: AiTutorFollowUpMode },
   ) {
     return this.studyService.createAiFollowUp({ ...input, userId: user.id });
   }
@@ -674,4 +674,3 @@ function parseOptionalPositiveInt(value: string | undefined, label: string): num
   }
   return parsed;
 }
-

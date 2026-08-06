@@ -4,3 +4,5 @@ export * from './learning';
 export * from './postExamScheduling';
 export * from './questionImport';
 export * from './stageReport';
+
+export * from './ai-tutor';

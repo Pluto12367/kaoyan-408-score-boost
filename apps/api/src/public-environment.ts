@@ -47,6 +47,8 @@ export function validatePublicEnvironment(values: NodeJS.ProcessEnv): string[] {
   if ((values.JWT_SECRET?.length ?? 0) < 32) errors.push('JWT_SECRET must be at least 32 characters');
   if (values.ALLOW_DEMO_AUTH !== 'false') errors.push('ALLOW_DEMO_AUTH must be false');
   if (values.MINERU_API_TOKEN && placeholders.test(values.MINERU_API_TOKEN)) errors.push('MINERU_API_TOKEN contains a placeholder value');
+if (values.AI_API_KEY && placeholders.test(values.AI_API_KEY)) errors.push('AI_API_KEY contains a placeholder value');
+
   if (Boolean(values.TENCENTCLOUD_SECRET_ID) !== Boolean(values.TENCENTCLOUD_SECRET_KEY)) errors.push('TENCENTCLOUD_SECRET_ID and TENCENTCLOUD_SECRET_KEY must be configured together');
   if (values.TENCENTCLOUD_SECRET_ID && placeholders.test(values.TENCENTCLOUD_SECRET_ID)) errors.push('TENCENTCLOUD_SECRET_ID contains a placeholder value');
   if (values.TENCENTCLOUD_SECRET_KEY && placeholders.test(values.TENCENTCLOUD_SECRET_KEY)) errors.push('TENCENTCLOUD_SECRET_KEY contains a placeholder value');

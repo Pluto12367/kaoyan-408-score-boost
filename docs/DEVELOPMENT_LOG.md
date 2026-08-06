@@ -21,17 +21,18 @@
 
 ## 当前状态（下次开工先看这里）
 
-- 分支/提交：`codex/deployment-ready`，阶段 4 + 阶段 5 + 阶段 6 改动已完成但**尚未提交**（沙箱 `.git` 只读，需用户手动 `git add/commit/push`）
-- 本次范围：阶段 4（错题筛选 + 变式复测闭环）+ 阶段 5（报告与掌握度）+ 阶段 6（移动端与边界状态）：学生端 ≤720px 底部导航 5 项（首页/学习/练习/错题/我的）、刷新后恢复上次 section（sessionStorage）、AI 答疑超时提示 + 重试、答题选项点击区 ≥44px、移动端侧边栏隐藏与工作区留白
-- 验证结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 227 通过 / 1 失败（`admin-user-email-ui` 因沙箱 esbuild `Access denied` 失败，与本次代码无关；1 跳过）；`npm run build:web` 在沙箱内 vite 阶段被 esbuild 目录遍历限制阻断（`vite.config.ts` 加载失败），需在非沙箱环境补跑
+- 分支/提交：`codex/deployment-ready`，阶段 7（AI 答疑真实上下文 + 分层提示 + AiTutorLog 写库）已完成但**尚未提交**（沙箱 `.git` 只读，需用户手动 `git add/commit/push`）
+- 本次范围：阶段 7：DeepSeek V4-Flash 真实模型调用（`AI_API_KEY` 配置后启用，未配置回退标准解析模板）；提示词自动携带题目/选项/标准答案/解析/知识点/错因/最近错题；四层分层提示（考点→思路→部分步骤→完整解析，一次生成、前端逐层展开）；5 类快捷追问 + 自由提问；`AiTutorLog` 写库（真实调用成功/失败均记录）；`.env.development` 加入 .gitignore 防 Key 泄露
+- 模型选择：DeepSeek `deepseek-v4-flash`（base `https://api.deepseek.com`，输入约 ¥1/百万、输出约 ¥2/百万，旧模型名 deepseek-chat/reasoner 已于 2026-07-24 弃用）
+- 验证结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 248 项：246 通过 / 1 失败（`admin user cards show email` 沙箱 esbuild `Access denied`，与本次无关）/ 1 跳过；新增 14 项 stage 7 测试全过；`npm run build:web` 需用户本机补跑
 - 遗留事项：
-  1. 手动提交并推送阶段 4 + 阶段 5 + 阶段 6 改动（迁移 `20260806100000_variant_retest` + 20 个文件 + 3 个新测试）；提交后线上按 `docs/deploy-to-tencent-ip.md` §5 升级并在服务器跑 `db:migrate:deploy`。
-  2. 非沙箱环境补跑完整门禁：`npm run build:web`、`npm run check:release`、集成测试（`npm run test:integration:postgres`，需本地/测试库）。
-  3. `fetchWrongQuestions(filters)` 端点已提供但 UI 暂用前端筛选（数据来自 overview），后续可切换为服务端筛选。
-  4. 已知限制：学习模式会留下 practice_set 草稿会话（“继续学习”横幅可见）；综合题学习模式不自动判分，需到训练/模拟模式提交自评。
-  5. 阶段 6 解读：底部导航“学习”= AI 答疑（ai 区），因 roadmap 将 dashboard+plan 并入“首页”后 5 项各需唯一内容；若产品上希望“学习”= 今日计划，需调整映射并复核“首页”内容。
-  6. 下一阶段建议：阶段 7（AI 答疑与智能推荐：真实上下文 + 分层提示 + AiTutorLog 写库）。
-- 手动验收（阶段 4-6）：①错题本筛选与掌握徽标；②四层复测路径；③变式题连续答对 3 次升级“已掌握”；④重做正确但超时复习间隔不拉长；⑤导入题库后掌握度地图 ≥16 知识点；⑥报告页第一屏为结论；⑦预测分数带“仅为估算”；⑧首页近 7 天趋势为真实数据；⑨手机宽度（≤720px）下底部出现 5 项固定导航，侧边栏隐藏；⑩刷新后回到上次所在页面；⑪AI 答疑超时/失败出现“重试”按钮；⑫答题选项点击区域 ≥44px。
+  1. 用户本机 `.env.development` 配置 `AI_API_KEY`（参考 `.env.development.example`）后，手动联调真实模型答疑（见 docs/DEVELOPMENT_LOG.md 手动验收）。
+  2. 非沙箱环境补跑：`npm run build:web`、`npm run check:release`、集成测试（`npm run test:integration:postgres`）。
+  3. 提交并推送阶段 7 后，服务器 `.env.production` 添加 `AI_API_KEY` 并按 `docs/deploy-to-tencent-ip.md` §5 升级（compose 已透传 AI 变量）。
+  4. `fetchWrongQuestions(filters)` 端点已提供但 UI 暂用前端筛选，后续可切换服务端筛选。
+  5. 已知限制：学习模式会留下 practice_set 草稿会话；综合题学习模式不自动判分；AI 调用失败时后端抛 503，前端显示“重试”（无静默回退）。
+  6. 下一阶段建议：阶段 8（错题筛选服务端化 / 移动端验收 / AI 变式题入库），或按 roadmap 进入剩余 P1 项。
+- 手动验收（阶段 7）：①首页 → 练习 → 提交答案后点“讲解当前题”，页面出现“DeepSeek 助教讲解”（未配 Key 时仍显示“基于标准解析的助教讲解”）；②四层提示逐层展开：考点→思路→部分步骤→完整解析；③5 个快捷问题可用：简化解释/选项错误/类似题/只提示思路/概念对比；④自由输入框提问；⑤追问生成回复+复习卡片；⑥数据库 `AiTutorLog` 表出现记录（真实调用成功/失败均有）；⑦请求超时出现“重试”按钮，其他学习数据不受影响。
 
 ## 历史记录
 

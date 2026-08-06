@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import {
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildStudyPlan,
+  buildTemplateFollowUp,
+  buildTemplateTutorReply,
   classifyMistake,
   computeMasteryReport,
   computeWeaknessReport,
@@ -10,6 +12,11 @@ import {
   filterWrongQuestions,
   nextReviewIntervalDays,
   postExamTaskId,
+  type AiFollowUpDraft,
+  type AiTutorContext,
+  type AiTutorFollowUpMode,
+  type AiTutorReplyDraft,
+  type AiTutorSimilarQuestion,
   type DiagnosticProfile,
   type KnowledgePoint,
   type MasteryPointExtras,
@@ -25,6 +32,7 @@ import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
 import { toStudentQuestion, toStudentQuestions } from '../questions/question-view';
 import { PracticeRecordRepository } from './practice-record.repository';
+import { AiTutorService } from './ai-tutor.service';
 import { LearningProgressRepository, type TaskCompletionMetric } from './learning-progress.repository';
 import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
@@ -56,6 +64,7 @@ export class StudyService implements OnModuleInit {
 
   constructor(
     private readonly questionsService: QuestionsService,
+    private readonly aiTutorService: AiTutorService,
     private readonly practiceRecordRepository: PracticeRecordRepository,
     private readonly learningProgressRepository: LearningProgressRepository,
     private readonly learningSessionRepository: LearningSessionRepository,
@@ -2480,7 +2489,7 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  createTutorReply(input: {
+  async createTutorReply(input: {
     userId?: string;
     questionId: string;
     selectedAnswer?: string;
@@ -2493,7 +2502,68 @@ export class StudyService implements OnModuleInit {
 
     const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
     const selectedAnswer = input.selectedAnswer?.trim().toUpperCase();
-    const isCorrect = selectedAnswer ? selectedAnswer === question.answer : null;
+    const similarQuestions = this.collectSimilarQuestions(question);
+    const context = this.buildTutorContext(input, question, knowledgePoint, selectedAnswer);
+
+    if (!this.aiTutorService.configured) {
+      return this.assembleTutorReply(
+        input, question, knowledgePoint,
+        buildTemplateTutorReply(context, similarQuestions), 'standard-analysis-assisted',
+      );
+    }
+
+    let draft: AiTutorReplyDraft;
+    let source: string;
+    try {
+      const result = await this.aiTutorService.explain(context, similarQuestions);
+      draft = result.draft;
+      source = result.source;
+    } catch (error) {
+      this.logger.warn(`AI tutor reply failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new ServiceUnavailableException('AI 助教暂时不可用，请稍后重试，或先查看标准解析。');
+    }
+
+    return this.assembleTutorReply(input, question, knowledgePoint, draft, source);
+  }
+
+  async createAiFollowUp(input: {
+    userId?: string;
+    questionId: string;
+    message?: string;
+    mode?: AiTutorFollowUpMode;
+  }) {
+    const question = this.questions.find((item) => item.id === input.questionId);
+    if (!question) {
+      throw new BadRequestException(`Question ${input.questionId} was not found`);
+    }
+
+    const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
+    const context = this.buildTutorContext(input, question, knowledgePoint, undefined);
+    const message = input.message?.trim() || '请解释这道题并整理复习卡片。';
+
+    if (!this.aiTutorService.configured) {
+      return this.assembleFollowUp(
+        input, question, knowledgePoint, message,
+        buildTemplateFollowUp(context, message), 'standard-analysis-follow-up',
+      );
+    }
+
+    let draft: AiFollowUpDraft;
+    let source: string;
+    try {
+      const result = await this.aiTutorService.followUp(context, message, input.mode);
+      draft = result.draft;
+      source = result.source;
+    } catch (error) {
+      this.logger.warn(`AI follow-up failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new ServiceUnavailableException('AI 追问暂时不可用，请稍后重试，或先查看标准解析。');
+    }
+
+    return this.assembleFollowUp(input, question, knowledgePoint, message, draft, source);
+  }
+
+  private collectSimilarQuestions(question: Question): AiTutorSimilarQuestion[] {
+    const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
     const similarQuestions = this.questions
       .filter((item) => item.id !== question.id)
       .filter((item) => item.knowledgePointIds.some((id) => question.knowledgePointIds.includes(id)))
@@ -2508,14 +2578,58 @@ export class StudyService implements OnModuleInit {
     const broadSimilarQuestions = this.questions
       .filter((item) => item.id !== question.id && !similarQuestions.includes(item) && !fallbackSimilarQuestions.includes(item))
       .slice(0, Math.max(0, 3 - similarQuestions.length - fallbackSimilarQuestions.length));
-    const explanationSteps = [
-      `先定位考点：${knowledgePoint?.subject ?? '408'} / ${knowledgePoint?.chapter ?? '高频章节'} / ${knowledgePoint?.title ?? question.knowledgePointIds[0] ?? '核心考点'}。`,
-      `再看标准解析：${question.analysis}`,
-      selectedAnswer
-        ? `你选择了 ${selectedAnswer}，标准答案是 ${question.answer}，${isCorrect ? '说明方向正确，接下来要压缩解题时间。' : '建议回到题干条件，重新对照公式或定义。'}`
-        : `本题标准答案是 ${question.answer}，建议先独立复盘一遍再看解析。`,
-    ];
+    return [...similarQuestions, ...fallbackSimilarQuestions, ...broadSimilarQuestions].map((item) => ({
+      id: item.id,
+      stem: item.stem,
+      difficulty: item.difficulty,
+      source: item.source,
+    }));
+  }
 
+  private buildTutorContext(
+    input: { userId?: string; questionId: string; prompt?: string },
+    question: Question,
+    knowledgePoint: KnowledgePoint | undefined,
+    selectedAnswer: string | undefined,
+  ): AiTutorContext {
+    const userId = input.userId ?? this.student.id;
+    const knowledgePointId = knowledgePoint?.id ?? question.knowledgePointIds[0];
+    const recentWrongQuestions = this.records
+      .filter((record) => record.userId === userId && !record.correct && record.knowledgePointId === knowledgePointId)
+      .slice(-5)
+      .reverse()
+      .map((record) => {
+        const related = this.questions.find((item) => item.id === record.questionId);
+        return {
+          stem: related?.stem ?? '（题目已不可用）',
+          knowledgePointTitle: knowledgePoint?.title ?? knowledgePointId,
+          mistakeReason: record.mistakeReason,
+        };
+      });
+    return {
+      userId,
+      questionId: question.id,
+      stem: question.stem,
+      options: question.options ?? [],
+      answer: question.answer,
+      analysis: question.analysis,
+      knowledgePointTitle: knowledgePoint?.title ?? knowledgePointId ?? '408 高频考点',
+      subject: knowledgePoint?.subject ?? '408',
+      chapter: knowledgePoint?.chapter ?? '高频章节',
+      selectedAnswer,
+      mistakeReason: null,
+      recentWrongQuestions,
+      prompt: input.prompt,
+    };
+  }
+
+  private assembleTutorReply(
+    input: { userId?: string; questionId: string; prompt?: string },
+    question: Question,
+    knowledgePoint: KnowledgePoint | undefined,
+    draft: AiTutorReplyDraft,
+    source: string,
+  ) {
     const reply = {
       id: `tutor-${Date.now()}`,
       userId: input.userId ?? this.student.id,
@@ -2523,24 +2637,13 @@ export class StudyService implements OnModuleInit {
       prompt: input.prompt,
       knowledgePointId: knowledgePoint?.id ?? question.knowledgePointIds[0],
       knowledgePointTitle: knowledgePoint?.title ?? question.knowledgePointIds[0] ?? '408 高频考点',
-      answerCheck: selectedAnswer
-        ? `你选择 ${selectedAnswer}，正确答案是 ${question.answer}，${isCorrect ? '本题作答正确。' : '本题需要重点复盘。'}`
-        : `正确答案是 ${question.answer}。`,
-      explanationSteps,
-      similarQuestions: [...similarQuestions, ...fallbackSimilarQuestions, ...broadSimilarQuestions].map((item) => ({
-        id: item.id,
-        stem: item.stem,
-        difficulty: item.difficulty,
-        source: item.source,
-      })),
-      nextActions: [
-        `复述 ${knowledgePoint?.title ?? '该考点'} 的核心规则，并写出本题用到的判断依据。`,
-        '完成 2-3 道同考点相似题，重点记录错因而不是只看答案。',
-        '如果仍然出错，把题干条件逐句标注，检查是否遗漏限制条件。',
-      ],
-      source: 'standard-analysis-assisted',
+      answerCheck: draft.answerCheck,
+      explanationSteps: draft.explanationSteps,
+      hintLayers: draft.hintLayers,
+      similarQuestions: draft.similarQuestions,
+      nextActions: draft.nextActions,
+      source,
     };
-
     this.aiReviewItems.push({
       id: `review-ai-${reply.id}`,
       contentType: 'ai_reply',
@@ -2553,22 +2656,17 @@ export class StudyService implements OnModuleInit {
       suggestedAction: '核对正确答案、解析步骤和相似题推荐；确认只作为辅助解释后再通过。',
       createdAt: new Date().toISOString(),
     });
-
     return reply;
   }
 
-  createAiFollowUp(input: {
-    userId?: string;
-    questionId: string;
-    message?: string;
-  }) {
-    const question = this.questions.find((item) => item.id === input.questionId);
-    if (!question) {
-      throw new BadRequestException(`Question ${input.questionId} was not found`);
-    }
-
-    const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
-    const message = input.message?.trim() || '请解释这道题并整理复习卡片。';
+  private assembleFollowUp(
+    input: { userId?: string; questionId: string; message?: string },
+    question: Question,
+    knowledgePoint: KnowledgePoint | undefined,
+    message: string,
+    draft: AiFollowUpDraft,
+    source: string,
+  ) {
     const relatedPointTitle = knowledgePoint?.title ?? question.knowledgePointIds[0] ?? '408 高频考点';
     const reply = {
       id: `follow-up-${Date.now()}`,
@@ -2581,47 +2679,12 @@ export class StudyService implements OnModuleInit {
         subject: knowledgePoint?.subject ?? '408',
         chapter: knowledgePoint?.chapter ?? '高频章节',
       },
-      replySteps: [
-        `先定位考点：本题主要考 ${relatedPointTitle}，不要只记答案，要看题干条件如何触发规则。`,
-        `再对照标准答案：正确答案是 ${question.answer}，解析依据是：${question.analysis}`,
-        message.includes('A')
-          ? '你提到的 A 选项通常是干扰项，建议把它和正确选项逐句比较，找出条件不匹配的位置。'
-          : '如果仍不确定，先把题干中的限制条件圈出来，再判断每个选项是否满足这些条件。',
-      ],
-      misconceptionTips: [
-        `不要把 ${relatedPointTitle} 的定义和相邻考点混用。`,
-        '408 选择题常用“看起来熟悉但条件不完整”的选项制造干扰。',
-      ],
-      reviewCards: [
-        {
-          id: `card-concept-${question.id}`,
-          type: 'concept',
-          title: `${relatedPointTitle} 核心概念`,
-          content: `复习时先能口述 ${relatedPointTitle} 的定义、适用条件和常见题干关键词。`,
-          nextAction: '用 2 分钟写出本考点的判断依据，再做 2 道同考点题。',
-        },
-        {
-          id: `card-rule-${question.id}`,
-          type: 'rule',
-          title: '本题判断规则',
-          content: `看到类似题目时，先提取题干条件，再和选项逐项匹配；本题标准答案为 ${question.answer}。`,
-          nextAction: '重做本题，并说明为什么其他选项不满足条件。',
-        },
-        {
-          id: `card-mix-${question.id}`,
-          type: 'confusion',
-          title: '易混点提醒',
-          content: `如果把 ${relatedPointTitle} 和前置知识混淆，容易只凭关键词选错。`,
-          nextAction: '整理一个“易混选项对比表”，记录正确条件和错误诱因。',
-        },
-      ],
-      nextActions: [
-        '先复述本题考点，再回到错题本标记是否真正理解。',
-        '完成 3 道同知识点题目，观察是否还会被同类干扰项影响。',
-      ],
-      source: 'standard-analysis-follow-up',
+      replySteps: draft.replySteps,
+      misconceptionTips: draft.misconceptionTips,
+      reviewCards: draft.reviewCards,
+      nextActions: draft.nextActions,
+      source,
     };
-
     this.aiReviewItems.push({
       id: `review-ai-${reply.id}`,
       contentType: 'ai_reply',
@@ -2634,7 +2697,6 @@ export class StudyService implements OnModuleInit {
       suggestedAction: '检查复习卡片、易错提示和下一步建议；如存在概念混淆则标记复查。',
       createdAt: new Date().toISOString(),
     });
-
     return reply;
   }
 

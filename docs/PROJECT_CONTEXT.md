@@ -62,7 +62,7 @@
 
 - 学习报告：无独立报告页/接口，由 `dashboard/overview`、`students/:id/profile`、`mastery-map`、`assessment-history`、`exam/report/:sessionId` 组合。
 - 掌握度：无持久化表，实时计算，且只覆盖内置 4 个知识点（P0-1）。
-- AI 答疑：模板规则实现、无真实模型调用；`AiTutorLog` 表存在但从未写入（P1-3）。
+- AI 答疑：已支持 DeepSeek 真实模型调用（阶段 7，需 `AI_API_KEY`；未配置时回退标准解析模板），四层分层提示 + 5 类快捷追问 + 自由提问；`AiTutorLog` 表已写入（真实调用成功/失败均记录）。
 - 评估历史/试卷/系统配置：已从 `RuntimeState` JSON 迁移至正式表（P2-1 完成，迁移 `20260805100000_reporting_tables`）；会话模式考试写入历史已修复（P1-1）。
 
 ## 7. Mock 与硬编码位置
@@ -70,7 +70,7 @@
 - `apps/web/src/mockData.ts` + `apps/web/src/api/mocks/dashboard.ts`：静态演示模式（github.io 且无 `VITE_API_BASE_URL`）与本地 DEV 的 mock 工厂。
 - `apps/api/src/study/study.service.ts`：无 `DATABASE_URL` 时的内存数组（演示学生 u-001、4 个知识点、2 道内置题、3 条演示答题记录、1 条演示评估历史、演示教师-学生授权）。
 - 内置题目 q-001/q-002 与 4 个内置知识点：`apps/api/src/questions/questions.service.ts`、`apps/api/src/study/study.service.ts`。
-- 前端 AI 答疑入口硬编码 `selectedAnswer: 'A'`：`apps/web/src/App.tsx`（handleAskTutor）。
+- AI 答疑上下文：真实作答来自 `practiceAnswerResult?.selectedAnswer`（`apps/web/src/App.tsx`）；后端提示词自动携带题目/标准解析/知识点/错因/最近错题（`apps/api/src/study/ai-tutor.service.ts`）。
 - 生产环境 `isMockAllowed() === false`，API 失败显式报错（`apps/web/src/api/env.ts`）。
 
 ## 8. 当前主要问题（详见 ROADMAP）

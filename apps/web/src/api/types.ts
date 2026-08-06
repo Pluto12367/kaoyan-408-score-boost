@@ -641,6 +641,11 @@ export interface TutorReply {
   knowledgePointTitle: string;
   answerCheck: string;
   explanationSteps: string[];
+  hintLayers: Array<{
+    level: 1 | 2 | 3 | 4;
+    title: string;
+    content: string;
+  }>;
   similarQuestions: Array<{
     id: string;
     stem: string;
