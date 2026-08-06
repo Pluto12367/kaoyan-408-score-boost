@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BookOpen, RotateCcw, CheckCircle, Clock, AlertCircle, Target } from 'lucide-react';
 import { fetchWrongQuestionDetail, saveWrongQuestionNote, type WrongQuestionDetail as DetailType, type WrongQuestionDetailLayerItem } from '../api/endpoints/review';
 
@@ -14,6 +14,13 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [noteStatus, setNoteStatus] = useState('');
+  const scrolledIntoViewFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!detail || scrolledIntoViewFor.current === questionId) return;
+    scrolledIntoViewFor.current = questionId;
+    document.getElementById('wrong-question-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [detail, questionId]);
 
   useEffect(() => {
     fetchWrongQuestionDetail(questionId)

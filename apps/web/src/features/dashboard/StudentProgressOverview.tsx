@@ -4,6 +4,7 @@ import type { MasteryMap, SprintPlan, StudyReminders, TrialProgress } from '../.
 import { masteryStatusLabel, priorityLabel } from '../../constants';
 import { ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 
 interface StudentProgressOverviewProps {
   trialProgress: ModuleResource<TrialProgress>;
@@ -16,6 +17,7 @@ interface StudentProgressOverviewProps {
   onRetryReminders: () => void;
   onRetrySprint: () => void;
   onRetryMastery: () => void;
+  onNavigate: (section: RoleSection) => void;
 }
 
 export function StudentProgressOverview({
@@ -29,6 +31,7 @@ export function StudentProgressOverview({
   onRetryReminders,
   onRetrySprint,
   onRetryMastery,
+  onNavigate,
 }: StudentProgressOverviewProps) {
   const trial = trialProgress.data;
   const reminders = studyReminders.data;
@@ -123,7 +126,7 @@ export function StudentProgressOverview({
                   <div key={point.knowledgePointId} className={`mastery-point status-${point.status}`}>
                     <div><strong>{point.title}</strong><span>{point.chapter} · 掌握 {point.masteryRate}% · 正确率 {point.accuracyRate}%</span></div>
                     <p>{point.practiceCount} 次练习 · {point.wrongCount} 次错误 · {point.nextAction}</p>
-                    <a href={point.actionAnchor}>{masteryStatusLabel[point.status]}</a>
+                    <button type="button" onClick={() => onNavigate(point.actionAnchor === '#wrong-book' ? 'wrong-book' : 'question')}>{masteryStatusLabel[point.status]}</button>
                   </div>
                 )) : (
                   <div className="mastery-empty"><strong>暂无知识点数据</strong><span>后续补充题库和知识树后会自动进入掌握度统计。</span></div>

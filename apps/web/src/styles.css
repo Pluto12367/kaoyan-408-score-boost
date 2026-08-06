@@ -2209,12 +2209,16 @@ button {
   margin: 0;
 }
 
-.mastery-point a {
+.mastery-point a,
+.mastery-point button {
   background: #eef2ff;
   border-radius: 6px;
   color: #1e3a8a;
   font-weight: 700;
   justify-self: start;
+  border: 0;
+  cursor: pointer;
+  font-size: 13px;
   padding: 8px 10px;
   text-decoration: none;
 }
@@ -3602,14 +3606,16 @@ button {
   margin-top: 14px;
 }
 
-.focus-point-list article {
+.focus-point-list article,
+.focus-point-list button {
   display: grid;
   grid-template-columns: 28px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
 }
 
-.focus-point-list article span {
+.focus-point-list article span,
+.focus-point-list button span {
   display: grid;
   width: 24px;
   height: 24px;
@@ -4158,5 +4164,180 @@ button {
   .exam-header .exam-stats {
     order: 3;
     grid-column: 1 / -1;
+  }
+}
+
+/* ---- Wrong-question detail panel (stage 4 desktop fix) ---- */
+.wrong-detail-panel {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  scroll-margin-top: 16px;
+}
+.detail-stem,
+.detail-analysis,
+.detail-note {
+  display: grid;
+  gap: 8px;
+}
+.detail-stem strong,
+.detail-analysis strong,
+.detail-note strong,
+.attempt-history > strong,
+.review-layers-head strong {
+  align-items: center;
+  color: #0f172a;
+  display: flex;
+  gap: 6px;
+}
+.detail-stem p,
+.detail-analysis p {
+  color: #334155;
+  line-height: 1.7;
+  margin: 0;
+}
+.detail-analysis,
+.review-status {
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.detail-analysis {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.answer-badge {
+  background: #dcfce7;
+  border-radius: 999px;
+  color: #15803d;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 2px 10px;
+  width: fit-content;
+}
+.review-status {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  display: grid;
+  gap: 10px;
+}
+.review-status.status-mastered {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+.review-status.status-review {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.status-header {
+  align-items: center;
+  color: #0f172a;
+  display: flex;
+  font-weight: 700;
+  gap: 8px;
+}
+.status-grid {
+  display: grid;
+  gap: 6px 14px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+.status-grid span {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.status-grid strong {
+  color: #0f172a;
+}
+.attempt-history {
+  display: grid;
+  gap: 6px;
+}
+.attempt-row {
+  align-items: center;
+  background: #fef2f2;
+  border-radius: 8px;
+  color: #7f1d1d;
+  display: grid;
+  font-size: 13px;
+  gap: 8px;
+  grid-template-columns: minmax(96px, auto) minmax(0, 1fr) minmax(0, 1fr) auto;
+  padding: 8px 10px;
+}
+.attempt-row.correct {
+  background: #f0fdf4;
+  color: #14532d;
+}
+.similar-questions {
+  display: grid;
+  gap: 8px;
+}
+.similar-row {
+  border-top: 1px dashed #e2e8f0;
+  padding-top: 8px;
+}
+.similar-row span {
+  color: #64748b;
+  font-size: 12px;
+}
+.similar-row p {
+  color: #475569;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 4px 0 0;
+}
+.detail-actions {
+  border-top: 1px solid #e5e7eb;
+  display: grid;
+  gap: 10px;
+  padding-top: 14px;
+}
+
+/* ---- Desktop clickable dashboard cards (stage 4-5 fix) ---- */
+button.student-insight-card,
+button.student-plan-ring {
+  cursor: pointer;
+  font: inherit;
+}
+button.student-insight-card {
+  width: 100%;
+}
+button.student-insight-card:hover,
+button.student-plan-ring:hover,
+.focus-point-list button:hover,
+.recent-mistake-list button:hover {
+  border-color: #93c5fd;
+  box-shadow: 0 14px 34px rgb(15 23 42 / 10%);
+}
+.focus-point-list button,
+.recent-mistake-list button {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 8px;
+  text-align: left;
+  width: 100%;
+}
+.recent-mistake-list button {
+  display: grid;
+  gap: 4px;
+}
+.recent-mistake-list button span {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.recent-mistake-list button strong {
+  color: #0f172a;
+}
+@media (max-width: 720px) {
+  .attempt-row {
+    grid-template-columns: 1fr;
   }
 }

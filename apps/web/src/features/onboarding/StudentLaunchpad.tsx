@@ -150,7 +150,7 @@ export function StudentLaunchpad({
   }
 
   const recentMistakes = (wrongQuestionSummary?.priorityRedoItems ?? []).slice(0, 4)
-    .map((item) => ({ title: item.knowledgePointTitle || item.stem, count: item.wrongCount }));
+    .map((item) => ({ questionId: item.questionId, title: item.knowledgePointTitle || item.stem, count: item.wrongCount }));
 
   const weekSchedule = todayPlan?.weekProgress?.length
     ? todayPlan.weekProgress.map((day) => ({
@@ -192,14 +192,20 @@ export function StudentLaunchpad({
             <span>{heroProgressText}</span>
           </div>
         </div>
-        <div className="student-plan-ring" aria-label="今日计划进度">
+        <button type="button" className="student-plan-ring" aria-label="今日计划进度，点击查看今日计划" onClick={() => onNavigate('plan')}>
           <strong>{heroProgressPercent}</strong>
           <span>今日计划</span>
-        </div>
+        </button>
       </section>
 
       <section className="student-kpi-strip" aria-label="学习关键指标">
-        {kpiCards.map((item) => (
+        {kpiCards.map((item) => item.label === '今日任务' ? (
+          <button type="button" key={item.label} className="student-insight-card" onClick={() => onNavigate('plan')}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.helper}</small>
+          </button>
+        ) : (
           <article key={item.label} className="student-insight-card">
             <span>{item.label}</span>
             <strong>{item.value}</strong>
@@ -254,11 +260,11 @@ export function StudentLaunchpad({
           <div className="panel-heading"><div><p className="eyebrow">薄弱知识点 TOP5</p><h3>优先复盘这些考点</h3></div></div>
           <div className="focus-point-list">
             {focusPoints.length ? focusPoints.map((item, index) => (
-              <article key={item.title}>
+              <button type="button" key={item.title} onClick={() => onNavigate('question')}>
                 <span>{index + 1}</span>
                 <strong>{item.title}</strong>
                 <small>{item.rate}</small>
-              </article>
+              </button>
             )) : (
               <p className="empty-state">暂无薄弱知识点，完成诊断和练习后自动生成。</p>
             )}
@@ -268,7 +274,10 @@ export function StudentLaunchpad({
           <div className="panel-heading"><div><p className="eyebrow">最近错题</p><h3>复盘后再进入同考点训练</h3></div></div>
           <div className="recent-mistake-list">
             {recentMistakes.length ? recentMistakes.map((item) => (
-              <span key={item.title}>× {item.title} · {item.count} 次</span>
+              <button type="button" key={item.questionId} onClick={() => onOpenReview(item.questionId)}>
+                <strong>{item.title}</strong>
+                <span>错 {item.count} 次 · 点击进入错题详情</span>
+              </button>
             )) : (
               <p className="empty-state">暂无近期错题，答错的题目会自动进入这里。</p>
             )}
@@ -289,7 +298,7 @@ export function StudentLaunchpad({
           </div>
         </div>
         <div className="panel student-insight-card">
-          <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>近 7 天练习节奏</h3></div></div>
+          <div className="panel-heading"><div><p className="eyebrow">掌握度趋势</p><h3>近 7 天练习节奏</h3></div><button type="button" className="secondary-action" onClick={() => onNavigate('report')}>查看报告</button></div>
           <div className="mastery-trend" aria-label="近 7 天掌握度趋势">
             {masteryTrend.length ? masteryTrend.map((item, index) => (
               <span key={index} style={{ height: `${item.value}%` }} title={`${item.label} · 练习 ${item.practiceCount} 题 · 完成任务 ${item.completedTaskCount} 项`} />

@@ -1219,6 +1219,7 @@ paperId: paper.id,
           onRetryReminders={refreshStudyReminders}
           onRetrySprint={refreshSprintPlan}
           onRetryMastery={refreshMasteryMap}
+          onNavigate={setActiveSection}
         />
         <LearningProfilePanel profile={studentProgress.learningProfile} onRetry={refreshLearningProfile} />
         <FeedbackPanel status={feedbackStatus} onSubmit={handleSubmitFeedback} />

@@ -39,8 +39,12 @@ const FALLBACK_REASONS = [
 export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onRetrySummary }: MistakeWorkspaceProps) {
   const summaryData = summary.data;
   const [subject, setSubject] = useState('');
+  const [chapter, setChapter] = useState('');
+  const [knowledgePointId, setKnowledgePointId] = useState('');
   const [masteryStatus, setMasteryStatus] = useState<WrongQuestionMasteryStatus | ''>('');
   const [mistakeReason, setMistakeReason] = useState('');
+  const [minWrongCount, setMinWrongCount] = useState('');
+  const [reviewedWithinDays, setReviewedWithinDays] = useState('');
   const [importance, setImportance] = useState('');
 
   const subjectOptions = useMemo(() => {
@@ -51,20 +55,38 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
     const values = [...new Set(wrongQuestions.map((item) => item.latestMistakeReason).filter((value): value is string => Boolean(value)))];
     return values.length ? values : FALLBACK_REASONS;
   }, [wrongQuestions]);
+  const chapterOptions = useMemo(() => [...new Set(wrongQuestions.map((item) => item.chapter).filter(Boolean))], [wrongQuestions]);
+  const knowledgePointOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const item of wrongQuestions) {
+      if (item.knowledgePointId && !seen.has(item.knowledgePointId)) {
+        seen.set(item.knowledgePointId, item.knowledgePointTitle || item.knowledgePointId);
+      }
+    }
+    return [...seen.entries()];
+  }, [wrongQuestions]);
 
   const filters: WrongQuestionFilter = {
     subject: subject || undefined,
-    masteryStatus: masteryStatus || undefined,
+    chapter: chapter || undefined,
+    knowledgePointId: knowledgePointId || undefined,
     mistakeReason: mistakeReason || undefined,
+    minWrongCount: minWrongCount ? Number(minWrongCount) : undefined,
+    masteryStatus: masteryStatus || undefined,
+    reviewedWithinDays: reviewedWithinDays ? Number(reviewedWithinDays) : undefined,
     importance: importance ? Number(importance) : undefined,
   };
-  const filteredQuestions = useMemo(() => filterWrongQuestions(wrongQuestions, filters), [wrongQuestions, subject, masteryStatus, mistakeReason, importance]);
-  const hasActiveFilter = Boolean(subject || masteryStatus || mistakeReason || importance);
+  const filteredQuestions = useMemo(() => filterWrongQuestions(wrongQuestions, filters), [wrongQuestions, subject, chapter, knowledgePointId, masteryStatus, mistakeReason, minWrongCount, reviewedWithinDays, importance]);
+  const hasActiveFilter = Boolean(subject || chapter || knowledgePointId || masteryStatus || mistakeReason || minWrongCount || reviewedWithinDays || importance);
 
   function resetFilters() {
     setSubject('');
+    setChapter('');
+    setKnowledgePointId('');
     setMasteryStatus('');
     setMistakeReason('');
+    setMinWrongCount('');
+    setReviewedWithinDays('');
     setImportance('');
   }
 
@@ -103,9 +125,31 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
           </select>
         </label>
         <label>
+          <span>章节</span>
+          <select value={chapter} onChange={(event) => setChapter(event.target.value)}>
+            <option value="">全部</option>
+            {chapterOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>知识点</span>
+          <select value={knowledgePointId} onChange={(event) => setKnowledgePointId(event.target.value)}>
+            <option value="">全部</option>
+            {knowledgePointOptions.map(([value, title]) => <option key={value} value={value}>{title}</option>)}
+          </select>
+        </label>
+        <label>
           <span>掌握状态</span>
           <select value={masteryStatus} onChange={(event) => setMasteryStatus(event.target.value as WrongQuestionMasteryStatus | '')}>
             {MASTERY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>最近复习</span>
+          <select value={reviewedWithinDays} onChange={(event) => setReviewedWithinDays(event.target.value)}>
+            <option value="">全部</option>
+            <option value="7">近 7 天</option>
+            <option value="30">近 30 天</option>
           </select>
         </label>
         <label>
@@ -113,6 +157,14 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
           <select value={mistakeReason} onChange={(event) => setMistakeReason(event.target.value)}>
             <option value="">全部</option>
             {reasonOptions.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>
+          <span>错误次数</span>
+          <select value={minWrongCount} onChange={(event) => setMinWrongCount(event.target.value)}>
+            <option value="">全部</option>
+            <option value="2">≥ 2 次</option>
+            <option value="3">≥ 3 次</option>
           </select>
         </label>
         <label>
@@ -134,7 +186,7 @@ export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuesti
                 <span className={`mastery-badge mastery-${item.masteryStatus}`}>{item.masteryStatus}</span>
               </div>
               <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}{item.importance ? ` / 重要度 ${item.importance}` : ''}</p>
-              <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}{item.masteryCriteria ? ` · 连续正确 ${item.masteryCriteria.consecutiveCorrect} 次` : ''}</small>
+              <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}{item.masteryCriteria ? ` · 连续正确 ${item.masteryCriteria.consecutiveCorrect} 次 · 变式答对 ${item.masteryCriteria.variantCorrectCount}/3 次` : ''}</small>
               <span>{item.stem}</span>
             </div>
             <button type="button" onClick={() => onOpenDetail(item.questionId)}>详情与笔记</button>
