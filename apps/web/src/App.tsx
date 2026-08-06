@@ -19,6 +19,20 @@ import { StudentLaunchpad } from './features/onboarding/StudentLaunchpad';
 import { DiagnosticSummary } from './features/diagnostic/DiagnosticSummary';
 import { StudyPlanOverview } from './features/plan/StudyPlanOverview';
 import { PracticePanel } from './features/practice/PracticePanel';
+import {
+  advanceQuestion,
+  beginRedo,
+  beginVariantRetest,
+  type PracticeAttemptState,
+} from './features/practice/practiceAttemptState';
+import {
+  createPracticeSubmissionGate,
+  finishPracticeSubmission,
+  invalidatePracticeAttempt,
+  isCurrentPracticeSubmission,
+  tryStartPracticeSubmission,
+  type PracticeSubmissionGate,
+} from './features/practice/practiceSubmissionGate';
 import { WeaknessReportPanel } from './features/report/WeaknessReportPanel';
 import { MistakeWorkspace } from './features/mistakes/MistakeWorkspace';
 import { StageAssessmentPanel } from './features/assessment/StageAssessmentPanel';
@@ -191,8 +205,30 @@ export function App() {
   const practiceTimerRef = useRef<{ questionId: string; activeMs: number; startedAt: number | null }>({
     questionId: '', activeMs: 0, startedAt: null,
   });
+  const practiceSubmissionGateRef = useRef<PracticeSubmissionGate>(createPracticeSubmissionGate());
   const [redoQuestionId, setRedoQuestionId] = useState<string | null>(null);
   const [variantOfQuestionId, setVariantOfQuestionId] = useState<string | null>(null);
+
+  function readPracticeAttemptState(): PracticeAttemptState {
+    return {
+      answerResult: practiceAnswerResult,
+      submitting: practiceSubmitting,
+      reasonQueue,
+      redoQuestionId,
+      variantOfQuestionId,
+      index: practiceIndex,
+    };
+  }
+
+  function applyPracticeAttemptState(next: PracticeAttemptState) {
+    setPracticeAnswerResult(next.answerResult);
+    setPracticeSubmitting(next.submitting);
+    setReasonQueue(next.reasonQueue);
+    setRedoQuestionId(next.redoQuestionId);
+    setVariantOfQuestionId(next.variantOfQuestionId);
+    setPracticeIndex(next.index);
+  }
+
   const [detailQuestionId, setDetailQuestionId] = useState<string | null>(null);
   const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
@@ -500,6 +536,8 @@ export function App() {
 
   async function handleSubmitAnswer(selectedAnswer: string) {
     if (practiceSubmitting || practiceAnswerResult) return;
+    const submissionToken = tryStartPracticeSubmission(practiceSubmissionGateRef.current);
+    if (!submissionToken) return;
     setPracticeSubmitting(true);
     setPracticeStatus('正在提交答案...');
     const timeSpentSec = readPracticeElapsedSec();
@@ -513,6 +551,7 @@ export function App() {
         timeSpentSec,
         variantQuestionId: isVariant ? variantOfQuestionId : undefined,
       });
+      if (!isCurrentPracticeSubmission(practiceSubmissionGateRef.current, submissionToken)) return;
       setPracticeAnswerResult(record);
       setApiState('connected');
       void Promise.allSettled([
@@ -551,26 +590,25 @@ export function App() {
         restartPracticeTimer();
       }
     } catch {
+      if (!isCurrentPracticeSubmission(practiceSubmissionGateRef.current, submissionToken)) return;
       setPracticeStatus(isMockAllowed() ? '提交失败，当前显示本地演示数据。' : '提交失败，请重试。本次作答尚未保存。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
     } finally {
-      setPracticeSubmitting(false);
+      if (finishPracticeSubmission(practiceSubmissionGateRef.current, submissionToken)) {
+        setPracticeSubmitting(false);
+      }
     }
   }
 
   function handleNextQuestion() {
     if (questions.length === 0) return;
+    invalidatePracticeAttempt(practiceSubmissionGateRef.current);
     if (practiceIndex >= questions.length - 1) {
-      setPracticeAnswerResult(null);
-      setRedoQuestionId(null);
-      setVariantOfQuestionId(null);
+      applyPracticeAttemptState(advanceQuestion(readPracticeAttemptState()));
       setPracticeStatus('已到当前题库末尾，可开始专项练习或前往错题本复习。');
       return;
     }
-    setPracticeAnswerResult(null);
-    setRedoQuestionId(null);
-    setVariantOfQuestionId(null);
-    setPracticeIndex(practiceIndex + 1);
+    applyPracticeAttemptState(advanceQuestion(readPracticeAttemptState(), practiceIndex + 1));
     restartPracticeTimer();
     setPracticeStatus('选择选项后，系统会自动判题并更新提分报告。');
   }
@@ -1384,15 +1422,15 @@ paperId: paper.id,
             onReview={handleReviewWrongQuestion}
             onRetrySummary={refreshWrongQuestionSummary}
             onRedo={(questionId, knowledgePointTitle) => {
-              setRedoQuestionId(questionId);
-              setVariantOfQuestionId(null);
+              invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+              applyPracticeAttemptState(beginRedo(readPracticeAttemptState(), questionId));
               setDetailQuestionId(null);
               if (knowledgePointTitle) setPracticeStatus(`正在重做：${knowledgePointTitle}。请选择答案。`);
               setActiveSection('question');
             }}
-            onPracticeVariant={(questionId, variantOfQuestionId) => {
-              setVariantOfQuestionId(variantOfQuestionId);
-              setRedoQuestionId(questionId);
+            onPracticeVariant={(questionId, variantQuestionId) => {
+              invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+              applyPracticeAttemptState(beginVariantRetest(readPracticeAttemptState(), questionId, variantQuestionId));
               setDetailQuestionId(null);
               setPracticeStatus('正在复测变式题：答对可推动原错题掌握度。');
               setActiveSection('question');
@@ -1487,6 +1525,7 @@ paperId: paper.id,
           isReview={reasonPrompt.isReview}
           inferredReason={reasonPrompt.mistakeReason ?? null}
           onClose={() => {
+            invalidatePracticeAttempt(practiceSubmissionGateRef.current);
             if (reasonPrompt.correct && reasonPrompt.isReview) {
               setRedoQuestionId(null);
               setPracticeAnswerResult(null);
@@ -1496,6 +1535,7 @@ paperId: paper.id,
             setPracticeStatus('已跳过错因自评，系统仍会保留本次练习记录。');
           }}
           onReported={(result) => {
+            invalidatePracticeAttempt(practiceSubmissionGateRef.current);
             if (reasonPrompt.correct && reasonPrompt.isReview) {
               setRedoQuestionId(null);
               setPracticeAnswerResult(null);
