@@ -4051,12 +4051,29 @@ textarea:focus-visible,
     grid-template-columns: 1fr;
   }
 
+  .auth-brand-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .auth-orb {
+    width: 88px;
+    height: 88px;
+    border-radius: 24px;
+    font-size: 28px;
+  }
+
+  .auth-feature-grid span {
+    flex: 1 1 calc(50% - 10px);
+    justify-content: center;
+  }
+
   .auth-brand,
   .auth-gate .role-panel {
     padding: 20px;
   }
 
-  .auth-feature-grid,
   .student-kpi-strip,
   .student-action-grid,
   .student-subject-grid,

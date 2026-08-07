@@ -37,3 +37,9 @@ test('styles define the segmented switch and invite hint', async () => {
   assert.match(styles, /\.auth-mode-switch \{/);
   assert.match(styles, /\.auth-invite-hint \{/);
 });
+
+test('mobile styles stack the auth brand row and keep feature tags usable', async () => {
+  const styles = await source('apps/web/src/styles.css');
+  assert.match(styles, /@media \(max-width: 720px\) \{[\s\S]*?\.auth-brand-row \{[\s\S]*?flex-direction:\s*column/);
+  assert.match(styles, /@media \(max-width: 720px\) \{[\s\S]*?\.auth-feature-grid span \{[\s\S]*?flex:\s*1 1 calc\(50% - 10px\)/);
+});
