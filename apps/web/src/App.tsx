@@ -1096,14 +1096,16 @@ paperId: paper.id,
               </div>
             </div>
             <h1>计算机考研 408 提分系统</h1>
+            <p className="auth-tagline">从入学诊断到模拟考试，四科薄弱点一清二楚</p>
             <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
             <div className="auth-feature-grid" aria-label="系统能力">
-              <span><BookOpenCheck size={16} />题库训练</span>
-              <span><ShieldCheck size={16} />错题复盘</span>
-              <span><Target size={16} />学情分析</span>
-              <span><Brain size={16} />AI 辅助</span>
+              <span><BookOpenCheck size={16} /><b>题库训练</b><small>按薄弱点精准组题</small></span>
+              <span><ShieldCheck size={16} /><b>错题复盘</b><small>错因分类，变式重练</small></span>
+              <span><Target size={16} /><b>学情分析</b><small>四科掌握度实时可视化</small></span>
+              <span><Brain size={16} /><b>AI 辅助</b><small>四层提示拆解解题思路</small></span>
             </div>
             <p className="auth-role-copy">学生 / 教师 / 管理员均可进入对应工作台。</p>
+            <p className="auth-trust">面向计算机考研 408 考生的个性化提分系统</p>
           </div>
           <AccountPanel
             user={sessionUser}
