@@ -62,7 +62,7 @@ test('P2-4: a multi-knowledge-point record counts toward every related point', (
 
 test('P2-4: schema, migration and repository carry the knowledge-point snapshot', async () => {
   const schema = await readFile(new URL('../prisma/schema.prisma', import.meta.url), 'utf8');
-  assert.match(schema, /knowledgePointIds String\[\]        @default\(\[\]\)/, 'PracticeRecord should snapshot all knowledge point ids');
+  assert.match(schema, /knowledgePointIds\s+String\[\]\s+@default\(\[\]\)/, 'PracticeRecord should snapshot all knowledge point ids');
 
   const migration = await readFile(
     new URL('../prisma/migrations/20260806120000_practice_record_knowledge_points/migration.sql', import.meta.url),

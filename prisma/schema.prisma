@@ -93,44 +93,82 @@ enum QuestionImportAssetScope {
   permanent
 }
 
+enum KnowledgeRelationType {
+  PREREQUISITE
+  RELATED
+  CROSS_SUBJECT
+  CONFUSED_WITH
+  SUPERSEDES
+}
+
+enum ExamTagRole {
+  PRIMARY
+  SECONDARY
+}
+
+enum ExamTagPrecision {
+  EXACT_ATOMIC
+  BROAD_HISTORICAL
+}
+
+enum ExamTagger {
+  AI
+  HUMAN
+  HYBRID
+}
+
+enum TrendDirection {
+  RISING
+  STABLE
+  FALLING
+  COLD
+}
+
+enum EvidenceConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model User {
-  id                    String                        @id @default(cuid())
-  email                 String?                       @unique
-  passwordHash          String?
-  name                  String
-  role                  UserRole
-  accountStatus         AccountStatus                 @default(ACTIVE)
-  mustChangePassword    Boolean                       @default(false)
-  trialStatus           TrialStatus                   @default(INVITED)
-  targetSchool          String?
-  targetScore           Int?
-  currentScore          Int?
-  dailyHours            Float?
-  remainingDays         Int?
-  studyStage            String?
-  weakestSubject        String?
-  diagnosis             String?
-  examYear              Int?
-  onboardingCompletedAt DateTime?
-  createdAt             DateTime                      @default(now())
-  updatedAt             DateTime                      @updatedAt
-  practiceRecords       PracticeRecord[]
-  studyPlans            StudyPlan[]
-  wrongQuestionReviews  WrongQuestionReview[]
-  taskCompletions       StudyTaskCompletion[]
-  refreshTokens         RefreshToken[]
-  learningSessions      LearningSession[]
-  reviewSchedules       ReviewSchedule[]
-  examReviewPlans       ExamReviewPlan[]
-  operationLogs         OperationLog[]
-  feedbackSubmissions   FeedbackSubmission[]
-  authorizedStudents    TeacherStudentAuthorization[] @relation("AuthorizedTeacher")
-  authorizedTeachers    TeacherStudentAuthorization[] @relation("AuthorizedStudent")
-  createdInvitations    InvitationCode[]              @relation("CreatedInvitations")
-  invitationRedemptions InvitationRedemption[]
-  uploadedImportBatches QuestionImportBatch[]      @relation("QuestionImportUploader")
+  id                     String                        @id @default(cuid())
+  email                  String?                       @unique
+  passwordHash           String?
+  name                   String
+  role                   UserRole
+  accountStatus          AccountStatus                 @default(ACTIVE)
+  mustChangePassword     Boolean                       @default(false)
+  trialStatus            TrialStatus                   @default(INVITED)
+  targetSchool           String?
+  targetScore            Int?
+  currentScore           Int?
+  dailyHours             Float?
+  remainingDays          Int?
+  studyStage             String?
+  weakestSubject         String?
+  diagnosis              String?
+  examYear               Int?
+  onboardingCompletedAt  DateTime?
+  createdAt              DateTime                      @default(now())
+  updatedAt              DateTime                      @updatedAt
+  practiceRecords        PracticeRecord[]
+  studyPlans             StudyPlan[]
+  wrongQuestionReviews   WrongQuestionReview[]
+  taskCompletions        StudyTaskCompletion[]
+  refreshTokens          RefreshToken[]
+  learningSessions       LearningSession[]
+  reviewSchedules        ReviewSchedule[]
+  examReviewPlans        ExamReviewPlan[]
+  operationLogs          OperationLog[]
+  feedbackSubmissions    FeedbackSubmission[]
+  authorizedStudents     TeacherStudentAuthorization[] @relation("AuthorizedTeacher")
+  authorizedTeachers     TeacherStudentAuthorization[] @relation("AuthorizedStudent")
+  createdInvitations     InvitationCode[]              @relation("CreatedInvitations")
+  invitationRedemptions  InvitationRedemption[]
+  uploadedImportBatches  QuestionImportBatch[]         @relation("QuestionImportUploader")
   assessmentHistoryItems AssessmentHistoryItem[]
-  userEvents            UserEvent[]
+  userEvents             UserEvent[]
+  knowledgeMasteries     UserKnowledgeMastery[]
 }
 
 model UserEvent {
@@ -235,25 +273,25 @@ model AuditEvent {
 }
 
 model LearningSession {
-  id              String           @id
-  userId          String
-  type            String
-  resourceId      String?
-  questionIds     String[]
+  id               String           @id
+  userId           String
+  type             String
+  resourceId       String?
+  questionIds      String[]
   questionSnapshot Json             @default("[]")
-  answers         Json
-  markedQuestions String[]
-  currentIndex    Int              @default(0)
-  revision        Int              @default(0)
-  startedAt       DateTime         @default(now())
-  lastActiveAt    DateTime         @default(now())
-  totalActiveMs   Int              @default(0)
-  lastResumeAt    DateTime         @default(now())
-  completed       Boolean          @default(false)
-  submittedAt     DateTime?
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  practiceRecords PracticeRecord[]
-  examReviewPlan  ExamReviewPlan?
+  answers          Json
+  markedQuestions  String[]
+  currentIndex     Int              @default(0)
+  revision         Int              @default(0)
+  startedAt        DateTime         @default(now())
+  lastActiveAt     DateTime         @default(now())
+  totalActiveMs    Int              @default(0)
+  lastResumeAt     DateTime         @default(now())
+  completed        Boolean          @default(false)
+  submittedAt      DateTime?
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  practiceRecords  PracticeRecord[]
+  examReviewPlan   ExamReviewPlan?
 
   @@index([userId, completed, lastActiveAt])
   @@index([userId, type, resourceId])
@@ -281,15 +319,16 @@ model KnowledgePoint {
   prerequisites String[]
   questions     QuestionKnowledgePoint[]
   records       PracticeRecord[]
+  nodeMaps      KnowledgePointNodeMap[]
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
 }
 
 model Question {
-  id                   String                   @id @default(cuid())
+  id                   String                     @id @default(cuid())
   familyId             String
-  versionNumber        Int                      @default(1)
-  isCurrent            Boolean                  @default(true)
+  versionNumber        Int                        @default(1)
+  isCurrent            Boolean                    @default(true)
   contentFingerprint   String
   importBatchId        String?
   stem                 String
@@ -300,19 +339,20 @@ model Question {
   type                 QuestionType
   source               String
   year                 Int?
-  expectedTimeSec      Int                      @default(100)
-  formulas             Json                     @default("[]")
+  expectedTimeSec      Int                        @default(100)
+  formulas             Json                       @default("[]")
   sourceRegion         Json?
   knowledgePoints      QuestionKnowledgePoint[]
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]
   reviewSchedules      ReviewSchedule[]
-  family               QuestionFamily           @relation(fields: [familyId], references: [id], onDelete: Restrict)
-  importBatch          QuestionImportBatch?     @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
-  importCandidates     QuestionImportCandidate[] @relation("ImportedQuestionCandidate")
+  knowledgeNodeTags    QuestionKnowledgeNodeTag[]
+  family               QuestionFamily             @relation(fields: [familyId], references: [id], onDelete: Restrict)
+  importBatch          QuestionImportBatch?       @relation(fields: [importBatchId], references: [id], onDelete: Restrict)
+  importCandidates     QuestionImportCandidate[]  @relation("ImportedQuestionCandidate")
   importAssets         QuestionImportAsset[]
-  createdAt            DateTime                 @default(now())
-  updatedAt            DateTime                 @updatedAt
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
 
   @@unique([familyId, versionNumber])
   @@index([isCurrent, createdAt])
@@ -320,43 +360,43 @@ model Question {
 }
 
 model QuestionFamily {
-  id               String                   @id @default(cuid())
+  id               String                    @id @default(cuid())
   versions         Question[]
   targetCandidates QuestionImportCandidate[]
-  createdAt        DateTime                 @default(now())
+  createdAt        DateTime                  @default(now())
 }
 
 model QuestionImportBatch {
-  id                  String                       @id @default(cuid())
-  uploadedById        String
-  uploadedBy          User                         @relation("QuestionImportUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
-  originalFileName    String
-  originalStorageKey  String
-  fileSha256          String
-  fileType            QuestionImportFileType
-  source              String
-  title               String?
-  year                Int?
-  defaultSubject      String?
-  defaultChapter      String?
-  pageRange           String?
-  rightsConfirmed     Boolean
-  rightsConfirmedAt   DateTime?
-  status              QuestionImportBatchStatus    @default(uploaded)
-  statusCounts        Json                         @default("{}")
-  providerSummary     Json?
-  costSummary         Json?
-  expiresAt           DateTime
-  completedAt         DateTime?
-  failedAt            DateTime?
-  revision            Int                          @default(0)
-  createdAt           DateTime                     @default(now())
-  updatedAt           DateTime                     @updatedAt
-  jobs                QuestionImportJob[]
-  candidates          QuestionImportCandidate[]
-  assets              QuestionImportAsset[]
-  confirmations       QuestionImportConfirmation[]
-  questions           Question[]
+  id                 String                       @id @default(cuid())
+  uploadedById       String
+  uploadedBy         User                         @relation("QuestionImportUploader", fields: [uploadedById], references: [id], onDelete: Restrict)
+  originalFileName   String
+  originalStorageKey String
+  fileSha256         String
+  fileType           QuestionImportFileType
+  source             String
+  title              String?
+  year               Int?
+  defaultSubject     String?
+  defaultChapter     String?
+  pageRange          String?
+  rightsConfirmed    Boolean
+  rightsConfirmedAt  DateTime?
+  status             QuestionImportBatchStatus    @default(uploaded)
+  statusCounts       Json                         @default("{}")
+  providerSummary    Json?
+  costSummary        Json?
+  expiresAt          DateTime
+  completedAt        DateTime?
+  failedAt           DateTime?
+  revision           Int                          @default(0)
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+  jobs               QuestionImportJob[]
+  candidates         QuestionImportCandidate[]
+  assets             QuestionImportAsset[]
+  confirmations      QuestionImportConfirmation[]
+  questions          Question[]
 
   @@index([uploadedById, createdAt])
   @@index([fileSha256, status])
@@ -364,27 +404,27 @@ model QuestionImportBatch {
 }
 
 model QuestionImportJob {
-  id             String                 @id @default(cuid())
-  batchId        String
-  pageStart      Int
-  pageEnd        Int
-  provider       String
-  externalTaskId String?
+  id                      String                    @id @default(cuid())
+  batchId                 String
+  pageStart               Int
+  pageEnd                 Int
+  provider                String
+  externalTaskId          String?
   providerInputStorageKey String?
-  attempt        Int                    @default(0)
-  retryAt        DateTime?
-  leaseOwner     String?
-  leaseExpiresAt DateTime?
-  state          QuestionImportJobState @default(pending)
-  quality        Json?
-  cost           Json?
-  error          Json?
-  startedAt      DateTime?
-  completedAt    DateTime?
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime               @updatedAt
-  batch          QuestionImportBatch    @relation(fields: [batchId], references: [id], onDelete: Restrict)
-  candidates     QuestionImportCandidate[]
+  attempt                 Int                       @default(0)
+  retryAt                 DateTime?
+  leaseOwner              String?
+  leaseExpiresAt          DateTime?
+  state                   QuestionImportJobState    @default(pending)
+  quality                 Json?
+  cost                    Json?
+  error                   Json?
+  startedAt               DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  batch                   QuestionImportBatch       @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  candidates              QuestionImportCandidate[]
 
   @@index([batchId, state, retryAt])
   @@index([state, retryAt, leaseExpiresAt, createdAt])
@@ -392,46 +432,46 @@ model QuestionImportJob {
 }
 
 model QuestionImportCandidate {
-  id                String                        @id @default(cuid())
-  batchId           String
-  jobId             String?
-  sourceRowNumber   Int?
-  stem              String
-  options           String[]
-  answer            String
-  analysis          String
-  difficulty        Difficulty
-  type              QuestionType
-  source            String
-  year              Int?
-  expectedTimeSec   Int                           @default(100)
-  knowledgePointIds String[]
-  formulas          Json                          @default("[]")
-  warnings          Json                          @default("[]")
-  pageNumber        Int?
-  sourceRegion      Json?
+  id                 String                        @id @default(cuid())
+  batchId            String
+  jobId              String?
+  sourceRowNumber    Int?
+  stem               String
+  options            String[]
+  answer             String
+  analysis           String
+  difficulty         Difficulty
+  type               QuestionType
+  source             String
+  year               Int?
+  expectedTimeSec    Int                           @default(100)
+  knowledgePointIds  String[]
+  formulas           Json                          @default("[]")
+  warnings           Json                          @default("[]")
+  pageNumber         Int?
+  sourceRegion       Json?
   contentFingerprint String
-  targetFamilyId    String?
-  status            QuestionImportCandidateStatus @default(pending_review)
-  duplicateAction   QuestionImportDuplicateAction @default(skip)
-  reviewMetadata    Json?
-  reviewedById      String?
-  reviewedAt        DateTime?
-  revision          Int                           @default(0)
+  targetFamilyId     String?
+  status             QuestionImportCandidateStatus @default(pending_review)
+  duplicateAction    QuestionImportDuplicateAction @default(skip)
+  reviewMetadata     Json?
+  reviewedById       String?
+  reviewedAt         DateTime?
+  revision           Int                           @default(0)
   importedQuestionId String?
-  createdAt         DateTime                      @default(now())
-  updatedAt         DateTime                      @updatedAt
-  batch             QuestionImportBatch           @relation(fields: [batchId], references: [id], onDelete: Restrict)
-  job               QuestionImportJob?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
-  targetFamily      QuestionFamily?                @relation(fields: [targetFamilyId], references: [id], onDelete: Restrict)
-  importedQuestion  Question?                      @relation("ImportedQuestionCandidate", fields: [importedQuestionId], references: [id], onDelete: Restrict)
-  assets            QuestionImportAsset[]
+  createdAt          DateTime                      @default(now())
+  updatedAt          DateTime                      @updatedAt
+  batch              QuestionImportBatch           @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  job                QuestionImportJob?            @relation(fields: [jobId], references: [id], onDelete: SetNull)
+  targetFamily       QuestionFamily?               @relation(fields: [targetFamilyId], references: [id], onDelete: Restrict)
+  importedQuestion   Question?                     @relation("ImportedQuestionCandidate", fields: [importedQuestionId], references: [id], onDelete: Restrict)
+  assets             QuestionImportAsset[]
 
+  @@unique([jobId, sourceRowNumber])
   @@index([batchId, status, createdAt])
   @@index([contentFingerprint, status])
   @@index([targetFamilyId])
   @@index([jobId])
-  @@unique([jobId, sourceRowNumber])
 }
 
 model QuestionImportAsset {
@@ -483,29 +523,29 @@ model QuestionKnowledgePoint {
 }
 
 model PracticeRecord {
-  id               String           @id @default(cuid())
-  userId           String
-  questionId       String
-  knowledgePointId String
-  selectedAnswer   String?
-  correct          Boolean
-  timeSpentSec     Int
-  expectedTimeSec  Int
-  mistakeReason    String?
-  submittedAt      DateTime         @default(now())
-  sessionId        String?
-  gradingMode      String           @default("objective")
-  selfScore        Int?
-  maxScore         Int?
-  confidence       String?
-  usedHint         Boolean          @default(false)
-  answerModified   Boolean          @default(false)
+  id                String           @id @default(cuid())
+  userId            String
+  questionId        String
+  knowledgePointId  String
+  selectedAnswer    String?
+  correct           Boolean
+  timeSpentSec      Int
+  expectedTimeSec   Int
+  mistakeReason     String?
+  submittedAt       DateTime         @default(now())
+  sessionId         String?
+  gradingMode       String           @default("objective")
+  selfScore         Int?
+  maxScore          Int?
+  confidence        String?
+  usedHint          Boolean          @default(false)
+  answerModified    Boolean          @default(false)
   variantQuestionId String?
-  knowledgePointIds String[]        @default([])
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  question         Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  knowledgePoint   KnowledgePoint   @relation(fields: [knowledgePointId], references: [id])
-  session          LearningSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  knowledgePointIds String[]         @default([])
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question          Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgePoint    KnowledgePoint   @relation(fields: [knowledgePointId], references: [id])
+  session           LearningSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([userId, submittedAt])
   @@index([knowledgePointId, correct])
@@ -513,12 +553,14 @@ model PracticeRecord {
 }
 
 model WrongQuestionReview {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   questionId String
-  reviewedAt DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  reviewedAt DateTime  @default(now())
+  resolved   Boolean?
+  resolvedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question   Question  @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([userId, questionId])
   @@index([userId, reviewedAt])
@@ -541,41 +583,53 @@ model StudyTaskCompletion {
 }
 
 model StudyPlan {
-  id            String      @id @default(cuid())
-  userId        String
-  phase         String
-  targetScore   Int
-  remainingDays Int
-  dailyHours    Float
-  checkpoint    String
-  status        String      @default("ACTIVE")
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks         StudyTask[]
+  id               String      @id @default(cuid())
+  userId           String
+  phase            String
+  targetScore      Int
+  remainingDays    Int
+  dailyHours       Float
+  checkpoint       String
+  source           String?
+  modelVersion     String?
+  targetExamDate   DateTime?
+  availableMinutes Int?
+  stale            Boolean     @default(false)
+  status           String      @default("ACTIVE")
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks            StudyTask[]
 }
 
 model StudyTask {
-  id               String    @id @default(cuid())
-  planId           String
-  knowledgePointId String
-  subject          String    @default("")
-  chapter          String    @default("")
-  title            String
-  mode             String
-  minutes          Int
-  questionCount    Int
-  scheduledDate    String    @default("")
-  priority         String    @default("低")
-  reason           String    @default("")
-  nextAction       String    @default("")
-  status           String    @default("pending")
-  postponeCount    Int       @default(0)
-  startedAt        DateTime?
-  nextAvailableAt  DateTime?
-  completedAt      DateTime?
-  completed        Boolean   @default(false)
-  plan             StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  id                   String         @id @default(cuid())
+  planId               String
+  knowledgePointId     String
+  knowledgeNodeId      String?
+  priorityScore        Int?
+  recommendationAction String?
+  reasonCodes          Json?
+  scoreBreakdown       Json?
+  generatedRank        Int?
+  subject              String         @default("")
+  chapter              String         @default("")
+  title                String
+  mode                 String
+  minutes              Int
+  questionCount        Int
+  scheduledDate        String         @default("")
+  priority             String         @default("低")
+  reason               String         @default("")
+  nextAction           String         @default("")
+  status               String         @default("pending")
+  postponeCount        Int            @default(0)
+  startedAt            DateTime?
+  nextAvailableAt      DateTime?
+  completedAt          DateTime?
+  completed            Boolean        @default(false)
+  plan                 StudyPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
+  knowledgeNode        KnowledgeNode? @relation(fields: [knowledgeNodeId], references: [id], onDelete: SetNull)
 
   @@index([planId, scheduledDate, status])
 }
@@ -689,5 +743,181 @@ model SystemConfig {
   id             Int      @id @default(autoincrement())
   recommendation Json
   updatedBy      String
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime @updatedAt @default(now())
+}
+
+// ---- 408 score center: global knowledge evidence layer ----
+
+model KnowledgeNode {
+  id              String   @id
+  parentId        String?
+  subject         String
+  nodeType        String
+  name            String
+  importance      Int
+  difficulty      Int
+  syllabusVersion String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  parent             KnowledgeNode?               @relation("KnowledgeTree", fields: [parentId], references: [id])
+  children           KnowledgeNode[]              @relation("KnowledgeTree")
+  outgoing           KnowledgeRelation[]          @relation("RelationFrom")
+  incoming           KnowledgeRelation[]          @relation("RelationTo")
+  examTags           ExamQuestionKnowledgeTag[]
+  frequency          KnowledgeFrequencySnapshot[]
+  knowledgePointMaps KnowledgePointNodeMap[]
+  questionTags       QuestionKnowledgeNodeTag[]
+  userMasteries      UserKnowledgeMastery[]
+  StudyTask          StudyTask[]
+
+  @@index([parentId])
+  @@index([subject, nodeType])
+  @@index([isActive])
+}
+
+model KnowledgeRelation {
+  id        String                @id @default(cuid())
+  fromId    String
+  toId      String
+  type      KnowledgeRelationType
+  createdAt DateTime              @default(now())
+
+  from KnowledgeNode @relation("RelationFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  to   KnowledgeNode @relation("RelationTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId, type])
+  @@index([toId, type])
+}
+
+model ExamPaper {
+  id         String   @id
+  exam       String
+  year       Int
+  totalScore Int
+  source     String?
+  createdAt  DateTime @default(now())
+
+  questions ExamQuestion[]
+
+  @@unique([exam, year])
+}
+
+model ExamQuestion {
+  id           String   @id
+  paperId      String
+  questionNo   Int
+  subject      String
+  questionType String
+  score        Int?
+  summary      String?
+  sourceRef    String?
+  createdAt    DateTime @default(now())
+
+  paper ExamPaper                  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+  tags  ExamQuestionKnowledgeTag[]
+
+  @@unique([paperId, questionNo])
+  @@index([subject, questionType])
+}
+
+model ExamQuestionKnowledgeTag {
+  id              String           @id @default(cuid())
+  questionId      String
+  knowledgeNodeId String
+  role            ExamTagRole
+  confidence      Float
+  precision       ExamTagPrecision
+  taggedBy        ExamTagger
+  createdAt       DateTime         @default(now())
+
+  question      ExamQuestion  @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgeNode KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id])
+
+  @@unique([questionId, knowledgeNodeId, role])
+  @@index([knowledgeNodeId, precision, role])
+}
+
+model KnowledgeFrequencySnapshot {
+  id                 String             @id @default(cuid())
+  knowledgeNodeId    String
+  snapshotDate       DateTime
+  recent3Frequency   Int
+  recent5Frequency   Int
+  allTimeEvidence    Int
+  primaryScore5y     Int
+  trendDirection     TrendDirection
+  trendDelta         Float
+  evidenceConfidence EvidenceConfidence
+  modelVersion       String
+  createdAt          DateTime           @default(now())
+
+  knowledgeNode KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id])
+
+  @@unique([knowledgeNodeId, snapshotDate, modelVersion])
+  @@index([snapshotDate, modelVersion])
+}
+
+// ---- 408 score center: bridge layer ----
+
+model KnowledgePointNodeMap {
+  knowledgePointId String
+  knowledgeNodeId  String
+  mappingType      String     @default("PRIMARY")
+  confidence       Float?
+  taggedBy         ExamTagger @default(HYBRID)
+  createdAt        DateTime   @default(now())
+
+  knowledgePoint KnowledgePoint @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
+  knowledgeNode  KnowledgeNode  @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+
+  @@id([knowledgePointId, knowledgeNodeId])
+  @@index([knowledgeNodeId])
+}
+
+model QuestionKnowledgeNodeTag {
+  id              String      @id @default(cuid())
+  questionId      String
+  knowledgeNodeId String
+  role            ExamTagRole
+  confidence      Float       @default(1.0)
+  taggedBy        ExamTagger  @default(HYBRID)
+  source          String?
+  createdAt       DateTime    @default(now())
+
+  question      Question      @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgeNode KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id])
+
+  @@unique([questionId, knowledgeNodeId, role])
+  @@index([knowledgeNodeId, role])
+}
+
+// ---- 408 score center: user atomic mastery state ----
+
+model UserKnowledgeMastery {
+  id              String    @id @default(cuid())
+  userId          String
+  knowledgeNodeId String
+  mastery         Float     @default(0.5)
+  accuracy        Float     @default(0.55)
+  recentAccuracy  Float     @default(0.55)
+  attempts        Int       @default(0)
+  correctCount    Int       @default(0)
+  wrongCount      Int       @default(0)
+  retention       Float?
+  stabilityDays   Float?
+  lastLearnedAt   DateTime?
+  lastReviewedAt  DateTime?
+  nextReviewAt    DateTime?
+  confidence      Float     @default(0.0)
+  pinned          Boolean   @default(false)
+  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgeNode KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id])
+
+  @@unique([userId, knowledgeNodeId])
+  @@index([userId, nextReviewAt])
 }
