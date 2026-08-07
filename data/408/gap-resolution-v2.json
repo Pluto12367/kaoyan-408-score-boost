@@ -1,0 +1,301 @@
+{
+  "meta": {
+    "originalUniqueGaps": 29,
+    "resolved": 29,
+    "review": 0
+  },
+  "items": [
+    {
+      "concept": "合法出栈序列判定",
+      "count": 2,
+      "examples": [
+        "408-2022-Q02",
+        "408-2026-Q42"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "DS-C03-S01-P90",
+      "resolvedName": "合法出栈序列判定"
+    },
+    {
+      "concept": "页表基址寄存器",
+      "count": 2,
+      "examples": [
+        "408-2024-Q25",
+        "408-2025-Q23"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CO-C05-S01-P90",
+      "resolvedName": "页表基址寄存器"
+    },
+    {
+      "concept": "m叉树最大结点数公式",
+      "count": 1,
+      "examples": [
+        "408-2022-Q04"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "DS-C04-S01-P90",
+      "resolvedName": "m叉树结点数与高度关系"
+    },
+    {
+      "concept": "预处理器/预处理阶段",
+      "count": 1,
+      "examples": [
+        "408-2022-Q20"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CO-C01-S01-P90",
+      "resolvedName": "预处理阶段"
+    },
+    {
+      "concept": "中断向量表初始化",
+      "count": 1,
+      "examples": [
+        "408-2022-Q24"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C01-S05-P90",
+      "resolvedName": "中断向量表初始化"
+    },
+    {
+      "concept": "页缓冲队列",
+      "count": 1,
+      "examples": [
+        "408-2022-Q30"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C03-S05-P90",
+      "resolvedName": "页缓冲队列"
+    },
+    {
+      "concept": "默认网关",
+      "count": 1,
+      "examples": [
+        "408-2022-Q36"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CN-C04-S07-P90",
+      "resolvedName": "默认网关"
+    },
+    {
+      "concept": "SDN南向接口",
+      "count": 1,
+      "examples": [
+        "408-2022-Q37"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CN-C04-S01-P90",
+      "resolvedName": "SDN南向接口"
+    },
+    {
+      "concept": "MSL/TIME_WAIT持续时间",
+      "count": 1,
+      "examples": [
+        "408-2022-Q39"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CN-C05-S03-P90",
+      "resolvedName": "MSL与TIME_WAIT"
+    },
+    {
+      "concept": "CHS柱面/磁头/扇区地址字段",
+      "count": 1,
+      "examples": [
+        "408-2022-Q44"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CO-C03-S04-P90",
+      "resolvedName": "CHS磁盘地址"
+    },
+    {
+      "concept": "802.11三地址字段语义",
+      "count": 1,
+      "examples": [
+        "408-2022-Q47"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CN-C03-S05-P90",
+      "resolvedName": "802.11三地址/四地址字段"
+    },
+    {
+      "concept": "多路选择器MUX作为组合逻辑操作元件",
+      "count": 1,
+      "examples": [
+        "408-2023-Q18"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CO-C05-S03-P90",
+      "resolvedName": "多路选择器MUX"
+    },
+    {
+      "concept": "中断向量表",
+      "count": 1,
+      "examples": [
+        "408-2023-Q24"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C01-S03-P90",
+      "resolvedName": "中断向量表"
+    },
+    {
+      "concept": "栈基址寄存器上下文",
+      "count": 1,
+      "examples": [
+        "408-2024-Q25"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C02-S03-P90",
+      "resolvedName": "栈指针/栈基址寄存器上下文"
+    },
+    {
+      "concept": "伙伴算法",
+      "count": 1,
+      "examples": [
+        "408-2024-Q27"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C03-S02-P90",
+      "resolvedName": "伙伴算法"
+    },
+    {
+      "concept": "NAV网络分配向量",
+      "count": 1,
+      "examples": [
+        "408-2024-Q36"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CN-C03-S04-P90",
+      "resolvedName": "NAV网络分配向量"
+    },
+    {
+      "concept": "内核中断向量表基址寄存器",
+      "count": 1,
+      "examples": [
+        "408-2025-Q23"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CO-C05-S01-P91",
+      "resolvedName": "中断向量表基址寄存器"
+    },
+    {
+      "concept": "最少页框数与指令寻址方式的关系",
+      "count": 1,
+      "examples": [
+        "408-2025-Q27"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C03-S03-P90",
+      "resolvedName": "最少页框数与指令寻址"
+    },
+    {
+      "concept": "FAT作为外存空间使用状态记录结构",
+      "count": 1,
+      "examples": [
+        "408-2025-Q31"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C04-S01-P90",
+      "resolvedName": "FAT空闲空间与文件分配信息"
+    },
+    {
+      "concept": "文件系统逻辑块/盘块大小",
+      "count": 1,
+      "examples": [
+        "408-2025-Q32"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C04-S03-P90",
+      "resolvedName": "文件系统逻辑块与物理盘块"
+    },
+    {
+      "concept": "数组扫描中的后缀最大值/最小值维护",
+      "count": 1,
+      "examples": [
+        "408-2025-Q41"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "DS-C02-S04-P90",
+      "resolvedName": "后缀最大值/最小值扫描"
+    },
+    {
+      "concept": "进程虚拟地址空间内存布局：代码段/数据段/堆/用户栈",
+      "count": 1,
+      "examples": [
+        "408-2025-Q46"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C01-S03-P91",
+      "resolvedName": "进程虚拟地址空间布局"
+    },
+    {
+      "concept": "全局变量与局部变量的存储区域",
+      "count": 1,
+      "examples": [
+        "408-2025-Q46"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C01-S03-P92",
+      "resolvedName": "全局变量与局部变量存储区域"
+    },
+    {
+      "concept": "超级流水线/超流水线作为微体系结构属性",
+      "count": 1,
+      "examples": [
+        "408-2026-Q16"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CO-C05-S06-P90",
+      "resolvedName": "超级流水线"
+    },
+    {
+      "concept": "Bernstein并发执行条件/读写集合判定",
+      "count": 1,
+      "examples": [
+        "408-2026-Q27"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C02-S04-P90",
+      "resolvedName": "Bernstein并发执行条件"
+    },
+    {
+      "concept": "页表缓冲队列/页表高速缓存策略",
+      "count": 1,
+      "examples": [
+        "408-2026-Q29"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "OS-C03-S05-P91",
+      "resolvedName": "页表高速缓存策略"
+    },
+    {
+      "concept": "Cookie状态管理/用途",
+      "count": 1,
+      "examples": [
+        "408-2026-Q40"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "CN-C06-S05-P90",
+      "resolvedName": "Cookie状态管理"
+    },
+    {
+      "concept": "BST最近邻/最接近关键字算法",
+      "count": 1,
+      "examples": [
+        "408-2026-Q41"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "DS-C06-S04-P90",
+      "resolvedName": "BST最近邻查找"
+    },
+    {
+      "concept": "Catalan数/卡特兰递推",
+      "count": 1,
+      "examples": [
+        "408-2026-Q42"
+      ],
+      "status": "resolved",
+      "resolvedKnowledgePointId": "DS-C03-S01-P91",
+      "resolvedName": "Catalan数与合法出栈序列计数"
+    }
+  ]
+}

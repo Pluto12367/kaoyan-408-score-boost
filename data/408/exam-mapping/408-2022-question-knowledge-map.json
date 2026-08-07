@@ -1,0 +1,1038 @@
+{
+  "meta": {
+    "title": "408真题—知识点映射：2022",
+    "version": "v1.0",
+    "generatedAt": "2026-08-07",
+    "examYear": 2022,
+    "questionCount": 47,
+    "totalScore": 150,
+    "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射，不保存完整真题题干。",
+    "sources": [
+      {
+        "name": "计算机考研杂货铺 2022年408真题",
+        "url": "https://www.csgraduates.com/study_methods/408quiz/2022/",
+        "role": "47题题意、题号与解析核验"
+      },
+      {
+        "name": "计算机考研杂货铺 408真题标签",
+        "url": "https://www.csgraduates.com/study_methods/tags/408quiz/",
+        "role": "知识主题与题号交叉核验"
+      }
+    ]
+  },
+  "questions": [
+    {
+      "id": "408-2022-Q01",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 1,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "倍增外循环与内循环长度相关的程序时间复杂度",
+      "primaryKnowledgePointId": "DS-C01-S02-P04",
+      "secondaryKnowledgePointIds": [
+        "DS-C01-S02-P06"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q02",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 2,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "给定入栈和出栈排列判断栈序列的可行性质",
+      "primaryKnowledgePointId": "DS-C03-S01-P02",
+      "secondaryKnowledgePointIds": [
+        "DS-C03-S01-P01"
+      ],
+      "mappingConfidence": 0.9,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "合法出栈序列判定"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q03",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 3,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "二叉树中序遍历相邻结点之间不可能的亲属关系",
+      "primaryKnowledgePointId": "DS-C04-S02-P12",
+      "secondaryKnowledgePointIds": [
+        "DS-C04-S02-P07"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q04",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 4,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "根据三叉树结点总数推导树的最小高度",
+      "primaryKnowledgePointId": "DS-C04-S01-P09",
+      "secondaryKnowledgePointIds": [
+        "DS-C04-S01-P06"
+      ],
+      "mappingConfidence": 0.95,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "m叉树最大结点数公式"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q05",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 5,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "比较哈夫曼编码树和定长编码树的结点、层次性质",
+      "primaryKnowledgePointId": "DS-C04-S04-P03",
+      "secondaryKnowledgePointIds": [
+        "DS-C04-S04-P02",
+        "DS-C04-S04-P04"
+      ],
+      "mappingConfidence": 0.98,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q06",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 6,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "由无向图顶点数与边数关系判断图是否可能连通",
+      "primaryKnowledgePointId": "DS-C05-S01-P06",
+      "secondaryKnowledgePointIds": [
+        "DS-C05-S01-P07",
+        "DS-C05-S01-P15"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q07",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 7,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "AOE网中计算各活动时间余量并找最大者",
+      "primaryKnowledgePointId": "DS-C05-S06-P05",
+      "secondaryKnowledgePointIds": [
+        "DS-C05-S06-P09",
+        "DS-C05-S06-P10"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q08",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 8,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "5阶B树删除关键字后的借位、合并与根关键字变化",
+      "primaryKnowledgePointId": "DS-C06-S07-P06",
+      "secondaryKnowledgePointIds": [
+        "DS-C06-S07-P07",
+        "DS-C06-S07-P02"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q09",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 9,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断影响散列平均查找长度的装填因子、函数与冲突策略",
+      "primaryKnowledgePointId": "DS-C06-S08-P10",
+      "secondaryKnowledgePointIds": [
+        "DS-C06-S08-P01",
+        "DS-C06-S08-P05",
+        "DS-C06-S01-P05"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q10",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 10,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断二路归并操作的基本功能",
+      "primaryKnowledgePointId": "DS-C07-S05-P02",
+      "secondaryKnowledgePointIds": [
+        "DS-C07-S05-P01"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q11",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 11,
+      "subject": "DS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "比较直接插入排序与快速排序的适用场景、空间和稳定性",
+      "primaryKnowledgePointId": "DS-C07-S07-P01",
+      "secondaryKnowledgePointIds": [
+        "DS-C07-S02-P01",
+        "DS-C07-S03-P03",
+        "DS-C07-S01-P02"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q12",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 12,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "由指令比例、时钟周期和主频计算平均CPI与CPU执行时间",
+      "primaryKnowledgePointId": "CO-C01-S02-P08",
+      "secondaryKnowledgePointIds": [
+        "CO-C01-S02-P09",
+        "CO-C01-S02-P07"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q13",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 13,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断32位补码表示的整数范围",
+      "primaryKnowledgePointId": "CO-C02-S01-P07",
+      "secondaryKnowledgePointIds": [
+        "CO-C02-S03-P02"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q14",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 14,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "将十进制小数转换为IEEE754单精度机器数",
+      "primaryKnowledgePointId": "CO-C02-S04-P01",
+      "secondaryKnowledgePointIds": [
+        "CO-C02-S04-P03",
+        "CO-C02-S04-P04"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q15",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 15,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "页式虚拟存储中根据页表完成虚拟地址到物理地址转换",
+      "primaryKnowledgePointId": "CO-C03-S06-P08",
+      "secondaryKnowledgePointIds": [
+        "CO-C03-S06-P05",
+        "CO-C03-S06-P07",
+        "CO-C03-S06-P12"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q16",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 16,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "8路组相联Cache中根据容量和块大小计算比较器数量与Tag位数",
+      "primaryKnowledgePointId": "CO-C03-S05-P05",
+      "secondaryKnowledgePointIds": [
+        "CO-C03-S05-P06",
+        "CO-C03-S05-P02"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q17",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 17,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "DRAM内存条容量、交叉编址、行列地址复用和行缓冲分析",
+      "primaryKnowledgePointId": "CO-C03-S03-P10",
+      "secondaryKnowledgePointIds": [
+        "CO-C03-S03-P01",
+        "CO-C03-S03-P02"
+      ],
+      "mappingConfidence": 0.98,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q18",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 18,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断ISA规定的指令格式和通用寄存器等体系结构内容",
+      "primaryKnowledgePointId": "CO-C04-S01-P01",
+      "secondaryKnowledgePointIds": [
+        "CO-C04-S01-P02",
+        "CO-C05-S01-P09"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q19",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 19,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "扩展操作码下计算零地址、一地址、二地址指令最大数量",
+      "primaryKnowledgePointId": "CO-C04-S02-P02",
+      "secondaryKnowledgePointIds": [
+        "CO-C04-S02-P03",
+        "CO-C04-S02-P04",
+        "CO-C04-S02-P05"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q20",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 20,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "高级语言源程序到可执行文件的预处理、编译、汇编、链接过程",
+      "primaryKnowledgePointId": "CO-C01-S01-P07",
+      "secondaryKnowledgePointIds": [
+        "CO-C01-S01-P08",
+        "CO-C01-S01-P09"
+      ],
+      "mappingConfidence": 0.96,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "预处理器/预处理阶段"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q21",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 21,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断中断I/O适用设备、CPU并发和中断处理速度要求",
+      "primaryKnowledgePointId": "CO-C06-S03-P02",
+      "secondaryKnowledgePointIds": [
+        "CO-C05-S05-P07"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q22",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 22,
+      "subject": "CO",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断多核、SIMD、硬件多线程和共享内存多处理器性质",
+      "primaryKnowledgePointId": "CO-C05-S07-P05",
+      "secondaryKnowledgePointIds": [
+        "CO-C05-S07-P03",
+        "CO-C05-S07-P02",
+        "CO-C05-S07-P10"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q23",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 23,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断多道程序系统的并发、共享、虚拟存储和CPU利用率性质",
+      "primaryKnowledgePointId": "OS-C01-S01-P03",
+      "secondaryKnowledgePointIds": [
+        "OS-C01-S01-P04",
+        "OS-C01-S01-P05"
+      ],
+      "mappingConfidence": 0.96,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q24",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 24,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断操作系统初始化阶段需要建立的中断向量表",
+      "primaryKnowledgePointId": "OS-C01-S05-P01",
+      "secondaryKnowledgePointIds": [
+        "CO-C05-S05-P08",
+        "OS-C01-S03-P03"
+      ],
+      "mappingConfidence": 0.92,
+      "isCrossSubject": true,
+      "unmappedConcepts": [
+        "中断向量表初始化"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q25",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 25,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "抢占式优先级调度下统计完整运行期间发生的调度次数",
+      "primaryKnowledgePointId": "OS-C02-S03-P11",
+      "secondaryKnowledgePointIds": [
+        "OS-C02-S03-P15"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q26",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 26,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "给定多进程资源分配状态计算系统安全序列数量",
+      "primaryKnowledgePointId": "OS-C02-S06-P11",
+      "secondaryKnowledgePointIds": [
+        "OS-C02-S06-P09",
+        "OS-C02-S06-P10"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q27",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 27,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断用户态与内核态可执行特权/非特权指令范围",
+      "primaryKnowledgePointId": "OS-C01-S03-P01",
+      "secondaryKnowledgePointIds": [
+        "OS-C01-S01-P07",
+        "OS-C01-S01-P08"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q28",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 28,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断读文件、时间片用完、申请设备、wait操作引起的进程状态转换",
+      "primaryKnowledgePointId": "OS-C02-S01-P11",
+      "secondaryKnowledgePointIds": [
+        "OS-C02-S01-P09",
+        "OS-C02-S04-P20"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q29",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 29,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "缺页异常处理中判断是否一定需要执行页面淘汰",
+      "primaryKnowledgePointId": "OS-C03-S05-P04",
+      "secondaryKnowledgePointIds": [
+        "OS-C03-S05-P17",
+        "OS-C03-S03-P03"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q30",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 30,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断页面置换、工作集、进程数及页缓冲队列对缺页率的影响",
+      "primaryKnowledgePointId": "OS-C03-S05-P20",
+      "secondaryKnowledgePointIds": [
+        "OS-C03-S05-P18",
+        "OS-C03-S05-P17"
+      ],
+      "mappingConfidence": 0.95,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "页缓冲队列"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q31",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 31,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "系统调用过程中区分硬件与操作系统完成的保存/模式切换职责",
+      "primaryKnowledgePointId": "OS-C01-S03-P07",
+      "secondaryKnowledgePointIds": [
+        "OS-C01-S03-P01",
+        "OS-C02-S03-P16"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q32",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 32,
+      "subject": "OS",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "判断设备驱动程序初始化、读写、阻塞及I/O方式职责",
+      "primaryKnowledgePointId": "OS-C05-S01-P11",
+      "secondaryKnowledgePointIds": [
+        "OS-C05-S01-P10"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q33",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 33,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "OSI模型中确定负责相邻结点流量控制的层次",
+      "primaryKnowledgePointId": "CN-C01-S02-P07",
+      "secondaryKnowledgePointIds": [
+        "CN-C03-S03-P01"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q34",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 34,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "无噪声ASK信道利用奈奎斯特定理计算最大速率",
+      "primaryKnowledgePointId": "CN-C02-S01-P08",
+      "secondaryKnowledgePointIds": [
+        "CN-C02-S01-P16",
+        "CN-C02-S01-P04"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q35",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 35,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "给定IP地址和子网掩码计算网络地址",
+      "primaryKnowledgePointId": "CN-C04-S03-P11",
+      "secondaryKnowledgePointIds": [
+        "CN-C04-S03-P08"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q36",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 36,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "由拓扑确定主机子网掩码和默认网关",
+      "primaryKnowledgePointId": "CN-C04-S07-P05",
+      "secondaryKnowledgePointIds": [
+        "CN-C04-S03-P11"
+      ],
+      "mappingConfidence": 0.92,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "默认网关"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q37",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 37,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "SDN控制器向数据平面交换机下发流表所用接口",
+      "primaryKnowledgePointId": "CN-C04-S01-P05",
+      "secondaryKnowledgePointIds": [
+        "CN-C04-S01-P06"
+      ],
+      "mappingConfidence": 0.9,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "SDN南向接口"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q38",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 38,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "TCP超时后从cwnd=16KB恢复到16KB所需RTT",
+      "primaryKnowledgePointId": "CN-C05-S06-P08",
+      "secondaryKnowledgePointIds": [
+        "CN-C05-S06-P02",
+        "CN-C05-S06-P03",
+        "CN-C05-S06-P01"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q39",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 39,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "TCP主动关闭方与被动关闭方进入CLOSED状态的最短时间",
+      "primaryKnowledgePointId": "CN-C05-S03-P09",
+      "secondaryKnowledgePointIds": [
+        "CN-C01-S01-P14"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "MSL/TIME_WAIT持续时间"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q40",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 40,
+      "subject": "CN",
+      "score": 2,
+      "questionType": "选择题",
+      "summary": "HTTP/1.1获取HTML和图像时结合持久连接与TCP慢开始计算RTT",
+      "primaryKnowledgePointId": "CN-C06-S05-P08",
+      "secondaryKnowledgePointIds": [
+        "CN-C06-S05-P03",
+        "CN-C05-S03-P07",
+        "CN-C05-S06-P02"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q41",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 41,
+      "subject": "DS",
+      "score": 13,
+      "questionType": "综合题",
+      "summary": "顺序存储二叉树中利用中序性质设计算法判断是否为BST",
+      "primaryKnowledgePointId": "DS-C06-S04-P07",
+      "secondaryKnowledgePointIds": [
+        "DS-C04-S02-P09",
+        "DS-C06-S04-P01",
+        "DS-C04-S02-P12",
+        "DS-C01-S02-P04"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q42",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 42,
+      "subject": "DS",
+      "score": 10,
+      "questionType": "综合题",
+      "summary": "超大数组中查找最小10个数，比较插入排序维护与大根堆Top-K方案",
+      "primaryKnowledgePointId": "DS-C04-S06-P10",
+      "secondaryKnowledgePointIds": [
+        "DS-C04-S06-P02",
+        "DS-C07-S02-P01",
+        "DS-C01-S02-P04",
+        "DS-C01-S02-P05"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q43",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 43,
+      "subject": "CO",
+      "score": 13,
+      "questionType": "综合题",
+      "summary": "单总线CPU数据通路中分析标志位、暂存器、寄存器组、取指控制与CU",
+      "primaryKnowledgePointId": "CO-C05-S03-P07",
+      "secondaryKnowledgePointIds": [
+        "CO-C05-S03-P02",
+        "CO-C02-S02-P10",
+        "CO-C02-S02-P11",
+        "CO-C05-S02-P01",
+        "CO-C05-S04-P01"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q44",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 44,
+      "subject": "CO",
+      "score": 10,
+      "questionType": "综合题",
+      "summary": "磁盘CHS地址、平均访问时间与周期挪用DMA总线请求综合",
+      "primaryKnowledgePointId": "CO-C03-S04-P03",
+      "secondaryKnowledgePointIds": [
+        "CO-C03-S04-P01",
+        "CO-C06-S03-P04",
+        "CO-C06-S03-P07"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "CHS柱面/磁头/扇区地址字段"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q45",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 45,
+      "subject": "OS",
+      "score": 7,
+      "questionType": "综合题",
+      "summary": "inode直接和多级间接索引、目录项、硬链接与磁盘块访问综合",
+      "primaryKnowledgePointId": "OS-C04-S01-P17",
+      "secondaryKnowledgePointIds": [
+        "OS-C04-S01-P04",
+        "OS-C04-S02-P06",
+        "OS-C04-S02-P07",
+        "OS-C04-S01-P12"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q46",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 46,
+      "subject": "OS",
+      "score": 8,
+      "questionType": "综合题",
+      "summary": "两个线程的前驱约束中使用信号量设计同步关系",
+      "primaryKnowledgePointId": "OS-C02-S04-P20",
+      "secondaryKnowledgePointIds": [
+        "OS-C02-S04-P23",
+        "OS-C02-S04-P24",
+        "OS-C02-S04-P04"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    },
+    {
+      "id": "408-2022-Q47",
+      "exam": "408",
+      "year": 2022,
+      "questionNo": 47,
+      "subject": "CN",
+      "score": 9,
+      "questionType": "综合题",
+      "summary": "局域网设备选择、CSMA/CD最大距离、DHCP广播和802.11地址字段综合",
+      "primaryKnowledgePointId": "CN-C03-S04-P12",
+      "secondaryKnowledgePointIds": [
+        "CN-C03-S04-P13",
+        "CN-C04-S03-P19",
+        "CN-C03-S06-P04",
+        "CN-C03-S05-P10"
+      ],
+      "mappingConfidence": 1.0,
+      "isCrossSubject": false,
+      "unmappedConcepts": [
+        "802.11三地址字段语义"
+      ],
+      "sourceStatus": "cross-checked",
+      "scoreStatus": "verified",
+      "scoreConfidence": 1.0
+    }
+  ]
+}
