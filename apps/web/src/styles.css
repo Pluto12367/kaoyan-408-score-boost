@@ -3547,9 +3547,12 @@ textarea:focus-visible,
 
 .auth-shell-redesign {
   background:
+    linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px),
     radial-gradient(circle at 18% 20%, rgb(37 99 235 / 28%), transparent 30%),
     radial-gradient(circle at 76% 72%, rgb(20 184 166 / 20%), transparent 34%),
     linear-gradient(135deg, #061122 0%, #0f1f37 52%, #142845 100%);
+  background-size: 44px 44px, 44px 44px, auto, auto, auto;
 }
 
 .auth-shell-redesign .auth-gate {
@@ -3573,35 +3576,66 @@ textarea:focus-visible,
   color: #cbd5e1;
 }
 
+.auth-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.auth-brand-row > div {
+  display: grid;
+  gap: 2px;
+}
+
+.auth-brand-row .eyebrow {
+  margin: 0;
+}
+
+.auth-orb-caption {
+  margin: 0;
+  color: #bfdbfe;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .auth-orb {
   display: grid;
-  width: 132px;
-  height: 132px;
+  width: 120px;
+  height: 120px;
   place-items: center;
-  border: 1px solid rgb(96 165 250 / 42%);
-  border-radius: 36px;
-  background: linear-gradient(145deg, rgb(37 99 235 / 48%), rgb(20 184 166 / 34%));
-  box-shadow: 0 22px 70px rgb(37 99 235 / 32%);
-  color: #dbeafe;
-  font-size: 40px;
+  border: 1px solid rgb(125 211 252 / 45%);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 26%), transparent 42%),
+    linear-gradient(145deg, rgb(37 99 235 / 72%), rgb(13 148 136 / 46%));
+  box-shadow: 0 0 0 1px rgb(56 189 248 / 18%), 0 24px 80px rgb(37 99 235 / 42%);
+  color: #eff6ff;
+  font-size: 38px;
   font-weight: 900;
 }
 
 .auth-feature-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
   margin-top: 10px;
 }
 
 .auth-feature-grid span {
-  border: 1px solid rgb(191 219 254 / 18%);
-  border-radius: 14px;
-  padding: 12px;
-  background: rgb(255 255 255 / 8%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgb(191 219 254 / 20%);
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: rgb(255 255 255 / 9%);
   color: #eff6ff;
-  font-weight: 800;
-  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auth-feature-grid span svg {
+  color: #7dd3fc;
 }
 
 .auth-role-copy {

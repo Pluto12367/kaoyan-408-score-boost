@@ -3,6 +3,7 @@ import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator
 import { ErrorReasonSelector } from './components/ErrorReasonSelector';
 import { OverlayDialog } from './components/OverlayDialog';
 import { sectionFallback } from './components/sectionFallback';
+import { BookOpenCheck, Brain, ShieldCheck, Target } from 'lucide-react';
 import {
   RoleNavigation,
   StudentBottomNav,
@@ -1087,15 +1088,20 @@ paperId: paper.id,
       <main className="app-shell auth-shell auth-shell-redesign">
         <section className="auth-gate">
           <div className="auth-brand">
-            <span className="auth-orb" aria-hidden="true">408</span>
-            <p className="eyebrow">408 SCORE BOOST</p>
+            <div className="auth-brand-row">
+              <span className="auth-orb" aria-hidden="true">408</span>
+              <div>
+                <p className="eyebrow">408 SCORE BOOST</p>
+                <p className="auth-orb-caption">计算机考研 408 提分系统</p>
+              </div>
+            </div>
             <h1>计算机考研 408 提分系统</h1>
             <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
             <div className="auth-feature-grid" aria-label="系统能力">
-              <span>题库训练</span>
-              <span>错题复盘</span>
-              <span>学情分析</span>
-              <span>AI 辅助</span>
+              <span><BookOpenCheck size={16} />题库训练</span>
+              <span><ShieldCheck size={16} />错题复盘</span>
+              <span><Target size={16} />学情分析</span>
+              <span><Brain size={16} />AI 辅助</span>
             </div>
             <p className="auth-role-copy">学生 / 教师 / 管理员均可进入对应工作台。</p>
           </div>
