@@ -8,3 +8,4 @@ export * from './ai-variant';
 export * from './assessmentHistorySummary';
 
 export * from './ai-tutor';
+export * from './score-center/index';
