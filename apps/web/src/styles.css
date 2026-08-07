@@ -3547,14 +3547,11 @@ textarea:focus-visible,
 
 .auth-shell-redesign {
   background:
-    radial-gradient(rgb(125 211 252 / 22%) 1px, transparent 1.5px),
-    linear-gradient(rgb(255 255 255 / 4%) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 4%) 1px, transparent 1px),
-    radial-gradient(circle at 82% 18%, rgb(20 184 166 / 26%), transparent 26%),
-    radial-gradient(circle at 18% 20%, rgb(37 99 235 / 28%), transparent 30%),
-    radial-gradient(circle at 76% 72%, rgb(20 184 166 / 20%), transparent 34%),
-    linear-gradient(135deg, #061122 0%, #0f1f37 52%, #142845 100%);
-  background-size: 26px 26px, 44px 44px, 44px 44px, auto, auto, auto, auto;
+    linear-gradient(180deg, rgb(6 17 34 / 80%) 0%, rgb(6 17 34 / 66%) 55%, rgb(10 23 44 / 84%) 100%),
+    url('/auth-bg.png');
+  background-size: auto, cover;
+  background-position: center;
+  background-repeat: repeat, no-repeat;
 }
 
 .auth-shell-redesign .auth-gate {
