@@ -69,3 +69,10 @@ test('mobile styles stack the auth brand row and keep feature tags usable', asyn
   assert.match(styles, /@media \(max-width: 720px\) \{[\s\S]*?\.auth-brand-row \{[\s\S]*?flex-direction:\s*column/);
   assert.match(styles, /@media \(max-width: 720px\) \{[\s\S]*?\.auth-feature-grid \{[\s\S]*?grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
 });
+
+test('styles add tech grid and dot texture to the auth shell background', async () => {
+  const styles = await source('apps/web/src/styles.css');
+  const rule = styles.match(/\.auth-shell-redesign \{[\s\S]*?\}/)?.[0] ?? '';
+  assert.match(rule, /background-size:/);
+  assert.match(rule, /26px 26px/);
+});
