@@ -169,5 +169,8 @@ if ! wait_for_gateway; then
   exit 1
 fi
 
+echo 'Seeding 408 evidence data (idempotent, safe on every deploy)...'
+docker compose --env-file .env.production -f compose.production.yml exec -T app node scripts/seed-408-v2.mjs
+
 echo "Deployment succeeded. Open: http://$PUBLIC_IP"
 docker compose --env-file .env.production -f compose.production.yml ps
