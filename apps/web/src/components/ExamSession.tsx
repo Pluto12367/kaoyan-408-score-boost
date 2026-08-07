@@ -3,6 +3,7 @@ import { Clock, Flag, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, Lig
 import type { ConfidenceLevel } from '@kaoyan408/shared';
 import { MISTAKE_SUGGESTIONS } from '@kaoyan408/shared';
 import { usePracticeSession } from '../hooks/usePracticeSession';
+import { useOverlayDialog } from '../hooks/useOverlayDialog';
 import type { SessionView, SessionSubmitResult } from '../api/endpoints/sessions';
 import type { PracticeAnswerResult } from '../api/endpoints/practice';
 
@@ -64,12 +65,26 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const questionStartedAtRef = useRef(0);
   const questionTimeCarryMsRef = useRef(0);
+  const sessionRootRef = useRef<HTMLDivElement>(null);
+  const confirmOverlayRef = useRef<HTMLDivElement>(null);
   const totalTimeSec = timeLimitMin * 60;
   const isLearningMode = Boolean(learningMode);
   const isPaperMode = sessionType === 'paper';
   const sessionLabel = isLearningMode
     ? '学习模式'
     : sessionType === 'practice_set' ? '专项练习' : sessionType === 'stage_assessment' ? '阶段测评' : '模拟考试';
+
+  useOverlayDialog({
+    rootRef: sessionRootRef,
+    onClose: () => {
+      if (showSubmitConfirm) {
+        setShowSubmitConfirm(false);
+        return;
+      }
+      void handleExit();
+    },
+    getTrapRoot: () => (showSubmitConfirm ? confirmOverlayRef.current : sessionRootRef.current),
+  });
 
   // Timer
   useEffect(() => {
@@ -245,14 +260,14 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
     }
   }
 
-  if (error) return <div className="panel"><p className="task-status">会话错误: {error}</p></div>;
-  if (!session) return <div className="panel"><p className="task-status">正在加载{sessionLabel}...</p></div>;
+  if (error) return <div ref={sessionRootRef} className="panel"><p className="task-status">会话错误: {error}</p></div>;
+  if (!session) return <div ref={sessionRootRef} className="panel"><p className="task-status">正在加载{sessionLabel}...</p></div>;
 
   const timerClass = isLearningMode ? '' : remainingSec < 300 ? 'timer-danger' : remainingSec < 600 ? 'timer-warning' : '';
   const learningFeedbackForCurrent = currentQuestion ? learningFeedback[currentQuestion.id] : undefined;
 
   return (
-    <div className="exam-session">
+    <div ref={sessionRootRef} className="exam-session" role="dialog" aria-modal="true" aria-label={`${sessionLabel}答题界面`}>
       {/* Top bar: timer + stats */}
       <header className="exam-header">
         <div className={`exam-timer ${timerClass}`}>
@@ -435,7 +450,7 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
 
       {/* Submit confirmation modal */}
       {showSubmitConfirm ? (
-        <div className="submit-confirm-overlay">
+        <div ref={confirmOverlayRef} className="submit-confirm-overlay" role="dialog" aria-modal="true" aria-label="确认提交">
           <div className="submit-confirm-panel">
             <h3><AlertTriangle size={20} /> 确认提交{sessionLabel}</h3>
             {unansweredQuestions.length > 0 ? (

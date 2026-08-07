@@ -44,14 +44,16 @@ test('stage 6: refresh restores the last section via sessionStorage', async () =
 
 test('stage 6: AI tutor surfaces timeout or failure with a retry action', async () => {
   const app = await source('apps/web/src/App.tsx');
+  const sections = await source('apps/web/src/features/student/StudentSections.tsx');
   const tutor = await source('apps/web/src/features/tutor/TutorPanel.tsx');
   const navigation = await source('apps/web/src/features/navigation/useRoleSectionNavigation.ts');
 
   assert.match(navigation, /export function withTimeout<T>/);
   assert.match(app, /withTimeout/);
   assert.match(app, /tutorFailed/);
-  assert.match(app, /failed=\{tutorFailed\}/);
-  assert.match(app, /onRetry=\{handleAskTutor\}/);
+  // Phase 3.4: TutorPanel wiring moved into the student sections composition.
+  assert.match(sections, /failed=\{props\.tutorFailed\}/);
+  assert.match(sections, /onRetry=\{props\.onAskTutor\}/);
   assert.match(tutor, /failed\?: boolean/);
   assert.match(tutor, /module-error/);
   assert.match(tutor, /重试/);

@@ -81,28 +81,30 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
             <article><strong>{metrics.todayPracticeCount}</strong><span>今日练习</span></article>
           </div>
           <p className="task-status">当前最弱考点：{metrics.topWeakPoint ?? '暂无'} · 平均耗时 {metrics.averagePracticeTimeSec} 秒 · 留存学习日 {metrics.retentionDays} 天</p>
-          <div className="panel-heading admin-core-heading">
-            <div><p className="eyebrow">可靠内测指标</p><h4>学习闭环与系统质量</h4></div>
-            <span>无样本时显示“待积累”</span>
-          </div>
-          <div className="admin-workflow-grid">
-            <article><span>1</span><strong>导入题库</strong><small>先补足 408 高频考点</small></article>
-            <article><span>2</span><strong>审核内容</strong><small>处理风险题目和 AI 答疑</small></article>
-            <article><span>3</span><strong>观察学习</strong><small>看活跃、正确率和留存</small></article>
-            <article><span>4</span><strong>调整策略</strong><small>根据指标更新推荐参数</small></article>
-          </div>
-          <div className="admin-grid admin-core-grid">
-            {coreMetricEntries.map(([key, label]) => {
-              const metric = metrics.core[key];
-              return (
-                <article key={key} title={`${metric.window}，${metric.numerator}/${metric.denominator}`}>
-                  <strong>{metric.rate === null ? '待积累' : `${metric.rate}%`}</strong>
-                  <span>{label}</span>
-                  <small>{metric.window} · {metric.numerator}/{metric.denominator}</small>
-                </article>
-              );
-            })}
-          </div>
+          <details className="admin-metrics-details">
+            <summary>
+              <div><p className="eyebrow">可靠内测指标</p><h4>学习闭环与系统质量</h4></div>
+              <span>无样本时显示“待积累”</span>
+            </summary>
+            <div className="admin-workflow-grid">
+              <article><span>1</span><strong>导入题库</strong><small>先补足 408 高频考点</small></article>
+              <article><span>2</span><strong>审核内容</strong><small>处理风险题目和 AI 答疑</small></article>
+              <article><span>3</span><strong>观察学习</strong><small>看活跃、正确率和留存</small></article>
+              <article><span>4</span><strong>调整策略</strong><small>根据指标更新推荐参数</small></article>
+            </div>
+            <div className="admin-grid admin-core-grid">
+              {coreMetricEntries.map(([key, label]) => {
+                const metric = metrics.core[key];
+                return (
+                  <article key={key} title={`${metric.window}，${metric.numerator}/${metric.denominator}`}>
+                    <strong>{metric.rate === null ? '待积累' : `${metric.rate}%`}</strong>
+                    <span>{label}</span>
+                    <small>{metric.window} · {metric.numerator}/{metric.denominator}</small>
+                  </article>
+                );
+              })}
+            </div>
+          </details>
           {feedback ? (
             <>
               <ModuleResourceMeta resource={props.feedback} onRetry={props.onRetryFeedback} />

@@ -10,7 +10,7 @@ test('P2-01: TodayPlan renders only in the plan section; the homepage keeps prog
   assert.equal(usages.length, 1, 'TodayPlan should render exactly once');
   assert.match(
     app,
-    /visibleSection === 'plan' \? <>[\s\S]*?<TodayPlan\b/,
+    /visibleSection === 'plan' \? ?\(?\s*(?:studentOverviewReady \? )?<>[\s\S]*?<TodayPlan\b/,
     'TodayPlan should live under the plan section',
   );
   const usageRegion = app.slice(usages[0].index, usages[0].index + 320);

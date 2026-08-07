@@ -1,4 +1,4 @@
-import { ClipboardCheck } from 'lucide-react';
+import { ClipboardCheck, RefreshCw } from 'lucide-react';
 import type { StageAssessment, StageAssessmentResult } from '../../api';
 
 interface StageAssessmentPanelProps {
@@ -6,9 +6,10 @@ interface StageAssessmentPanelProps {
   result: StageAssessmentResult | null;
   status: string;
   onSubmit: () => void;
+  onGenerate?: () => void;
 }
 
-export function StageAssessmentPanel({ assessment, result, status, onSubmit }: StageAssessmentPanelProps) {
+export function StageAssessmentPanel({ assessment, result, status, onSubmit, onGenerate }: StageAssessmentPanelProps) {
   return (
     <section id="assessment" className="panel assessment-panel">
       <div className="panel-heading">
@@ -21,7 +22,14 @@ export function StageAssessmentPanel({ assessment, result, status, onSubmit }: S
         <article><strong>测评说明</strong><p>{assessment.description}</p></article>
         <article><strong>提交后产出</strong><p>系统会同步练习记录、错题本和薄弱点报告，并给出下一步复习建议。</p></article>
       </div>
-      <div className="assessment-actions"><button type="button" onClick={onSubmit}><ClipboardCheck size={18} /> 开始阶段测评</button></div>
+      <div className="assessment-actions">
+        {onGenerate ? (
+          <button type="button" className="secondary-action" onClick={onGenerate}>
+            <RefreshCw size={18} /> 生成阶段测评
+          </button>
+        ) : null}
+        <button type="button" onClick={onSubmit}><ClipboardCheck size={18} /> 开始阶段测评</button>
+      </div>
       {result ? (
         <div className="assessment-result">
           <strong>本次得分 {result.score} / 100</strong>

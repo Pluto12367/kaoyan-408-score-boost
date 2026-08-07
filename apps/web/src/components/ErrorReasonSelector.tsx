@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { reportWrongReason } from '../api/endpoints/review';
 import { normalizeMistakeReason } from '@kaoyan408/shared';
+import { useOverlayDialog } from '../hooks/useOverlayDialog';
 
 interface Props {
   questionId: string;
@@ -31,6 +32,8 @@ export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isRevie
   const [reason, setReason] = useState(() => (normalizedInferred ?? (correct ? REDO_CORRECT_REASON.value : '')));
   const [status, setStatus] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  useOverlayDialog({ rootRef: overlayRef, onClose });
 
   async function handleSubmit() {
     if (!reason) return;
@@ -52,7 +55,7 @@ export function ErrorReasonSelector({ questionId, correct, timeSpentSec, isRevie
   }
 
   return (
-    <div className="error-reason-overlay">
+    <div ref={overlayRef} className="error-reason-overlay" role="dialog" aria-modal="true" aria-label="错因自评">
       <div className="error-reason-panel">
         <div className="panel-heading">
           <div>

@@ -41,6 +41,7 @@ export function QuestionImportWorkspace() {
   const abnormalCount = candidates.filter((candidate) => candidate.status === 'needs_edit' || candidate.status === 'parse_failed').length;
   const currentStep = !selectedId ? 0 : passedCount > 0 ? 2 : candidates.length ? 1 : 0;
   const steps = ['上传文件', '审核候选题', '确认入库', '完成'];
+  const hasActiveBatch = batches.some((batch) => active.has(batch.status));
 
   return (
     <section id="question-import" className="question-import-workspace">
@@ -70,7 +71,13 @@ export function QuestionImportWorkspace() {
 
       <NewImportPanel defaults={defaults} onSubmit={submit} />
       {error ? <p className="task-status">{error}</p> : null}
-      <ImportBatchList batches={batches} detail={detail} selectedId={selectedId} onSelect={setSelectedId} onCancel={async (id) => { await cancelQuestionImport(id); await refreshSelected(id); }} onRetry={async (id, jobIds) => { await retryQuestionImport(id, jobIds); await refreshSelected(id); }} />
+      <details className="question-import-details" open={hasActiveBatch}>
+        <summary>
+          <span>导入队列</span>
+          <small>{batches.length} 个批次{hasActiveBatch ? ' · 处理中' : ''}</small>
+        </summary>
+        <ImportBatchList batches={batches} detail={detail} selectedId={selectedId} onSelect={setSelectedId} onCancel={async (id) => { await cancelQuestionImport(id); await refreshSelected(id); }} onRetry={async (id, jobIds) => { await retryQuestionImport(id, jobIds); await refreshSelected(id); }} />
+      </details>
       {selectedId ? (
         <>
           <CandidateReview candidates={candidates} onBulkApprove={async (items) => { await bulkApproveImportCandidates(selectedId, items.map(({ id, revision }) => ({ id, revision }))); await refreshCandidates(); }} onUpdate={update} onConfirm={async (items) => { await confirmQuestionImport(selectedId, items.map((candidate) => candidate.id), generateQuestionImportIdempotencyKey()); await refreshCandidates(); await loadBatches(); }} />

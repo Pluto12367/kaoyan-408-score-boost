@@ -3,8 +3,21 @@ import { defaultRoleSection, isSectionAllowedForRole, type RoleSection } from '.
 import type { UserRole } from '@kaoyan408/shared';
 
 const SECTION_STORAGE_KEY = 'kaoyan408:last-section';
+const SECTION_HASH_PREFIX = '#/';
+
+function readSectionFromHash(role: UserRole): RoleSection | null {
+  if (typeof window === 'undefined') return null;
+  const hash = window.location.hash;
+  if (!hash.startsWith(SECTION_HASH_PREFIX)) return null;
+  const candidate = hash.slice(SECTION_HASH_PREFIX.length).split('?')[0] as RoleSection;
+  return isSectionAllowedForRole(role, candidate) ? candidate : null;
+}
 
 export function readStoredSection(role: UserRole): RoleSection {
+  // The URL hash is the primary, shareable source of truth (Phase 1).
+  const fromHash = readSectionFromHash(role);
+  if (fromHash) return fromHash;
+  // sessionStorage remains a compatibility fallback for the pre-hash behavior.
   if (typeof window === 'undefined') return defaultRoleSection(role);
   try {
     const stored = window.sessionStorage.getItem(SECTION_STORAGE_KEY);
@@ -17,10 +30,42 @@ export function readStoredSection(role: UserRole): RoleSection {
 
 export function useRoleSectionNavigation(role?: UserRole) {
   const resolvedRole = role ?? 'student';
-  const [activeSection, setActiveSection] = useState<RoleSection>(() => readStoredSection(resolvedRole));
+  const [activeSection, setActiveSectionState] = useState<RoleSection>(() => readStoredSection(resolvedRole));
+
+  // Keep the URL hash in sync; replace on mount so first load does not add history entries.
+  useEffect(() => {
+    const target = `${SECTION_HASH_PREFIX}${activeSection}`;
+    if (window.location.hash !== target) {
+      try {
+        window.history.replaceState(null, '', target);
+      } catch {
+        // Ignore URL write errors and keep the in-app section state.
+      }
+    }
+  }, [activeSection]);
+
+  // Browser back/forward and manual hash edits.
+  useEffect(() => {
+    function handleHashChange() {
+      const fromHash = readSectionFromHash(resolvedRole);
+      if (fromHash) {
+        setActiveSectionState(fromHash);
+        return;
+      }
+      const fallback = defaultRoleSection(resolvedRole);
+      setActiveSectionState(fallback);
+      try {
+        window.history.replaceState(null, '', `${SECTION_HASH_PREFIX}${fallback}`);
+      } catch {
+        // Ignore URL write errors and keep the in-app section state.
+      }
+    }
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [resolvedRole]);
 
   useEffect(() => {
-    setActiveSection((current) => (
+    setActiveSectionState((current) => (
       isSectionAllowedForRole(resolvedRole, current)
         ? current
         : defaultRoleSection(resolvedRole)
@@ -35,8 +80,26 @@ export function useRoleSectionNavigation(role?: UserRole) {
     }
   }, [activeSection]);
 
+  function setActiveSection(next: RoleSection) {
+    setActiveSectionState(next);
+    const target = `${SECTION_HASH_PREFIX}${next}`;
+    if (window.location.hash !== target) {
+      try {
+        window.location.hash = `/${next}`;
+      } catch {
+        // Ignore URL write errors and keep the in-app section state.
+      }
+    }
+  }
+
   function resetSectionForRole(nextRole: UserRole) {
-    setActiveSection(defaultRoleSection(nextRole));
+    const next = defaultRoleSection(nextRole);
+    setActiveSectionState(next);
+    try {
+      window.location.hash = `/${next}`;
+    } catch {
+      // Ignore URL write errors and keep the in-app section state.
+    }
   }
 
   const visibleSection = isSectionAllowedForRole(resolvedRole, activeSection)

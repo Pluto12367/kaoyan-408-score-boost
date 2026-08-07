@@ -26,7 +26,7 @@ export function AccountPanel(props: AccountPanelProps) {
           <p className="eyebrow">账号与角色权限</p>
           <h3>{props.user?.name ?? props.fallbackName ?? '未登录'}</h3>
         </div>
-        {props.hasRefreshToken ? (
+        {props.hasRefreshToken || Boolean(props.user) ? (
           <button type="button" className="secondary-action" onClick={props.onLogout}>退出登录</button>
         ) : null}
       </div>
@@ -51,7 +51,7 @@ export function AccountPanel(props: AccountPanelProps) {
           </div>
         </form>
       ) : null}
-      {!props.hasRefreshToken && !props.staticDemoMode ? (
+      {!props.user && !props.staticDemoMode ? (
         <form className="account-form" onSubmit={props.onSubmit}>
           {props.authMode === 'register' ? (
             <>

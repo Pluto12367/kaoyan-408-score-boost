@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
-import { ExamSession } from './components/ExamSession';
 import { ErrorReasonSelector } from './components/ErrorReasonSelector';
-import { ExamReportView } from './components/ExamReport';
+import { OverlayDialog } from './components/OverlayDialog';
+import { sectionFallback } from './components/sectionFallback';
 import {
   RoleNavigation,
   StudentBottomNav,
@@ -10,14 +10,9 @@ import {
 } from './layouts/RoleNavigation';
 import { useRoleSectionNavigation, withTimeout } from './features/navigation/useRoleSectionNavigation';
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
-import { AdminWorkspace } from './features/admin/AdminWorkspace';
 import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
 import { AccountPanel } from './features/auth/AccountPanel';
-import { TeacherWorkspace } from './features/teacher/TeacherWorkspace';
-import { StudentLaunchpad } from './features/onboarding/StudentLaunchpad';
-import { DiagnosticSummary } from './features/diagnostic/DiagnosticSummary';
-import { StudyPlanOverview } from './features/plan/StudyPlanOverview';
-import { PracticePanel } from './features/practice/PracticePanel';
+import { StudentSections } from './features/student/StudentSections';
 import {
   advanceQuestion,
   beginRedo,
@@ -33,23 +28,11 @@ import {
   tryStartPracticeSubmission,
   type PracticeSubmissionGate,
 } from './features/practice/practiceSubmissionGate';
-import { WeaknessReportPanel } from './features/report/WeaknessReportPanel';
-import { MistakeWorkspace } from './features/mistakes/MistakeWorkspace';
-import { StageAssessmentPanel } from './features/assessment/StageAssessmentPanel';
-import { AssessmentHistoryPanel } from './features/assessment/AssessmentHistoryPanel';
-import { ReviewResourcesPanel } from './features/report/ReviewResourcesPanel';
-import { StageReportPanel } from './features/report/StageReportPanel';
-import { ReportSummaryPanel } from './features/report/ReportSummaryPanel';
-import { TutorPanel } from './features/tutor/TutorPanel';
-import { StudentProgressOverview } from './features/dashboard/StudentProgressOverview';
-import { LearningProfilePanel } from './features/report/LearningProfilePanel';
-import { FeedbackPanel } from './features/feedback/FeedbackPanel';
 import { useStudentProgressData } from './hooks/useStudentProgressData';
 import { useStudentLearningData } from './hooks/useStudentLearningData';
 import { useDashboardOverviewData } from './hooks/useDashboardOverviewData';
 import { useRoleWorkspaceData } from './hooks/useRoleWorkspaceData';
 import { ModuleUnavailable } from './components/ModuleResourceState';
-import { TodayPlan } from './components/TodayPlan';
 import type { SessionView } from './api/endpoints/sessions';
 import type { PracticeAnswerResult } from './api/endpoints/practice';
 import { isMockAllowed } from './api/env';
@@ -94,6 +77,16 @@ import {
   createInitialPaperSession,
 } from './constants';
 import { isStudentOverviewReady, resolveSessionQuestions, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
+
+// Phase 3.3: route/section-level code splitting — heavy workspaces load on demand.
+// Student section workspaces live in features/student/StudentSections (Phase 3.4).
+const ExamSession = lazy(() => import('./components/ExamSession').then((m) => ({ default: m.ExamSession })));
+const ExamReportView = lazy(() => import('./components/ExamReport').then((m) => ({ default: m.ExamReportView })));
+const AdminWorkspace = lazy(() => import('./features/admin/AdminWorkspace').then((m) => ({ default: m.AdminWorkspace })));
+const TeacherWorkspace = lazy(() => import('./features/teacher/TeacherWorkspace').then((m) => ({ default: m.TeacherWorkspace })));
+const StageAssessmentPanel = lazy(() => import('./features/assessment/StageAssessmentPanel').then((m) => ({ default: m.StageAssessmentPanel })));
+const StudyPlanOverview = lazy(() => import('./features/plan/StudyPlanOverview').then((m) => ({ default: m.StudyPlanOverview })));
+const TodayPlan = lazy(() => import('./components/TodayPlan').then((m) => ({ default: m.TodayPlan })));
 
 export function App() {
   const {
@@ -429,8 +422,11 @@ export function App() {
   }
 
   async function onRoleSwitch(role: UserRole) {
-    resetSectionForRole(role);
     const result = await handleRoleSwitch(role);
+    // 等新角色的导航监听器挂载后再切到默认分区，避免旧角色监听器
+    // 把 resetSectionForRole 写入的 hash 当作非法值弹回上一分区。
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    resetSectionForRole(role);
     setApiState(result);
   }
 
@@ -672,8 +668,7 @@ export function App() {
       }));
       setStageResult(null);
       setApiState('connected');
-      setAssessmentStatus(`已生成 ${assessment.questions.length} 题阶段测评，预计 ${assessment.estimatedMinutes} 分钟，可在下方点击「开始阶段测评」。`);
-      setActiveSection('plan');
+      setAssessmentStatus(`已生成 ${assessment.questions.length} 题阶段测评，预计 ${assessment.estimatedMinutes} 分钟，可点击「开始阶段测评」开始作答。`);
     } catch {
       setAssessmentStatus(isMockAllowed() ? '阶段测评生成失败，当前显示本地演示数据。' : '阶段测评生成失败，请稍后重试。');
       setApiState(isMockAllowed() ? 'mock' : 'error');
@@ -1155,9 +1150,6 @@ paperId: paper.id,
               source={activeDataSource}
               onRetry={handleRetryActiveWorkspace}
             />
-            {(sessionUser?.role === 'student' || !sessionUser) && studentOverviewReady ? (
-              <button type="button" onClick={handleGenerateAssessment}>生成阶段测评</button>
-            ) : null}
           </div>
         </header>
         {apiState === 'mock' ? (
@@ -1167,8 +1159,29 @@ paperId: paper.id,
         ) : null}
 
         <StudentLayout role={sessionUser?.role}>
-          {studentOverviewReady && visibleSection === 'dashboard' ? (
-          <StudentLaunchpad
+          <StudentSections
+            visibleSection={visibleSection}
+            studentOverviewReady={studentOverviewReady}
+            overviewResource={dashboardOverview.overview}
+            onRetryOverview={refreshOverview}
+            student={student}
+            questions={questions}
+            report={report}
+            plan={plan}
+            wrongQuestions={wrongQuestions}
+            learningCalendar={learningCalendar}
+            stageReport={stageReport}
+            masteryMap={studentProgress.masteryMap.data}
+            masteryMapResource={studentProgress.masteryMap}
+            trialProgress={studentProgress.trialProgress}
+            studyReminders={studentProgress.studyReminders}
+            sprintPlan={studentProgress.sprintPlan}
+            learningProfile={studentProgress.learningProfile}
+            reviewResources={studentLearning.reviewResources}
+            assessmentHistory={studentLearning.assessmentHistory}
+            practiceSet={studentLearning.practiceSet}
+            practiceSetResult={practiceSetResult}
+            wrongQuestionSummary={studentLearning.wrongQuestionSummary}
             showOnboarding={showOnboarding}
             todayPlan={todayPlan}
             todayPlanLoading={todayPlanLoading}
@@ -1177,10 +1190,22 @@ paperId: paper.id,
             examResult={paperResult}
             examQuestionCount={examQuestions.length}
             remoteSessionsEnabled={!isStaticDemoMode()}
-            report={report}
-            masteryMap={studentProgress.masteryMap.data}
-            learningCalendar={learningCalendar}
-            wrongQuestionSummary={studentLearning.wrongQuestionSummary.data}
+            redoQuestionId={redoQuestionId}
+            practiceStatus={practiceStatus}
+            practiceSubmitting={practiceSubmitting}
+            practiceAnswerResult={practiceAnswerResult}
+            currentQuestion={currentQuestion}
+            hasNextQuestion={practiceIndex < questions.length - 1}
+            detailQuestionId={detailQuestionId}
+            wrongStatus={wrongStatus}
+            stageResult={stageResult}
+            assessmentStatus={assessmentStatus}
+            diagnosticStatus={diagnosticStatus}
+            feedbackStatus={feedbackStatus}
+            tutorReply={tutorReply}
+            aiFollowUp={aiFollowUp}
+            tutorStatus={tutorStatus}
+            tutorFailed={tutorFailed}
             onNavigate={setActiveSection}
             onContinueToday={handleContinueToday}
             onOnboardingComplete={handleOnboardingComplete}
@@ -1195,8 +1220,44 @@ paperId: paper.id,
               setLearningSessionMode(false);
             }}
             onStartExam={handlePrepareStudentExam}
+            onRetryStageReport={refreshStageReport}
+            onRetryTrial={refreshTrialProgress}
+            onRetryReminders={refreshStudyReminders}
+            onRetrySprint={refreshSprintPlan}
+            onRetryMastery={refreshMasteryMap}
+            onRetryLearningProfile={refreshLearningProfile}
+            onRetryReviewResources={refreshReviewResources}
+            onRetryAssessmentHistory={refreshAssessmentHistory}
+            onSubmitFeedback={handleSubmitFeedback}
+            onSubmitDiagnostic={handleSubmitDiagnostic}
+            onSubmitAnswer={handleSubmitAnswer}
+            onNextQuestion={handleNextQuestion}
+            onSubmitPracticeSet={handleSubmitPracticeSet}
+            onStartLearningMode={handleStartLearningMode}
+            onRestartPracticeSet={handleRestartPracticeSet}
+            onRestartQuestionBank={handleRestartQuestionBank}
+            onRetryPracticeSet={refreshPracticeSet}
+            onOpenDetail={setDetailQuestionId}
+            onCloseDetail={() => setDetailQuestionId(null)}
+            onReviewWrongQuestion={handleReviewWrongQuestion}
+            onRetryWrongQuestionSummary={refreshWrongQuestionSummary}
+            onRedo={(questionId, knowledgePointTitle) => {
+              invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+              applyPracticeAttemptState(beginRedo(readPracticeAttemptState(), questionId));
+              setDetailQuestionId(null);
+              if (knowledgePointTitle) setPracticeStatus(`正在重做：${knowledgePointTitle}。请选择答案。`);
+              setActiveSection('question');
+            }}
+            onPracticeVariant={(questionId, variantQuestionId) => {
+              invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+              applyPracticeAttemptState(beginVariantRetest(readPracticeAttemptState(), questionId, variantQuestionId));
+              setDetailQuestionId(null);
+              setPracticeStatus('正在复测变式题：答对可推动原错题掌握度。');
+              setActiveSection('question');
+            }}
+            onAskTutor={handleAskTutor}
+            onAskFollowUp={handleAskFollowUp}
           />
-          ) : null}
         </StudentLayout>
 
         <AccountPanel
@@ -1214,44 +1275,8 @@ paperId: paper.id,
           onRoleSwitch={(role) => void onRoleSwitch(role)}
         />
 
-        <StudentLayout role={sessionUser?.role}>
-          {!studentOverviewReady ? (
-            <ModuleUnavailable title="学习概览" resource={dashboardOverview.overview} onRetry={refreshOverview} />
-          ) : null}
-        </StudentLayout>
-
-        <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady && visibleSection === 'report' ? <>
-        <ReportSummaryPanel
-          student={student}
-          report={report}
-          stageReport={stageReport}
-          masteryMap={studentProgress.masteryMap.data}
-          onRetry={refreshStageReport}
-        />
-        <StudentProgressOverview
-          trialProgress={studentProgress.trialProgress}
-          studyReminders={studentProgress.studyReminders}
-          sprintPlan={studentProgress.sprintPlan}
-          masteryMap={studentProgress.masteryMap}
-          student={student}
-          report={report}
-          onRetryTrial={refreshTrialProgress}
-          onRetryReminders={refreshStudyReminders}
-          onRetrySprint={refreshSprintPlan}
-          onRetryMastery={refreshMasteryMap}
-          onNavigate={setActiveSection}
-        />
-        <LearningProfilePanel profile={studentProgress.learningProfile} onRetry={refreshLearningProfile} />
-        <FeedbackPanel status={feedbackStatus} onSubmit={handleSubmitFeedback} />
-        <DiagnosticSummary student={student} plan={plan} status={diagnosticStatus} onSubmit={handleSubmitDiagnostic} />
-        <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} />
-        <StageReportPanel report={stageReport} onRetry={refreshStageReport} />
-        <AssessmentHistoryPanel history={studentLearning.assessmentHistory} onRetry={refreshAssessmentHistory} />
-        </> : null}
-        </StudentLayout>
-
         <AdminLayout role={sessionUser?.role}>
+          <Suspense fallback={sectionFallback('管理端')}>
           <AdminWorkspace
             activeSection={visibleSection}
             metrics={roleWorkspace.adminMetrics}
@@ -1279,10 +1304,12 @@ paperId: paper.id,
             onMarkReviewItemNeedsRecheck={adminActions.markNeedsRecheck}
             onApplySprintConfig={handleApplySprintConfig}
           />
+          </Suspense>
         </AdminLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady && visibleSection === 'plan' ? <>
+        {visibleSection === 'plan' ? (
+          studentOverviewReady ? <>
         <section id="study-calendar" className="panel">
           <div className="panel-heading">
             <div>
@@ -1302,6 +1329,7 @@ paperId: paper.id,
         </section>
 
         {todayPlan ? (
+          <Suspense fallback={sectionFallback('今日计划')}>
           <TodayPlan
             plan={todayPlan}
             focusTaskId={planFocusTaskId}
@@ -1311,6 +1339,7 @@ paperId: paper.id,
               setActiveSection('wrong-book');
             }}
           />
+          </Suspense>
         ) : todayPlanLoading || todayPlanError ? (
           <ModuleUnavailable
             title="今日计划"
@@ -1326,52 +1355,28 @@ paperId: paper.id,
           </section>
         )}
 
-        <StageAssessmentPanel assessment={stageAssessment} result={stageResult} status={assessmentStatus} onSubmit={handleSubmitAssessment} />
+        <Suspense fallback={sectionFallback('阶段测评')}>
+          <StageAssessmentPanel
+            assessment={stageAssessment}
+            result={stageResult}
+            status={assessmentStatus}
+            onSubmit={handleSubmitAssessment}
+            onGenerate={handleGenerateAssessment}
+          />
+        </Suspense>
 
-        {!todayPlan && isMockAllowed() ? <StudyPlanOverview plan={plan} /> : null}
-        </> : null}
-        </StudentLayout>
-
-        <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady && visibleSection === 'question' ? (
-          questions.length > 0 ? <>
-          <section className="two-column">
-            <PracticePanel
-              question={currentQuestion}
-              practiceSet={studentLearning.practiceSet}
-              practiceSetResult={practiceSetResult}
-              redoQuestionId={redoQuestionId}
-              status={practiceStatus}
-              submitting={practiceSubmitting}
-              answerResult={practiceAnswerResult}
-              hasNextQuestion={practiceIndex < questions.length - 1}
-              onSubmitAnswer={handleSubmitAnswer}
-              onNextQuestion={handleNextQuestion}
-              onSubmitPracticeSet={handleSubmitPracticeSet}
-              onStartLearningMode={handleStartLearningMode}
-              onRestartPracticeSet={handleRestartPracticeSet}
-              onRestartQuestionBank={handleRestartQuestionBank}
-              onRetryPracticeSet={refreshPracticeSet}
-            />
-            <WeaknessReportPanel report={report} />
-          </section>
-          <ReviewResourcesPanel resources={studentLearning.reviewResources} onRetry={refreshReviewResources} />
-          </> : (
-            <div className="panel">
-              <div className="panel-heading"><div><p className="eyebrow">题库训练</p><h3>暂无可用题目</h3></div></div>
-              <p className="empty-state">题库暂未就绪，请先完成入学诊断，或等待教研更新题目后重试。</p>
-            </div>
-          )
+        {!todayPlan && isMockAllowed() ? (
+          <Suspense fallback={sectionFallback('学习计划')}>
+            <StudyPlanOverview plan={plan} />
+          </Suspense>
         ) : null}
-        </StudentLayout>
-
-        <StudentLayout role={sessionUser?.role}>
-        {studentOverviewReady && visibleSection === 'ai' ? <>
-        <TutorPanel reply={tutorReply} followUp={aiFollowUp} status={tutorStatus} failed={tutorFailed} onRetry={handleAskTutor} onAskTutor={handleAskTutor} onAskFollowUp={handleAskFollowUp} />
-        </> : null}
+          </> : (
+            <ModuleUnavailable title="今日计划" resource={dashboardOverview.overview} onRetry={refreshOverview} />
+          )) : null}
         </StudentLayout>
 
         <TeacherLayout role={sessionUser?.role}>
+          <Suspense fallback={sectionFallback('教师端')}>
           <TeacherWorkspace
             activeSection={visibleSection}
             questions={roleWorkspace.questions}
@@ -1393,39 +1398,13 @@ paperId: paper.id,
             onStartPaperSession={handleStartPaperSession}
             onSubmitPaper={handleSubmitPaper}
           />
+          </Suspense>
         </TeacherLayout>
 
-        <StudentLayout role={sessionUser?.role}>
-          {studentOverviewReady && visibleSection === 'wrong-book' ? (
-          <MistakeWorkspace
-            wrongQuestions={wrongQuestions}
-            summary={studentLearning.wrongQuestionSummary}
-            status={wrongStatus}
-            detailQuestionId={detailQuestionId}
-            onOpenDetail={setDetailQuestionId}
-            onCloseDetail={() => setDetailQuestionId(null)}
-            onReview={handleReviewWrongQuestion}
-            onRetrySummary={refreshWrongQuestionSummary}
-            onRedo={(questionId, knowledgePointTitle) => {
-              invalidatePracticeAttempt(practiceSubmissionGateRef.current);
-              applyPracticeAttemptState(beginRedo(readPracticeAttemptState(), questionId));
-              setDetailQuestionId(null);
-              if (knowledgePointTitle) setPracticeStatus(`正在重做：${knowledgePointTitle}。请选择答案。`);
-              setActiveSection('question');
-            }}
-            onPracticeVariant={(questionId, variantQuestionId) => {
-              invalidatePracticeAttempt(practiceSubmissionGateRef.current);
-              applyPracticeAttemptState(beginVariantRetest(readPracticeAttemptState(), questionId, variantQuestionId));
-              setDetailQuestionId(null);
-              setPracticeStatus('正在复测变式题：答对可推动原错题掌握度。');
-              setActiveSection('question');
-            }}
-          />
-          ) : null}
-        </StudentLayout>
       </section>
       {learningSessionType ? (
         <div className="exam-workspace-overlay">
+          <Suspense fallback={sectionFallback('考试界面')}>
           <ExamSession
             sessionType={learningSessionType}
             questionIds={activeLearningQuestionIds}
@@ -1495,12 +1474,15 @@ paperId: paper.id,
               ]);
             }}
           />
+          </Suspense>
         </div>
       ) : null}
       {examReportSessionId ? (
-        <div className="exam-workspace-overlay">
-          <ExamReportView sessionId={examReportSessionId} onClose={() => setExamReportSessionId(null)} />
-        </div>
+        <OverlayDialog label="考试报告" onClose={() => setExamReportSessionId(null)}>
+          <Suspense fallback={sectionFallback('考试报告')}>
+            <ExamReportView sessionId={examReportSessionId} onClose={() => setExamReportSessionId(null)} />
+          </Suspense>
+        </OverlayDialog>
       ) : null}
       {reasonPrompt ? (
         <ErrorReasonSelector
