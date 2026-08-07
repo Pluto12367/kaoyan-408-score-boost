@@ -23,3 +23,17 @@ test('styles upgrade the orb and feature tags', async () => {
   assert.match(styles, /\.auth-orb \{[\s\S]*?box-shadow:[\s\S]*?rgb\(37 99 235/);
   assert.match(styles, /\.auth-feature-grid span \{[\s\S]*?border-radius:\s*999px/);
 });
+
+test('account panel exposes login/register segmented switch and invite hint', async () => {
+  const panel = await source('apps/web/src/features/auth/AccountPanel.tsx');
+  assert.match(panel, /auth-mode-switch/);
+  assert.match(panel, /注册新账号/);
+  assert.match(panel, /联系管理员获取邀请码/);
+  assert.match(panel, /name="inviteCode"/);
+});
+
+test('styles define the segmented switch and invite hint', async () => {
+  const styles = await source('apps/web/src/styles.css');
+  assert.match(styles, /\.auth-mode-switch \{/);
+  assert.match(styles, /\.auth-invite-hint \{/);
+});

@@ -52,47 +52,68 @@ export function AccountPanel(props: AccountPanelProps) {
         </form>
       ) : null}
       {!props.user && !props.staticDemoMode ? (
-        <form className="account-form" onSubmit={props.onSubmit}>
-          {props.authMode === 'register' ? (
-            <>
-              <label>
-                <span>邀请码</span>
-                <input name="inviteCode" autoComplete="one-time-code" required minLength={6} maxLength={128} />
-              </label>
-              <label>
-                <span>姓名</span>
-                <input name="name" autoComplete="name" required maxLength={40} />
-              </label>
-            </>
-          ) : null}
-          <label>
-            <span>邮箱</span>
-            <input name="email" type="email" autoComplete="email" required />
-          </label>
-          {props.authMode === 'register' ? (
-            <label>
-              <span>确认密码</span>
-              <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={128} />
-            </label>
-          ) : null}
-          <label>
-            <span>密码</span>
-            <input
-              name="password"
-              type="password"
-              autoComplete={props.authMode === 'register' ? 'new-password' : 'current-password'}
-              required
-              minLength={8}
-              maxLength={128}
-            />
-          </label>
-          <div className="account-actions">
-            <button type="submit">{props.authMode === 'register' ? '创建学生账号' : '登录'}</button>
-            <button type="button" className="secondary-action" onClick={props.onToggleMode}>
-              {props.authMode === 'register' ? '已有账号' : '注册账号'}
-            </button>
+        <>
+          <div className="auth-mode-switch" role="tablist" aria-label="登录或注册">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={props.authMode === 'login'}
+              className={props.authMode === 'login' ? 'active' : ''}
+              onClick={() => { if (props.authMode !== 'login') props.onToggleMode(); }}
+            >登录</button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={props.authMode === 'register'}
+              className={props.authMode === 'register' ? 'active' : ''}
+              onClick={() => { if (props.authMode !== 'register') props.onToggleMode(); }}
+            >注册</button>
           </div>
-        </form>
+          <form className="account-form" onSubmit={props.onSubmit}>
+            {props.authMode === 'register' ? (
+              <>
+                <label>
+                  <span>邀请码</span>
+                  <input name="inviteCode" autoComplete="one-time-code" required minLength={6} maxLength={128} />
+                </label>
+                <p className="auth-invite-hint">联系管理员获取邀请码</p>
+                <label>
+                  <span>姓名</span>
+                  <input name="name" autoComplete="name" required maxLength={40} />
+                </label>
+              </>
+            ) : null}
+            <label>
+              <span>邮箱</span>
+              <input name="email" type="email" autoComplete="email" required />
+            </label>
+            {props.authMode === 'register' ? (
+              <label>
+                <span>确认密码</span>
+                <input name="confirmPassword" type="password" autoComplete="new-password" required minLength={8} maxLength={128} />
+              </label>
+            ) : null}
+            <label>
+              <span>密码</span>
+              <input
+                name="password"
+                type="password"
+                autoComplete={props.authMode === 'register' ? 'new-password' : 'current-password'}
+                required
+                minLength={8}
+                maxLength={128}
+              />
+            </label>
+            <div className="account-actions">
+              <button type="submit">{props.authMode === 'register' ? '创建学生账号' : '登录'}</button>
+            </div>
+          </form>
+          {props.authMode === 'login' ? (
+            <button type="button" className="secondary-action auth-register-link" onClick={props.onToggleMode}>
+              注册新账号
+            </button>
+          ) : null}
+        </>
       ) : null}
       {props.showDemoRoles ? (
         <div className="demo-role-actions">

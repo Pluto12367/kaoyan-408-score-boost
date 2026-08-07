@@ -3643,6 +3643,43 @@ textarea:focus-visible,
   font-weight: 700;
 }
 
+.auth-mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  margin: 4px 0 16px;
+  border-radius: var(--radius);
+  background: var(--surface-soft-2);
+}
+
+.auth-mode-switch button {
+  padding: 9px 12px;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auth-mode-switch button.active,
+.auth-mode-switch button[aria-selected="true"] {
+  background: var(--surface);
+  color: var(--primary-strong);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 10%);
+}
+
+.auth-invite-hint {
+  margin: -6px 0 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.auth-register-link {
+  width: 100%;
+  margin-top: 10px;
+}
+
 .student-dashboard-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 190px;
