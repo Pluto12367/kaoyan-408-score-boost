@@ -3548,7 +3548,7 @@ textarea:focus-visible,
 .auth-shell-redesign {
   background:
     linear-gradient(180deg, rgb(6 17 34 / 80%) 0%, rgb(6 17 34 / 66%) 55%, rgb(10 23 44 / 84%) 100%),
-    url('/auth-bg.png');
+    url('/auth-bg.jpg');
   background-size: auto, cover;
   background-position: center;
   background-repeat: repeat, no-repeat;

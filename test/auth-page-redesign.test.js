@@ -73,6 +73,6 @@ test('mobile styles stack the auth brand row and keep feature tags usable', asyn
 test('styles use the uploaded background image with a readable overlay', async () => {
   const styles = await source('apps/web/src/styles.css');
   const rule = styles.match(/\.auth-shell-redesign \{[\s\S]*?\}/)?.[0] ?? '';
-  assert.match(rule, /url\('\/auth-bg\.png'\)/);
+  assert.match(rule, /url\('\/auth-bg\.jpg'\)/);
   assert.match(rule, /background-size:\s*auto,\s*cover/);
 });
