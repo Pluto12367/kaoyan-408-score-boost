@@ -6,10 +6,9 @@ import { ExamReportView } from './components/ExamReport';
 import {
   RoleNavigation,
   StudentBottomNav,
-  defaultRoleSection,
-  isSectionAllowedForRole,
   type RoleSection,
 } from './layouts/RoleNavigation';
+import { useRoleSectionNavigation, withTimeout } from './features/navigation/useRoleSectionNavigation';
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
 import { AdminWorkspace } from './features/admin/AdminWorkspace';
 import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
@@ -54,6 +53,7 @@ import { TodayPlan } from './components/TodayPlan';
 import type { SessionView } from './api/endpoints/sessions';
 import type { PracticeAnswerResult } from './api/endpoints/practice';
 import { isMockAllowed } from './api/env';
+import { trackEvent } from './api/events';
 import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
   createKnowledgePoint,
@@ -94,60 +94,6 @@ import {
   createInitialPaperSession,
 } from './constants';
 import { isStudentOverviewReady, resolveSessionQuestions, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
-
-const SECTION_STORAGE_KEY = 'kaoyan408:last-section';
-
-function readStoredSection(role: UserRole): RoleSection {
-  if (typeof window === 'undefined') return defaultRoleSection(role);
-  try {
-    const stored = window.sessionStorage.getItem(SECTION_STORAGE_KEY);
-    if (stored && isSectionAllowedForRole(role, stored as RoleSection)) return stored as RoleSection;
-  } catch {
-    // Ignore storage access errors and fall back to the default section.
-  }
-  return defaultRoleSection(role);
-}
-
-function useRoleSectionNavigation(role?: UserRole) {
-  const resolvedRole = role ?? 'student';
-  const [activeSection, setActiveSection] = useState<RoleSection>(() => readStoredSection(resolvedRole));
-
-  useEffect(() => {
-    setActiveSection((current) => (
-      isSectionAllowedForRole(resolvedRole, current)
-        ? current
-        : defaultRoleSection(resolvedRole)
-    ));
-  }, [resolvedRole]);
-
-  useEffect(() => {
-    try {
-      window.sessionStorage.setItem(SECTION_STORAGE_KEY, activeSection);
-    } catch {
-      // Ignore storage write errors.
-    }
-  }, [activeSection]);
-
-  function resetSectionForRole(nextRole: UserRole) {
-    setActiveSection(defaultRoleSection(nextRole));
-  }
-
-  const visibleSection = isSectionAllowedForRole(resolvedRole, activeSection)
-    ? activeSection
-    : defaultRoleSection(resolvedRole);
-
-  return { activeSection, setActiveSection, visibleSection, resetSectionForRole };
-}
-
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error('AI 请求超时，请稍后重试。')), ms);
-    promise.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (error) => { clearTimeout(timer); reject(error); },
-    );
-  });
-}
 
 export function App() {
   const {
@@ -625,6 +571,7 @@ export function App() {
     setLearningSessionType('practice_set');
     setLearningSessionMode(false);
     setPracticeStatus('专项练习已开始（训练模式），作答进度会自动保存。');
+    void trackEvent('practice.set_start');
   }
 
   function handleRestartPracticeSet() {
@@ -639,6 +586,7 @@ export function App() {
     setLearningSessionType('practice_set');
     setLearningSessionMode(false);
     setPracticeStatus('再来一组：同知识点训练已开始，作答进度会自动保存。');
+    void trackEvent('practice.set_restart');
   }
 
   function handleRestartQuestionBank() {
@@ -647,6 +595,7 @@ export function App() {
     applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
     restartPracticeTimer();
     setPracticeStatus('已重新开始题库训练，选择选项后系统会自动判题。');
+    void trackEvent('practice.bank_restart');
   }
 
   function handleStartLearningMode() {
@@ -659,6 +608,7 @@ export function App() {
     setLearningSessionType('practice_set');
     setLearningSessionMode(true);
     setPracticeStatus('学习模式已开始：每题作答后立即核对答案并查看解析。');
+    void trackEvent('practice.learning_mode_start');
   }
 
   async function handleLearningCheckAnswer(input: {
@@ -686,10 +636,12 @@ export function App() {
     const incomplete = todayPlan?.priorityTasks.find((task) => task.status !== 'completed' && !task.completed);
     setPlanFocusTaskId(incomplete?.id ?? null);
     setActiveSection('plan');
+    void trackEvent('nav.continue_today');
   }
 
   async function handleReviewWrongQuestion(questionId: string) {
     setWrongStatus('正在记录错题复盘...');
+    void trackEvent('wrong.open_review', { questionId });
 
     try {
       const reviewed = await reviewWrongQuestion(questionId);
@@ -710,6 +662,7 @@ export function App() {
 
   async function handleGenerateAssessment() {
     setAssessmentStatus('正在生成阶段测评...');
+    void trackEvent('assessment.generate');
 
     try {
       const assessment = await fetchStageAssessment();
@@ -741,6 +694,7 @@ export function App() {
   async function handleAskTutor() {
     setTutorStatus('AI 助教正在整理解析...');
     setTutorFailed(false);
+    void trackEvent('tutor.ask');
 
     try {
       const reply = await withTimeout(requestTutorReply({

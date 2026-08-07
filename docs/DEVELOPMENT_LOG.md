@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，第三轮（2026-08-07）待确认项实现**尚未提交**：前端细粒度埋点、AI 变式题入库、P2-3 安全拆分（导航/日期/摘要抽取）已完成；`npm test` 321 项 320 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
 - 分支/提交：`codex/deployment-ready`，第二轮 UX/工程收尾改动（2026-08-06）**尚未提交**；P2-01~P2-08 全部关闭，阶段2（动态计划 + 历史成绩导入）、P2-4 多知识点、P2-5 演示标识、P3-1 教师端分页、错题筛选服务端化、行为埋点已完成；全量 `npm test` 311 项 310 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
 - 分支/提交：`codex/deployment-ready`，本轮（2026-08-06）UX 收尾改动**尚未提交**；工作区含 P1-01/P1-02/P1-03(seed)/P1-04/P1-05/P1-06/P1-07/P1-08/P2-02/P2-04/P2-07 修复与 8 个新测试文件；`npm test` 285/286 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
 - 分支/提交：`codex/deployment-ready`，阶段 7 已提交并推送（commit `d60b1f4`，已与 origin 同步）
@@ -45,6 +46,25 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-07 待确认项实现：前端埋点、AI 变式题入库、P2-3 安全拆分
+
+- 日期：2026-08-07
+- 任务：按用户确认实施三项待确认项。
+- 修改原因：用户要求继续做 P2-3 整体拆分、前端细粒度埋点、AI 变式题入库。
+- 修改文件：
+  - 前端埋点：`apps/web/src/api/events.ts`（新增，best-effort `trackEvent`）、`App.tsx`（nav.continue_today / practice.* / wrong.open_review / tutor.ask / assessment.generate）、`TodayPlan.tsx`（task.start/postpone/reschedule/rebalance/manual_complete）
+  - AI 变式题：`packages/shared/src/ai-variant.ts`（提示词 + JSON 解析）、`apps/api/src/questions/ai-variant.service.ts`（新增，DeepSeek 生成 + 教师确认入库 + AiTutorLog 审计）、`dto/ai-variant.dto.ts`、`questions.controller.ts`（两个新路由）、`questions.module.ts`（注册服务与审计仓储）、`apps/web/src/api/endpoints/teacher.ts`（generateAiVariant/confirmAiVariant）、`TeacherWorkspace.tsx`（AI 变式按钮 + 预览确认）
+  - P2-3 拆分：`apps/web/src/features/navigation/useRoleSectionNavigation.ts`（新增：SECTION_STORAGE_KEY/readStoredSection/useRoleSectionNavigation/withTimeout）、`App.tsx`（移除本地定义改导入）、`apps/api/src/study/study-date.ts`（todayKey/lastNDates/nextNDates/countByDate）、`packages/shared/src/assessmentHistorySummary.ts`（buildAssessmentHistorySummary 纯函数）、`study.service.ts`（移除本地定义改导入）
+  - 测试：新增 `frontend-events.test.js`、`ai-variant.test.js`、`p2-split.test.js`
+- 数据库变化：无（无新迁移；AI 变式题复用现有 Question 表与 AiTutorLog）
+- API 变化：`POST /questions/:id/ai-variant`、`POST /questions/:id/ai-variant/confirm`（teacher/admin）
+- 测试结果：`npm run build:shared`/`build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；新增 3 个测试文件 12 项全过（含 shared 解析/摘要行为、前后端接线）
+- 遗留问题：
+  1. P2-3 有状态逻辑（练习流程 hook、StudyService 子服务化）仍是大块，本回合完成了纯函数/工具层的安全抽取；后续按模块继续。
+  2. AI 变式题需在配置 `AI_API_KEY` 的环境联调真实生成（本环境未配置 Key，未执行真实调用）。
+  3. 全量验证已完成：`npm test` 321 项 320 通过 / 0 失败 / 1 跳过；`build:web` 通过；`test:integration:postgres` `ok: true`（期间测试库容器已重启）。
+- 下一步：提交（需用户确认）。
 
 ### 2026-08-06 第二轮收尾：P2 全清 + 阶段2 + 埋点 + 多知识点 + 教师端分页
 

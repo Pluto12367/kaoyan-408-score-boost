@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleIn
 import {
   accumulateTaskProgress,
   applyDiagnosticProfile as buildDiagnosticProfile,
+  buildAssessmentHistorySummary,
   buildStudyPlan,
   buildTemplateFollowUp,
   buildTemplateTutorReply,
@@ -59,7 +60,7 @@ import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
 import { AdminUserRepository, type ManagedUserRecord, type TrialStatus } from './admin-user.repository';
 import { FEEDBACK_SCENES, FeedbackRepository, type FeedbackRecord, type FeedbackScene } from './feedback.repository';
-import { studyDateKey } from './study-date';
+import { countByDate, lastNDates, nextNDates, studyDateKey, todayKey } from './study-date';
 import { UserEventRepository } from './user-event.repository';
 
 const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
@@ -1369,7 +1370,7 @@ export class StudyService implements OnModuleInit {
     return {
       userId,
       items,
-      summary: this.buildAssessmentHistorySummary(items),
+      summary: buildAssessmentHistorySummary(items),
     };
   }
 
@@ -2950,28 +2951,6 @@ export class StudyService implements OnModuleInit {
     }));
   }
 
-  private buildAssessmentHistorySummary(items: AssessmentHistoryItem[]) {
-    const latest = items[0];
-    const previous = items[1];
-    const bestScore = items.length ? Math.max(...items.map((item) => item.score)) : 0;
-    const improvementText = !latest
-      ? '还没有测评记录，先完成一套模拟卷建立基线。'
-      : !previous
-        ? '已建立第一次测评基线，下一次可重点观察正确率和用时变化。'
-        : latest.score > previous.score
-          ? `较上次提升 ${latest.score - previous.score} 分，继续巩固本次薄弱点。`
-          : latest.score === previous.score
-            ? '与上次持平，建议通过限时训练和错题复盘提高稳定性。'
-            : `较上次下降 ${previous.score - latest.score} 分，先复盘本次错题再进入新题训练。`;
-
-    return {
-      attemptCount: items.length,
-      bestScore,
-      latestAccuracyRate: latest?.accuracyRate ?? 0,
-      improvementText,
-    };
-  }
-
   private createAssessmentReviewSuggestion(accuracyRate: number, weakPointTitle: string | undefined, overtime: boolean) {
     if (accuracyRate < 60) {
       return `先回到 ${weakPointTitle ?? '本次错题'} 的基础概念，复盘错因后再做一组同考点基础题。`;
@@ -3942,38 +3921,6 @@ function emptyCoreMetrics() {
 
 function average(values: number[]) {
   return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : 0;
-}
-
-function todayKey() {
-  return studyDateKey(new Date());
-}
-
-function lastNDates(count: number) {
-  const today = new Date(`${todayKey()}T00:00:00.000Z`);
-
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date(today);
-    date.setUTCDate(today.getUTCDate() - (count - index - 1));
-    return date.toISOString().slice(0, 10);
-  });
-}
-
-function nextNDates(count: number) {
-  const today = new Date(`${todayKey()}T00:00:00.000Z`);
-
-  return Array.from({ length: count }, (_, index) => {
-    const date = new Date(today);
-    date.setUTCDate(today.getUTCDate() + index);
-    return date.toISOString().slice(0, 10);
-  });
-}
-
-function countByDate(dates: string[]) {
-  return dates.reduce((acc, date) => {
-    const key = studyDateKey(date);
-    acc.set(key, (acc.get(key) ?? 0) + 1);
-    return acc;
-  }, new Map<string, number>());
 }
 
 function clampNumber(value: number, min: number, max: number) {

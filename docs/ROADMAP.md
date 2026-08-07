@@ -96,7 +96,7 @@
 - 涉及模块：`apps/api/src/study/`、`apps/web/src/App.tsx`。
 - 验收标准：重构后 `npm test`、集成测试、UI 冒烟全绿；端点响应逐字节兼容（或至少语义兼容）。
 - 风险：纯重构也需完整回归；禁止与功能开发混在同一提交。
-- 当前状态：待确认（评估完成：`StudyService` 约 3800 行、`App.tsx` 约 1600 行；已先行把可复用纯逻辑抽到 shared：`accumulateTaskProgress`/`rebalanceTaskLoad`/`isSlowAnswer`/多知识点归因等。整体拆分属大规模重构，按 AGENTS.md 需用户确认后单独实施）。
+- 当前状态：进行中（2026-08-07 用户已确认实施；已完成行为不变的安全抽取：`App.tsx` 导航工具抽到 `features/navigation/useRoleSectionNavigation.ts`（含 withTimeout），`StudyService` 日期工具抽到 `study-date.ts`、评估历史摘要抽到 shared `assessmentHistorySummary.ts`，另有 `accumulateTaskProgress`/`rebalanceTaskLoad`/`isSlowAnswer`/多知识点归因等纯函数入 shared；`App.tsx` 1458 行、`StudyService` 3850 行，继续按模块抽取有状态逻辑）。
 
 ### P2-4 多知识点题目记录优化
 
@@ -132,7 +132,8 @@
 
 - 错题筛选服务端化：`MistakeWorkspace` 改调 `GET /wrong-questions` 服务端筛选（8 维），演示模式保留客户端兜底；状态：已完成。
 - 行为埋点：`UserEvent` 表（迁移 `20260806130000_user_events`）+ `POST /events` + 核心闭环动作（practice.submit / session.submit / task.complete / wrong.review / assessment.import）best-effort 落库；状态：已完成。
-- AI 变式题入库：**评估结论——暂缓**。现有 `findSimilarQuestions` 同知识点变式复测已支撑掌握判定闭环；AI 生成题目入库需要教研审核流、模型成本与内容质量门禁（AGENTS.md「无真实数据支持的 AI 功能」红线），建议在内容审核管道稳定后单独立项。
+- AI 变式题入库：已完成（2026-08-07，`POST /questions/:id/ai-variant` 生成 + `POST /questions/:id/ai-variant/confirm` 教师确认入库，未配 `AI_API_KEY` 明确报错不静默回退；AiTutorLog 审计；教师端「AI 变式」按钮 + 预览确认；`test/ai-variant.test.js`）。生成题进入既有待审核队列，遵循教研复核门禁。
+- 前端细粒度埋点：已完成（2026-08-07，`api/events.ts` best-effort 上报，App/TodayPlan 关键 UI 动作埋点：nav.continue_today、practice.*、wrong.open_review、tutor.ask、assessment.generate、task.* 等）。
 
 ## 明确不做（避免范围膨胀）
 

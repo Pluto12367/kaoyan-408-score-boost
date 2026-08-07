@@ -40,6 +40,34 @@ export async function deleteTeacherQuestion(questionId: string): Promise<{ id: s
   return response.json() as Promise<{ id: string; deleted: boolean }>;
 }
 
+export interface AiVariantDraft {
+  stem: string;
+  options: string[];
+  answer: string;
+  analysis: string;
+  difficulty: '基础' | '中等' | '困难';
+}
+
+export async function generateAiVariant(questionId: string, count = 1): Promise<{ source: string; items: AiVariantDraft[] }> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/questions/${questionId}/ai-variant`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ count }),
+  });
+  if (!response.ok) throw new Error(`AI variant generation failed with ${response.status}`);
+  return response.json() as Promise<{ source: string; items: AiVariantDraft[] }>;
+}
+
+export async function confirmAiVariant(questionId: string, draft: AiVariantDraft): Promise<Question> {
+  const response = await authenticatedFetch(`${API_BASE_URL}/questions/${questionId}/ai-variant/confirm`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(draft),
+  });
+  if (!response.ok) throw new Error(`AI variant confirm failed with ${response.status}`);
+  return response.json() as Promise<Question>;
+}
+
 export async function createKnowledgePoint(input: CreateKnowledgePointInput): Promise<KnowledgePoint> {
   const response = await authenticatedFetch(`${API_BASE_URL}/knowledge-points`, {
     method: 'POST',

@@ -1,5 +1,11 @@
+import { useState } from 'react';
 import { ClipboardCheck, ClipboardList, Target } from 'lucide-react';
 import type { GeneratedPaper, PaperSubmitResult, Question, TeacherClassAnalytics } from '../../api';
+import {
+  confirmAiVariant,
+  generateAiVariant,
+  type AiVariantDraft,
+} from '../../api/endpoints/teacher';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { createInitialPaperSession } from '../../constants';
 import type { ModuleResource } from '../../hooks/moduleResource';
@@ -30,9 +36,44 @@ interface TeacherWorkspaceProps {
 export function TeacherWorkspace({ activeSection, ...props }: TeacherWorkspaceProps) {
   const questions = props.questions.data;
   const classAnalytics = props.classAnalytics.data;
+  const [aiStatus, setAiStatus] = useState('');
+  const [aiCandidates, setAiCandidates] = useState<AiVariantDraft[]>([]);
+  const [aiGeneratingId, setAiGeneratingId] = useState<string | null>(null);
+  const [aiSourceQuestionId, setAiSourceQuestionId] = useState<string | null>(null);
   const knowledgePointCount = questions
     ? new Set(questions.flatMap((question) => question.knowledgePointIds)).size
     : 0;
+
+  async function handleGenerateAiVariant(questionId: string) {
+    setAiStatus('');
+    setAiCandidates([]);
+    setAiGeneratingId(questionId);
+    setAiSourceQuestionId(questionId);
+    try {
+      const result = await generateAiVariant(questionId);
+      setAiCandidates(result.items);
+      setAiStatus(`AI 已生成 ${result.items.length} 道同知识点变式题，请核对后确认入库。`);
+    } catch (error) {
+      setAiStatus(error instanceof Error ? error.message : 'AI 变式题生成失败，请重试。');
+    } finally {
+      setAiGeneratingId(null);
+    }
+  }
+
+  async function handleConfirmAiVariant(draft: AiVariantDraft) {
+    if (!aiSourceQuestionId) {
+      setAiStatus('请先选择来源题目生成变式题。');
+      return;
+    }
+    try {
+      await confirmAiVariant(aiSourceQuestionId, draft);
+      setAiCandidates((current) => current.filter((item) => item !== draft));
+      setAiStatus('已确认入库，新题进入待审核队列。');
+      props.onRetryQuestions();
+    } catch (error) {
+      setAiStatus(error instanceof Error ? error.message : '确认入库失败，请重试。');
+    }
+  }
 
   const classAnalyticsPanel = classAnalytics ? (
     <div className="class-analytics-panel">
@@ -144,9 +185,32 @@ export function TeacherWorkspace({ activeSection, ...props }: TeacherWorkspacePr
               <article key={question.id}>
                 <div><strong>{question.id} · {question.difficulty}</strong><span>{question.stem}</span></div>
                 <small>{question.source} · {question.expectedTimeSec} 秒 · {question.knowledgePointIds.join('、')}</small>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  disabled={aiGeneratingId !== null}
+                  onClick={() => handleGenerateAiVariant(question.id)}
+                >
+                  {aiGeneratingId === question.id ? '生成中...' : 'AI 变式'}
+                </button>
               </article>
             )) : <article><strong>题库暂无内容</strong><span>可以先新增知识点和第一道题目。</span></article>}
           </div>
+          {aiCandidates.length > 0 ? (
+            <div className="ai-variant-preview">
+              <h4>AI 变式题预览（需教师核对后确认入库）</h4>
+              {aiCandidates.map((draft) => (
+                <article key={draft.stem}>
+                  <strong>{draft.difficulty} · {draft.stem}</strong>
+                  <span>{draft.options.map((option, index) => `${String.fromCharCode(65 + index)}. ${option}`).join(' | ')}</span>
+                  <small>正确答案：{draft.answer} · {draft.analysis}</small>
+                  <button type="button" className="primary-action" onClick={() => void handleConfirmAiVariant(draft)}>确认入库</button>
+                </article>
+              ))}
+              <button type="button" className="secondary-action" onClick={() => setAiCandidates([])}>全部丢弃</button>
+            </div>
+          ) : null}
+          {aiStatus ? <p className="task-status">{aiStatus}</p> : null}
         </>
       ) : (
         <ModuleInlineUnavailable title="题库" resource={props.questions} onRetry={props.onRetryQuestions} />

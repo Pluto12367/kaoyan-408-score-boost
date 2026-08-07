@@ -31,11 +31,13 @@ test('stage 6: bottom nav is rendered outside the hidden sidebar', async () => {
 
 test('stage 6: refresh restores the last section via sessionStorage', async () => {
   const app = await source('apps/web/src/App.tsx');
+  const navigation = await source('apps/web/src/features/navigation/useRoleSectionNavigation.ts');
 
-  assert.match(app, /SECTION_STORAGE_KEY/);
-  assert.match(app, /readStoredSection/);
-  assert.match(app, /sessionStorage\.setItem\(SECTION_STORAGE_KEY, activeSection\)/);
-  assert.match(app, /useState<RoleSection>\(\(\) => readStoredSection\(resolvedRole\)\)/);
+  assert.match(navigation, /SECTION_STORAGE_KEY/);
+  assert.match(navigation, /export function readStoredSection/);
+  assert.match(navigation, /sessionStorage\.setItem\(SECTION_STORAGE_KEY, activeSection\)/);
+  assert.match(navigation, /useState<RoleSection>\(\(\) => readStoredSection\(resolvedRole\)\)/);
+  assert.match(app, /useRoleSectionNavigation/);
   // student sidebar is hidden on mobile so the bottom nav takes over
   assert.match(app, /sidebar sidebar-student/);
 });
@@ -43,8 +45,10 @@ test('stage 6: refresh restores the last section via sessionStorage', async () =
 test('stage 6: AI tutor surfaces timeout or failure with a retry action', async () => {
   const app = await source('apps/web/src/App.tsx');
   const tutor = await source('apps/web/src/features/tutor/TutorPanel.tsx');
+  const navigation = await source('apps/web/src/features/navigation/useRoleSectionNavigation.ts');
 
-  assert.match(app, /function withTimeout/);
+  assert.match(navigation, /export function withTimeout<T>/);
+  assert.match(app, /withTimeout/);
   assert.match(app, /tutorFailed/);
   assert.match(app, /failed=\{tutorFailed\}/);
   assert.match(app, /onRetry=\{handleAskTutor\}/);

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { QuestionsController, TeacherQuestionsController } from './questions.controller';
 import { QuestionsService } from './questions.service';
+import { AiVariantService } from './ai-variant.service';
+import { AiTutorLogRepository } from '../study/ai-tutor-log.repository';
 import { PrismaModule } from '../prisma/prisma.module';
 import { ImportBatchService } from './import/import-batch.service';
 import { ImportStorageService } from './import/import-storage.service';
@@ -38,7 +40,7 @@ import { ImportCleanupService } from './import/import-cleanup.service';
     QuestionImportCandidateAssetController,
   ],
   providers: [
-    QuestionsService, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportAssetService, ImportValidationService, ImportWorkerService, ImportCleanupService,
+    QuestionsService, AiVariantService, AiTutorLogRepository, ImportBatchService, ImportCandidateService, ImportConfirmationService, ImportAssetService, ImportValidationService, ImportWorkerService, ImportCleanupService,
     TableImportParser, { provide: QUESTION_IMPORT_CONFIG, useFactory: loadImportConfig }, ImportStorageService,
     QuestionTemplateService, ImportCleanupInterceptor, ImportQualityService,
     PdfDocumentService, PdfPageRenderer, QuestionStructureService,

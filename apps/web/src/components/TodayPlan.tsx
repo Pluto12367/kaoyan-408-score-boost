@@ -10,6 +10,7 @@ import {
 } from '../api/endpoints/onboarding';
 import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
 import { validateTaskCompletionDraft, type TaskCompletionDraft } from '../features/plan/taskCompletionDraft';
+import { trackEvent } from '../api/events';
 
 interface Props {
   plan: TodayPlanType;
@@ -55,6 +56,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
     try {
       await completeStudyTask({ taskId, ...result.value });
       await onRefresh();
+      void trackEvent('task.manual_complete', { taskId });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '任务完成状态保存失败，请重试。');
     } finally {
@@ -68,6 +70,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
     try {
       await startTask(taskId);
       await onRefresh();
+      void trackEvent('task.start', { taskId });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '任务开始失败，请重试。');
     } finally {
@@ -81,6 +84,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
     try {
       await postponeTask(taskId);
       await onRefresh();
+      void trackEvent('task.postpone', { taskId });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '任务延期失败，请重试。');
     } finally {
@@ -99,6 +103,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
     try {
       await rescheduleTask(taskId, scheduledDate);
       await onRefresh();
+      void trackEvent('task.reschedule', { taskId, scheduledDate });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '任务重新安排失败，请重试。');
     } finally {
@@ -112,6 +117,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
     try {
       await rebalanceTasks(mode);
       await onRefresh();
+      void trackEvent('task.rebalance', { mode });
     } catch (error) {
       setActionError(error instanceof Error ? error.message : '计划调整失败，请重试。');
     } finally {
