@@ -3702,6 +3702,17 @@ textarea:focus-visible,
   font-size: 12px;
 }
 
+.auth-register-guide {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-left: 4px solid #0f766e;
+  border-radius: 8px;
+  background: #f0fdfa;
+  color: #115e59;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .auth-register-link {
   width: 100%;
   margin-top: 10px;

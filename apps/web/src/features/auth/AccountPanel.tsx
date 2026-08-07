@@ -72,6 +72,7 @@ export function AccountPanel(props: AccountPanelProps) {
           <form className="account-form" onSubmit={props.onSubmit}>
             {props.authMode === 'register' ? (
               <>
+                <p className="auth-register-guide">三步开始提分：填写邀请码 → 创建账号 → 完成入学诊断</p>
                 <label>
                   <span>邀请码</span>
                   <input name="inviteCode" autoComplete="one-time-code" required minLength={6} maxLength={128} />

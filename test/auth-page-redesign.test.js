@@ -53,6 +53,17 @@ test('styles define the segmented switch and invite hint', async () => {
   assert.match(styles, /\.auth-invite-hint \{/);
 });
 
+test('account panel shows the registration guide copy in register mode', async () => {
+  const panel = await source('apps/web/src/features/auth/AccountPanel.tsx');
+  assert.match(panel, /auth-register-guide/);
+  assert.match(panel, /三步开始提分：填写邀请码 → 创建账号 → 完成入学诊断/);
+});
+
+test('styles define the registration guide', async () => {
+  const styles = await source('apps/web/src/styles.css');
+  assert.match(styles, /\.auth-register-guide \{/);
+});
+
 test('mobile styles stack the auth brand row and keep feature tags usable', async () => {
   const styles = await source('apps/web/src/styles.css');
   assert.match(styles, /@media \(max-width: 720px\) \{[\s\S]*?\.auth-brand-row \{[\s\S]*?flex-direction:\s*column/);
