@@ -87,6 +87,12 @@ export class AuthService {
     if (!allowedRoles.includes(payload.role)) {
       throw new ForbiddenException('Current role cannot access this resource');
     }
+    // Demo/in-memory mode: without a DATABASE_URL, Prisma has no datasource and
+    // a user lookup would throw P1012. The access token is already verified and
+    // role-checked above, so the verified demo payload is a trusted identity.
+    if (!process.env.DATABASE_URL && process.env.ALLOW_DEMO_AUTH === 'true') {
+      return { id: payload.sub, name: payload.name, role: payload.role } satisfies UserProfile;
+    }
     const account = await this.prisma.user.findUnique({
       where: { id: payload.sub },
       select: { accountStatus: true, mustChangePassword: true },

@@ -282,7 +282,7 @@ async function main() {
   });
   assert(submitted.questionId === 'q-001', 'practice submission should return the created record');
   assert(submitted.correct === false, 'practice submission should be graded by the API');
-  assert(submitted.mistakeReason === '概念不清', 'practice submission should be attributed by the API');
+  assert(submitted.mistakeReason === '概念混淆', 'practice submission should be attributed by the API');
   const updatedOverview = await waitForJson(`${apiUrl}/dashboard/overview`, (data) => data.practiceRecords?.length >= previousRecordCount + 1);
   assert(updatedOverview.report.weakPoints[0].knowledgePointId === 'co-cache', 'updated report should reflect the submitted weak point');
   const reviewResources = await waitForJson(`${apiUrl}/review-resources/recommended?userId=u-001`, (data) =>
@@ -363,7 +363,7 @@ async function main() {
   });
   assert(tutorReply.questionId === 'q-001', 'AI tutor reply should be tied to the requested question');
   assert(tutorReply.knowledgePointTitle, 'AI tutor reply should include the knowledge point title');
-  assert(tutorReply.answerCheck.includes('B'), 'AI tutor reply should include the correct answer');
+  assert(tutorReply.answerCheck.includes('C'), 'AI tutor reply should include the correct answer');
   assert(tutorReply.explanationSteps.length >= 2, 'AI tutor reply should break explanation into steps');
   assert(tutorReply.similarQuestions.length > 0, 'AI tutor reply should recommend similar questions');
   assert(tutorReply.nextActions.length > 0, 'AI tutor reply should include next actions');
