@@ -4,6 +4,7 @@ import type { UserRole } from '@kaoyan408/shared';
 export type RoleSection =
   | 'dashboard'
   | 'plan'
+  | 'score-center'
   | 'question'
   | 'wrong-book'
   | 'report'
@@ -43,6 +44,7 @@ const teacherItems: NavigationItem[] = [
 const studentItems: NavigationItem[] = [
   { id: 'dashboard', label: '学习总览', icon: Activity },
   { id: 'plan', label: '今日计划', icon: ClipboardList },
+  { id: 'score-center', label: '今日提分', icon: Target },
   { id: 'question', label: '题库训练', icon: BookOpenCheck },
   { id: 'wrong-book', label: '错题复盘', icon: ShieldCheck },
   { id: 'report', label: '提分报告', icon: Target },

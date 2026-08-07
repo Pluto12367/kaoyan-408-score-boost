@@ -88,6 +88,7 @@ const TeacherWorkspace = lazy(() => import('./features/teacher/TeacherWorkspace'
 const StageAssessmentPanel = lazy(() => import('./features/assessment/StageAssessmentPanel').then((m) => ({ default: m.StageAssessmentPanel })));
 const StudyPlanOverview = lazy(() => import('./features/plan/StudyPlanOverview').then((m) => ({ default: m.StudyPlanOverview })));
 const TodayPlan = lazy(() => import('./components/TodayPlan').then((m) => ({ default: m.TodayPlan })));
+const TodaysScoreCenter = lazy(() => import('./features/today-score-center/TodaysScoreCenter').then((m) => ({ default: m.TodaysScoreCenter })));
 
 export function App() {
   const {
@@ -1381,6 +1382,11 @@ paperId: paper.id,
           </> : (
             <ModuleUnavailable title="今日计划" resource={dashboardOverview.overview} onRetry={refreshOverview} />
           )) : null}
+        {visibleSection === 'score-center' ? (
+          <Suspense fallback={sectionFallback('今日提分')}>
+            <TodaysScoreCenter />
+          </Suspense>
+        ) : null}
         </StudentLayout>
 
         <TeacherLayout role={sessionUser?.role}>

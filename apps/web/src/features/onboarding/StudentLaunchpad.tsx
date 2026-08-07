@@ -185,6 +185,9 @@ export function StudentLaunchpad({
             <button type="button" className="primary-action" onClick={onContinueToday}>
               <ClipboardCheck size={18} /> 继续今日学习
             </button>
+            <button type="button" className="secondary-action" onClick={() => onNavigate('score-center')}>
+              今日提分
+            </button>
             <span>{heroProgressText}</span>
           </div>
         </div>

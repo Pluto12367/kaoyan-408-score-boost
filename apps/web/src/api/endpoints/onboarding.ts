@@ -1,5 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
 import type { Subject } from '@kaoyan408/shared';
+import type { ScoreCenterPlan } from './score-center';
 
 export interface OnboardingStatus {
   completed: boolean;
@@ -61,6 +62,7 @@ export interface TodayPlan {
   }>;
   reviewDue: number;
   checkpoint: string;
+  scoreCenter?: ScoreCenterPlan | null;
 }
 
 export async function fetchOnboardingStatus(): Promise<OnboardingStatus> {
