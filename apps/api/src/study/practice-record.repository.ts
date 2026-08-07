@@ -15,6 +15,7 @@ import type {
 } from '@kaoyan408/shared';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
 import { normalizeMistakeReason } from '@kaoyan408/shared';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -124,10 +125,11 @@ export class PracticeRecordRepository {
     return this.listAll();
   }
 
-  async save(record: PracticeRecord): Promise<PracticeRecord> {
+  async save(record: PracticeRecord, tx?: Prisma.TransactionClient): Promise<PracticeRecord> {
     if (!this.enabled) return record;
 
-    const saved = await this.prisma.practiceRecord.create({ data: toPrismaRecord(record) });
+    const db = tx ?? this.prisma;
+    const saved = await db.practiceRecord.create({ data: toPrismaRecord(record) });
     return {
       ...record,
       id: saved.id,

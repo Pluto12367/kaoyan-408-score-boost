@@ -23,9 +23,10 @@ import { TeacherStudentAuthorizationRepository } from './teacher-student-authori
 import { AdminUserRepository } from './admin-user.repository';
 import { FeedbackRepository } from './feedback.repository';
 import { UserEventRepository } from './user-event.repository';
+import { ScoreCenterModule } from '../score-center/score-center.module';
 
 @Module({
-  imports: [AuthModule, QuestionsModule, PrismaModule],
+  imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule],
   controllers: [StudyController],
   providers: [StudyService, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
 })

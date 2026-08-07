@@ -62,6 +62,8 @@ import { AdminUserRepository, type ManagedUserRecord, type TrialStatus } from '.
 import { FEEDBACK_SCENES, FeedbackRepository, type FeedbackRecord, type FeedbackScene } from './feedback.repository';
 import { countByDate, lastNDates, nextNDates, studyDateKey, todayKey } from './study-date';
 import { UserEventRepository } from './user-event.repository';
+import { ScoreCenterService } from '../score-center/service';
+import { PrismaService } from '../prisma/prisma.service';
 
 const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
 
@@ -89,6 +91,8 @@ export class StudyService implements OnModuleInit {
     private readonly adminUsers: AdminUserRepository,
     private readonly feedbackRepository: FeedbackRepository,
     private readonly userEventRepository: UserEventRepository,
+    private readonly scoreCenterService?: ScoreCenterService,
+    private readonly prisma?: PrismaService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -773,17 +777,18 @@ export class StudyService implements OnModuleInit {
       ...profile,
       stage: diagnostic.stage,
       sevenDayPlan: this.getSevenDayPlanSummary(persistedPlan),
-      todayPlan: this.getTodayPlan(userId),
+      todayPlan: await this.getTodayPlan(userId),
     };
   }
 
-  getTodayPlan(userId: string) {
+  async getTodayPlan(userId: string) {
     const scheduledPlan = this.sevenDayPlansByUser.get(userId);
     const plan = this.generatePlan(userId);
     const report = this.getOverviewReport(userId);
     const calendar = this.getLearningCalendar(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
     const today = todayKey();
+    const scoreCenter = (await this.scoreCenterService?.getTodayScoreCenterPlan(userId)) ?? null;
 
     if (scheduledPlan) {
       const dayTasks = scheduledPlan.tasks.filter((task) => task.scheduledDate === today);
@@ -809,6 +814,7 @@ export class StudyService implements OnModuleInit {
         weekProgress: this.getSevenDayPlanSummary(scheduledPlan).days,
         reviewDue: wrongQuestions.filter((q) => q.reviewStatus === 'pending').length,
         checkpoint: scheduledPlan.checkpoint,
+        scoreCenter,
       };
     }
 
@@ -853,6 +859,7 @@ export class StudyService implements OnModuleInit {
       reviewDue: wrongQuestions.filter((q) => q.reviewStatus === 'pending').length,
       checkpoint: plan.checkpoint,
       weekProgress: [],
+      scoreCenter,
     };
   }
 
@@ -1845,6 +1852,19 @@ export class StudyService implements OnModuleInit {
     reviewed.set(questionId, now.toISOString());
     this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
     await this.learningProgressRepository.saveWrongQuestionReview(userId, questionId, now.toISOString());
+    if (input.isReview === true) {
+      try {
+        await this.scoreCenterService?.applyReview(userId, questionId, {
+          reviewedAt: now,
+          redoCorrect: input.redoCorrect,
+        });
+      } catch (error) {
+        this.logger.error(
+          `Score-center mastery update failed after review of ${questionId}`,
+          error instanceof Error ? error.stack : String(error),
+        );
+      }
+    }
 
     return {
       ...schedule,
@@ -2257,7 +2277,13 @@ export class StudyService implements OnModuleInit {
       ?? await this.questionsService.findQuestionById(input.questionId)
       ?? undefined;
     const record = this.buildPracticeRecord({ ...input, questionSnapshot });
-    const savedRecord = await this.practiceRecordRepository.save(record);
+    const savedRecord = this.prisma
+      ? await this.prisma.$transaction(async (tx) => {
+          const saved = await this.practiceRecordRepository.save(record, tx);
+          await this.scoreCenterService?.applyAttempts(input.userId, [saved], tx);
+          return saved;
+        })
+      : await this.practiceRecordRepository.save(record);
     this.records.push(savedRecord);
     if (!savedRecord.correct) {
       await this.ensureReviewSchedule(savedRecord);
@@ -2452,6 +2478,8 @@ export class StudyService implements OnModuleInit {
     const scheduledTask = this.findScheduledTask(userId, taskId);
     const task = scheduledTask ?? plan.dailyTasks.find((item) => item.id === taskId);
     if (!task) {
+      const scoreCenterCompleted = await this.scoreCenterService?.completeTask(taskId, userId, input);
+      if (scoreCenterCompleted) return scoreCenterCompleted;
       throw new BadRequestException(`Study task ${taskId} was not found`);
     }
     if (scheduledTask?.status === 'completed') {
@@ -3391,7 +3419,13 @@ export class StudyService implements OnModuleInit {
         }),
       );
 
-      const committed = await this.learningSessionRepository.commitSubmission(submittedSession, records);
+      const committed = await this.learningSessionRepository.commitSubmission(
+        submittedSession,
+        records,
+        async (tx) => {
+          await this.scoreCenterService?.applyAttempts(userId, records, tx);
+        },
+      );
       if (!committed) {
         const [persistedSession, persistedRecords] = await Promise.all([
           this.learningSessionRepository.loadOne(sessionId, userId),

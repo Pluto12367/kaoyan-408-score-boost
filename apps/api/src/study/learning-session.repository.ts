@@ -70,7 +70,11 @@ export class LearningSessionRepository {
     return row ? toDomainSession(row) : null;
   }
 
-  async commitSubmission(session: PersistedLearningSession, records: PracticeRecord[]): Promise<boolean> {
+  async commitSubmission(
+    session: PersistedLearningSession,
+    records: PracticeRecord[],
+    onCommitted?: (tx: Prisma.TransactionClient) => Promise<void>,
+  ): Promise<boolean> {
     if (!this.enabled) return true;
     return this.prisma.$transaction(async (tx) => {
       const result = await tx.learningSession.updateMany({
@@ -82,6 +86,9 @@ export class LearningSessionRepository {
         await tx.practiceRecord.createMany({
           data: records.map(toPrismaRecord),
         });
+      }
+      if (onCommitted) {
+        await onCommitted(tx);
       }
       return true;
     });

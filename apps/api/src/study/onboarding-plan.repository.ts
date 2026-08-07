@@ -113,7 +113,7 @@ export class OnboardingPlanRepository {
     }
 
     const rows = await this.prisma.studyPlan.findMany({
-      where: { status: 'ACTIVE' },
+      where: { status: 'ACTIVE', source: null },
       include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
       orderBy: { createdAt: 'desc' },
     });

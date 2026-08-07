@@ -7,6 +7,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { QuestionsModule } from './questions/questions.module';
 import { StudyModule } from './study/study.module';
 import { OperationsModule } from './operations/operations.module';
+import { ScoreCenterModule } from './score-center/score-center.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { OperationsModule } from './operations/operations.module';
     AuthModule,
     QuestionsModule,
     StudyModule,
+    ScoreCenterModule,
   ],
   controllers: [HealthController],
   providers: [

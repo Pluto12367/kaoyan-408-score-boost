@@ -1704,28 +1704,30 @@ async function main() {
         && replacementPlan.tasks.every((task) => task.id !== completedReviewTaskId),
       'completed review tasks must not be carried into the replacement active plan',
     );
+    const completedReviewTaskProjection = (task) => ({
+      id: task.id,
+      planId: task.planId,
+      knowledgePointId: task.knowledgePointId,
+      subject: task.subject,
+      chapter: task.chapter,
+      title: task.title,
+      mode: task.mode,
+      minutes: task.minutes,
+      questionCount: task.questionCount,
+      scheduledDate: task.scheduledDate,
+      priority: task.priority,
+      reason: task.reason,
+      nextAction: task.nextAction,
+      status: task.status,
+      postponeCount: task.postponeCount,
+      startedAt: task.startedAt,
+      nextAvailableAt: task.nextAvailableAt,
+      completedAt: task.completedAt,
+      completed: task.completed,
+    });
     assert(
-      JSON.stringify({
-        id: persistedCompletedTask.id,
-        planId: persistedCompletedTask.planId,
-        knowledgePointId: persistedCompletedTask.knowledgePointId,
-        subject: persistedCompletedTask.subject,
-        chapter: persistedCompletedTask.chapter,
-        title: persistedCompletedTask.title,
-        mode: persistedCompletedTask.mode,
-        minutes: persistedCompletedTask.minutes,
-        questionCount: persistedCompletedTask.questionCount,
-        scheduledDate: persistedCompletedTask.scheduledDate,
-        priority: persistedCompletedTask.priority,
-        reason: persistedCompletedTask.reason,
-        nextAction: persistedCompletedTask.nextAction,
-        status: persistedCompletedTask.status,
-        postponeCount: persistedCompletedTask.postponeCount,
-        startedAt: persistedCompletedTask.startedAt,
-        nextAvailableAt: persistedCompletedTask.nextAvailableAt,
-        completedAt: persistedCompletedTask.completedAt,
-        completed: persistedCompletedTask.completed,
-      }) === JSON.stringify(completedReviewTask),
+      JSON.stringify(completedReviewTaskProjection(persistedCompletedTask))
+        === JSON.stringify(completedReviewTaskProjection(completedReviewTask)),
       'regeneration must leave the completed review row immutable on its archived plan',
     );
     assert(
@@ -2256,6 +2258,227 @@ async function main() {
   assert(JSON.stringify(twiceRestoredReviewPlan) === JSON.stringify(persistedConcurrentReviewPlan), 'the complete persisted review summary should survive restart');
   const restartTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
   assert(restartTodayPlan.weekProgress.every((day) => day.taskCount <= 3), 'Today Plan should retain at most three tasks per day after restart');
+
+  // ---- Score center: attempt -> atomic mastery + wrong status transaction (Revised Task 6) ----
+  const scoreCenterPrisma = new PrismaClient({ datasourceUrl: databaseUrl });
+  const scoreCenterNodeId = 'sc-node-integration-001';
+  const scoreCenterQuestionId = 'sc-q-integration-001';
+  const scoreCenterInvite = await createIntegrationInvitation(scoreCenterPrisma, invitationAdmin.id, {
+    maxUses: 5,
+    label: 'score center integration registration',
+  });
+  const scoreCenterUser = await postJson(`${apiUrl}/auth/register`, {
+    inviteCode: scoreCenterInvite.code,
+    email: `score.center.${Date.now()}@example.com`,
+    password: 'ReliableTestPassword!408',
+    name: 'Score Center 集成学生',
+  });
+  const scoreCenterHeaders = { Authorization: `Bearer ${scoreCenterUser.token}` };
+  const scoreCenterFamily = await scoreCenterPrisma.questionFamily.create({ data: {} });
+  await scoreCenterPrisma.knowledgeNode.create({
+    data: {
+      id: scoreCenterNodeId,
+      subject: 'DS',
+      nodeType: 'atomicPoint',
+      name: '集成测试原子点',
+      importance: 4,
+      difficulty: 3,
+      syllabusVersion: '2026-baseline',
+      isActive: true,
+    },
+  });
+  await scoreCenterPrisma.question.create({
+    data: {
+      id: scoreCenterQuestionId,
+      familyId: scoreCenterFamily.id,
+      versionNumber: 1,
+      isCurrent: true,
+      contentFingerprint: `sc-${scoreCenterQuestionId}-fingerprint`,
+      stem: 'Score center integration question',
+      options: ['A', 'B', 'C', 'D'],
+      answer: 'C',
+      analysis: 'integration analysis',
+      difficulty: 'MEDIUM',
+      type: 'SINGLE_CHOICE',
+      source: 'integration',
+      expectedTimeSec: 100,
+    },
+  });
+  await scoreCenterPrisma.questionKnowledgeNodeTag.create({
+    data: {
+      questionId: scoreCenterQuestionId,
+      knowledgeNodeId: scoreCenterNodeId,
+      role: 'PRIMARY',
+      confidence: 1.0,
+      taggedBy: 'HYBRID',
+    },
+  });
+
+  const correctSubmission = await postJson(`${apiUrl}/practice-records`, {
+    questionId: scoreCenterQuestionId,
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'C',
+    timeSpentSec: 60,
+    expectedTimeSec: 100,
+  }, scoreCenterHeaders);
+  assert(correctSubmission.correct === true, 'score center question should be graded correct');
+  const masteryAfterCorrect = await scoreCenterPrisma.userKnowledgeMastery.findUnique({
+    where: { userId_knowledgeNodeId: { userId: scoreCenterUser.user.id, knowledgeNodeId: scoreCenterNodeId } },
+  });
+  assert(
+    masteryAfterCorrect?.attempts === 1 && masteryAfterCorrect.correctCount === 1,
+    'correct attempt should update atomic mastery in the same transaction',
+  );
+
+  for (let index = 0; index < 2; index += 1) {
+    await postJson(`${apiUrl}/practice-records`, {
+      questionId: scoreCenterQuestionId,
+      knowledgePointId: 'co-cache',
+      selectedAnswer: 'A',
+      timeSpentSec: 60,
+      expectedTimeSec: 100,
+    }, scoreCenterHeaders);
+  }
+  const masteryAfterWrongs = await scoreCenterPrisma.userKnowledgeMastery.findUnique({
+    where: { userId_knowledgeNodeId: { userId: scoreCenterUser.user.id, knowledgeNodeId: scoreCenterNodeId } },
+  });
+  assert(
+    masteryAfterWrongs?.attempts === 3 && masteryAfterWrongs.wrongCount === 2,
+    'repeated wrong attempts should accumulate on atomic mastery',
+  );
+  const wrongRecords = await scoreCenterPrisma.wrongQuestionReview.findMany({
+    where: { userId: scoreCenterUser.user.id, questionId: scoreCenterQuestionId },
+  });
+  assert(
+    wrongRecords.length === 1 && wrongRecords[0].resolved === false,
+    'repeated wrong attempts should keep a single unresolved wrong record',
+  );
+
+  const knowledgeDetail = await getJson(`${apiUrl}/knowledge/${scoreCenterNodeId}`, scoreCenterHeaders);
+  assert(knowledgeDetail.knowledgePoint?.id === scoreCenterNodeId, 'knowledge detail should resolve the atomic point');
+  assert(knowledgeDetail.userState?.attempts === 3, 'knowledge detail should expose updated user state');
+  await expectGetStatus(`${apiUrl}/knowledge/unknown-score-center-node`, scoreCenterHeaders, 404);
+
+  await expectPostStatus(`${apiUrl}/score-center/generate`, {
+    targetExamDate: '2027-12-20',
+    availableMinutes: 90,
+  }, 400, scoreCenterHeaders, 'INVALID_AVAILABLE_MINUTES');
+
+  await scoreCenterPrisma.knowledgeFrequencySnapshot.create({
+    data: {
+      knowledgeNodeId: scoreCenterNodeId,
+      snapshotDate: new Date('2026-08-07T00:00:00.000Z'),
+      recent3Frequency: 4,
+      recent5Frequency: 4,
+      allTimeEvidence: 4,
+      primaryScore5y: 8,
+      trendDirection: 'RISING',
+      trendDelta: 0.3,
+      evidenceConfidence: 'HIGH',
+      modelVersion: 'score-center-v1',
+    },
+  });
+  const generatedPlan = await postJson(`${apiUrl}/score-center/generate`, {
+    targetExamDate: '2027-12-20',
+    availableMinutes: 120,
+  }, scoreCenterHeaders);
+  assert(generatedPlan.items.length > 0, 'generated score-center plan should include tasks');
+  assert(generatedPlan.items.every((item) => item.score >= 0 && item.score <= 100), 'plan scores should be bounded');
+
+  const persistedPlan = await scoreCenterPrisma.studyPlan.findUnique({
+    where: { id: generatedPlan.id },
+    include: { tasks: { orderBy: { generatedRank: 'asc' } } },
+  });
+  assert(persistedPlan?.source === 'score-center', 'generated plan should be persisted as a score-center StudyPlan');
+  assert(persistedPlan.modelVersion === 'score-center-v1', 'generated plan should carry the model version');
+  assert(persistedPlan.tasks.length > 0, 'generated plan should persist StudyTasks');
+  assert(
+    persistedPlan.tasks.every(
+      (task) => task.knowledgeNodeId && task.priorityScore != null && Array.isArray(task.reasonCodes),
+    ),
+    'StudyTasks should carry score-center snapshot fields',
+  );
+
+  const todayPlan = await getJson(`${apiUrl}/today/plan`, scoreCenterHeaders);
+  assert(todayPlan.scoreCenter?.id === generatedPlan.id, 'GET /today/plan should expose the score-center plan');
+  const todayPlanAgain = await getJson(`${apiUrl}/today/plan`, scoreCenterHeaders);
+  assert(todayPlanAgain.scoreCenter?.id === generatedPlan.id, 'GET /today/plan should stay idempotent');
+
+  // ---- Task 9: end-to-end recommendation loop (generate -> attempt -> complete -> refresh) ----
+  const e2eScoreBefore = generatedPlan.items[0]?.score ?? 100;
+  const e2eActionBefore = generatedPlan.items[0]?.action;
+  const e2eMasteryBefore = await scoreCenterPrisma.userKnowledgeMastery.findUnique({
+    where: { userId_knowledgeNodeId: { userId: scoreCenterUser.user.id, knowledgeNodeId: scoreCenterNodeId } },
+  });
+  await postJson(`${apiUrl}/practice-records`, {
+    questionId: scoreCenterQuestionId,
+    knowledgePointId: 'co-cache',
+    selectedAnswer: 'C',
+    timeSpentSec: 60,
+    expectedTimeSec: 100,
+  }, scoreCenterHeaders);
+  const completedScoreCenterTask = await postJson(
+    `${apiUrl}/study-tasks/${generatedPlan.items[0].id}/complete`,
+    { completedQuestionCount: 1, correctCount: 1, minutesSpent: 20 },
+    scoreCenterHeaders,
+  );
+  assert(completedScoreCenterTask.status === 'completed', 'score-center task should be completable');
+  const refreshedPlan = await postJson(`${apiUrl}/score-center/generate`, {
+    targetExamDate: '2027-12-20',
+    availableMinutes: 120,
+  }, scoreCenterHeaders);
+  assert(refreshedPlan.id !== generatedPlan.id, 'refresh should create a new batch');
+  const archivedPlan = await scoreCenterPrisma.studyPlan.findUnique({
+    where: { id: generatedPlan.id },
+    include: { tasks: true },
+  });
+  assert(archivedPlan?.status === 'ARCHIVED', 'previous batch should be archived, not mutated');
+  assert(archivedPlan.tasks.length === generatedPlan.items.length, 'historical batch tasks should remain unchanged in count');
+  const e2eScoreAfter = refreshedPlan.items[0]?.score ?? 100;
+  assert(
+    e2eScoreAfter < e2eScoreBefore || refreshedPlan.items[0]?.action !== e2eActionBefore,
+    `refresh should shift priority (${e2eScoreBefore} -> ${e2eScoreAfter})`,
+  );
+  const e2eMasteryAfter = await scoreCenterPrisma.userKnowledgeMastery.findUnique({
+    where: { userId_knowledgeNodeId: { userId: scoreCenterUser.user.id, knowledgeNodeId: scoreCenterNodeId } },
+  });
+  assert(
+    e2eMasteryAfter?.attempts === (e2eMasteryBefore?.attempts ?? 0) + 1,
+    'correct attempt should persist before the refresh',
+  );
+
+  // ---- Task 9: stale fallback returns the last valid plan on generation failure ----
+  await scoreCenterPrisma.$executeRawUnsafe(`
+    CREATE OR REPLACE FUNCTION integration_score_center_generate_failure() RETURNS trigger AS $$
+    BEGIN
+      RAISE EXCEPTION 'integration score-center generate failure';
+    END;
+    $$ LANGUAGE plpgsql;
+  `);
+  await scoreCenterPrisma.$executeRawUnsafe(`
+    CREATE TRIGGER integration_score_center_generate_failure
+    BEFORE INSERT ON "StudyPlan"
+    FOR EACH ROW EXECUTE FUNCTION integration_score_center_generate_failure();
+  `);
+  try {
+    const staleResponse = await fetch(`${apiUrl}/score-center/generate`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', ...scoreCenterHeaders },
+      body: JSON.stringify({ targetExamDate: '2027-12-20', availableMinutes: 120 }),
+    });
+    assert(staleResponse.status === 200, 'stale fallback should return 200');
+    const staleBody = await staleResponse.json();
+    assert(staleBody.stale === true, 'fallback plan should be marked stale');
+    assert(staleBody.id === refreshedPlan.id, 'fallback should be the last valid plan');
+    const lastValidAfterFailure = await scoreCenterPrisma.studyPlan.findUnique({
+      where: { id: refreshedPlan.id },
+    });
+    assert(lastValidAfterFailure?.status === 'ACTIVE', 'failed generation must not mutate the last valid plan');
+  } finally {
+    await scoreCenterPrisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS integration_score_center_generate_failure ON "StudyPlan"');
+    await scoreCenterPrisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS integration_score_center_generate_failure()');
+  }
+  await scoreCenterPrisma.$disconnect();
 
   console.log(JSON.stringify({
     ok: true,
