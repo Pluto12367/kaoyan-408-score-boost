@@ -12,6 +12,7 @@ const SUBJECT_CODE = {
   OPERATING_SYSTEM: 'OS',
   COMPUTER_NETWORK: 'CN',
 };
+const ATOMIC_SUBJECTS = new Set(['DS', 'CO', 'OS', 'CN']);
 
 const OUTPUT = join(process.cwd(), 'data', '408', 'knowledge-catalog', 'question-tagging-feasibility-audit.json');
 const ALIAS_PATH = join(process.cwd(), 'data', '408', 'knowledge-catalog', 'bridge-aliases.json');
@@ -105,7 +106,7 @@ async function main() {
     ]);
 
     const aliases = loadAliases();
-    const atomicNodes = enrichAtomicNodes(nodes).filter((node) => node.subject in SUBJECT_CODE);
+    const atomicNodes = enrichAtomicNodes(nodes).filter((node) => ATOMIC_SUBJECTS.has(node.subject));
     const kpById = new Map(knowledgePoints.map((kp) => [kp.id, kp]));
     const nodeById = new Map(atomicNodes.map((node) => [node.id, node]));
 
