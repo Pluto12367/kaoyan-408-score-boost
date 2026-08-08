@@ -51,6 +51,10 @@ test('bridge metadata enums exist', () => {
   for (const enumName of requiredBridgeEnums) {
     assert.match(schema, new RegExp(`enum\\s+${enumName}\\s+\\{`), `missing bridge enum ${enumName}`);
   }
+  assert.match(schema, /enum\s+BridgeConfidence\s*\{\s*HIGH\s*MEDIUM\s*\}/);
+  assert.match(schema, /enum\s+BridgeSource\s*\{\s*AUTO\s*MANUAL\s*\}/);
+  assert.match(schema, /enum\s+BridgeMatchMethod\s*\{\s*EXACT_NAME\s*NORMALIZED_NAME\s*CONTEXT_MATCH\s*MANUAL\s*\}/);
+  assert.match(schema, /enum\s+BridgeStatus\s*\{\s*ACTIVE\s*PENDING_REVIEW\s*REJECTED\s*INACTIVE\s*\}/);
 });
 
 test('KnowledgePointNodeMap carries bridge metadata', () => {
@@ -59,10 +63,35 @@ test('KnowledgePointNodeMap carries bridge metadata', () => {
   assert.match(block, /source\s+BridgeSource/);
   assert.match(block, /matchMethod\s+BridgeMatchMethod/);
   assert.match(block, /status\s+BridgeStatus/);
+  assert.doesNotMatch(block, /confidenceLevel\s+BridgeConfidence\s+@default/);
+  assert.doesNotMatch(block, /source\s+BridgeSource\s+@default/);
+  assert.doesNotMatch(block, /matchMethod\s+BridgeMatchMethod\s+@default/);
+  assert.doesNotMatch(block, /status\s+BridgeStatus\s+@default/);
   assert.match(block, /mappingType\s+String\s+@default\("PRIMARY"\)/, 'legacy mappingType role field must be preserved, not repurposed');
+  assert.match(block, /confidence\s+Float\?/, 'legacy confidence Float must be preserved');
   assert.match(block, /@@id\(\[knowledgePointId,\s*knowledgeNodeId\]\)/);
+  assert.doesNotMatch(block, /@unique\s*\(\s*knowledgePointId\s*\)/, '1:N requires no single-column unique on knowledgePointId');
+  assert.doesNotMatch(block, /@unique\s*\(\s*knowledgeNodeId\s*\)/, '1:N requires no single-column unique on knowledgeNodeId');
   assert.match(block, /@@index\(\[knowledgePointId,\s*status\]\)/);
   assert.match(block, /@@index\(\[knowledgeNodeId,\s*status\]\)/);
+});
+
+test('bridge migration is additive and backfills historical rows', () => {
+  const dir = fs.readdirSync(new URL('../prisma/migrations', import.meta.url))
+    .find((name) => name.includes('add_bridge_metadata'));
+  assert.ok(dir, 'add_bridge_metadata migration must exist');
+  const sql = fs.readFileSync(new URL(`../prisma/migrations/${dir}/migration.sql`, import.meta.url), 'utf8');
+  assert.match(sql, /CREATE TYPE "BridgeConfidence" AS ENUM \('HIGH', 'MEDIUM'\)/);
+  assert.match(sql, /"source" = 'MANUAL'/);
+  assert.match(sql, /"confidenceLevel" = 'HIGH'/);
+  assert.match(sql, /"status" = 'ACTIVE'/);
+  assert.match(sql, /"matchMethod" = 'MANUAL'/);
+  assert.match(sql, /ALTER COLUMN "confidenceLevel" SET NOT NULL/);
+  assert.match(sql, /ALTER COLUMN "source" SET NOT NULL/);
+  assert.match(sql, /ALTER COLUMN "status" SET NOT NULL/);
+  assert.match(sql, /ALTER COLUMN "matchMethod" SET NOT NULL/);
+  assert.doesNotMatch(sql, /"mappingType"/, 'migration must not alter the legacy mappingType column');
+  assert.doesNotMatch(sql, /DROP TABLE|DROP COLUMN|DELETE FROM/);
 });
 
 test('no parallel second-source tables are added', () => {
