@@ -5,10 +5,12 @@ COPY package*.json ./
 COPY packages/shared/package.json packages/shared/
 COPY apps/web/package.json apps/web/
 
+
 RUN npm ci --ignore-scripts
 
 COPY packages/shared packages/shared/
 COPY apps/web apps/web/
+COPY data data/
 
 ARG VITE_API_BASE_URL=/api
 ARG VITE_PUBLIC_BASE_PATH=/
