@@ -3,3 +3,4 @@ export * from './mastery';
 export * from './priority';
 export * from './plan';
 export * from './bridge/matcher';
+export * from './bridge/audit';
