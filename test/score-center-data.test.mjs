@@ -25,6 +25,8 @@ const requiredEnums = [
   'EvidenceConfidence',
 ];
 
+const requiredBridgeEnums = ['BridgeConfidence', 'BridgeSource', 'BridgeMatchMethod', 'BridgeStatus'];
+
 const forbiddenModels = [
   'QuestionAttempt',
   'WrongQuestionRecord',
@@ -43,6 +45,24 @@ test('score-center enums exist', () => {
   for (const enumName of requiredEnums) {
     assert.match(schema, new RegExp(`enum\\s+${enumName}\\s+\\{`), `missing score-center enum ${enumName}`);
   }
+});
+
+test('bridge metadata enums exist', () => {
+  for (const enumName of requiredBridgeEnums) {
+    assert.match(schema, new RegExp(`enum\\s+${enumName}\\s+\\{`), `missing bridge enum ${enumName}`);
+  }
+});
+
+test('KnowledgePointNodeMap carries bridge metadata', () => {
+  const block = schema.match(/model\s+KnowledgePointNodeMap\s+\{[\s\S]*?\n\}/)?.[0] ?? '';
+  assert.match(block, /confidenceLevel\s+BridgeConfidence/);
+  assert.match(block, /source\s+BridgeSource/);
+  assert.match(block, /matchMethod\s+BridgeMatchMethod/);
+  assert.match(block, /status\s+BridgeStatus/);
+  assert.match(block, /mappingType\s+String\s+@default\("PRIMARY"\)/, 'legacy mappingType role field must be preserved, not repurposed');
+  assert.match(block, /@@id\(\[knowledgePointId,\s*knowledgeNodeId\]\)/);
+  assert.match(block, /@@index\(\[knowledgePointId,\s*status\]\)/);
+  assert.match(block, /@@index\(\[knowledgeNodeId,\s*status\]\)/);
 });
 
 test('no parallel second-source tables are added', () => {

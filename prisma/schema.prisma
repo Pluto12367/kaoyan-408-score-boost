@@ -130,6 +130,30 @@ enum EvidenceConfidence {
   LOW
 }
 
+enum BridgeConfidence {
+  HIGH
+  MEDIUM
+}
+
+enum BridgeSource {
+  AUTO
+  MANUAL
+}
+
+enum BridgeMatchMethod {
+  EXACT_NAME
+  NORMALIZED_NAME
+  CONTEXT_MATCH
+  MANUAL
+}
+
+enum BridgeStatus {
+  ACTIVE
+  PENDING_REVIEW
+  REJECTED
+  INACTIVE
+}
+
 model User {
   id                     String                        @id @default(cuid())
   email                  String?                       @unique
@@ -864,16 +888,22 @@ model KnowledgeFrequencySnapshot {
 model KnowledgePointNodeMap {
   knowledgePointId String
   knowledgeNodeId  String
-  mappingType      String     @default("PRIMARY")
+  mappingType      String            @default("PRIMARY")
   confidence       Float?
-  taggedBy         ExamTagger @default(HYBRID)
-  createdAt        DateTime   @default(now())
+  confidenceLevel  BridgeConfidence
+  source           BridgeSource
+  status           BridgeStatus
+  matchMethod      BridgeMatchMethod
+  taggedBy         ExamTagger        @default(HYBRID)
+  createdAt        DateTime          @default(now())
 
   knowledgePoint KnowledgePoint @relation(fields: [knowledgePointId], references: [id], onDelete: Cascade)
   knowledgeNode  KnowledgeNode  @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
 
   @@id([knowledgePointId, knowledgeNodeId])
   @@index([knowledgeNodeId])
+  @@index([knowledgePointId, status])
+  @@index([knowledgeNodeId, status])
 }
 
 model QuestionKnowledgeNodeTag {
