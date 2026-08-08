@@ -504,6 +504,8 @@ Cross-subject candidates = 0
 
 不达标：不得开始 326-question full annotation generation。
 
+（精确离散算术与 All Relevant 口径见 §40 Benchmark Precision。）
+
 ## 22. Gold Persistence
 
 完整 Gold：
@@ -586,6 +588,8 @@ Structured output success = 100%
 ```
 
 不达标：换模型 / prompt / contract；不能降低人工审核标准。
+
+（PRIMARY Accuracy denominator、HIGH-confidence denominator、abstain 语义见 §40 Benchmark Precision。）
 
 ## 26. Review State Machine
 
@@ -868,3 +872,103 @@ KnowledgePointNodeMap    = fallback
 23. fail closed。
 24. 无 scope creep（Non-Goals 明确）。
 25. 与现有 `QuestionKnowledgeNodeTag` schema（questionId/knowledgeNodeId/role ExamTagRole/confidence/taggedBy/source、unique(questionId, knowledgeNodeId, role)）语义一致，无冲突。
+
+## 40. Benchmark Precision（Amendment）
+
+本修订不改变已批准架构，仅补严评测口径。百分比目标保留在正文；离散样本下的实际 passing count 以下为准。
+
+### A. Holdout arithmetic
+
+Holdout 固定 16 题：
+
+```text
+PRIMARY Recall@8 >= 90%
+→ 实际要求至少 15 / 16 = 93.75%
+
+PRIMARY Recall@12 >= 95%
+→ 实际要求 16 / 16 = 100%
+```
+
+报告同时给出百分比与离散 count（如 `15/16 (93.75%)`）。
+
+### B. All Relevant Recall@12
+
+Gate 使用 **macro recall**：
+
+```text
+perQuestionRecall(q) =
+|GoldRelevant(q) ∩ RetrievedTop12(q)|
+/ |GoldRelevant(q)|
+
+GoldRelevant(q) = PRIMARY(q) ∪ SECONDARY(q)
+
+AllRelevantRecallAt12 = mean(perQuestionRecall(q))  （16 道 Holdout 平均）
+```
+
+允许额外报告 `micro All Relevant Recall@12` 作为 diagnostic；Gate 只看 macro。
+
+`GoldRelevant` 不允许为空：每道 Gold 必须恰好 1 个 PRIMARY，因此分母恒 ≥1。
+
+### C. Annotation Model abstain semantics
+
+PRIMARY Accuracy 的 denominator 是**全部 eligible Holdout 题**（16），不得只统计 AI 选择 SUGGEST 的题：
+
+```text
+SUGGEST + correct PRIMARY          → correct
+SUGGEST + wrong PRIMARY            → incorrect
+NEEDS_REVIEW                       → incorrect（计入 PRIMARY Accuracy）
+NO_SUITABLE_CANDIDATE              → incorrect（计入 PRIMARY Accuracy）
+malformed output                   → incorrect
+```
+
+AI 仍允许 abstain；abstain 是生产安全行为，但**不能用来虚高 benchmark accuracy**。不得通过改 denominator 刷指标。
+
+单独报告：
+
+```text
+abstentionRate
+needsReviewRate
+noSuitableCandidateRate
+```
+
+### D. HIGH-confidence metric
+
+保留：
+
+```text
+HIGH-confidence PRIMARY Accuracy >= 95%
+```
+
+必须显式报告 denominator：
+
+```text
+highConfidenceSuggestionCount
+```
+
+若 `highConfidenceSuggestionCount = 0`，该指标显示 `N/A`，不得伪装成 100%。整体 PRIMARY Accuracy Gate 仍必须通过。不新增未经批准的 HIGH-confidence coverage Gate。
+
+### E. Top 8 → Top 12 expansion semantics
+
+不使用未经校准的 score-gap heuristic。锁定：
+
+```text
+Retriever 永远计算并持久化 Top12 ranked candidates
+```
+
+AI / Review UI 初始使用 Top8；允许扩展到 Top12 的触发（互斥）：
+
+```text
+1. AI first-pass 返回 NO_SUITABLE_CANDIDATE；或
+2. AI 返回 NEEDS_REVIEW 且显式说明候选不足；或
+3. 人工 reviewer 显式请求 “show more / expand candidates”
+```
+
+AI second pass 最多重试一次（Top12）。Top12 后仍无唯一 PRIMARY：
+
+```text
+NEEDS_REVIEW 或 NO_SUITABLE_CANDIDATE
+```
+
+绝不超过 12。
+
+Retrieval benchmark 自身直接同时计算 Recall@8 与 Recall@12，不依赖 expansion trigger。
