@@ -86,10 +86,28 @@ function buildLexicalIndex(nodes: Array<{ id: string; subject: string; name: str
 function searchLexical(index: LexicalIndex, query: string, subject: string): Array<{ nodeId: string; score: number }>;
 
 // core/embedding.js
-interface EmbeddingProvider { readonly providerId: string; readonly modelVersion: string; embed(text: string): Promise<number[]>; }
-class FakeEmbeddingProvider implements EmbeddingProvider;   // CI-safe 确定性哈希向量
+type EmbeddingView = 'query' | 'passage';
+type Pooling = 'mean' | 'cls';
+interface EmbeddingModelSpec {
+  id: string;               // 例如 'Xenova/multilingual-e5-small'
+  revision: string;         // 固定 revision；首次解析后写入 resolvedRevision，禁止依赖浮动的 main
+  queryPrefix: string;      // query 前缀（E5: 'query: '；BGE zh: 固定中文 retrieval instruction）
+  passagePrefix: string;    // passage 前缀（E5: 'passage: '；BGE: ''）
+  pooling: Pooling;         // E5: 'mean'；BGE zh: 'cls'
+  normalize: boolean;       // 恒 true（L2 normalize）
+  dimension: number;        // E5-small: 384；bge-small-zh-v1.5: 512
+  transformersVersion: string;
+}
+interface EmbeddingProvider {
+  readonly providerId: string;
+  readonly modelVersion: string;
+  readonly spec: EmbeddingModelSpec;
+  embed(view: EmbeddingView, text: string): Promise<number[]>;
+}
+class FakeEmbeddingProvider implements EmbeddingProvider;   // CI-safe 确定性哈希向量，遵守 spec 的 view 前缀/pooling/normalize
 class LocalTransformersProvider implements EmbeddingProvider; // @huggingface/transformers，仅本地
-function embedWithCache(provider: EmbeddingProvider, text: string, cacheDir: string): Promise<number[]>;
+function embedWithCache(provider: EmbeddingProvider, view: EmbeddingView, text: string, cacheDir: string): Promise<number[]>;
+function embeddingSpecHash(spec: EmbeddingModelSpec): string; // sha256(JSON(spec))
 
 // core/fusion.js
 const FUSION_VERSION = 'rrf-k60-bonus-v1';
@@ -534,7 +552,7 @@ git commit -m "feat: add deterministic lexical retrieval"
 
 ## Task 7 — Embedding Provider Abstraction + Local Provider
 
-职责：稳定 `EmbeddingProvider` 接口、CI-safe Fake、本地 transformers.js provider、缓存与 model/version 记录。
+职责：稳定 `EmbeddingProvider` 接口 + 模型特定 `EmbeddingModelSpec` 编码契约、CI-safe Fake、本地 transformers.js provider、缓存与可复现元数据记录。
 
 **Files:**
 - Modify: `tools/question-annotation/package.json`（新增 dependency `@huggingface/transformers`）
@@ -544,28 +562,92 @@ git commit -m "feat: add deterministic lexical retrieval"
 
 **Interfaces:**
 - Consumes: 无跨 Task（独立）。
-- Produces: `EmbeddingProvider`、`FakeEmbeddingProvider`、`LocalTransformersProvider`、`embedWithCache`（签名见 Locked Interfaces）。
+- Produces: `EmbeddingProvider`、`EmbeddingModelSpec`、`FakeEmbeddingProvider`、`LocalTransformersProvider`、`embedWithCache`、`embeddingSpecHash`（签名见 Locked Interfaces）。
+
+**模型特定编码契约（锁定，禁止两个模型共享同一 encoding pipeline）：**
+
+### Xenova/multilingual-e5-small
+
+```text
+query:   <question view text>      （stem view / analysis view 都是 retrieval query）
+passage: <node representation>     （Atomic KnowledgeNode 是 document）
+queryPrefix:  'query: '
+passagePrefix: 'passage: '
+pooling:  'mean'
+normalize: true（L2）
+dimension: 384
+```
+
+要求：query 前缀只加到 question inputs；passage 前缀只加到 node inputs；不得把 passage 前缀用于 query；embedding 必须 L2 normalize。
+
+### Xenova/bge-small-zh-v1.5
+
+```text
+queryPrefix:  '为这个句子生成表示以用于检索相关文章：'（BGE zh 官方 retrieval instruction，固定并版本化）
+passagePrefix: ''
+pooling:  'cls'
+normalize: true（L2）
+dimension: 512
+```
+
+要求：BGE 不复用 E5 的 `query: / passage:` 前缀；query instruction policy 在 benchmark 前固定并纳入 `retrievalVersion`/spec hash，禁止在看 Holdout 结果后改变。
+
+### 公平 benchmark（Task 9 执行时必须满足）
+
+两个模型比较时保持：
+
+```text
+same Snapshot
+same Gold Dev set
+same lexical ranking
+same RRF config
+same structural bonuses
+same Top-K rules
+```
+
+唯一允许变化：embedding model + 该模型官方要求的 encoding semantics。
+
+### 可复现元数据
+
+缓存与 benchmark report / selected-model manifest 必须记录：
+
+```text
+modelId
+modelRevision / resolvedRevision
+transformers.js version
+pooling
+normalize
+queryPrefix / instruction policy
+passagePrefix
+embedding dimension
+```
+
+缓存 key 至少由 `snapshot/content hash + embeddingSpecHash + input view` 构成；模型编码配置变化必须导致旧 cache miss / invalidation。第一次下载/解析后记录 `resolvedRevision`（禁止只依赖浮动 `main` 声称可复现）；大型 ONNX 文件不提交 Git。
 
 - [ ] **Step 1: 写 failing test**
 
 `embedding.test.mjs`（CI-safe，只用 Fake）：
 
 ```js
-test('FakeEmbeddingProvider is deterministic and records provider/model version', async () => {
-  const provider = new FakeEmbeddingProvider('fake-v1');
-  const a = await provider.embed('折半查找');
-  const b = await provider.embed('折半查找');
-  assert.deepEqual(a, b);
-  assert.equal(provider.providerId, 'fake-v1');
-  assert.equal(typeof provider.modelVersion, 'string');
+test('FakeEmbeddingProvider applies model-specific query/passage transformation and normalizes', async () => {
+  const spec = { id: 'fake', revision: 'r1', queryPrefix: 'query: ', passagePrefix: 'passage: ', pooling: 'mean', normalize: true, dimension: 8, transformersVersion: 'test' };
+  const provider = new FakeEmbeddingProvider(spec);
+  const q = await provider.embed('query', '折半查找');
+  const p = await provider.embed('passage', '折半查找');
+  assert.deepEqual(q, await provider.embed('query', '折半查找'));      // deterministic
+  assert.notDeepEqual(q, p);                                          // 不同 view 前缀产生不同向量
+  assert.ok(Math.abs(norm(q) - 1) < 1e-9);                            // L2 normalize invariant
 });
 
-test('embedWithCache caches by provider+model+text and is idempotent', async () => {
+test('embedWithCache cache identity includes encoding spec and view; config change invalidates', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'emb-'));
-  const provider = new FakeEmbeddingProvider('fake-v1');
-  const one = await embedWithCache(provider, 'TCP', dir);
-  const two = await embedWithCache(provider, 'TCP', dir);
+  const specA = { id: 'fake', revision: 'r1', queryPrefix: 'query: ', passagePrefix: 'passage: ', pooling: 'mean', normalize: true, dimension: 8, transformersVersion: 'test' };
+  const specB = { ...specA, queryPrefix: '检索：' };
+  const one = await embedWithCache(new FakeEmbeddingProvider(specA), 'query', 'TCP', dir);
+  const two = await embedWithCache(new FakeEmbeddingProvider(specA), 'query', 'TCP', dir);
   assert.deepEqual(one, two);
+  const changed = await embedWithCache(new FakeEmbeddingProvider(specB), 'query', 'TCP', dir);
+  assert.notDeepEqual(changed, one);                                  // encoding 配置变化 → cache miss
 });
 ```
 
@@ -575,13 +657,27 @@ Run: `node --test tools/question-annotation/test/embedding.test.mjs` → FAIL。
 
 - [ ] **Step 3: 最小实现**
 
-`EmbeddingProvider` 接口 + `FakeEmbeddingProvider`（基于确定性哈希的固定维向量）+ `embedWithCache`（cache key = providerId|modelVersion|sha256(text)，缓存 JSON 到 cacheDir）。`LocalTransformersProvider` 惰性 `await import('@huggingface/transformers')`，默认模型由 benchmark 决定前使用 `Xenova/multilingual-e5-small`（Task 9 在 Dev 上比较候选模型后持久化 winner；本 Task 只实现机制）。`package.json` 增加：
+`EmbeddingProvider` 接口 + `EmbeddingModelSpec`（两个候选模型的 spec 常量：`E5_SMALL_SPEC` 与 `BGE_SMALL_ZH_SPEC`，见上） + `FakeEmbeddingProvider`（按 spec 的 view 前缀/pooling/normalize 生成确定性向量）+ `embedWithCache`（cache key = `sha256(content) + embeddingSpecHash(spec) + view`，缓存 JSON 到 cacheDir）。`LocalTransformersProvider` 惰性 `await import('@huggingface/transformers')`：对 query view 应用 `queryPrefix`、对 passage view 应用 `passagePrefix`，按 `spec.pooling` 池化、`normalize` 恒 true 做 L2；首次加载后把 `resolvedRevision` 写入 spec 并持久化（`local-data/embedding-meta/<spec-id>-revision.json`）。Task 9 在 Dev 上比较候选模型后持久化 winner；本 Task 只实现机制。`package.json` 增加：
 
 ```json
 { "dependencies": { "@huggingface/transformers": "^3.4.0" } }
 ```
 
 安装与验证：`cd tools/question-annotation && npm install`；本地冒烟 `node scripts/embedding-smoke.mjs --model Xenova/multilingual-e5-small`（CPU/WASM，Windows 可运行；首次下载模型写入 local-data/embedding-cache，gitignored）。CI-safe 测试不 import 真实包。
+
+补充 CI-safe 测试覆盖（全部在 `embedding.test.mjs`）：
+
+```text
+query transformation 加入 queryPrefix（且绝不使用 passagePrefix）
+passage transformation 加入 passagePrefix（且绝不使用 queryPrefix）
+pooling 配置选择被 Fake/真实 provider 遵循（spec.pooling）
+L2 normalize 不变量（向量长度为 1）
+cache identity 包含 encoding spec（embeddingSpecHash）与 view
+修改 prefix/pooling/revision → 旧 cache 失效（miss）
+Dev 模型选型不查看 Holdout（runner 测试：选型阶段仅读取 Dev 指标）
+```
+
+真实模型 smoke（`embedding-smoke.mjs`，两个候选模型各跑一次）属 local-only verification，不进 CI。
 
 - [ ] **Step 4: 验证 PASS**
 
@@ -664,7 +760,9 @@ Run: `node --test tools/question-annotation/test/fusion.test.mjs tools/question-
 // fuseCandidates: 对三路排名，各取候选并集；score = rrfSum + (kpMatched ? 0.05 : 0) + (chapterMatched ? 0.02 : 0)
 //   bonus 上限约束：bonus 总和 (0.07) 小于“三路均在 top1 与三路均缺位的 rrf 差”的最小观测值；用测试锁不变量
 // 排序：score desc，tie-break nodeId asc；输出 RetrievalCandidate（含各 rank 与 retrievalReasons）
-// retrieveTop12: subject 硬过滤（question.subject）；lexical search + stem/analysis embed → 缓存；fuseCandidates(…, 12)
+// retrieveTop12: subject 硬过滤（question.subject）；lexical search + stem/analysis embed → 缓存；
+//   stem/analysis 是 query view（provider.embed('query', question.stem / question.analysis)）
+//   节点文本是 passage view（provider.embed('passage', nodeText)）；fuseCandidates(…, 12)
 ```
 
 `FUSION_VERSION = 'rrf-k60-bonus-v1'`。
@@ -737,6 +835,7 @@ Run: `node --test tools/question-annotation/test/benchmark.test.mjs` → FAIL。
 ```
 
 `run-benchmark.mjs`：加载 snapshot + workspace + Gold manifest → 对 Dev 24 与 Holdout 16 分别 `retrieveTop12` → 输出报告；embedding 模型选择：在 Dev 上比较 `Xenova/multilingual-e5-small` 与 `Xenova/bge-small-zh-v1.5`，以 Dev PRIMARY Recall@8 高者胜出（平手取先列模型），选中的 provider/modelVersion 写入报告；**Holdout 在选型期间不可查看**（runner 先只跑 Dev 选型，再一次性跑 Holdout 并输出最终指标）。本地执行：
+`run-benchmark.mjs`：加载 snapshot + workspace + Gold manifest → 对 Dev 24 与 Holdout 16 分别 `retrieveTop12` → 输出报告；embedding 模型选择：在 Dev 上比较 `Xenova/multilingual-e5-small` 与 `Xenova/bge-small-zh-v1.5`，以 Dev PRIMARY Recall@8 高者胜出（平手取先列模型），选中的模型写入报告；**Holdout 在选型期间不可查看**（runner 先只跑 Dev 选型，再一次性跑 Holdout 并输出最终指标）。报告与 selected-model manifest 必须记录 `modelId / resolvedRevision / transformersVersion / pooling / normalize / queryPrefix(instruction policy) / passagePrefix / dimension`（见 Task 7 可复现元数据），不得只记录 modelId。本地执行：
 
 ```bash
 cd tools/question-annotation
@@ -779,3 +878,4 @@ git commit -m "feat: add retrieval benchmark and gates"
 2. **Placeholder scan**：全文无 TBD/TODO/“choose later”/“similar to previous task”；所有公式、下标、命令、commit message 已写死；embedding 候选模型为具名候选（Dev 定 winner），非占位。
 3. **Type consistency**：`classifyRoles/validateSnapshot/fingerprintPayloadHash/sampleGoldQuestionIds/splitDevHoldout/buildGoldManifest/validateGoldEntry/tokenize/buildLexicalIndex/searchLexical/EmbeddingProvider/embedWithCache/fuseCandidates/retrieveTop12/computeBenchmarkMetrics/evaluateRetrievalGate` 在 Locked Interfaces 定义且各 Task 引用一致。
 4. **Scope check**：无 Plan B（AI provider/326 suggestions/Review UI）、无 Plan C（production tag seed/resolver/mastery）内容；production 只读 acceptance 属允许的只读验证。
+5. **Embedding encoding contract**：E5 query/passage 语义（`query: / passage:`、mean、L2、384）不丢失；BGE zh 不复用 E5 前缀（固定中文 instruction、cls、L2、512）；两个候选各自正确编码；Holdout 不参与 instruction/pooling/revision 决策；encoding 配置全部可追溯（spec hash + resolvedRevision 持久化）。
