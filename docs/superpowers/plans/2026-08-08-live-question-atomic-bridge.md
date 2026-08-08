@@ -16,7 +16,8 @@
 - `MEDIUM` 永不参与 mastery；`LOW` 永不入库；resolver 只消费 `ACTIVE`。
 - `MANUAL` 永不被 AUTO 覆盖；`REJECTED` 永不被 AUTO 重新激活；stale AUTO → `INACTIVE`（保留历史，禁止 DELETE 重建）。
 - 禁止 LLM / embedding / similarity-threshold 自动判定 HIGH；similarity 只用于候选排序、audit 展示、人工审核辅助。
-- **`>= 70%` 是 rollout observation gate，不是 matcher threshold**。dry-run 覆盖率 `< 70%` 时：停止上线，输出 `affectedQuestionCount DESC` 的 `PENDING_REVIEW / UNMATCHED` 热点，请求人工 review；禁止自行降低 HIGH 标准、把 MEDIUM 改 ACTIVE、或调用 LLM 猜 mapping。
+- **`>= 70%` 是 Bridge Rollout Gate（Bridge Persistence Gate），不是 matcher threshold，也不是 Release Gate**。dry-run 覆盖率 `< 70%` 时：应用版本正常部署，但**不写入任何 AUTO bridge mapping**，`UserKnowledgeMastery` bridge 保持未启用，seed 输出并记录 `BRIDGE ROLLOUT BLOCKED`，并输出 `affectedQuestionCount DESC` 的 `PENDING_REVIEW / UNMATCHED` 热点请求人工 review；禁止自行降低 HIGH 标准、把 MEDIUM 改 ACTIVE、或调用 LLM 猜 mapping。
+- **现有 `KnowledgePointNodeMap.mappingType String @default("PRIMARY")` 保留不 repurpose**：其默认值与 `ExamTagRole`（PRIMARY/SECONDARY）命名一致，属角色语义保留字段；mastery 的 PRIMARY/SECONDARY 权重来自 resolver 返回的 role（direct 路径读 `QuestionKnowledgeNodeTag.role`，fallback 硬编码 `PRIMARY`），不读 `mappingType`。matcher provenance 使用独立新字段 `matchMethod`。
 - 禁止自动生成 `QuestionKnowledgeNodeTag`；本阶段只打通 `QuestionKnowledgePoint → KnowledgePointNodeMap` fallback。
 - `ExamQuestion` / `Question` 两套 ID 与语义继续分离；禁止用 `ExamQuestionKnowledgeTag` 反推 live Question mapping。
 - 不扩展现有 Priority Engine、Score Center UI、Knowledge Catalog UI、`/today/plan` 语义；不做 retention 衰减、review 事务重构。
@@ -26,7 +27,7 @@
 
 ### Existing files expected to modify
 
-- `prisma/schema.prisma` — `KnowledgePointNodeMap` 增加 metadata 字段与枚举；新增 4 个枚举。
+- `prisma/schema.prisma` — `KnowledgePointNodeMap` 增加 metadata 字段与枚举（`confidenceLevel / source / status / matchMethod` + 4 个枚举）；现有 `mappingType String @default("PRIMARY")` 保留不动。
 - `prisma/migrations/<ts>_add_bridge_metadata/migration.sql` — 新增 additive migration（手写 SQL 策略，见 Migration Safety）。
 - `packages/shared/src/score-center/index.ts` — 导出 bridge 模块。
 - `apps/api/src/score-center/repository.ts` — fallback 的 `nodeMaps` 查询增加 `where: { status: 'ACTIVE' }`。
@@ -34,6 +35,8 @@
 - `scripts/verify-408-data.mjs` — 增加对 alias 配置与 audit JSON 的纯静态校验函数。
 - `scripts/integration-postgres.mjs` — score-center 段改为基于真实 Question + seeded bridge 的 E2E，并新增 PENDING 安全 / MANUAL、REJECTED 保护 / seed 幂等断言。
 - `test/score-center-data.test.mjs` — 增加 bridge metadata 枚举/字段断言与 resolver 源码断言。
+- `Dockerfile` — 生产镜像增加 COPY `scripts/bridge-audit.mjs` 与 `scripts/seed-knowledge-bridge.mjs`（Task 7）。
+- `test/deployment-config.test.js` — 增加 Dockerfile 复制两个 bridge 脚本的源码断言（Task 7）。
 - `.gitignore` — 忽略生成的 `data/408/knowledge-catalog/question-node-bridge-audit.json`。
 
 ### New files expected
@@ -79,7 +82,7 @@ enum BridgeSource {
   MANUAL
 }
 
-enum BridgeMappingType {
+enum BridgeMatchMethod {
   EXACT_NAME
   NORMALIZED_NAME
   CONTEXT_MATCH
@@ -99,7 +102,8 @@ enum BridgeStatus {
 - `confidenceLevel BridgeConfidence`（新增，无 Prisma 默认值）
 - `source BridgeSource`（新增，无默认值）
 - `status BridgeStatus`（新增，无默认值）
-- `mappingType BridgeMappingType`（由 `String @default("PRIMARY")` 受控转换为枚举，**删除默认值**）
+- `matchMethod BridgeMatchMethod`（新增，无默认值）
+- `mappingType String @default("PRIMARY")` **保留不动**（角色语义保留字段，不 repurpose、不转换类型、不删除默认值）
 - 保留 `confidence Float?`（历史审计值，新代码不使用，不删除）
 - 保留 `taggedBy ExamTagger @default(HYBRID)` 不变
 - 唯一键不变：`@@id([knowledgePointId, knowledgeNodeId])`（已支持 1:N）
@@ -110,7 +114,7 @@ enum BridgeStatus {
 ```ts
 export type BridgeConfidence = 'HIGH' | 'MEDIUM';
 export type BridgeSource = 'AUTO' | 'MANUAL';
-export type BridgeMappingType = 'EXACT_NAME' | 'NORMALIZED_NAME' | 'CONTEXT_MATCH' | 'MANUAL';
+export type BridgeMatchMethod = 'EXACT_NAME' | 'NORMALIZED_NAME' | 'CONTEXT_MATCH' | 'MANUAL';
 export type BridgeStatus = 'ACTIVE' | 'PENDING_REVIEW' | 'REJECTED' | 'INACTIVE';
 
 export interface BridgeKnowledgePoint {
@@ -150,7 +154,7 @@ export interface BridgeDecision {
   candidateNodes: BridgeCandidate[];
   selectedNodeIds: string[];
   confidence: BridgeConfidence | null; // null = LOW，不入库
-  mappingType: BridgeMappingType | null;
+  matchMethod: BridgeMatchMethod | null;
   status: BridgeStatus | null;
   reasons: string[];
 }
@@ -239,7 +243,7 @@ export interface ExistingBridgeMapping {
   knowledgeNodeId: string;
   source: BridgeSource;
   confidenceLevel: BridgeConfidence;
-  mappingType: BridgeMappingType;
+  matchMethod: BridgeMatchMethod;
   status: BridgeStatus;
 }
 
@@ -248,7 +252,7 @@ export interface BridgeUpsert {
   knowledgeNodeId: string;
   source: 'AUTO';
   confidenceLevel: BridgeConfidence;
-  mappingType: BridgeMappingType;
+  matchMethod: BridgeMatchMethod;
   status: 'ACTIVE' | 'PENDING_REVIEW';
 }
 
@@ -281,7 +285,7 @@ nodeMaps: {
 
 ## Task 1 — KnowledgePointNodeMap metadata + additive migration
 
-职责：为桥接表落地 `confidence / source / mappingType / status` 契约与 4 个枚举，全部 additive，保护既有数据。
+职责：为桥接表落地 `confidence / source / matchMethod / status` 契约与 4 个枚举，全部 additive，保护既有数据；现有 `mappingType String @default("PRIMARY")` 保留不动。
 
 Files：
 
@@ -294,7 +298,7 @@ Interfaces：见 Architecture Decisions Locked（Prisma enum/type names）。
 Step 1 (failing test)：在 `test/score-center-data.test.mjs` 增加：
 
 ```js
-const requiredBridgeEnums = ['BridgeConfidence', 'BridgeSource', 'BridgeMappingType', 'BridgeStatus'];
+const requiredBridgeEnums = ['BridgeConfidence', 'BridgeSource', 'BridgeMatchMethod', 'BridgeStatus'];
 
 test('bridge metadata enums exist', () => {
   for (const enumName of requiredBridgeEnums) {
@@ -306,8 +310,9 @@ test('KnowledgePointNodeMap carries bridge metadata', () => {
   const block = schema.match(/model\s+KnowledgePointNodeMap\s+\{[\s\S]*?\n\}/)?.[0] ?? '';
   assert.match(block, /confidenceLevel\s+BridgeConfidence/);
   assert.match(block, /source\s+BridgeSource/);
-  assert.match(block, /mappingType\s+BridgeMappingType/);
+  assert.match(block, /matchMethod\s+BridgeMatchMethod/);
   assert.match(block, /status\s+BridgeStatus/);
+  assert.match(block, /mappingType\s+String\s+@default\("PRIMARY"\)/, 'legacy mappingType role field must be preserved, not repurposed');
   assert.match(block, /@@id\(\[knowledgePointId,\s*knowledgeNodeId\]\)/);
   assert.match(block, /@@index\(\[knowledgePointId,\s*status\]\)/);
   assert.match(block, /@@index\(\[knowledgeNodeId,\s*status\]\)/);
@@ -318,10 +323,10 @@ Step 2 (verify FAIL)：`node --test test/score-center-data.test.mjs` → 新测�
 
 Step 3 (minimal implementation)：
 
-1. 编辑 `prisma/schema.prisma`：新增 4 个枚举；按锁定字段修改 `KnowledgePointNodeMap`（`confidenceLevel`、`source`、`status` 无默认值；`mappingType` 改为 `BridgeMappingType` 且删除默认值；保留 `confidence Float?`；新增两个 index）。
+1. 编辑 `prisma/schema.prisma`：新增 4 个枚举（`BridgeConfidence / BridgeSource / BridgeMatchMethod / BridgeStatus`）；按锁定字段修改 `KnowledgePointNodeMap`（`confidenceLevel`、`source`、`status`、`matchMethod` 无默认值；**`mappingType String @default("PRIMARY")` 保留不动**；保留 `confidence Float?`；新增两个 index）。
 2. `npx prisma format`
 3. 准备迁移：`npm run db:test:up`；显式 `$env:DATABASE_URL='postgresql://postgres:postgres@localhost:55432/kaoyan408_test'`；`npx prisma migrate dev --create-only --name add_bridge_metadata`。
-4. 人工 review / 编辑生成的 SQL，按 Migration Safety 补齐 backfill 与受控类型转换，确认无 DROP TABLE / DROP COLUMN / 非预期数据更新。
+4. 人工 review / 编辑生成的 SQL，按 Migration Safety 补齐 backfill（matchMethod 历史行收敛 MANUAL，mappingType 不做任何转换），确认无 DROP TABLE / DROP COLUMN / 非预期数据更新。
 5. `npx prisma migrate dev` 应用到测试库。
 6. `npx prisma validate`。
 
@@ -536,26 +541,29 @@ Files：
 
 - `scripts/seed-408-v2.mjs`（orchestrator：evidence seed 后调用 bridge seed）
 - `scripts/verify-408-data.mjs`（新增 alias 配置与 audit JSON 纯静态校验）
+- `Dockerfile`（生产镜像新增 `COPY scripts/bridge-audit.mjs` 与 `COPY scripts/seed-knowledge-bridge.mjs`，与现有 seed 脚本 COPY 并列）
 - `.gitignore`（忽略生成 audit JSON）
 - 测试：在 `test/score-center-data.test.mjs` 中追加对 `verifyBridgeAliases` / `verifyBridgeAudit` 的纯函数用例（校验规则：无 ghost nodeId、无 duplicate、MEDIUM 不 ACTIVE、覆盖率字段存在）。
+- 测试：在 `test/deployment-config.test.js` 中追加断言 `Dockerfile` 同时复制 `scripts/bridge-audit.mjs` 与 `scripts/seed-knowledge-bridge.mjs`（沿用该文件既有源码断言风格）。
 
-Step 1 (failing test)：为 `verify-408-data.mjs` 新增 `verifyBridgeAliases(aliases)` 与 `verifyBridgeAudit(audit)` 纯函数（导出），并给出无效 fixture（跨 subject alias、duplicate alias、ghost nodeId、MEDIUM 标 ACTIVE）→ 断言抛错；有效 fixture → 通过。先写测试，验证函数不存在而 FAIL。
+Step 1 (failing test)：为 `verify-408-data.mjs` 新增 `verifyBridgeAliases(aliases)` 与 `verifyBridgeAudit(audit)` 纯函数（导出），并给出无效 fixture（跨 subject alias、duplicate alias、ghost nodeId、MEDIUM 标 ACTIVE）→ 断言抛错；有效 fixture → 通过。先写测试，验证函数不存在而 FAIL。同时在 `test/deployment-config.test.js` 增加 Dockerfile COPY 断言（当前 Dockerfile 未复制新脚本）→ 断言 FAIL。
 
 Step 2 (verify FAIL)：`npm run build:shared && node --test test/score-center-data.test.mjs` → 新用例失败（`verifyBridgeAliases` / `verifyBridgeAudit` 尚未导出）。
 
 Step 3 (minimal implementation)：
 
 1. `verify-408-data.mjs` 增加两个纯校验函数（校验规则见上），并在 `verify408Data()` 中调用 `verifyBridgeAliases`。
-2. `seed-408-v2.mjs`：evidence seed 完成后 `await seedKnowledgeBridge(prisma)`（import 自 `scripts/seed-knowledge-bridge.mjs`）；随后运行 bridge audit 并调用 `verifyBridgeAudit` 做部署后置校验。
-3. `.gitignore` 增加 `data/408/knowledge-catalog/question-node-bridge-audit.json`。
+2. `seed-408-v2.mjs` orchestrator 流程（真实部署顺序内）：evidence seed 完成后 → 运行 bridge dry-run audit（读库、不写 mapping）→ 计算 `questionResolvableCoverage` → 若 `>= 0.70` 则 `await seedKnowledgeBridge(prisma)`；若 `< 0.70` 则跳过 bridge seed，打印并记录 `BRIDGE ROLLOUT BLOCKED`，**exit 0**（应用可正常部署，bridge 保持未启用）→ 随后运行 bridge audit 并调用 `verifyBridgeAudit` 做后置校验。
+3. `Dockerfile` 增加两行 `COPY`（`scripts/bridge-audit.mjs`、`scripts/seed-knowledge-bridge.mjs`），与 `seed-408-v2.mjs` 的 COPY 并列。
+4. `.gitignore` 增加 `data/408/knowledge-catalog/question-node-bridge-audit.json`。
 
-Step 4 (verify PASS)：`npm run verify:408-data` 通过；`node scripts/bridge-audit.mjs` 输出完整 summary；`node scripts/seed-knowledge-bridge.mjs` 幂等可重复。
+Step 4 (verify PASS)：`npm run verify:408-data` 通过；`node --test test/deployment-config.test.js` 通过（Dockerfile COPY 断言）；`node scripts/bridge-audit.mjs` 输出完整 summary；`node scripts/seed-knowledge-bridge.mjs` 幂等可重复。
 
 Step 5 (regression / full)：见 Verification 三层。
 
 Step 6 (git check)：`git status --short`、`git diff --cached --name-only`。
 
-Step 7 (commit)：`git add scripts/seed-408-v2.mjs scripts/verify-408-data.mjs .gitignore test/...`；commit message：`feat: wire knowledge bridge into seed and verify`。
+Step 7 (commit)：`git add scripts/seed-408-v2.mjs scripts/verify-408-data.mjs Dockerfile .gitignore test/score-center-data.test.mjs test/deployment-config.test.js`；commit message：`feat: wire knowledge bridge into seed and verify`。
 
 ## Migration Safety
 
@@ -569,29 +577,23 @@ Step 7 (commit)：`git add scripts/seed-408-v2.mjs scripts/verify-408-data.mjs .
 ALTER TABLE "KnowledgePointNodeMap" ADD COLUMN "confidenceLevel" "BridgeConfidence";
 ALTER TABLE "KnowledgePointNodeMap" ADD COLUMN "source" "BridgeSource";
 ALTER TABLE "KnowledgePointNodeMap" ADD COLUMN "status" "BridgeStatus";
+ALTER TABLE "KnowledgePointNodeMap" ADD COLUMN "matchMethod" "BridgeMatchMethod";
 
--- 3. backfill：历史行视为 MANUAL/HIGH/ACTIVE，mappingType 收敛为 MANUAL
+-- 3. backfill：历史行视为 MANUAL/HIGH/ACTIVE，matchMethod 收敛为 MANUAL（mappingType 保持原值，不做任何转换）
 UPDATE "KnowledgePointNodeMap"
 SET "source" = 'MANUAL',
     "confidenceLevel" = 'HIGH',
     "status" = 'ACTIVE',
-    "mappingType" = 'MANUAL'
+    "matchMethod" = 'MANUAL'
 WHERE "source" IS NULL;
 
--- 4. mappingType String → BridgeMappingType（受控转换，先归一非法值再改类型）
-UPDATE "KnowledgePointNodeMap"
-SET "mappingType" = 'MANUAL'
-WHERE "mappingType" NOT IN ('EXACT_NAME', 'NORMALIZED_NAME', 'CONTEXT_MATCH', 'MANUAL');
-ALTER TABLE "KnowledgePointNodeMap"
-ALTER COLUMN "mappingType" TYPE "BridgeMappingType" USING "mappingType"::"BridgeMappingType";
-ALTER TABLE "KnowledgePointNodeMap" ALTER COLUMN "mappingType" DROP DEFAULT;
-
--- 5. 置 NOT NULL（无 Prisma 默认值，避免未来调用遗漏 metadata 被静默分类）
+-- 4. 置 NOT NULL（无 Prisma 默认值，避免未来调用遗漏 metadata 被静默分类）
 ALTER TABLE "KnowledgePointNodeMap" ALTER COLUMN "confidenceLevel" SET NOT NULL;
 ALTER TABLE "KnowledgePointNodeMap" ALTER COLUMN "source" SET NOT NULL;
 ALTER TABLE "KnowledgePointNodeMap" ALTER COLUMN "status" SET NOT NULL;
+ALTER TABLE "KnowledgePointNodeMap" ALTER COLUMN "matchMethod" SET NOT NULL;
 
--- 6. additive 索引
+-- 5. additive 索引
 CREATE INDEX "KnowledgePointNodeMap_knowledgePointId_status_idx" ON "KnowledgePointNodeMap"("knowledgePointId", "status");
 CREATE INDEX "KnowledgePointNodeMap_knowledgeNodeId_status_idx" ON "KnowledgePointNodeMap"("knowledgeNodeId", "status");
 ```
@@ -599,34 +601,33 @@ CREATE INDEX "KnowledgePointNodeMap_knowledgeNodeId_status_idx" ON "KnowledgePoi
 安全性：
 
 - 生产当前表为空，backfill 为 no-op；若存在历史行，按约定保留为 `MANUAL/HIGH/ACTIVE`，AUTO seed 永不触碰（MANUAL protection）。
-- 无 `DROP TABLE / DROP COLUMN / DELETE`；`confidence Float?` 保留作为历史审计值。
-- 不设置危险默认值：`source / status / confidenceLevel` 在 Prisma schema 中无默认值；`mappingType` 删除 `PRIMARY` 默认值。
+- 无 `DROP TABLE / DROP COLUMN / DELETE`；`confidence Float?` 保留作为历史审计值；`mappingType String @default("PRIMARY")` 保留不动（不 repurpose、不转换类型）。
+- 不设置危险默认值：`source / status / confidenceLevel / matchMethod` 在 Prisma schema 中无默认值。
 - 唯一键 `(knowledgePointId, knowledgeNodeId)` 不变，1:N 已可表达；无需改键。
 
 ## Rollout Gate
 
-生产上线顺序：
+生产上线顺序（与真实 `deploy.sh` / `compose.production.yml` / `Dockerfile` 一致）：
 
 ```text
-migration
-→ evidence seed（现有 seed-408-v2.mjs）
-→ bridge dry-run（scripts/bridge-audit.mjs，不写库）
-→ 人工 review audit（重点：0 known incorrect ACTIVE）
-→ bridge seed（seed-408-v2.mjs orchestrator 内）
-→ verify（verifyBridgeAudit + coverage 输出）
-→ API healthy
+backup（deploy.sh 内）
+→ docker compose up -d --build --wait（容器替换；新 app 容器 CMD 内执行 prisma migrate deploy 后启动 API）
+→ gateway health（deploy.sh wait_for_gateway）
+→ seed-408-v2.mjs（evidence seed → bridge dry-run → bridge seed）
 ```
 
-覆盖率 gate：
+Bridge Rollout Gate（采用 **Bridge Persistence Gate，非 Release Gate**）：
 
-- `questionResolvableCoverage >= 0.70` → 允许进入 seed。
-- `questionResolvableCoverage < 0.70` → **STOP**：不执行生产 seed；输出 `affectedQuestionCount DESC` 的 `PENDING_REVIEW / UNMATCHED` 热点清单，请求人工 review 后补充确定性 alias 或 MANUAL mapping，再 rerun dry-run。
+- 应用版本允许正常部署（migration 随容器替换生效，additive 且安全）。
+- `questionResolvableCoverage >= 0.70` → 执行 AUTO bridge seed。
+- `questionResolvableCoverage < 0.70` → **不写入任何 AUTO bridge mapping**；`UserKnowledgeMastery` bridge 保持未启用；seed 打印并记录 `BRIDGE ROLLOUT BLOCKED`（deploy 正常结束，应用可用）；输出 `affectedQuestionCount DESC` 的 `PENDING_REVIEW / UNMATCHED` 热点清单请求人工 review，补充确定性 alias 或 MANUAL mapping 后 rerun dry-run。
 - 禁止为达标降低 HIGH 标准、将 MEDIUM 改为 ACTIVE、或使用 LLM 猜 mapping。
 
 失败恢复：
 
 - 旧 `ACTIVE / MANUAL` mapping 在 seed 重跑中保持不变（protection set）。
 - 新 AUTO mapping 幂等 upsert；重复 deploy 安全（seed 连续两次逻辑状态一致）。
+- bridge seed 在事务内执行：失败时无部分 mapping 写入，bridge 保持未启用（BLOCKED），rerun 安全；evidence seed 幂等不受影响。
 
 ## Verification
 
@@ -702,3 +703,6 @@ review tests（focused + regression）
 18. 有 PENDING safety test（Task 6 用例 5）。
 19. 有 seed 两次幂等 test（Task 4/6）。
 20. 有 full regression gate（Verification Level 3）。
+21. 现有 `mappingType` 不被错误 repurpose：计划全篇保留 `String @default("PRIMARY")`，provenance 使用独立 `matchMethod`，Task 1 有保留断言。
+22. PRIMARY / SECONDARY mastery 语义保持不变：mastery 权重继续只消费 resolver 返回的 role（direct 标签或 fallback 硬编码 PRIMARY），与 `mappingType` 无关。
+23. `<70%` gate 语义明确为 Bridge Persistence Gate：应用正常部署、AUTO bridge 不写入、BLOCKED 记录、exit 0；Task 7 部署顺序与真实 `deploy.sh`（容器替换在前、seed 在后、migrate 在 app CMD 内）一致。

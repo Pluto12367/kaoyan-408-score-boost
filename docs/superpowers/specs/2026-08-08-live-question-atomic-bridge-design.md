@@ -75,7 +75,7 @@ KnowledgePoint → Atomic KnowledgeNode
 
 1. 为现有 live Question 建立 `KnowledgePoint → Atomic KnowledgeNode` 桥接，作为主桥接层。
 2. 桥接数据必须确定性生成、可测试、可复现、可解释。
-3. 每个桥接记录携带最小可审计元数据：`confidence`、`source`、`mappingType`、`status`。
+3. 每个桥接记录携带最小可审计元数据：`confidence`、`source`、`matchMethod`、`status`。
 4. resolver 只消费 `ACTIVE` 映射；`PENDING_REVIEW / REJECTED / INACTIVE` 绝不参与 mastery。
 5. seed 幂等且尊重人工事实：`MANUAL` 不被 AUTO 覆盖，`REJECTED` 不被 AUTO 复活。
 6. 每次 matcher/seed 产出机器可读审计报告，含覆盖率指标。
@@ -112,6 +112,7 @@ KnowledgePoint → Atomic KnowledgeNode
 - `KnowledgePointNodeMap`：旧 KnowledgePoint ↔ 原子 KnowledgeNode 的桥接表，当前为空。
   - 唯一键：`@@id([knowledgePointId, knowledgeNodeId])`，已允许 1:N。
   - 字段：`mappingType String @default("PRIMARY")`、`confidence Float?`、`taggedBy ExamTagger @default(HYBRID)`。
+  - 字段语义：现有 `mappingType` 的默认值 `PRIMARY` 与 `ExamTagRole`（PRIMARY/SECONDARY）命名一致，属**角色语义保留字段**（mastery 权重 PRIMARY α=0.18 / SECONDARY α=0.07 依赖 resolver 返回的 role）。当前全仓无任何代码读取 `mappingType`，但不得将其 repurpose 为 matcher provenance；provenance 使用独立新字段 `matchMethod`。
 - `QuestionKnowledgeNodeTag`：live Question ↔ KnowledgeNode 的题目级标签，当前为空，本阶段不自动生成。
 - `UserKnowledgeMastery`：用户 × 原子节点掌握度，当前 0 行。
 
@@ -184,7 +185,7 @@ AUTO
 MANUAL
 ```
 
-### mappingType
+### matchMethod
 
 ```text
 EXACT_NAME
@@ -192,6 +193,12 @@ NORMALIZED_NAME
 CONTEXT_MATCH
 MANUAL
 ```
+
+`matchMethod` 是 matcher provenance 的独立字段（`BridgeMatchMethod` 枚举），与现有 `mappingType String @default("PRIMARY")` 完全分离：
+
+- 现有 `mappingType` 保留原语义（角色语义保留字段，当前无业务消费者），不 repurpose、不做类型转换。
+- mastery 的 PRIMARY / SECONDARY 权重来自 `resolveKnowledgeNodesForQuestion` 返回的 role：direct 路径读 `QuestionKnowledgeNodeTag.role`，fallback 路径当前硬编码 `PRIMARY`；两者都不读 `mappingType`。
+- 新代码一律写 `matchMethod`，禁止同时维护两个语义不清的 type 字段。
 
 ### status
 
@@ -501,7 +508,7 @@ seed 连续运行两次结果必须一致（幂等回归测试）。
 
 ## Manual / Rejected Protection
 
-- `MANUAL` 行：任何 AUTO matcher 结果都不得修改其 `knowledgeNodeId / status / confidence / mappingType / source`。AUTO seed 只能跳过。
+- `MANUAL` 行：任何 AUTO matcher 结果都不得修改其 `knowledgeNodeId / status / confidence / matchMethod / source / mappingType`。AUTO seed 只能跳过。
 - `REJECTED` 行：AUTO seed 不得重新激活（不得改为 ACTIVE/PENDING_REVIEW）。若 matcher 再次产出同一候选，只能保留 REJECTED 并在 audit 中记录“rejected candidate revisited”。
 - 人工显式操作（改 ACTIVE/REJECTED/INACTIVE）通过独立管理脚本或未来管理入口执行，与 AUTO seed 分离。
 
@@ -577,7 +584,7 @@ chapter
 section
 decision
 confidence
-mappingType
+matchMethod
 candidateNodes
 selectedNodes
 reasons
@@ -745,11 +752,12 @@ Question
 
 需要的 schema 变更（additive）：
 
-1. 新增 `status`（`ACTIVE | PENDING_REVIEW | REJECTED | INACTIVE`，默认 `ACTIVE` 或按 backfill 策略）。
-2. 新增 `source`（`AUTO | MANUAL`，默认 `AUTO`）。
-3. `confidence` 从当前 `Float?` 收敛为受控语义（`HIGH | MEDIUM`，可用 String/Enum 表达；历史 Float 值不删除）。
-4. `mappingType` 沿用现有 String 字段，但枚举值收敛为 `EXACT_NAME | NORMALIZED_NAME | CONTEXT_MATCH | MANUAL`。
-5. 如引入新枚举，使用 additive migration 创建，不重建表。
+1. 新增 `status`（`ACTIVE | PENDING_REVIEW | REJECTED | INACTIVE`）——无 Prisma 默认值；migration 先加 nullable，backfill 后置 NOT NULL。
+2. 新增 `source`（`AUTO | MANUAL`）——无 Prisma 默认值；backfill 后置 NOT NULL。
+3. 新增 `confidenceLevel`（`HIGH | MEDIUM`）承载受控语义；现有 `confidence Float?` 保留为历史审计值（不删除）。
+4. 新增 `matchMethod`（`BridgeMatchMethod`：`EXACT_NAME | NORMALIZED_NAME | CONTEXT_MATCH | MANUAL`）——无 Prisma 默认值；backfill 后置 NOT NULL。
+5. 现有 `mappingType String @default("PRIMARY")` 保留不动（角色语义保留字段；不 repurpose、不转换类型）。
+6. 如引入新枚举，使用 additive migration 创建，不重建表。
 
 约束：
 
@@ -767,8 +775,13 @@ Question
 5. 测试库执行 seed 两次验证幂等；运行 resolver 安全测试。
 6. 真实题库 PostgreSQL E2E（错误/正确/多知识点/PENDING_REVIEW 安全）。
 7. 全量回归（npm test + build）。
-8. 生产上线：先 dry-run 审计 → 再执行 seed → 观察 `UserKnowledgeMastery` 开始随真实作答增长 → 运行 audit 确认覆盖率。
-9. 覆盖率 < 70% 时按 hotspot review 流程人工补充 alias / MANUAL mapping，不降低 HIGH 标准。
+8. 生产上线（真实 deploy.sh 顺序）：backup → `docker compose up -d --build --wait`（**容器替换发生于此**，新 app 容器 CMD 内执行 `prisma migrate deploy` 再启动 API）→ gateway health → `seed-408-v2.mjs`（evidence seed + bridge dry-run + bridge seed）。migration 随容器替换生效；bridge 写入发生在 seed 阶段。
+9. Bridge Rollout Gate（本设计采用 **Bridge Persistence Gate，非 Release Gate**）：应用版本允许正常部署；seed 阶段先运行 bridge dry-run 审计：
+   - `questionResolvableCoverage >= 0.70` → 执行 AUTO bridge seed。
+   - `< 0.70` → **不写入任何 AUTO bridge mapping**，`UserKnowledgeMastery` bridge 保持未启用，seed 打印并记录 `BRIDGE ROLLOUT BLOCKED`（deploy 正常结束，应用可用）。
+   - 禁止为达标降低 HIGH 标准、将 MEDIUM 改为 ACTIVE、或调用 LLM 猜 mapping。
+10. bridge BLOCKED 时按 hotspot review 流程人工补充 alias / MANUAL mapping，rerun dry-run 后再评估。
+11. bridge 启用后观察 `UserKnowledgeMastery` 开始随真实作答增长，并运行 audit 确认覆盖率。
 
 ## Acceptance Criteria
 
@@ -791,6 +804,7 @@ Task 完成必须同时满足：
 14. 多知识点题 E2E 通过
 15. 原有 Score Center 测试无回归
 16. 原有 Knowledge Catalog 测试无回归
+17. 覆盖率 < 70% 时 AUTO bridge seed 不写入生产（Bridge Rollout Gate）
 ```
 
 成功定义：
