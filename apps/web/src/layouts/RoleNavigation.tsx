@@ -1,10 +1,11 @@
-import { Activity, BookOpen, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Home, PenLine, ShieldCheck, Target, Upload, User, type LucideIcon } from 'lucide-react';
+import { Activity, BookOpen, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Home, Network, PenLine, ShieldCheck, Target, Upload, User, type LucideIcon } from 'lucide-react';
 import type { UserRole } from '@kaoyan408/shared';
 
 export type RoleSection =
   | 'dashboard'
   | 'plan'
   | 'score-center'
+  | 'knowledge-catalog'
   | 'question'
   | 'wrong-book'
   | 'report'
@@ -45,6 +46,7 @@ const studentItems: NavigationItem[] = [
   { id: 'dashboard', label: '学习总览', icon: Activity },
   { id: 'plan', label: '今日计划', icon: ClipboardList },
   { id: 'score-center', label: '今日提分', icon: Target },
+  { id: 'knowledge-catalog', label: '408知识图谱', icon: Network },
   { id: 'question', label: '题库训练', icon: BookOpenCheck },
   { id: 'wrong-book', label: '错题复盘', icon: ShieldCheck },
   { id: 'report', label: '提分报告', icon: Target },

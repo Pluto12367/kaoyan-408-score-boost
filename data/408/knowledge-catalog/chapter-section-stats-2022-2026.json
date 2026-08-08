@@ -1,0 +1,2699 @@
+{
+  "meta": {
+    "years": [
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ]
+  },
+  "stats": [
+    {
+      "nodeId": "CN-C03",
+      "nodeType": "chapter",
+      "subject": "CN",
+      "name": "数据链路层",
+      "parentId": "CN",
+      "atomicPointCount": 70,
+      "relatedQuestionCount": 13,
+      "primaryQuestionCount": 12,
+      "primaryScore": 38,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.6,
+      "coverageRate": 0.3286
+    },
+    {
+      "nodeId": "CN-C04",
+      "nodeType": "chapter",
+      "subject": "CN",
+      "name": "网络层",
+      "parentId": "CN",
+      "atomicPointCount": 66,
+      "relatedQuestionCount": 15,
+      "primaryQuestionCount": 12,
+      "primaryScore": 31,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.0,
+      "coverageRate": 0.3636
+    },
+    {
+      "nodeId": "CN-C05",
+      "nodeType": "chapter",
+      "subject": "CN",
+      "name": "传输层",
+      "parentId": "CN",
+      "atomicPointCount": 43,
+      "relatedQuestionCount": 11,
+      "primaryQuestionCount": 6,
+      "primaryScore": 19,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.2,
+      "coverageRate": 0.3023
+    },
+    {
+      "nodeId": "CN-C06",
+      "nodeType": "chapter",
+      "subject": "CN",
+      "name": "应用层",
+      "parentId": "CN",
+      "atomicPointCount": 36,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 6,
+      "primaryScore": 19,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.1944
+    },
+    {
+      "nodeId": "CN-C02",
+      "nodeType": "chapter",
+      "subject": "CN",
+      "name": "物理层",
+      "parentId": "CN",
+      "atomicPointCount": 33,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 5,
+      "primaryScore": 10,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.4242
+    },
+    {
+      "nodeId": "CN-C01",
+      "nodeType": "chapter",
+      "subject": "CN",
+      "name": "计算机网络概述",
+      "parentId": "CN",
+      "atomicPointCount": 27,
+      "relatedQuestionCount": 11,
+      "primaryQuestionCount": 4,
+      "primaryScore": 8,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.2,
+      "coverageRate": 0.3333
+    },
+    {
+      "nodeId": "CO-C05",
+      "nodeType": "chapter",
+      "subject": "CO",
+      "name": "中央处理器",
+      "parentId": "CO",
+      "atomicPointCount": 70,
+      "relatedQuestionCount": 22,
+      "primaryQuestionCount": 14,
+      "primaryScore": 61,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 4.4,
+      "coverageRate": 0.4143
+    },
+    {
+      "nodeId": "CO-C03",
+      "nodeType": "chapter",
+      "subject": "CO",
+      "name": "存储器层次结构",
+      "parentId": "CO",
+      "atomicPointCount": 60,
+      "relatedQuestionCount": 16,
+      "primaryQuestionCount": 13,
+      "primaryScore": 57,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.2,
+      "coverageRate": 0.4167
+    },
+    {
+      "nodeId": "CO-C04",
+      "nodeType": "chapter",
+      "subject": "CO",
+      "name": "指令系统",
+      "parentId": "CO",
+      "atomicPointCount": 41,
+      "relatedQuestionCount": 14,
+      "primaryQuestionCount": 11,
+      "primaryScore": 46,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.8,
+      "coverageRate": 0.5366
+    },
+    {
+      "nodeId": "CO-C02",
+      "nodeType": "chapter",
+      "subject": "CO",
+      "name": "数据的表示和运算",
+      "parentId": "CO",
+      "atomicPointCount": 45,
+      "relatedQuestionCount": 18,
+      "primaryQuestionCount": 14,
+      "primaryScore": 35,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.6,
+      "coverageRate": 0.4889
+    },
+    {
+      "nodeId": "CO-C06",
+      "nodeType": "chapter",
+      "subject": "CO",
+      "name": "总线与I/O",
+      "parentId": "CO",
+      "atomicPointCount": 26,
+      "relatedQuestionCount": 11,
+      "primaryQuestionCount": 8,
+      "primaryScore": 16,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.2,
+      "coverageRate": 0.3846
+    },
+    {
+      "nodeId": "CO-C01",
+      "nodeType": "chapter",
+      "subject": "CO",
+      "name": "计算机系统概述",
+      "parentId": "CO",
+      "atomicPointCount": 24,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 5,
+      "primaryScore": 10,
+      "years": [
+        2022,
+        2023,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.2917
+    },
+    {
+      "nodeId": "DS-C06",
+      "nodeType": "chapter",
+      "subject": "DS",
+      "name": "查找",
+      "parentId": "DS",
+      "atomicPointCount": 65,
+      "relatedQuestionCount": 15,
+      "primaryQuestionCount": 15,
+      "primaryScore": 60,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.0,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "DS-C05",
+      "nodeType": "chapter",
+      "subject": "DS",
+      "name": "图",
+      "parentId": "DS",
+      "atomicPointCount": 56,
+      "relatedQuestionCount": 10,
+      "primaryQuestionCount": 10,
+      "primaryScore": 50,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.0,
+      "coverageRate": 0.4643
+    },
+    {
+      "nodeId": "DS-C04",
+      "nodeType": "chapter",
+      "subject": "DS",
+      "name": "树与二叉树",
+      "parentId": "DS",
+      "atomicPointCount": 61,
+      "relatedQuestionCount": 16,
+      "primaryQuestionCount": 14,
+      "primaryScore": 36,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.2,
+      "coverageRate": 0.3607
+    },
+    {
+      "nodeId": "DS-C07",
+      "nodeType": "chapter",
+      "subject": "DS",
+      "name": "排序",
+      "parentId": "DS",
+      "atomicPointCount": 41,
+      "relatedQuestionCount": 14,
+      "primaryQuestionCount": 13,
+      "primaryScore": 34,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.8,
+      "coverageRate": 0.5122
+    },
+    {
+      "nodeId": "DS-C02",
+      "nodeType": "chapter",
+      "subject": "DS",
+      "name": "线性表",
+      "parentId": "DS",
+      "atomicPointCount": 34,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 6,
+      "primaryScore": 23,
+      "years": [
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.3529
+    },
+    {
+      "nodeId": "DS-C03",
+      "nodeType": "chapter",
+      "subject": "DS",
+      "name": "栈、队列和数组",
+      "parentId": "DS",
+      "atomicPointCount": 31,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 5,
+      "primaryScore": 18,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.2903
+    },
+    {
+      "nodeId": "DS-C01",
+      "nodeType": "chapter",
+      "subject": "DS",
+      "name": "绪论",
+      "parentId": "DS",
+      "atomicPointCount": 25,
+      "relatedQuestionCount": 10,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.0,
+      "coverageRate": 0.12
+    },
+    {
+      "nodeId": "OS-C02",
+      "nodeType": "chapter",
+      "subject": "OS",
+      "name": "进程管理",
+      "parentId": "OS",
+      "atomicPointCount": 96,
+      "relatedQuestionCount": 25,
+      "primaryQuestionCount": 20,
+      "primaryScore": 67,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 5.0,
+      "coverageRate": 0.2812
+    },
+    {
+      "nodeId": "OS-C01",
+      "nodeType": "chapter",
+      "subject": "OS",
+      "name": "操作系统概述",
+      "parentId": "OS",
+      "atomicPointCount": 38,
+      "relatedQuestionCount": 18,
+      "primaryQuestionCount": 14,
+      "primaryScore": 34,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.6,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "OS-C04",
+      "nodeType": "chapter",
+      "subject": "OS",
+      "name": "文件管理",
+      "parentId": "OS",
+      "atomicPointCount": 35,
+      "relatedQuestionCount": 10,
+      "primaryQuestionCount": 9,
+      "primaryScore": 29,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.0,
+      "coverageRate": 0.4857
+    },
+    {
+      "nodeId": "OS-C03",
+      "nodeType": "chapter",
+      "subject": "OS",
+      "name": "内存管理",
+      "parentId": "OS",
+      "atomicPointCount": 56,
+      "relatedQuestionCount": 19,
+      "primaryQuestionCount": 10,
+      "primaryScore": 25,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.8,
+      "coverageRate": 0.3393
+    },
+    {
+      "nodeId": "OS-C05",
+      "nodeType": "chapter",
+      "subject": "OS",
+      "name": "输入输出管理",
+      "parentId": "OS",
+      "atomicPointCount": 39,
+      "relatedQuestionCount": 9,
+      "primaryQuestionCount": 7,
+      "primaryScore": 20,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.8,
+      "coverageRate": 0.3077
+    },
+    {
+      "nodeId": "CN-C03-S04",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "介质访问控制",
+      "parentId": "CN-C03",
+      "atomicPointCount": 16,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 5,
+      "primaryScore": 17,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.25
+    },
+    {
+      "nodeId": "CN-C05-S03",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "TCP连接管理",
+      "parentId": "CN-C05",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 3,
+      "primaryScore": 13,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.2727
+    },
+    {
+      "nodeId": "CN-C03-S03",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "流量控制与可靠传输",
+      "parentId": "CN-C03",
+      "atomicPointCount": 16,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 3,
+      "primaryScore": 13,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.625
+    },
+    {
+      "nodeId": "CN-C04-S03",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "IPv4",
+      "parentId": "CN-C04",
+      "atomicPointCount": 24,
+      "relatedQuestionCount": 11,
+      "primaryQuestionCount": 6,
+      "primaryScore": 12,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.2,
+      "coverageRate": 0.4583
+    },
+    {
+      "nodeId": "CN-C04-S05",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "路由协议",
+      "parentId": "CN-C04",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 11,
+      "years": [
+        2024,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "CN-C06-S03",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "FTP",
+      "parentId": "CN-C06",
+      "atomicPointCount": 4,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 9,
+      "years": [
+        2023
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.25
+    },
+    {
+      "nodeId": "CN-C02-S01",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "通信基础",
+      "parentId": "CN-C02",
+      "atomicPointCount": 19,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 4,
+      "primaryScore": 8,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.4737
+    },
+    {
+      "nodeId": "CN-C06-S05",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "WWW与HTTP",
+      "parentId": "CN-C06",
+      "atomicPointCount": 13,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 3,
+      "primaryScore": 6,
+      "years": [
+        2022,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.2308
+    },
+    {
+      "nodeId": "CN-C01-S01",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "计算机网络基本概念",
+      "parentId": "CN-C01",
+      "atomicPointCount": 16,
+      "relatedQuestionCount": 9,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.8,
+      "coverageRate": 0.3125
+    },
+    {
+      "nodeId": "CN-C05-S06",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "TCP拥塞控制",
+      "parentId": "CN-C05",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.5556
+    },
+    {
+      "nodeId": "CN-C03-S05",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "局域网",
+      "parentId": "CN-C03",
+      "atomicPointCount": 13,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.2308
+    },
+    {
+      "nodeId": "CN-C01-S02",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "计算机网络体系结构",
+      "parentId": "CN-C01",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.3636
+    },
+    {
+      "nodeId": "CN-C03-S02",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "差错控制",
+      "parentId": "CN-C03",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2023,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.5556
+    },
+    {
+      "nodeId": "CN-C05-S02",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "UDP",
+      "parentId": "CN-C05",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2024,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.6
+    },
+    {
+      "nodeId": "CN-C02-S02",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "交换技术",
+      "parentId": "CN-C02",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.7143
+    },
+    {
+      "nodeId": "CN-C04-S02",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "路由算法",
+      "parentId": "CN-C04",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2024,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.4286
+    },
+    {
+      "nodeId": "CN-C04-S07",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "路由器",
+      "parentId": "CN-C04",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2024
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.125
+    },
+    {
+      "nodeId": "CN-C04-S01",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "网络层功能",
+      "parentId": "CN-C04",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2857
+    },
+    {
+      "nodeId": "CN-C04-S04",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "IPv6",
+      "parentId": "CN-C04",
+      "atomicPointCount": 4,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.75
+    },
+    {
+      "nodeId": "CN-C06-S01",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "网络应用模型",
+      "parentId": "CN-C06",
+      "atomicPointCount": 3,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2025
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.3333
+    },
+    {
+      "nodeId": "CN-C06-S04",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "电子邮件",
+      "parentId": "CN-C06",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2025
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2857
+    },
+    {
+      "nodeId": "CN-C03-S06",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "广域网与交换机",
+      "parentId": "CN-C03",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2022,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.1111
+    },
+    {
+      "nodeId": "CN-C05-S05",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "TCP流量控制",
+      "parentId": "CN-C05",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2025,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "CN-C02-S03",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "传输介质与设备",
+      "parentId": "CN-C02",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "CN-C03-S01",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "数据链路层功能与组帧",
+      "parentId": "CN-C03",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "CN-C04-S06",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "组播与移动IP",
+      "parentId": "CN-C04",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "CN-C05-S01",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "传输层服务",
+      "parentId": "CN-C05",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "CN-C05-S04",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "TCP可靠传输",
+      "parentId": "CN-C05",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "CN-C06-S02",
+      "nodeType": "section",
+      "subject": "CN",
+      "name": "DNS",
+      "parentId": "CN-C06",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "CO-C05-S03",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "数据通路",
+      "parentId": "CO-C05",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 5,
+      "primaryScore": 43,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.5714
+    },
+    {
+      "nodeId": "CO-C03-S05",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "Cache",
+      "parentId": "CO-C03",
+      "atomicPointCount": 18,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 4,
+      "primaryScore": 31,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.4444
+    },
+    {
+      "nodeId": "CO-C04-S01",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "指令系统基本概念",
+      "parentId": "CO-C04",
+      "atomicPointCount": 4,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 5,
+      "primaryScore": 18,
+      "years": [
+        2022,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.75
+    },
+    {
+      "nodeId": "CO-C02-S02",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "运算方法与运算电路",
+      "parentId": "CO-C02",
+      "atomicPointCount": 18,
+      "relatedQuestionCount": 9,
+      "primaryQuestionCount": 5,
+      "primaryScore": 17,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.8,
+      "coverageRate": 0.5556
+    },
+    {
+      "nodeId": "CO-C04-S03",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "寻址方式",
+      "parentId": "CO-C04",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 2,
+      "primaryScore": 12,
+      "years": [
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.4545
+    },
+    {
+      "nodeId": "CO-C03-S06",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "虚拟存储器",
+      "parentId": "CO-C03",
+      "atomicPointCount": 12,
+      "relatedQuestionCount": 8,
+      "primaryQuestionCount": 5,
+      "primaryScore": 10,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.6,
+      "coverageRate": 0.6667
+    },
+    {
+      "nodeId": "CO-C06-S03",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "I/O方式",
+      "parentId": "CO-C06",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 8,
+      "primaryQuestionCount": 5,
+      "primaryScore": 10,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.6,
+      "coverageRate": 0.6667
+    },
+    {
+      "nodeId": "CO-C02-S04",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "浮点数表示与运算",
+      "parentId": "CO-C02",
+      "atomicPointCount": 12,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 5,
+      "primaryScore": 10,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.5833
+    },
+    {
+      "nodeId": "CO-C04-S06",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "高级语言与机器级代码",
+      "parentId": "CO-C04",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 1,
+      "primaryScore": 10,
+      "years": [
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.2727
+    },
+    {
+      "nodeId": "CO-C03-S04",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "外部存储器",
+      "parentId": "CO-C03",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 10,
+      "years": [
+        2022
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2857
+    },
+    {
+      "nodeId": "CO-C05-S05",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "异常与中断",
+      "parentId": "CO-C05",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 10,
+      "primaryQuestionCount": 4,
+      "primaryScore": 8,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.0,
+      "coverageRate": 0.7273
+    },
+    {
+      "nodeId": "CO-C01-S02",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "计算机性能指标",
+      "parentId": "CO-C01",
+      "atomicPointCount": 13,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 4,
+      "primaryScore": 8,
+      "years": [
+        2022,
+        2023,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.2308
+    },
+    {
+      "nodeId": "CO-C03-S03",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "主存储器",
+      "parentId": "CO-C03",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 3,
+      "primaryScore": 6,
+      "years": [
+        2022,
+        2023,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.5455
+    },
+    {
+      "nodeId": "CO-C06-S01",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "总线",
+      "parentId": "CO-C06",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 3,
+      "primaryScore": 6,
+      "years": [
+        2023,
+        2024,
+        2025
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "CO-C02-S01",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "数制与编码",
+      "parentId": "CO-C02",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.2222
+    },
+    {
+      "nodeId": "CO-C02-S03",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "整数表示与运算",
+      "parentId": "CO-C02",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "CO-C05-S06",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "指令流水线",
+      "parentId": "CO-C05",
+      "atomicPointCount": 14,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.4286
+    },
+    {
+      "nodeId": "CO-C04-S04",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "数据存放",
+      "parentId": "CO-C04",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023,
+        2024,
+        2025
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.8
+    },
+    {
+      "nodeId": "CO-C05-S02",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "指令执行过程",
+      "parentId": "CO-C05",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.25
+    },
+    {
+      "nodeId": "CO-C01-S01",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "计算机系统层次结构",
+      "parentId": "CO-C01",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.3636
+    },
+    {
+      "nodeId": "CO-C04-S02",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "指令格式",
+      "parentId": "CO-C04",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.7143
+    },
+    {
+      "nodeId": "CO-C05-S04",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "控制器",
+      "parentId": "CO-C05",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2024
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.3
+    },
+    {
+      "nodeId": "CO-C04-S05",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "CISC与RISC",
+      "parentId": "CO-C04",
+      "atomicPointCount": 3,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2025
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.6667
+    },
+    {
+      "nodeId": "CO-C05-S07",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "多处理器",
+      "parentId": "CO-C05",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "CO-C05-S01",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "CPU功能与基本结构",
+      "parentId": "CO-C05",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2022,
+        2023,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.2
+    },
+    {
+      "nodeId": "CO-C03-S01",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "存储器基本概念",
+      "parentId": "CO-C03",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2023
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2
+    },
+    {
+      "nodeId": "CO-C03-S02",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "半导体存储器",
+      "parentId": "CO-C03",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "CO-C06-S02",
+      "nodeType": "section",
+      "subject": "CO",
+      "name": "I/O接口",
+      "parentId": "CO-C06",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "DS-C06-S04",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "二叉搜索树",
+      "parentId": "DS-C06",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 3,
+      "primaryScore": 28,
+      "years": [
+        2022,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.4286
+    },
+    {
+      "nodeId": "DS-C05-S06",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "有向无环图",
+      "parentId": "DS-C05",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 3,
+      "primaryScore": 25,
+      "years": [
+        2022,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.8182
+    },
+    {
+      "nodeId": "DS-C05-S02",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "图的存储结构",
+      "parentId": "DS-C05",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 3,
+      "primaryScore": 17,
+      "years": [
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.5714
+    },
+    {
+      "nodeId": "DS-C06-S08",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "散列表",
+      "parentId": "DS-C06",
+      "atomicPointCount": 12,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 4,
+      "primaryScore": 16,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "DS-C07-S06",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "外部排序",
+      "parentId": "DS-C07",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 3,
+      "primaryScore": 14,
+      "years": [
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.8
+    },
+    {
+      "nodeId": "DS-C02-S04",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "线性表的应用",
+      "parentId": "DS-C02",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 13,
+      "years": [
+        2025
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2
+    },
+    {
+      "nodeId": "DS-C03-S01",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "栈",
+      "parentId": "DS-C03",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 2,
+      "primaryScore": 12,
+      "years": [
+        2022,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.4286
+    },
+    {
+      "nodeId": "DS-C04-S06",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "堆及其应用",
+      "parentId": "DS-C04",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 12,
+      "years": [
+        2022,
+        2024
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "DS-C04-S02",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "二叉树",
+      "parentId": "DS-C04",
+      "atomicPointCount": 20,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 5,
+      "primaryScore": 10,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "DS-C04-S04",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "哈夫曼树与编码",
+      "parentId": "DS-C04",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 4,
+      "primaryScore": 8,
+      "years": [
+        2022,
+        2023,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.8
+    },
+    {
+      "nodeId": "DS-C05-S01",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "图的基本概念",
+      "parentId": "DS-C05",
+      "atomicPointCount": 16,
+      "relatedQuestionCount": 7,
+      "primaryQuestionCount": 3,
+      "primaryScore": 6,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.4,
+      "coverageRate": 0.5625
+    },
+    {
+      "nodeId": "DS-C07-S05",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "归并与基数排序",
+      "parentId": "DS-C07",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 3,
+      "primaryScore": 6,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.8333
+    },
+    {
+      "nodeId": "DS-C02-S03",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "链表",
+      "parentId": "DS-C02",
+      "atomicPointCount": 18,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 3,
+      "primaryScore": 6,
+      "years": [
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.3889
+    },
+    {
+      "nodeId": "DS-C06-S07",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "B树与B+树",
+      "parentId": "DS-C06",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 3,
+      "primaryScore": 6,
+      "years": [
+        2022,
+        2023,
+        2025
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.6
+    },
+    {
+      "nodeId": "DS-C01-S02",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "算法的基本概念",
+      "parentId": "DS-C01",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 10,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.0,
+      "coverageRate": 0.3333
+    },
+    {
+      "nodeId": "DS-C07-S03",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "交换类排序",
+      "parentId": "DS-C07",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2023,
+        2024
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.375
+    },
+    {
+      "nodeId": "DS-C07-S07",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "排序算法分析与应用",
+      "parentId": "DS-C07",
+      "atomicPointCount": 4,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "DS-C02-S02",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "顺序表",
+      "parentId": "DS-C02",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2023,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "DS-C03-S05",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "栈、队列和数组的应用",
+      "parentId": "DS-C03",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2024,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.4286
+    },
+    {
+      "nodeId": "DS-C04-S03",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "树与森林",
+      "parentId": "DS-C04",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2025,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.2222
+    },
+    {
+      "nodeId": "DS-C06-S03",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "折半查找",
+      "parentId": "DS-C06",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2023,
+        2024
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.6
+    },
+    {
+      "nodeId": "DS-C07-S02",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "插入类排序",
+      "parentId": "DS-C07",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 5,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2023,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.0,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "DS-C04-S01",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "树的基本概念",
+      "parentId": "DS-C04",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.2
+    },
+    {
+      "nodeId": "DS-C07-S01",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "排序基本概念",
+      "parentId": "DS-C07",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2023,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "DS-C05-S03",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "图的遍历",
+      "parentId": "DS-C05",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.2222
+    },
+    {
+      "nodeId": "DS-C07-S04",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "选择类排序",
+      "parentId": "DS-C07",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.2857
+    },
+    {
+      "nodeId": "DS-C03-S04",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "特殊矩阵的压缩存储",
+      "parentId": "DS-C03",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2
+    },
+    {
+      "nodeId": "DS-C06-S02",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "顺序与分块查找",
+      "parentId": "DS-C06",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2025
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.4
+    },
+    {
+      "nodeId": "DS-C06-S05",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "平衡二叉树AVL",
+      "parentId": "DS-C06",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2026
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.25
+    },
+    {
+      "nodeId": "DS-C06-S09",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "字符串模式匹配",
+      "parentId": "DS-C06",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2024
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "DS-C03-S03",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "数组",
+      "parentId": "DS-C03",
+      "atomicPointCount": 4,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2023
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "DS-C05-S04",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "最小生成树",
+      "parentId": "DS-C05",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2023
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.3333
+    },
+    {
+      "nodeId": "DS-C06-S01",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "查找的基本概念",
+      "parentId": "DS-C06",
+      "atomicPointCount": 5,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2022
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2
+    },
+    {
+      "nodeId": "DS-C01-S01",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "数据结构的基本概念",
+      "parentId": "DS-C01",
+      "atomicPointCount": 16,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "DS-C02-S01",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "线性表的基本概念",
+      "parentId": "DS-C02",
+      "atomicPointCount": 3,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "DS-C03-S02",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "队列",
+      "parentId": "DS-C03",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "DS-C04-S05",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "并查集",
+      "parentId": "DS-C04",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "DS-C05-S05",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "最短路径",
+      "parentId": "DS-C05",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "DS-C06-S06",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "红黑树",
+      "parentId": "DS-C06",
+      "atomicPointCount": 4,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "DS-C06-S10",
+      "nodeType": "section",
+      "subject": "DS",
+      "name": "查找算法分析与应用",
+      "parentId": "DS-C06",
+      "atomicPointCount": 3,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "OS-C02-S04",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "同步与互斥",
+      "parentId": "OS-C02",
+      "atomicPointCount": 26,
+      "relatedQuestionCount": 8,
+      "primaryQuestionCount": 6,
+      "primaryScore": 34,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.6,
+      "coverageRate": 0.3077
+    },
+    {
+      "nodeId": "OS-C01-S03",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "程序运行环境",
+      "parentId": "OS-C01",
+      "atomicPointCount": 12,
+      "relatedQuestionCount": 15,
+      "primaryQuestionCount": 10,
+      "primaryScore": 26,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 3.0,
+      "coverageRate": 0.5833
+    },
+    {
+      "nodeId": "OS-C04-S01",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "文件",
+      "parentId": "OS-C04",
+      "atomicPointCount": 17,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 5,
+      "primaryScore": 21,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.4118
+    },
+    {
+      "nodeId": "OS-C02-S03",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "CPU调度与上下文切换",
+      "parentId": "OS-C02",
+      "atomicPointCount": 20,
+      "relatedQuestionCount": 8,
+      "primaryQuestionCount": 7,
+      "primaryScore": 19,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.6,
+      "coverageRate": 0.3
+    },
+    {
+      "nodeId": "OS-C05-S01",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "I/O管理基础",
+      "parentId": "OS-C05",
+      "atomicPointCount": 12,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 5,
+      "primaryScore": 16,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.4167
+    },
+    {
+      "nodeId": "OS-C03-S05",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "虚拟内存",
+      "parentId": "OS-C03",
+      "atomicPointCount": 22,
+      "relatedQuestionCount": 14,
+      "primaryQuestionCount": 6,
+      "primaryScore": 12,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 2.8,
+      "coverageRate": 0.4545
+    },
+    {
+      "nodeId": "OS-C03-S03",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "分页管理",
+      "parentId": "OS-C03",
+      "atomicPointCount": 11,
+      "relatedQuestionCount": 10,
+      "primaryQuestionCount": 3,
+      "primaryScore": 11,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 2.0,
+      "coverageRate": 0.6364
+    },
+    {
+      "nodeId": "OS-C02-S01",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "进程与线程",
+      "parentId": "OS-C02",
+      "atomicPointCount": 19,
+      "relatedQuestionCount": 8,
+      "primaryQuestionCount": 5,
+      "primaryScore": 10,
+      "years": [
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 5,
+      "avgRelatedQuestionsPerYear": 1.6,
+      "coverageRate": 0.4737
+    },
+    {
+      "nodeId": "OS-C04-S03",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "文件系统",
+      "parentId": "OS-C04",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 6,
+      "primaryQuestionCount": 4,
+      "primaryScore": 8,
+      "years": [
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 1.2,
+      "coverageRate": 0.7778
+    },
+    {
+      "nodeId": "OS-C01-S05",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "操作系统引导与虚拟机",
+      "parentId": "OS-C01",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 2,
+      "primaryScore": 4,
+      "years": [
+        2022,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.6667
+    },
+    {
+      "nodeId": "OS-C01-S01",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "操作系统基本概念",
+      "parentId": "OS-C01",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022,
+        2026
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.625
+    },
+    {
+      "nodeId": "OS-C02-S02",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "进程间通信",
+      "parentId": "OS-C02",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023,
+        2025,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.1111
+    },
+    {
+      "nodeId": "OS-C05-S02",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "设备独立软件",
+      "parentId": "OS-C05",
+      "atomicPointCount": 13,
+      "relatedQuestionCount": 3,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023,
+        2024,
+        2026
+      ],
+      "yearCount": 3,
+      "avgRelatedQuestionsPerYear": 0.6,
+      "coverageRate": 0.3077
+    },
+    {
+      "nodeId": "OS-C05-S03",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "外存管理",
+      "parentId": "OS-C05",
+      "atomicPointCount": 14,
+      "relatedQuestionCount": 2,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2024,
+        2025
+      ],
+      "yearCount": 2,
+      "avgRelatedQuestionsPerYear": 0.4,
+      "coverageRate": 0.2143
+    },
+    {
+      "nodeId": "OS-C01-S04",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "操作系统结构",
+      "parentId": "OS-C01",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2023
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.5
+    },
+    {
+      "nodeId": "OS-C02-S06",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "死锁",
+      "parentId": "OS-C02",
+      "atomicPointCount": 14,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2022
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2143
+    },
+    {
+      "nodeId": "OS-C03-S02",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "连续分配",
+      "parentId": "OS-C03",
+      "atomicPointCount": 10,
+      "relatedQuestionCount": 1,
+      "primaryQuestionCount": 1,
+      "primaryScore": 2,
+      "years": [
+        2024
+      ],
+      "yearCount": 1,
+      "avgRelatedQuestionsPerYear": 0.2,
+      "coverageRate": 0.2
+    },
+    {
+      "nodeId": "OS-C04-S02",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "目录",
+      "parentId": "OS-C04",
+      "atomicPointCount": 9,
+      "relatedQuestionCount": 4,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [
+        2022,
+        2024,
+        2025,
+        2026
+      ],
+      "yearCount": 4,
+      "avgRelatedQuestionsPerYear": 0.8,
+      "coverageRate": 0.3333
+    },
+    {
+      "nodeId": "OS-C01-S02",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "操作系统发展",
+      "parentId": "OS-C01",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "OS-C02-S05",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "经典同步问题",
+      "parentId": "OS-C02",
+      "atomicPointCount": 8,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "OS-C03-S01",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "内存管理基础",
+      "parentId": "OS-C03",
+      "atomicPointCount": 7,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    },
+    {
+      "nodeId": "OS-C03-S04",
+      "nodeType": "section",
+      "subject": "OS",
+      "name": "分段与段页式",
+      "parentId": "OS-C03",
+      "atomicPointCount": 6,
+      "relatedQuestionCount": 0,
+      "primaryQuestionCount": 0,
+      "primaryScore": 0,
+      "years": [],
+      "yearCount": 0,
+      "avgRelatedQuestionsPerYear": 0.0,
+      "coverageRate": 0.0
+    }
+  ]
+}

@@ -1,0 +1,1409 @@
+{
+  "meta": {
+    "years": [
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "topPerSubject": 20
+  },
+  "hotspots": {
+    "DS": [
+      {
+        "knowledgePointId": "DS-C01-S02-P04",
+        "name": "时间复杂度",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 5,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 10,
+        "primaryScore": 4,
+        "weightedExposure": 4.8,
+        "actualFrequency5y": 5,
+        "importance": 4,
+        "basePriority5y": 84.0
+      },
+      {
+        "knowledgePointId": "DS-C04-S04-P02",
+        "name": "哈夫曼树构造",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 4,
+        "primaryScore": 4,
+        "weightedExposure": 2.7,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 93.4
+      },
+      {
+        "knowledgePointId": "DS-C03-S01-P01",
+        "name": "栈的定义",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 4,
+        "primaryScore": 0,
+        "weightedExposure": 1.4,
+        "actualFrequency5y": 5,
+        "importance": 3,
+        "basePriority5y": 65.0
+      },
+      {
+        "knowledgePointId": "DS-C04-S02-P12",
+        "name": "中序遍历",
+        "years": [
+          2022,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 4,
+        "primaryScore": 4,
+        "weightedExposure": 2.7,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 85.4
+      },
+      {
+        "knowledgePointId": "DS-C04-S04-P03",
+        "name": "哈夫曼编码",
+        "years": [
+          2022,
+          2023,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 3,
+        "primaryScore": 4,
+        "weightedExposure": 2.35,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 83.9
+      },
+      {
+        "knowledgePointId": "DS-C06-S08-P05",
+        "name": "处理冲突",
+        "years": [
+          2022,
+          2023,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 3,
+        "primaryScore": 2,
+        "weightedExposure": 1.7,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 79.7
+      },
+      {
+        "knowledgePointId": "DS-C07-S06-P02",
+        "name": "外部归并排序",
+        "years": [
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 3,
+        "primaryScore": 2,
+        "weightedExposure": 1.7,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 79.7
+      },
+      {
+        "knowledgePointId": "DS-C06-S08-P10",
+        "name": "装填因子",
+        "years": [
+          2022,
+          2024,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 3,
+        "primaryScore": 2,
+        "weightedExposure": 1.7,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 79.7
+      },
+      {
+        "knowledgePointId": "DS-C06-S04-P01",
+        "name": "BST定义",
+        "years": [
+          2022,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 3,
+        "primaryScore": 2,
+        "weightedExposure": 1.7,
+        "actualFrequency5y": 4,
+        "importance": 4,
+        "basePriority5y": 69.7
+      },
+      {
+        "knowledgePointId": "DS-C04-S02-P07",
+        "name": "二叉树性质",
+        "years": [
+          2022,
+          2024,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 75.5
+      },
+      {
+        "knowledgePointId": "DS-C07-S05-P01",
+        "name": "二路归并排序",
+        "years": [
+          2022,
+          2024,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 75.5
+      },
+      {
+        "knowledgePointId": "DS-C05-S01-P11",
+        "name": "入度与出度",
+        "years": [
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 75.5
+      },
+      {
+        "knowledgePointId": "DS-C04-S04-P01",
+        "name": "带权路径长度WPL",
+        "years": [
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 75.5
+      },
+      {
+        "knowledgePointId": "DS-C07-S03-P03",
+        "name": "快速排序",
+        "years": [
+          2022,
+          2023,
+          2024
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 75.5
+      },
+      {
+        "knowledgePointId": "DS-C05-S06-P05",
+        "name": "关键路径",
+        "years": [
+          2022,
+          2025
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 12,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 80.2
+      },
+      {
+        "knowledgePointId": "DS-C03-S01-P02",
+        "name": "栈的基本操作",
+        "years": [
+          2022,
+          2026
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 12,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 4,
+        "basePriority5y": 67.2
+      },
+      {
+        "knowledgePointId": "DS-C05-S01-P14",
+        "name": "回路",
+        "years": [
+          2025,
+          2026
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 74.4
+      },
+      {
+        "knowledgePointId": "DS-C07-S05-P02",
+        "name": "归并过程",
+        "years": [
+          2022,
+          2024
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 74.4
+      },
+      {
+        "knowledgePointId": "DS-C07-S03-P04",
+        "name": "快速排序划分",
+        "years": [
+          2023,
+          2024
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 74.4
+      },
+      {
+        "knowledgePointId": "DS-C04-S03-P05",
+        "name": "森林转二叉树",
+        "years": [
+          2025,
+          2026
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 74.4
+      }
+    ],
+    "CO": [
+      {
+        "knowledgePointId": "CO-C02-S04-P01",
+        "name": "IEEE754单精度",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 5,
+        "primaryQuestionCount": 5,
+        "relatedQuestionCount": 5,
+        "primaryScore": 10,
+        "weightedExposure": 5.0,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 97.0
+      },
+      {
+        "knowledgePointId": "CO-C03-S05-P05",
+        "name": "组相联映射",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 5,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 5,
+        "primaryScore": 18,
+        "weightedExposure": 3.7,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 100.0
+      },
+      {
+        "knowledgePointId": "CO-C06-S03-P04",
+        "name": "DMA方式",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 5,
+        "primaryScore": 6,
+        "weightedExposure": 3.7,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 97.0
+      },
+      {
+        "knowledgePointId": "CO-C05-S03-P07",
+        "name": "数据通路控制信号",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 4,
+        "primaryScore": 39,
+        "weightedExposure": 3.35,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 100.0
+      },
+      {
+        "knowledgePointId": "CO-C01-S02-P08",
+        "name": "CPI",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 4,
+        "primaryScore": 6,
+        "weightedExposure": 3.35,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 94.0
+      },
+      {
+        "knowledgePointId": "CO-C06-S03-P02",
+        "name": "程序中断方式",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 4,
+        "primaryScore": 4,
+        "weightedExposure": 2.7,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 93.4
+      },
+      {
+        "knowledgePointId": "CO-C04-S01-P02",
+        "name": "指令的基本组成",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 5,
+        "primaryScore": 10,
+        "weightedExposure": 2.4,
+        "actualFrequency5y": 5,
+        "importance": 4,
+        "basePriority5y": 83.5
+      },
+      {
+        "knowledgePointId": "CO-C05-S05-P07",
+        "name": "中断响应",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 92.2
+      },
+      {
+        "knowledgePointId": "CO-C02-S02-P11",
+        "name": "标志位OF",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 89.2
+      },
+      {
+        "knowledgePointId": "CO-C01-S02-P09",
+        "name": "CPU执行时间",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 86.2
+      },
+      {
+        "knowledgePointId": "CO-C03-S06-P07",
+        "name": "虚拟地址划分",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 5,
+        "primaryScore": 0,
+        "weightedExposure": 1.75,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 89.5
+      },
+      {
+        "knowledgePointId": "CO-C03-S05-P06",
+        "name": "地址字段划分",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 4,
+        "primaryScore": 0,
+        "weightedExposure": 1.4,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 88.0
+      },
+      {
+        "knowledgePointId": "CO-C02-S03-P02",
+        "name": "带符号整数表示",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 4,
+        "primaryScore": 0,
+        "weightedExposure": 1.4,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 85.0
+      },
+      {
+        "knowledgePointId": "CO-C04-S01-P01",
+        "name": "ISA概念",
+        "years": [
+          2022,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 4,
+        "relatedQuestionCount": 4,
+        "primaryScore": 8,
+        "weightedExposure": 4.0,
+        "actualFrequency5y": 5,
+        "importance": 4,
+        "basePriority5y": 83.8
+      },
+      {
+        "knowledgePointId": "CO-C06-S01-P10",
+        "name": "总线性能计算",
+        "years": [
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 3,
+        "primaryScore": 6,
+        "weightedExposure": 3.0,
+        "actualFrequency5y": 4,
+        "importance": 4,
+        "basePriority5y": 81.1
+      },
+      {
+        "knowledgePointId": "CO-C05-S03-P01",
+        "name": "数据通路概念",
+        "years": [
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 3,
+        "primaryScore": 4,
+        "weightedExposure": 2.35,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 86.9
+      },
+      {
+        "knowledgePointId": "CO-C03-S06-P02",
+        "name": "页式虚拟存储",
+        "years": [
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 84.2
+      },
+      {
+        "knowledgePointId": "CO-C02-S01-P09",
+        "name": "补码与真值转换",
+        "years": [
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 81.2
+      },
+      {
+        "knowledgePointId": "CO-C02-S01-P07",
+        "name": "补码",
+        "years": [
+          2022,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 3,
+        "primaryScore": 2,
+        "weightedExposure": 1.7,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 79.7
+      },
+      {
+        "knowledgePointId": "CO-C05-S01-P05",
+        "name": "PC",
+        "years": [
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 78.5
+      }
+    ],
+    "OS": [
+      {
+        "knowledgePointId": "OS-C02-S04-P20",
+        "name": "信号量",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 5,
+        "primaryQuestionCount": 4,
+        "relatedQuestionCount": 6,
+        "primaryScore": 25,
+        "weightedExposure": 4.7,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 100.0
+      },
+      {
+        "knowledgePointId": "OS-C05-S01-P11",
+        "name": "设备驱动程序",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 5,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 6,
+        "primaryScore": 4,
+        "weightedExposure": 3.4,
+        "actualFrequency5y": 5,
+        "importance": 4,
+        "basePriority5y": 90.0
+      },
+      {
+        "knowledgePointId": "OS-C03-S05-P04",
+        "name": "缺页异常",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 5,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 8,
+        "primaryScore": 2,
+        "weightedExposure": 3.45,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 100.0
+      },
+      {
+        "knowledgePointId": "OS-C01-S03-P01",
+        "name": "用户态与内核态",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 7,
+        "primaryScore": 6,
+        "weightedExposure": 4.4,
+        "actualFrequency5y": 5,
+        "importance": 3,
+        "basePriority5y": 77.0
+      },
+      {
+        "knowledgePointId": "OS-C02-S03-P11",
+        "name": "优先级调度",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 4,
+        "primaryScore": 6,
+        "weightedExposure": 3.35,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 100.0
+      },
+      {
+        "knowledgePointId": "OS-C04-S01-P04",
+        "name": "inode",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 4,
+        "primaryScore": 4,
+        "weightedExposure": 2.7,
+        "actualFrequency5y": 5,
+        "importance": 4,
+        "basePriority5y": 86.4
+      },
+      {
+        "knowledgePointId": "OS-C01-S03-P06",
+        "name": "系统调用",
+        "years": [
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 6,
+        "primaryScore": 2,
+        "weightedExposure": 2.75,
+        "actualFrequency5y": 5,
+        "importance": 3,
+        "basePriority5y": 72.2
+      },
+      {
+        "knowledgePointId": "OS-C02-S03-P15",
+        "name": "调度算法计算",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 7,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 94.0
+      },
+      {
+        "knowledgePointId": "OS-C02-S04-P04",
+        "name": "同步",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 92.2
+      },
+      {
+        "knowledgePointId": "OS-C03-S03-P03",
+        "name": "页表",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 5,
+        "primaryScore": 0,
+        "weightedExposure": 1.75,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 89.5
+      },
+      {
+        "knowledgePointId": "OS-C02-S04-P23",
+        "name": "P操作",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 4,
+        "primaryScore": 0,
+        "weightedExposure": 1.4,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 88.0
+      },
+      {
+        "knowledgePointId": "OS-C02-S04-P24",
+        "name": "V操作",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 4,
+        "primaryScore": 0,
+        "weightedExposure": 1.4,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 88.0
+      },
+      {
+        "knowledgePointId": "OS-C02-S04-P03",
+        "name": "互斥",
+        "years": [
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 4,
+        "primaryScore": 0,
+        "weightedExposure": 1.4,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 88.0
+      },
+      {
+        "knowledgePointId": "OS-C05-S01-P07",
+        "name": "中断驱动I/O",
+        "years": [
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 3,
+        "relatedQuestionCount": 3,
+        "primaryScore": 12,
+        "weightedExposure": 3.0,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 90.2
+      },
+      {
+        "knowledgePointId": "OS-C01-S03-P12",
+        "name": "进程地址空间",
+        "years": [
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 4,
+        "primaryScore": 10,
+        "weightedExposure": 2.7,
+        "actualFrequency5y": 4,
+        "importance": 3,
+        "basePriority5y": 67.5
+      },
+      {
+        "knowledgePointId": "OS-C02-S03-P17",
+        "name": "上下文切换",
+        "years": [
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 3,
+        "primaryScore": 4,
+        "weightedExposure": 2.35,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 86.9
+      },
+      {
+        "knowledgePointId": "OS-C04-S03-P05",
+        "name": "位示图法",
+        "years": [
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 3,
+        "primaryScore": 4,
+        "weightedExposure": 2.35,
+        "actualFrequency5y": 4,
+        "importance": 4,
+        "basePriority5y": 76.9
+      },
+      {
+        "knowledgePointId": "OS-C01-S03-P03",
+        "name": "中断",
+        "years": [
+          2022,
+          2023,
+          2024
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 3,
+        "primaryScore": 4,
+        "weightedExposure": 2.35,
+        "actualFrequency5y": 4,
+        "importance": 4,
+        "basePriority5y": 70.9
+      },
+      {
+        "knowledgePointId": "OS-C03-S03-P05",
+        "name": "地址转换",
+        "years": [
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 5,
+        "primaryScore": 7,
+        "weightedExposure": 2.4,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 87.5
+      },
+      {
+        "knowledgePointId": "OS-C02-S02-P01",
+        "name": "共享内存",
+        "years": [
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 3,
+        "primaryScore": 2,
+        "weightedExposure": 1.7,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 82.7
+      }
+    ],
+    "CN": [
+      {
+        "knowledgePointId": "CN-C01-S01-P14",
+        "name": "往返时延RTT",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 5,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 5,
+        "primaryScore": 0,
+        "weightedExposure": 1.75,
+        "actualFrequency5y": 5,
+        "importance": 4,
+        "basePriority5y": 84.5
+      },
+      {
+        "knowledgePointId": "CN-C05-S03-P09",
+        "name": "TCP四次挥手",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 4,
+        "primaryScore": 4,
+        "weightedExposure": 2.7,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 96.4
+      },
+      {
+        "knowledgePointId": "CN-C05-S03-P07",
+        "name": "TCP三次握手",
+        "years": [
+          2022,
+          2024,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 5,
+        "primaryScore": 9,
+        "weightedExposure": 2.4,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 96.2
+      },
+      {
+        "knowledgePointId": "CN-C04-S03-P11",
+        "name": "子网掩码",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 5,
+        "primaryScore": 2,
+        "weightedExposure": 2.4,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 93.7
+      },
+      {
+        "knowledgePointId": "CN-C05-S06-P01",
+        "name": "拥塞窗口cwnd",
+        "years": [
+          2022,
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 92.2
+      },
+      {
+        "knowledgePointId": "CN-C05-S06-P02",
+        "name": "慢开始",
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "yearCount": 4,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 5,
+        "primaryScore": 0,
+        "weightedExposure": 1.75,
+        "actualFrequency5y": 5,
+        "importance": 5,
+        "basePriority5y": 89.5
+      },
+      {
+        "knowledgePointId": "CN-C06-S05-P03",
+        "name": "HTTP特点",
+        "years": [
+          2022,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 3,
+        "primaryScore": 4,
+        "weightedExposure": 2.35,
+        "actualFrequency5y": 4,
+        "importance": 3,
+        "basePriority5y": 63.9
+      },
+      {
+        "knowledgePointId": "CN-C04-S03-P12",
+        "name": "CIDR",
+        "years": [
+          2023,
+          2025,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 4,
+        "primaryScore": 2,
+        "weightedExposure": 2.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 84.2
+      },
+      {
+        "knowledgePointId": "CN-C03-S04-P12",
+        "name": "CSMA/CD",
+        "years": [
+          2022,
+          2023,
+          2025
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 3,
+        "primaryScore": 9,
+        "weightedExposure": 1.7,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 82.2
+      },
+      {
+        "knowledgePointId": "CN-C03-S05-P10",
+        "name": "IEEE802.11",
+        "years": [
+          2022,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 75.5
+      },
+      {
+        "knowledgePointId": "CN-C03-S06-P04",
+        "name": "以太网交换机",
+        "years": [
+          2022,
+          2024,
+          2026
+        ],
+        "yearCount": 3,
+        "primaryQuestionCount": 0,
+        "relatedQuestionCount": 3,
+        "primaryScore": 0,
+        "weightedExposure": 1.05,
+        "actualFrequency5y": 4,
+        "importance": 5,
+        "basePriority5y": 75.5
+      },
+      {
+        "knowledgePointId": "CN-C04-S03-P15",
+        "name": "NAT",
+        "years": [
+          2023,
+          2025
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 77.4
+      },
+      {
+        "knowledgePointId": "CN-C03-S04-P15",
+        "name": "CSMA/CA",
+        "years": [
+          2024,
+          2026
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 74.4
+      },
+      {
+        "knowledgePointId": "CN-C03-S05-P12",
+        "name": "VLAN",
+        "years": [
+          2024,
+          2026
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 74.4
+      },
+      {
+        "knowledgePointId": "CN-C03-S04-P14",
+        "name": "二进制指数退避",
+        "years": [
+          2023,
+          2025
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 74.4
+      },
+      {
+        "knowledgePointId": "CN-C02-S01-P08",
+        "name": "奈奎斯特定理",
+        "years": [
+          2022,
+          2023
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 2,
+        "relatedQuestionCount": 2,
+        "primaryScore": 4,
+        "weightedExposure": 2.0,
+        "actualFrequency5y": 3,
+        "importance": 4,
+        "basePriority5y": 64.4
+      },
+      {
+        "knowledgePointId": "CN-C04-S05-P09",
+        "name": "BGP",
+        "years": [
+          2024,
+          2026
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 2,
+        "primaryScore": 9,
+        "weightedExposure": 1.35,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 75.7
+      },
+      {
+        "knowledgePointId": "CN-C04-S03-P19",
+        "name": "DHCP工作过程",
+        "years": [
+          2022,
+          2025
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 2,
+        "primaryScore": 2,
+        "weightedExposure": 1.35,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 73.2
+      },
+      {
+        "knowledgePointId": "CN-C04-S05-P06",
+        "name": "OSPF",
+        "years": [
+          2024,
+          2026
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 2,
+        "primaryScore": 2,
+        "weightedExposure": 1.35,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 73.2
+      },
+      {
+        "knowledgePointId": "CN-C05-S02-P04",
+        "name": "UDP校验和",
+        "years": [
+          2024,
+          2025
+        ],
+        "yearCount": 2,
+        "primaryQuestionCount": 1,
+        "relatedQuestionCount": 2,
+        "primaryScore": 2,
+        "weightedExposure": 1.35,
+        "actualFrequency5y": 3,
+        "importance": 5,
+        "basePriority5y": 73.2
+      }
+    ]
+  }
+}

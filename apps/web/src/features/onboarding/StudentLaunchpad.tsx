@@ -188,6 +188,9 @@ export function StudentLaunchpad({
             <button type="button" className="secondary-action" onClick={() => onNavigate('score-center')}>
               今日提分
             </button>
+            <button type="button" className="secondary-action" onClick={() => onNavigate('knowledge-catalog')}>
+              408知识图谱
+            </button>
             <span>{heroProgressText}</span>
           </div>
         </div>

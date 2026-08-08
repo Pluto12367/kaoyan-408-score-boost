@@ -1,0 +1,174 @@
+import { useEffect, useMemo, useState } from 'react';
+import {
+  buildKnowledgePointIndex,
+  filterKnowledgeTree,
+  resolveKnowledgePointRefs,
+  searchKnowledgeTree,
+  summarizeSubject,
+  type CatalogAtomicPoint,
+  type CatalogPointContext,
+  type CatalogSearchResult,
+  type CatalogSubject,
+  type SubjectCode,
+} from '@kaoyan408/shared';
+import { getKnowledgeCatalog } from './catalogData';
+import { SUBJECT_NAMES, SUBJECT_ORDER } from './constants';
+import { KnowledgePointDetailDrawer } from './KnowledgePointDetailDrawer';
+import { KnowledgeTree, type ExpansionCommand } from './KnowledgeTree';
+
+export function KnowledgeCatalog() {
+  const catalog = useMemo(() => getKnowledgeCatalog(), []);
+  const [active, setActive] = useState<SubjectCode>('DS');
+  const [query, setQuery] = useState('');
+  const [onlyHighFrequency, setOnlyHighFrequency] = useState(false);
+  const [onlyHighImportance, setOnlyHighImportance] = useState(false);
+  const [expansion, setExpansion] = useState<ExpansionCommand>({ version: 0, mode: 'collapse' });
+  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (query.trim()) {
+      setExpansion((previous) => ({ version: previous.version + 1, mode: 'expand' }));
+    }
+  }, [query]);
+
+  const pointIndex = useMemo(() => buildKnowledgePointIndex(catalog), [catalog]);
+  const selectedContext = useMemo<CatalogPointContext | null>(
+    () => (selectedPointId ? pointIndex[selectedPointId] ?? null : null),
+    [selectedPointId, pointIndex],
+  );
+  const prerequisiteContexts = useMemo(
+    () => (selectedContext ? resolveKnowledgePointRefs(pointIndex, selectedContext.point.prerequisites) : []),
+    [selectedContext, pointIndex],
+  );
+  const relatedContexts = useMemo(
+    () => (selectedContext ? resolveKnowledgePointRefs(pointIndex, selectedContext.point.relatedPoints) : []),
+    [selectedContext, pointIndex],
+  );
+
+  const subject = catalog[active];
+  const summary = useMemo(() => summarizeSubject(subject), [subject]);
+
+  const filteredSubject = useMemo(
+    () => filterKnowledgeTree(subject, { onlyHighFrequency, onlyHighImportance }),
+    [subject, onlyHighFrequency, onlyHighImportance],
+  );
+
+  const matches = useMemo(
+    () => (query.trim() ? searchKnowledgeTree(catalog, query) : []),
+    [catalog, query],
+  );
+  const visibleMatches = useMemo(
+    () => matches.filter((match) => match.subjectCode === active),
+    [matches, active],
+  );
+  const visibleSubject = useMemo(
+    () => (query.trim() ? groupSearchMatches(filteredSubject, visibleMatches) : filteredSubject),
+    [filteredSubject, visibleMatches, query],
+  );
+  const hasResults = visibleSubject.chapters.some((chapter) => chapter.sections.length > 0);
+
+  const expandAll = () => setExpansion((previous) => ({ version: previous.version + 1, mode: 'expand' }));
+  const collapseAll = () => setExpansion((previous) => ({ version: previous.version + 1, mode: 'collapse' }));
+
+  return (
+    <section id="knowledge-catalog" className="panel" data-testid="knowledge-catalog">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">408 知识图谱</p>
+          <h3>知识点目录</h3>
+        </div>
+      </div>
+      <div className="report-tabs" role="tablist" aria-label="科目">
+        {SUBJECT_ORDER.map((code) => (
+          <button
+            key={code}
+            type="button"
+            role="tab"
+            id={`knowledge-subject-${code}`}
+            aria-selected={active === code}
+            className={`report-tab ${active === code ? 'active' : ''}`}
+            onClick={() => setActive(code)}
+          >
+            {SUBJECT_NAMES[code]}
+          </button>
+        ))}
+      </div>
+      <div className="catalog-filter-bar">
+        <input
+          type="search"
+          className="catalog-search"
+          placeholder="搜索当前科目知识点"
+          aria-label="搜索当前科目知识点"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+        <button
+          type="button"
+          className={`catalog-toggle${onlyHighFrequency ? ' active' : ''}`}
+          aria-pressed={onlyHighFrequency}
+          onClick={() => setOnlyHighFrequency((value) => !value)}
+        >
+          只看高频
+        </button>
+        <button
+          type="button"
+          className={`catalog-toggle${onlyHighImportance ? ' active' : ''}`}
+          aria-pressed={onlyHighImportance}
+          onClick={() => setOnlyHighImportance((value) => !value)}
+        >
+          重要度 ≥ 4
+        </button>
+        <button type="button" className="catalog-toggle" onClick={expandAll}>全部展开</button>
+        <button type="button" className="catalog-toggle" onClick={collapseAll}>全部收起</button>
+      </div>
+      <div className="catalog-summary" aria-label={`${SUBJECT_NAMES[active]}汇总`}>
+        <span>章节数：{summary.chapterCount}</span>
+        <span>小节数：{summary.sectionCount}</span>
+        <span>原子知识点数：{summary.atomicPointCount}</span>
+      </div>
+      {hasResults ? (
+        <KnowledgeTree
+          key={subject.code}
+          subject={visibleSubject}
+          expansionCommand={expansion}
+          onSelectPoint={(point) => setSelectedPointId(point.id)}
+        />
+      ) : (
+        <p className="empty-state">没有符合条件的知识点</p>
+      )}
+      <KnowledgePointDetailDrawer
+        open={selectedPointId !== null}
+        onClose={() => setSelectedPointId(null)}
+        context={selectedContext}
+        prerequisiteContexts={prerequisiteContexts}
+        relatedContexts={relatedContexts}
+      />
+    </section>
+  );
+}
+
+function groupSearchMatches(subject: CatalogSubject, matches: CatalogSearchResult[]): CatalogSubject {
+  const matchedIdsBySection = new Map<string, Set<string>>();
+  for (const match of matches) {
+    const ids = matchedIdsBySection.get(match.sectionId) ?? new Set<string>();
+    ids.add(match.point.id);
+    matchedIdsBySection.set(match.sectionId, ids);
+  }
+  return {
+    ...subject,
+    chapters: subject.chapters
+      .map((chapter) => ({
+        ...chapter,
+        sections: chapter.sections
+          .map((section) => {
+            const matchedIds = matchedIdsBySection.get(section.id);
+            const points = matchedIds
+              ? section.points.filter((point: CatalogAtomicPoint) => matchedIds.has(point.id))
+              : [];
+            return { ...section, points };
+          })
+          .filter((section) => section.points.length > 0),
+      }))
+      .filter((chapter) => chapter.sections.length > 0),
+  };
+}

@@ -89,6 +89,7 @@ const StageAssessmentPanel = lazy(() => import('./features/assessment/StageAsses
 const StudyPlanOverview = lazy(() => import('./features/plan/StudyPlanOverview').then((m) => ({ default: m.StudyPlanOverview })));
 const TodayPlan = lazy(() => import('./components/TodayPlan').then((m) => ({ default: m.TodayPlan })));
 const TodaysScoreCenter = lazy(() => import('./features/today-score-center/TodaysScoreCenter').then((m) => ({ default: m.TodaysScoreCenter })));
+const KnowledgeCatalog = lazy(() => import('./features/knowledge-catalog/KnowledgeCatalog').then((m) => ({ default: m.KnowledgeCatalog })));
 
 export function App() {
   const {
@@ -1385,6 +1386,11 @@ paperId: paper.id,
         {visibleSection === 'score-center' ? (
           <Suspense fallback={sectionFallback('今日提分')}>
             <TodaysScoreCenter />
+          </Suspense>
+        ) : null}
+        {visibleSection === 'knowledge-catalog' ? (
+          <Suspense fallback={sectionFallback('408知识图谱')}>
+            <KnowledgeCatalog />
           </Suspense>
         ) : null}
         </StudentLayout>
