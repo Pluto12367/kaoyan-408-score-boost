@@ -160,6 +160,100 @@ function subjectCounts(ids, byId) {
   return counts;
 }
 
+/**
+ * Build GoldSampleEntry[] for the locked splitDevHoldout contract from a
+ * snapshot and the sampled question ids. Entries carry only sampling metadata
+ * (subject / KP ids / difficulty / source / year / fingerprint) — never future
+ * Gold PRIMARY/SECONDARY or retrieval/embedding/AI results.
+ */
+function sampleEntries(ids, snapshot) {
+  const byId = questionById(snapshot);
+  const kpsByQuestion = new Map();
+  for (const relation of snapshot.questionKnowledgePoints) {
+    const kps = kpsByQuestion.get(relation.questionId) ?? new Set();
+    kps.add(relation.knowledgePointId);
+    kpsByQuestion.set(relation.questionId, kps);
+  }
+  return ids.map((id) => {
+    const question = byId.get(id);
+    return {
+      questionId: id,
+      subject: question.subject,
+      knowledgePointIds: [...(kpsByQuestion.get(id) ?? [])].sort(),
+      difficulty: question.difficulty ?? null,
+      source: question.source ?? null,
+      year: question.year ?? null,
+      contentFingerprint: question.contentFingerprint ?? null,
+    };
+  });
+}
+
+function makeEntry({ subject, index, kpIndex, difficulty, source, year }) {
+  const id = `${subject}-q-${String(index + 1).padStart(2, '0')}`;
+  return {
+    questionId: id,
+    subject,
+    knowledgePointIds: [`${subject}-kp-${String(kpIndex + 1).padStart(2, '0')}`],
+    difficulty,
+    source,
+    year,
+    contentFingerprint: `fp-${id}`,
+  };
+}
+
+/**
+ * 10 GoldSampleEntries for one subject with kpCount rotating knowledge points
+ * and rotating difficulty/source/year.
+ */
+function subjectEntries(subject, kpCount) {
+  const entries = [];
+  for (let index = 0; index < 10; index += 1) {
+    entries.push(makeEntry({
+      subject,
+      index,
+      kpIndex: index % kpCount,
+      difficulty: DIFFICULTIES[index % DIFFICULTIES.length],
+      source: SOURCES[index % SOURCES.length],
+      year: YEARS[index % YEARS.length],
+    }));
+  }
+  return entries;
+}
+
+function fortyEntries(kpCount) {
+  return SUBJECTS.flatMap((subject) => subjectEntries(subject, kpCount));
+}
+
+/**
+ * Pattern that forces the diversity objective: q-02 repeats the difficulty of
+ * q-01 while q-03 covers the same new KP without repeating difficulty/source/
+ * year, so a KP-stratified splitter must prefer q-03 over q-02 at the first
+ * diversity tie.
+ */
+function diversitySubjectEntries(subject) {
+  const spec = [
+    { kpIndex: 0, difficulty: 'BASIC', source: 'fixture-basic', year: 2024 },
+    { kpIndex: 1, difficulty: 'BASIC', source: 'fixture-basic', year: 2024 },
+    { kpIndex: 1, difficulty: 'MEDIUM', source: 'fixture-variant', year: 2025 },
+    { kpIndex: 2, difficulty: 'HARD', source: 'fixture-exam', year: 2026 },
+    { kpIndex: 2, difficulty: 'MEDIUM', source: 'fixture-variant', year: 2025 },
+    { kpIndex: 3, difficulty: 'HARD', source: 'fixture-basic', year: 2024 },
+    { kpIndex: 0, difficulty: 'MEDIUM', source: 'fixture-exam', year: 2026 },
+    { kpIndex: 1, difficulty: 'HARD', source: 'fixture-variant', year: 2025 },
+    { kpIndex: 2, difficulty: 'BASIC', source: 'fixture-exam', year: 2026 },
+    { kpIndex: 3, difficulty: 'MEDIUM', source: 'fixture-basic', year: 2024 },
+  ];
+  return spec.map((item, index) => makeEntry({ subject, index, ...item }));
+}
+
+function holdoutKps(holdoutIds, entriesById) {
+  const kps = new Set();
+  for (const id of holdoutIds) {
+    for (const kpId of entriesById.get(id).knowledgePointIds) kps.add(kpId);
+  }
+  return kps;
+}
+
 function buildEntries(ids, snapshot, { dev, holdout }) {
   const byId = questionById(snapshot);
   return ids.map((id) => ({
@@ -172,7 +266,8 @@ function buildEntries(ids, snapshot, { dev, holdout }) {
 }
 
 function buildManifest(ids, snapshot) {
-  const { dev, holdout } = splitDevHoldout(ids);
+  const sample = sampleEntries(ids, snapshot);
+  const { dev, holdout } = splitDevHoldout(sample);
   const entries = buildEntries(ids, snapshot, { dev, holdout });
   return buildGoldManifest({ goldVersion: 'gold-sample-v1', snapshotId: snapshot.snapshotId, entries });
 }
@@ -193,10 +288,11 @@ test('sampleGoldQuestionIds returns 40 deterministic ids, 10 per subject, only I
 test('splitDevHoldout freezes 24/16 deterministically', () => {
   const snapshot = buildFixtureSnapshot();
   const ids = sampleGoldQuestionIds(snapshot);
-  const { dev, holdout } = splitDevHoldout(ids);
+  const entries = sampleEntries(ids, snapshot);
+  const { dev, holdout } = splitDevHoldout(entries);
   assert.equal(dev.length, 24);
   assert.equal(holdout.length, 16);
-  assert.deepEqual(splitDevHoldout(ids), { dev, holdout });
+  assert.deepEqual(splitDevHoldout(entries), { dev, holdout });
 });
 
 test('A: only INDEPENDENT_UNIT questions are ever selected', () => {
@@ -226,7 +322,10 @@ test('C: same logical input in different order yields same 40 ids, order and spl
   };
   const idsShuffled = sampleGoldQuestionIds(shuffled);
   assert.deepEqual(idsShuffled, ids);
-  assert.deepEqual(splitDevHoldout(idsShuffled), splitDevHoldout(ids));
+  assert.deepEqual(
+    splitDevHoldout(sampleEntries(idsShuffled, shuffled)),
+    splitDevHoldout(sampleEntries(ids, snapshot)),
+  );
 });
 
 test('D: every referenced knowledge point is covered by the gold sample', () => {
@@ -275,7 +374,7 @@ test('E: exact duplicate copies never enter gold even when the representative is
 test('F: dev/holdout split is exactly 24/16 with 6/4 per subject', () => {
   const snapshot = buildFixtureSnapshot();
   const ids = sampleGoldQuestionIds(snapshot);
-  const { dev, holdout } = splitDevHoldout(ids);
+  const { dev, holdout } = splitDevHoldout(sampleEntries(ids, snapshot));
   assert.equal(dev.length, 24);
   assert.equal(holdout.length, 16);
   const byId = questionById(snapshot);
@@ -286,6 +385,88 @@ test('F: dev/holdout split is exactly 24/16 with 6/4 per subject', () => {
   assert.equal(new Set(holdout).size, 16);
   const overlap = dev.filter((id) => holdout.includes(id));
   assert.deepEqual(overlap, []);
+});
+
+test('split A: holdout covers 4/4 knowledge points per subject when the gold sample has 4 KPs per subject', () => {
+  const entries = fortyEntries(4);
+  const { holdout } = splitDevHoldout(entries);
+  const entriesById = new Map(entries.map((entry) => [entry.questionId, entry]));
+  assert.equal(holdout.length, 16);
+  for (const subject of SUBJECTS) {
+    const subjectHoldout = holdout.filter((id) => id.startsWith(subject));
+    const covered = holdoutKps(subjectHoldout, entriesById);
+    assert.equal(subjectHoldout.length, 4, `${subject} must have exactly 4 holdout questions`);
+    assert.equal(covered.size, 4, `${subject} holdout must cover 4/4 KPs (got ${[...covered].join(',')})`);
+  }
+});
+
+test('split B: holdout/dev are identical regardless of input entry order', () => {
+  const entries = fortyEntries(4);
+  const shuffled = [...entries].reverse();
+  assert.deepEqual(splitDevHoldout(shuffled), splitDevHoldout(entries));
+});
+
+test('split C: on KP coverage ties the diversity objective deterministically improves difficulty/source/year spread', () => {
+  const entries = SUBJECTS.flatMap((subject) => diversitySubjectEntries(subject));
+  const { holdout } = splitDevHoldout(entries);
+  const holdoutSet = new Set(holdout);
+  const entriesById = new Map(entries.map((entry) => [entry.questionId, entry]));
+  for (const subject of SUBJECTS) {
+    assert.ok(holdoutSet.has(`${subject}-q-03`), `${subject} diversity pick q-03 should be in holdout`);
+    assert.ok(!holdoutSet.has(`${subject}-q-02`), `${subject} q-02 repeats holdout difficulty and must be skipped`);
+    const subjectHoldout = holdout.filter((id) => id.startsWith(subject));
+    const selected = subjectHoldout.map((id) => entriesById.get(id));
+    assert.ok(new Set(selected.map((entry) => entry.difficulty)).size >= 3, `${subject} holdout difficulty spread`);
+    assert.ok(new Set(selected.map((entry) => entry.source)).size >= 3, `${subject} holdout source spread`);
+    assert.ok(new Set(selected.map((entry) => entry.year)).size >= 3, `${subject} holdout year spread`);
+  }
+});
+
+test('split D: a subject with more than 4 referenced KPs reaches the maximal achievable coverage of 4 without failing', () => {
+  const entries = fortyEntries(6);
+  const { holdout } = splitDevHoldout(entries);
+  const entriesById = new Map(entries.map((entry) => [entry.questionId, entry]));
+  for (const subject of SUBJECTS) {
+    const subjectHoldout = holdout.filter((id) => id.startsWith(subject));
+    const covered = holdoutKps(subjectHoldout, entriesById);
+    assert.equal(subjectHoldout.length, 4);
+    assert.equal(covered.size, 4, `${subject} max achievable holdout KP coverage is 4`);
+  }
+});
+
+test('split E: a subject with fewer than 4 referenced KPs covers all of them first, then fills by diversity', () => {
+  const entries = fortyEntries(2);
+  const { holdout } = splitDevHoldout(entries);
+  const entriesById = new Map(entries.map((entry) => [entry.questionId, entry]));
+  for (const subject of SUBJECTS) {
+    const subjectHoldout = holdout.filter((id) => id.startsWith(subject));
+    const covered = holdoutKps(subjectHoldout, entriesById);
+    assert.equal(subjectHoldout.length, 4);
+    assert.equal(covered.size, 2, `${subject} holdout must cover both referenced KPs`);
+  }
+});
+
+test('split G: split never consumes future gold/retrieval/embedding metadata', async () => {
+  const entries = fortyEntries(4);
+  const baseline = splitDevHoldout(entries);
+  const withFutureMetadata = entries.map((entry, index) => ({
+    ...entry,
+    primaryNodeId: `future-primary-${index}`,
+    secondaryNodeIds: [`future-secondary-${index}`],
+    embeddingScore: index,
+    lexicalScore: 1000 - index,
+    rrfRank: index,
+    aiSuggestion: index % 2 === 0 ? 'SUGGEST' : 'NEEDS_REVIEW',
+  }));
+  assert.deepEqual(splitDevHoldout(withFutureMetadata), baseline);
+
+  const source = await import('node:fs/promises').then(({ readFile }) =>
+    readFile(new URL('../core/sample.js', import.meta.url), 'utf8'));
+  const match = source.match(/export function splitDevHoldout\([\s\S]*?\n\}/);
+  assert.ok(match, 'splitDevHoldout function body not found');
+  for (const token of ['primaryNodeId', 'secondaryNodeIds', 'embedding', 'lexical', 'benchmark', 'retrieval', 'aiSuggestion', 'rrfRank']) {
+    assert.ok(!match[0].includes(token), `splitDevHoldout must not read ${token}`);
+  }
 });
 
 test('G: gold manifest binds to the snapshot identity and validates', () => {
@@ -366,7 +547,7 @@ test('J: sampler and manifest builder never mutate their inputs', () => {
   const snapshot = buildFixtureSnapshot();
   const beforeSnapshot = JSON.stringify(snapshot);
   const ids = sampleGoldQuestionIds(snapshot);
-  const { dev, holdout } = splitDevHoldout(ids);
+  const { dev, holdout } = splitDevHoldout(sampleEntries(ids, snapshot));
   const input = {
     goldVersion: 'gold-sample-v1',
     snapshotId: snapshot.snapshotId,

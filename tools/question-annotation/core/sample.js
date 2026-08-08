@@ -6,7 +6,6 @@ export const GOLD_TOTAL = 40;
 export const DEV_TOTAL = 24;
 export const HOLDOUT_TOTAL = 16;
 export const SUBJECTS = ['DS', 'CO', 'OS', 'CN'];
-export const HOLDOUT_INDICES = [1, 4, 7, 9];
 
 function sortedQuestionIds(questions) {
   return [...questions].map((question) => question.id).sort((a, b) => a.localeCompare(b));
@@ -122,27 +121,77 @@ export function sampleGoldQuestionIds(snapshot) {
 }
 
 /**
- * Deterministic Dev/Holdout freeze over the 40 ids returned by
- * sampleGoldQuestionIds. The input is four contiguous subject blocks of 10
- * (subject, questionId sorted); within each block the fixed HOLDOUT_INDICES
- * [1, 4, 7, 9] become HOLDOUT (4 per subject, 16 total) and the rest become
- * DEV (6 per subject, 24 total). Holdout is frozen and must never be used for
- * tuning. The feasibility-class ordering described in the plan is not
- * available through this locked signature (the snapshot/workspace do not carry
- * feasibility audit data), so the deterministic per-subject questionId order
- * is used as the stable stand-in.
+ * Deterministic stratified Dev/Holdout freeze over the 40 Gold sample entries.
+ * Each entry must carry sampling metadata (questionId, subject,
+ * knowledgePointIds, difficulty, source, year); the splitter reads ONLY these
+ * fields and never future Gold PRIMARY/SECONDARY or retrieval/embedding/AI
+ * results. Each subject independently selects 4 HOLDOUT entries:
+ *
+ * Priority 1 — maximize knowledge point coverage: pick the candidate adding the
+ *   most knowledge points not yet covered by the holdout. When a subject's
+ *   referenced KP count is <= 4 and those KPs exist in the gold sample, the
+ *   holdout covers all of them (real production: 4/4 per subject).
+ * Priority 2 — diversity: on coverage ties, minimize repetition of
+ *   difficulty/source/year already present in the holdout.
+ * Priority 3 — deterministic tie-break: questionId ASC.
+ *
+ * The remaining 6 entries per subject become DEV (DEV ∪ HOLDOUT = Gold,
+ * DEV ∩ HOLDOUT = ∅). Output is input-order independent: entries are grouped
+ * and sorted by subject/questionId internally. No Math.random / Date.now / DB
+ * ordering is used; the result is fully reproducible.
  */
-export function splitDevHoldout(goldQuestionIds) {
-  if (!Array.isArray(goldQuestionIds) || goldQuestionIds.length !== GOLD_TOTAL) {
-    throw new Error(`splitDevHoldout expects exactly ${GOLD_TOTAL} gold question ids, got ${goldQuestionIds?.length ?? 'none'}`);
+export function splitDevHoldout(sampleEntries) {
+  if (!Array.isArray(sampleEntries) || sampleEntries.length !== GOLD_TOTAL) {
+    throw new Error(`splitDevHoldout expects exactly ${GOLD_TOTAL} gold sample entries, got ${sampleEntries?.length ?? 'none'}`);
   }
+  const bySubject = new Map();
+  for (const entry of sampleEntries) {
+    if (!entry || typeof entry.questionId !== 'string' || !SUBJECTS.includes(entry.subject)) {
+      throw new Error('splitDevHoldout entry missing questionId or subject');
+    }
+    const list = bySubject.get(entry.subject) ?? [];
+    list.push(entry);
+    bySubject.set(entry.subject, list);
+  }
+  for (const subject of SUBJECTS) {
+    if ((bySubject.get(subject)?.length ?? 0) !== GOLD_PER_SUBJECT) {
+      throw new Error(`splitDevHoldout subject ${subject} has ${bySubject.get(subject)?.length ?? 0} entries, expected ${GOLD_PER_SUBJECT}`);
+    }
+  }
+
   const dev = [];
   const holdout = [];
-  for (let block = 0; block < 4; block += 1) {
-    const slice = goldQuestionIds.slice(block * GOLD_PER_SUBJECT, block * GOLD_PER_SUBJECT + GOLD_PER_SUBJECT);
-    for (let index = 0; index < slice.length; index += 1) {
-      if (HOLDOUT_INDICES.includes(index)) holdout.push(slice[index]);
-      else dev.push(slice[index]);
+  for (const subject of SUBJECTS) {
+    const candidates = [...bySubject.get(subject)].sort((a, b) => a.questionId.localeCompare(b.questionId));
+    const chosen = [];
+    const coveredKps = new Set();
+    while (chosen.length < 4) {
+      let best = null;
+      let bestKey = null;
+      for (const candidate of candidates) {
+        if (chosen.includes(candidate)) continue;
+        const kpIds = candidate.knowledgePointIds ?? [];
+        const newKpCount = kpIds.filter((kpId) => !coveredKps.has(kpId)).length;
+        const repetition =
+          chosen.filter((item) => item.difficulty === candidate.difficulty).length +
+          chosen.filter((item) => item.source === candidate.source).length +
+          chosen.filter((item) => item.year === candidate.year).length;
+        const key = `${String(-newKpCount).padStart(4, '0')}|${String(repetition).padStart(4, '0')}|${candidate.questionId}`;
+        if (bestKey === null || key < bestKey) {
+          best = candidate;
+          bestKey = key;
+        }
+      }
+      if (!best) {
+        throw new Error(`splitDevHoldout cannot select 4 holdout entries for subject ${subject}`);
+      }
+      chosen.push(best);
+      for (const kpId of best.knowledgePointIds ?? []) coveredKps.add(kpId);
+    }
+    const chosenSet = new Set(chosen);
+    for (const candidate of candidates) {
+      if (chosenSet.has(candidate)) holdout.push(candidate.questionId);
+      else dev.push(candidate.questionId);
     }
   }
   return { dev, holdout };
