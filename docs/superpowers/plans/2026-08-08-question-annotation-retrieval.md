@@ -73,7 +73,8 @@ function fingerprintPayloadHash(question: { stem: string; options: string[]; ans
 
 // core/sample.js
 function sampleGoldQuestionIds(snapshot: AnnotationSnapshot): string[];          // 40，deterministic
-function splitDevHoldout(goldQuestionIds: string[]): { dev: string[]; holdout: string[] }; // 24/16，deterministic
+type GoldSampleEntry = { questionId: string; subject: string; knowledgePointIds: string[]; difficulty: string | null; source: string | null; year: number | null; contentFingerprint: string | null };
+function splitDevHoldout(sampleEntries: GoldSampleEntry[]): { dev: string[]; holdout: string[] }; // 24/16，stratified deterministic（KP 覆盖最大化 → difficulty/source/year diversity → questionId ASC）
 function buildGoldManifest(input: { goldVersion: string; snapshotId: string; entries: Array<{ questionId: string; contentFingerprint: string; primaryNodeId: string; secondaryNodeIds: string[] }> }): Record<string, unknown>;
 
 // core/gold.js
@@ -375,6 +376,8 @@ git commit -m "feat: add sqlite annotation workspace"
 - Consumes: `AnnotationSnapshot`（含 `roles`、`questions`、`questionKnowledgePoints`）。
 - Produces: `sampleGoldQuestionIds`、`splitDevHoldout`、`buildGoldManifest`（签名见 Locked Interfaces）。
 
+> Amendment（Task 4 Review Fix）：`splitDevHoldout` 不再接收裸 question ID 数组，改为接收 `GoldSampleEntry[]`（含 subject / knowledgePointIds / difficulty / source / year / contentFingerprint），按 subject 独立做分层 Holdout 冻结；禁止通过 global state 或 workspace singleton 获取 metadata。
+
 - [ ] **Step 1: 写 failing test**
 
 `sample.test.mjs`：
@@ -388,10 +391,11 @@ test('sampleGoldQuestionIds returns 40 deterministic ids, 10 per subject, only I
 });
 
 test('splitDevHoldout freezes 24/16 deterministically', () => {
-  const { dev, holdout } = splitDevHoldout(sampleGoldQuestionIds(fixtureSnapshot));
+  const entries = /* GoldSampleEntry[]：由 snapshot + 40 个 sampled ids 构造 */ sampleEntries(fixtureSnapshot, sampleGoldQuestionIds(fixtureSnapshot));
+  const { dev, holdout } = splitDevHoldout(entries);
   assert.equal(dev.length, 24);
   assert.equal(holdout.length, 16);
-  assert.deepEqual(splitDevHoldout(sampleGoldQuestionIds(fixtureSnapshot)), { dev, holdout });
+  assert.deepEqual(splitDevHoldout(entries), { dev, holdout });
 });
 ```
 
@@ -409,7 +413,15 @@ Run: `node --test tools/question-annotation/test/sample.test.mjs` → FAIL。
 // 3) 全部 40 按 (subject, questionId) 排序返回
 ```
 
-Dev/Holdout 拆分（deterministic）：每科 10 题按 `(feasibilityClassOrder, kpId, questionId)` 排序，取固定下标 `[1, 4, 7, 9]` 为 Holdout（每科 4 → 16），其余为 Dev（每科 6 → 24）。`feasibilityClassOrder = ['READY','REVIEWABLE','BROAD','INSUFFICIENT']`。Holdout 冻结，禁止参与后续调参。
+Dev/Holdout 拆分（stratified deterministic，Task 4 Review Fix）：每科 10 个 `GoldSampleEntry` 独立选择 4 个 Holdout。每步 greedy 选择：
+
+```text
+Priority 1 — 新增尚未被 Holdout 覆盖的 knowledgePoint 数最多（当前每题单 KP 时为 0/1；某科 referenced KP <= 4 且 Gold 中存在时，Holdout 必须覆盖全部）
+Priority 2 — 最小化 Holdout 中已选 difficulty / source / year 的重复（复用 Task 4 sampling 的 diversity cost 语义）
+Priority 3 — questionId ASC（禁止 random / Date.now / DB ordering）
+```
+
+每科 Holdout 4 道冻结后，同科剩余 6 道 Gold 即为 Dev（DEV ∪ HOLDOUT = Gold，DEV ∩ HOLDOUT = ∅）。Holdout 冻结，禁止参与后续调参；split 只允许使用 subject / KP / difficulty / source / year / question identity metadata，禁止读取未来 Gold PRIMARY/SECONDARY、lexical/embedding/RRF/benchmark/AI 结果，否则视为 Holdout leakage。
 
 `buildGoldManifest` 只含 `goldVersion/snapshotId/entries[{questionId, contentFingerprint, primaryNodeId, secondaryNodeIds}]/sha256`，不含题干正文。
 
