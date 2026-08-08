@@ -1,0 +1,11 @@
+{
+  "name": "@kaoyan408/question-annotation",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "export-snapshot": "node scripts/export-snapshot.mjs",
+    "gold": "node scripts/gold-author.mjs",
+    "benchmark": "node scripts/run-benchmark.mjs"
+  }
+}
