@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { canonicalJsonHash } from './canonical.js';
 
 export const BENCHMARK_VERSION = 'retrieval-benchmark-v1';
 export const GATE_RECALL8_MIN = 15 / 16;
@@ -15,16 +15,6 @@ export function selectSplitEntries(entries, split) {
   return (entries ?? []).filter((entry) => entry.split === split);
 }
 
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === 'object') {
-    const out = {};
-    for (const key of Object.keys(value).sort()) out[key] = canonicalize(value[key]);
-    return out;
-  }
-  return value;
-}
-
 /**
  * Deterministic SHA256 over the canonical (key-sorted) final retriever config.
  * Key order does not matter; any retrieval-relevant field change changes the
@@ -32,7 +22,7 @@ function canonicalize(value) {
  * the hash.
  */
 export function finalRetrieverConfigHash(config) {
-  return createHash('sha256').update(JSON.stringify(canonicalize(config))).digest('hex');
+  return canonicalJsonHash(config);
 }
 
 export function validateFrozenConfig(config, expectedHash) {
