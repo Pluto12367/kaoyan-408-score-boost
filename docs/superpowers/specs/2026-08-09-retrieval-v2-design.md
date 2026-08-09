@@ -2,7 +2,7 @@
 
 Date: 2026-08-09
 
-Status: DESIGN COMPLETE — awaiting design review. No implementation plan and no V2 code are produced by this document.
+Status: DESIGN AMENDED — Difficulty Spread amendment approved before V2-2; V2-2 remains blocked pending V2-1R2 and human sample acceptance.
 
 Approved direction: **Option 1 — Multi-view Semantic Retrieval + Deterministic KnowledgeNode Passage Enrichment**, keeping the existing E5 embedding model unchanged.
 
@@ -320,18 +320,26 @@ The corpus is sufficient: 286 ≥ 100. No synthetic questions are needed. Sampli
 
 ## 29. V2 Gold Sampling
 
-Deterministic stratified sample of 100 from the 286 remaining independent current questions:
+Deterministic joint-constrained sample of 100 from the 286 remaining independent current questions:
 
-- subject: 25 per subject.
-- KnowledgePoint: every referenced KP represented in DEV; HOLDOUT covers all subjects and includes the known difficult KPs (co-cache, co-data, ds-sort, os-file).
-- difficulty: target ≈ BASIC 40% / MEDIUM 40% / HARD 20%.
-- source/year: prefer variety (all remaining are 2026; source mix 基础题/变式题/教师新增 as available).
-- chapter diversity: spread across chapters per subject.
-- Sampling is computed from workspace data only (no hardcoded production counts; no targeting of the 3 old misses).
+- subject: exactly 25 per subject.
+- KnowledgePoint: each subject has exactly four required KPs; one contributes 7 questions and the other three contribute 6 questions (`7 + 6 + 6 + 6 = 25`). Counts outside 6/7 are forbidden.
+- difficulty: exactly BASIC 10 / MEDIUM 10 / HARD 5 per subject (global 40/40/20).
+- eligibility: current `INDEPENDENT_UNIT` only; old V1 Gold question id, exact fingerprint, and version family are excluded.
+- ownership: every selected question must have exactly one relation to a subject-local member of `REQUIRED_V2_KP_SET`; the frozen eligible pool has zero multi-KP and zero unlinked questions.
+- constraint solving: KP balance and difficulty quotas are solved simultaneously over unique questions. A sequential “cover each KP, then fill difficulty” algorithm is forbidden.
+- matrix optimization: enumerate all hard-feasible KP × difficulty allocation matrices, then select by the locked Difficulty Spread objective sequence in §56: minimum maximum HARD count, minimum HARD range, minimum integer difficulty-composition deviation, stable extra-7 ownership, then canonical matrix order.
+- question selection: after the winning matrix is frozen, select `questionId ASC` within every KP × difficulty cell. Question ids are a final within-cell tie-break, not the primary matrix objective.
+- fail closed: if no exact joint assignment exists for any subject, output `SAMPLING DESIGN BLOCKED` with the subject and KP × difficulty shortage diagnostics. No 5–8 tolerance or other relaxation is allowed.
+- source/year/chapter are diagnostics only. They are not sampling objectives: question-level chapter is unavailable, source is highly concentrated, and all eligible questions have year 2026.
+- Sampling is computed from workspace data only and does not target the three old V1 misses.
+
+The next replacement sample is versioned as `gold-sample-v2r2` and will be stored locally as `gold-sample-v2r2.json`. Both earlier samples are permanently classified as `REJECTED_PRE_SPLIT_SAMPLE`: `gold-sample-v2` SHA `439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc` failed KP balance, and `gold-sample-v2r` SHA `368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854` failed difficulty × KP spread. Retain both as historical evidence, but never split, author, benchmark, or evaluate either one.
 
 ## 30. V2 Split
 
 - 72 DEV / 28 HOLDOUT; 18/7 per subject.
+- V2-2 accepts only a validated and explicitly human-accepted `gold-sample-v2r2` manifest. It must reject `gold-sample-v2` SHA `439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc` and `gold-sample-v2r` SHA `368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854`.
 - Split is frozen before any V2 retrieval tuning.
 
 ## 31. Gold Truth Authoring
@@ -348,7 +356,9 @@ Deterministic stratified sample of 100 from the 286 remaining independent curren
 ## 33. V2 Version Isolation
 
 ```text
-gold-sample-v2.json
+gold-sample-v2.json   (REJECTED_PRE_SPLIT_SAMPLE; historical evidence only)
+gold-sample-v2r.json  (REJECTED_PRE_SPLIT_SAMPLE; balanced KP but rejected difficulty × KP spread)
+gold-sample-v2r2.json (next replacement; required by V2-2 and V2-3 only after explicit human acceptance)
 gold-set-v2.json
 gold-truth-v2.json
 ```
@@ -515,6 +525,7 @@ Recommendation: **Option 1**. No blocker found in the schema audit (286 remainin
 
 ## 50. Acceptance Criteria for V2
 
+- The accepted 100-question sample must be `gold-sample-v2r2`, with exact 25/subject, KP counts `7/6/6/6` per subject, difficulty 10/10/5 per subject, and the locked Difficulty Spread matrix objective; rejected SHAs `439f3527...92a2fc` and `368c025c...90854` are never consumed downstream.
 - Multi-view semantic retrieval implemented per this design (stem + analysis RRF k=60).
 - Deterministic canonical labeled hierarchical passage (`knowledge-node-passage-v2` / `canonical-labeled-hierarchical-passage-v2`) with the locked format.
 - No nodeId in semantic text; no aliases/keywords/description invented.
@@ -533,6 +544,7 @@ Recommendation: **Option 1**. No blocker found in the schema audit (286 remainin
 - Fusion: with full same-subject rankings feeding RRF (no pre-fusion truncation), a node at stem rank 14 with analysis rank 1 still receives both contributions and can be rescued into Top12 — this directly addresses the V1 boundary misses.
 - Data roles: old 40 → regression only; new 72 → selection; new 28 → blind final gate. Old 40 never enters the selection metric.
 - Gold: new HOLDOUT truth authoring is not influenced by retriever output, and the split is hidden from authoring UX.
+- Sampling: KP and difficulty constraints are solved jointly; the five-level Difficulty Spread objective selects the matrix; chapter/source/year are diagnostics only; both rejected pre-split samples are retained but excluded from every V2 data role.
 
 ## 52. Design Review Amendment (2026-08-09)
 
@@ -544,17 +556,154 @@ Resolutions from the design review:
 4. Gold authoring hides the split in the authoring UX (manifest still stores the frozen split); retriever output remains forbidden as the Gold oracle.
 5. The Holdout Gate is locked to a single standard: PRIMARY Recall@8 >= 27/28 (96.43%), PRIMARY Recall@12 = 28/28 (100%), Macro >= 0.90, safety all zero.
 
-## 52. Alternatives Rejected
+## 53. Alternatives Rejected
 
 - Max similarity (Approach B): a single noisy view can dominate raw-score ranking.
 - Weighted similarity (Approach C): unprincipled α/β, overfitting risk.
 - Lexical hybrid in V2 first version (Option 2): deferred; old 3-way fusion was not proven on a fresh test set.
 - Model replacement / reranker (Option 3): no evidence that a different model fixes the diagnosed representation issues; violates controlled-variable principle.
 
-## 53. Safety
+## 54. Safety
 
 - Retrieval V1 modified: NO
 - Old HOLDOUT reused as final test: NO
 - Gold modified: NO
 - Knowledge tree modified: NO
-- V2 implementation started: NO
+- V2-1R2 implementation started: NO
+
+## 55. Sampling Design Amendment (2026-08-09)
+
+Historical status: APPROVED AND IMPLEMENTED, BUT ITS REAL SAMPLE WAS LATER REJECTED. Superseded by §56 before V2-2. No DEV/HOLDOUT split exists and no V2 Gold authoring has started.
+
+### Rejected pre-split sample
+
+The first V2-1 output satisfied the original hard margins but failed the Sample Quality Audit:
+
+```text
+manifest SHA: 439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc
+status:       REJECTED_PRE_SPLIT_SAMPLE
+forbidden:    V2-2 split, V2 Gold authoring, V2 DEV selection, V2 final HOLDOUT
+```
+
+Observed concentration included `co-data = 15/25`, OS `进程管理 = 23/25`, multiple KPs at `1/25`, and HARD questions concentrated in a few KPs. The cause was architectural: question-level chapter was unavailable, source/year had almost no discriminative variety, and the former diversity objective therefore often reduced to `questionId ASC` after only one-per-KP coverage.
+
+### Read-only feasibility audit
+
+The audit used the 286-question after-V1-exclusion eligible pool. Each eligible question has exactly one required KP relation.
+
+| Subject | KnowledgePoint | Eligible | BASIC | MEDIUM | HARD |
+|---|---|---:|---:|---:|---:|
+| DS | ds-graph | 19 | 7 | 8 | 4 |
+| DS | ds-list | 13 | 7 | 5 | 1 |
+| DS | ds-sort | 19 | 7 | 8 | 4 |
+| DS | ds-tree | 19 | 7 | 8 | 4 |
+| CO | co-cache | 20 | 7 | 9 | 4 |
+| CO | co-cpu | 19 | 7 | 8 | 4 |
+| CO | co-data | 17 | 7 | 7 | 3 |
+| CO | co-instruction | 19 | 7 | 8 | 4 |
+| OS | os-file | 19 | 7 | 8 | 4 |
+| OS | os-memory | 19 | 7 | 8 | 4 |
+| OS | os-process | 13 | 7 | 5 | 1 |
+| OS | os-sync | 19 | 7 | 8 | 4 |
+| CN | net-app | 19 | 7 | 8 | 4 |
+| CN | net-ip | 19 | 7 | 8 | 4 |
+| CN | net-link | 14 | 7 | 5 | 2 |
+| CN | net-tcp | 19 | 7 | 8 | 4 |
+
+An exact integer feasibility check jointly enforced unique questions, KP totals `7/6/6/6`, and subject difficulty totals `10/10/5`. All four subjects passed; for every subject, each of its four KPs can be the 7-question KP in at least one feasible assignment. Therefore the strict balanced contract is feasible and no relaxation is authorized.
+
+### Supersession
+
+This amendment supersedes the former §29 chapter/source/year diversity objective and the original V2-1 sample acceptance. Task order is now:
+
+```text
+V2-1 (historical implementation; sample rejected)
+→ V2-1R (historical balanced-KP replacement; sample rejected)
+→ V2-1R2 (Difficulty Spread replacement sample)
+→ HUMAN SAMPLE ACCEPTANCE GATE
+→ V2-2
+```
+
+All later V2 tasks remain blocked until `gold-sample-v2r2` passes its hard constraints, preserves both rejected samples unchanged, and receives explicit human acceptance.
+
+## 56. Sampling Amendment 2 — Difficulty Spread (2026-08-09)
+
+Status: APPROVED FOR DOCUMENTATION. V2-1R code passed, but its real sample is rejected before split. V2-1R2 implementation has not started.
+
+### V2-1R review result
+
+```text
+version:      gold-sample-v2r
+manifest SHA: 368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854
+status:       REJECTED_PRE_SPLIT_SAMPLE
+reason:       severe difficulty × KP concentration; HARD = 4/1/0/0 in every subject
+forbidden:    V2-2 split, V2 Gold authoring, V2 DEV selection, V2 final HOLDOUT
+```
+
+The rejection does not reopen the balanced-KP contract. `100 total`, `25/subject`, KP totals `7/6/6/6`, difficulty totals `10/10/5`, and V1 id/fingerprint/family overlap `0/0/0` remain hard constraints. The defect is that the former lexicographically-first complete question-id set made matrix selection depend primarily on question-id order and allowed HARD to concentrate in two KPs.
+
+### Locked matrix objective
+
+For every subject, enumerate all integer matrices `x[kp][difficulty]` satisfying the §29 row, column, availability, ownership, and uniqueness constraints. Rank complete hard-feasible matrices in this exact order:
+
+1. **Minimum maximum HARD count.** `maxHard = max(H[kp1], H[kp2], H[kp3], H[kp4])`; lower wins.
+2. **Minimum HARD range.** `hardRange = maxHard - min(H[kp1], H[kp2], H[kp3], H[kp4])`; lower wins.
+3. **Minimum integer difficulty-composition deviation.** For each KP with `t = B + M + H`, compute `(5B - 2t)^2 + (5M - 2t)^2 + (5H - t)^2`; sum across the four KPs, and prefer the lower sum. This is the exact integer objective for the subject target ratio BASIC/MEDIUM/HARD = `2/5, 2/5, 1/5` and uses no floating point.
+4. **Stable extra-7 ownership.** Prefer the KP with the higher after-V1-exclusion eligible total; if tied, prefer `knowledgePointId ASC`.
+5. **Canonical matrix tie-break.** Sort rows by `knowledgePointId ASC`, canonicalize each as `[knowledgePointId, BASIC, MEDIUM, HARD]`, and compare the resulting arrays lexicographically ascending; KP ids use the contract's canonical ascending comparator and counts compare as ascending integers.
+
+Question ids do not participate until the matrix is frozen. Within each frozen KP × difficulty cell, select eligible questions by `questionId ASC`. Source, chapter, and year remain audit-only metadata and never enter either matrix ranking or question ranking.
+
+### Read-only feasibility result
+
+The same 286-question after-V1-exclusion pool was enumerated without selecting or writing question ids. Since `ceil(5 HARD / 4 KP) = 2`, no solution can have `maxHard < 2`; every subject has a hard-feasible matrix with `maxHard = 2`, proving the optimum is exactly 2.
+
+`2/1/1/1` is the observed optimum for this frozen pool, not a new hard quota and not a rule that every KP must receive a HARD question. If availability cannot achieve that pattern, the same five objectives select the best hard-feasible matrix without relaxation or manual assignment.
+
+| Subject | Minimum maxHard | Optimal HARD pattern in KP-id order |
+|---|---:|---|
+| DS | 2 | ds-graph 1 / ds-list 1 / ds-sort 2 / ds-tree 1 |
+| CO | 2 | co-cache 1 / co-cpu 2 / co-data 1 / co-instruction 1 |
+| OS | 2 | os-file 1 / os-memory 2 / os-process 1 / os-sync 1 |
+| CN | 2 | net-app 1 / net-ip 2 / net-link 1 / net-tcp 1 |
+
+The full winning quota matrices under all five objectives are:
+
+| Subject | KP | BASIC | MEDIUM | HARD | Selected total |
+|---|---|---:|---:|---:|---:|
+| DS | ds-graph | 3 | 3 | 1 | 7 |
+| DS | ds-list | 2 | 3 | 1 | 6 |
+| DS | ds-sort | 2 | 2 | 2 | 6 |
+| DS | ds-tree | 3 | 2 | 1 | 6 |
+| CO | co-cache | 3 | 3 | 1 | 7 |
+| CO | co-cpu | 2 | 2 | 2 | 6 |
+| CO | co-data | 2 | 3 | 1 | 6 |
+| CO | co-instruction | 3 | 2 | 1 | 6 |
+| OS | os-file | 3 | 3 | 1 | 7 |
+| OS | os-memory | 2 | 2 | 2 | 6 |
+| OS | os-process | 2 | 3 | 1 | 6 |
+| OS | os-sync | 3 | 2 | 1 | 6 |
+| CN | net-app | 3 | 3 | 1 | 7 |
+| CN | net-ip | 2 | 2 | 2 | 6 |
+| CN | net-link | 2 | 3 | 1 | 6 |
+| CN | net-tcp | 3 | 2 | 1 | 6 |
+
+Each winner has `maxHard = 2`, `hardRange = 1`, and `difficultyDeviationCost = 58`. The extra-7 owners are `ds-graph`, `co-cache`, `os-file`, and `net-app`, as determined by Objective 4; no KP was manually assigned two HARD questions.
+
+### Version and execution isolation
+
+```text
+gold-sample-v2     SHA 439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc
+  status: REJECTED_PRE_SPLIT_SAMPLE
+  reason: severe KP concentration
+
+gold-sample-v2r    SHA 368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854
+  status: REJECTED_PRE_SPLIT_SAMPLE
+  reason: severe difficulty × KP concentration (HARD 4/1/0/0 in all subjects)
+
+gold-sample-v2r2
+  status: NEXT REPLACEMENT VERSION; not generated
+  local path: tools/question-annotation/local-data/gold-sample-v2r2.json
+```
+
+V2-1R2 must preserve both rejected files byte-for-byte and reject both historical manifest SHAs. It creates no split and no Gold truth. V2-2 remains blocked until the new manifest passes its hard constraints and receives explicit human acceptance.

@@ -17,6 +17,7 @@
 - Data roles are locked: old V1 Gold 40 = regression/diagnostic only; new V2 DEV 72 = the only source for final configuration selection; new V2 HOLDOUT 28 = the only blind final gate. Merging old 40 + new 72 into a 112-question selection set is forbidden.
 - Old consumed HOLDOUT (16) is regression/diagnostic only and never a final test.
 - No code may create Gold truth: Gold is human-authored only, with retriever output never used as an oracle.
+- Sampling history is immutable: `gold-sample-v2` SHA `439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc` and `gold-sample-v2r` SHA `368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854` are both `REJECTED_PRE_SPLIT_SAMPLE`; neither may be overwritten, split, authored, benchmarked, or evaluated.
 - Every code task follows TDD: RED → verify RED → minimal GREEN → focused GREEN → regression → explicit git add → commit. No `git add .` / `git add -A`. No push.
 - Working tree: `C:\Users\Lenovo\Documents\计算机考研提分系统\.worktrees\feature\live-question-atomic-bridge`, branch `feature/live-question-atomic-bridge`.
 
@@ -70,7 +71,7 @@ CN: net-app (DNS、HTTP 与邮件协议), net-ip (IP、子网划分与路由), n
 OS: os-file (文件分配、目录与磁盘调度), os-memory (分页、分段与虚拟内存), os-process (进程状态、调度与上下文切换), os-sync (进程同步与互斥)
 ```
 
-V2-1 computes this set programmatically and fails closed if its size is not 16 or if any required KP has zero eligible questions.
+Every active V2 sampling version computes this set programmatically and fails closed if its size is not 16 or if any required KP has zero eligible questions.
 
 ### 3. Analysis view availability — exact rule (no heuristic threshold)
 
@@ -110,22 +111,49 @@ Even if Q1P2 and Q2P1 tie on all metrics and complexityCost, experimentId ASC se
 ### 6. Sampling determinism
 
 ```text
-hard constraints (violation = fail closed): 100 unique; 25/subject; 10/10/5 per subject;
-  REQUIRED_V2_KP_SET coverage; all current INDEPENDENT_UNIT; old Gold id/fingerprint/family excluded
-secondary diversity objective (deterministic, not a hard gate): minimize repetition of chapter / source / year
-  among already-selected questions; evaluated in fixed order (chapter, source, year), equal weights
-final tie-break: questionId ASC
+hard constraints (violation = fail closed):
+  100 unique; 25/subject; exactly four subject KPs; KP totals are 7/6/6/6 (7 + 6 + 6 + 6 = 25);
+  BASIC/MEDIUM/HARD = 10/10/5 per subject; all current INDEPENDENT_UNIT;
+  old Gold id/fingerprint/family excluded; every selected question has exactly one required KP relation
+joint solve: KP totals and difficulty totals must be satisfied simultaneously over unique questions
+matrix objective, in exact priority order:
+  1) minimize max HARD count across the four KPs
+  2) minimize HARD range (max HARD - min HARD)
+  3) minimize Σ[(5B-2t)^2 + (5M-2t)^2 + (5H-t)^2], t=B+M+H per KP
+  4) extra-7 owner: higher eligible total, then knowledgePointId ASC
+  5) canonical matrix [knowledgePointId,BASIC,MEDIUM,HARD] lexicographic ASC
+question selection after matrix freeze: questionId ASC within each KP × difficulty cell
+forbidden objectives: chapter/source/year diversity (not discriminative in the frozen eligible pool)
+forbidden relaxation: 5–8 KP ranges, difficulty tolerance, greedy fallback, or partial sample
 ```
 
-The same snapshot always yields the same 100 ids.
+The same snapshot always yields the same 100 ids. If any subject has no exact assignment, return `SAMPLING DESIGN BLOCKED` with its KP × difficulty audit and stop.
 
 ### 7. Gold V1/V2 core — one canonical implementation
 
 `createGoldSetV2` / `loadGoldSetV2` / `freezeGoldManifestV2` are THIN wrappers that delegate to the shared parameterized `createGoldSet` / `loadGoldSet` / `freezeGoldManifest` with `GOLD_CONTRACT_V2`. There is exactly one canonical validation, one canonical manifest hash, and one canonical freeze implementation. No duplicated V2 hashing/freezing logic (explicitly forbidden — the Task 5C drift class must not recur).
 
+### 8. Rejected pre-split samples and replacement identity
+
+```text
+rejected file 1:  local-data/gold-sample-v2.json
+rejected SHA 1:   439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc
+reason 1:         severe KP concentration
+rejected file 2:  local-data/gold-sample-v2r.json
+rejected SHA 2:   368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854
+reason 2:         severe difficulty × KP concentration (HARD 4/1/0/0 in all subjects)
+status:           both are REJECTED_PRE_SPLIT_SAMPLE
+next version:     gold-sample-v2r2
+next file:        local-data/gold-sample-v2r2.json
+```
+
+Both rejected files are retained unchanged as historical evidence. They are forbidden as input to V2-2, V2-3, V2 DEV experiments, and the final HOLDOUT. V2-1R2 must write a third file and prove both rejected manifest SHAs and file SHAs are unchanged before and after generation.
+
 ---
 
-# Task V2-1 — Versioned Gold V2 Sample Contract
+# Task V2-1 — Versioned Gold V2 Sample Contract (HISTORICAL; OUTPUT REJECTED)
+
+**Historical status:** implementation commit `bb6544e` passed the original hard constraints, but real manifest SHA `439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc` is `REJECTED_PRE_SPLIT_SAMPLE`. This task is retained for traceability and must not be rerun as the active sampling contract. V2-1R supersedes its sampling acceptance.
 
 **Goal:** deterministic 100-question V2 sample (25 per subject) from the remaining independent current question pool, with old-Gold exclusion, KP coverage, difficulty target, fingerprint identity, and a Git-safe manifest. No human truth is started.
 
@@ -199,7 +227,422 @@ function validateV2SampleManifest(manifest: Record<string, unknown>, snapshot: A
 
 **Commit message:** `feat: add v2 gold sample contract`
 
-**Stop condition:** Task V2-2 begins only after this task's commit and review gate.
+**Stop condition:** V2-1 output is rejected. Task V2-2 remains blocked; proceed only to V2-1R.
+
+---
+
+# Task V2-1R — Balanced-KP Replacement Sample Contract (HISTORICAL; OUTPUT REJECTED)
+
+**Historical status:** implementation commit `a54f75d` passed the balanced-KP code contract. Real manifest SHA `368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854` is `REJECTED_PRE_SPLIT_SAMPLE` because every subject produced HARD spread `4/1/0/0`. Retain this task and artifact for traceability; do not rerun it as the active sampling contract. V2-1R2 supersedes only its matrix-selection objective.
+
+**Goal:** generate a new deterministic 100-question sample that jointly satisfies exact KP balance (`7/6/6/6` per subject) and exact difficulty quotas (`10/10/5` per subject), while preserving the rejected pre-split sample unchanged. No split or Gold truth is created.
+
+**Files:**
+- Modify: `tools/question-annotation/core/sampleV2.js`
+- Modify: `tools/question-annotation/test/sampleV2.test.mjs`
+- Create locally only (gitignored): `tools/question-annotation/local-data/gold-sample-v2r.json`
+- Preserve byte-for-byte: `tools/question-annotation/local-data/gold-sample-v2.json`
+
+**Interfaces (additive; historical V2-1 exports remain available):**
+
+```ts
+const V2R_GOLD_SAMPLE_VERSION = 'gold-sample-v2r';
+const V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256 = '439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc';
+const V2_KP_MIN_PER_SUBJECT = 6;
+const V2_KP_MAX_PER_SUBJECT = 7;
+
+type V2KpDifficultyAuditRow = {
+  subject: 'DS' | 'CO' | 'OS' | 'CN';
+  knowledgePointId: string;
+  eligible: number;
+  BASIC: number;
+  MEDIUM: number;
+  HARD: number;
+};
+
+function auditV2RSamplingFeasibility(
+  snapshot: AnnotationSnapshot,
+  oldGold: OldGoldLineage,
+): {
+  feasible: boolean;
+  rows: V2KpDifficultyAuditRow[];
+  errors: string[];
+};
+
+function sampleV2RQuestionIds(
+  snapshot: AnnotationSnapshot,
+  oldGold: OldGoldLineage,
+): string[];
+
+function buildV2RSampleManifest(input: {
+  snapshotId: string;
+  contentSha256: string;
+  entries: GoldSampleEntry[];
+}): Record<string, unknown>;
+
+function validateV2RSampleManifest(
+  manifest: Record<string, unknown>,
+  snapshot: AnnotationSnapshot,
+  oldGold: OldGoldLineage,
+): { ok: boolean; errors: string[] };
+```
+
+**Locked solver contract:**
+
+For each subject, exact feasibility is checked as a four-option flow problem: each of the four KPs is considered as the 7-question owner while the other three have quota 6. For an option, the network is:
+
+```text
+source
+  → difficulty bucket (exact capacities BASIC=10, MEDIUM=10, HARD=5)
+  → eligible question (capacity 1)
+  → its sole required KP (capacity 1)
+  → sink (exact capacity 7 for one KP, 6 for the other three)
+```
+
+The candidate pool is sorted by `questionId ASC`. To construct the canonical sample, visit candidates in that order and tentatively include each candidate only when an exact completion still exists for at least one 7-owner option; otherwise exclude it. Stop after the lexicographically first feasible 25-id subject set is fixed. Chapter/source/year never enter feasibility or ordering.
+
+- [x] **Step 1: Add RED tests for replacement identity and rejected-sample isolation**
+
+Add assertions equivalent to:
+
+```js
+assert.equal(V2R_GOLD_SAMPLE_VERSION, 'gold-sample-v2r');
+assert.equal(
+  V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256,
+  '439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc',
+);
+assert.notEqual(buildV2RSampleManifest(input).goldVersion, V2_GOLD_SAMPLE_VERSION);
+assert.match(
+  validateV2RSampleManifest(rejectedManifest, snapshot, oldGold).errors.join('\n'),
+  /REJECTED_PRE_SPLIT_SAMPLE/,
+);
+```
+
+- [x] **Step 2: Add RED tests for the exact joint contract**
+
+Add these named cases to `sampleV2.test.mjs`:
+
+```text
+'V2-1R: returns exactly 100 unique ids and 25 per subject'
+'V2-1R: each subject KP count multiset is exactly [6,6,6,7]'
+'V2-1R: each subject difficulty is exactly BASIC 10 MEDIUM 10 HARD 5'
+'V2-1R: every selected question has exactly one required KP relation'
+'V2-1R: old V1 id/fingerprint/family exclusions remain exact'
+'V2-1R: input ordering does not change ids'
+'V2-1R: changing chapter/source/year does not change ids'
+'V2-1R: same input produces the same ids and manifest SHA'
+'V2-1R: marginal sufficiency without a joint integer solution fails closed'
+'V2-1R: KP count outside 6/7 fails validation'
+'V2-1R: difficulty drift fails validation'
+```
+
+The “marginal sufficiency” fixture must give every KP at least 7 total questions and the subject at least 10/10/5 by difficulty, while arranging KP × difficulty cells so no simultaneous `7/6/6/6 + 10/10/5` flow reaches 25. Expected error contains `SAMPLING DESIGN BLOCKED`, subject, KP id, and difficulty counts.
+
+- [x] **Step 3: Run the focused test and verify RED**
+
+Run:
+
+```bash
+node --test tools/question-annotation/test/sampleV2.test.mjs
+```
+
+Expected: failures identify missing `V2R_GOLD_SAMPLE_VERSION`, `auditV2RSamplingFeasibility`, `sampleV2RQuestionIds`, `buildV2RSampleManifest`, and `validateV2RSampleManifest`; historical V2-1 assertions remain green.
+
+- [x] **Step 4: Implement exact feasibility and canonical selection**
+
+Implement the additive interfaces in `core/sampleV2.js`. Reuse `buildV2EligiblePool`, `computeRequiredV2KpSet`, `canonicalJsonHash`, and the existing manifest field whitelist. Do not change `sampleV2QuestionIds` or the historical `gold-sample-v2` builder behavior.
+
+The implementation must:
+
+```text
+1. Build the after-V1-exclusion pool.
+2. Require 16 required KPs and exactly four per subject.
+3. Build and return the full KP × difficulty audit before selection.
+4. Fail closed on any candidate used by the solver that has zero or multiple required KP relations.
+5. Check exact completion for each possible 7-owner KP; never use a greedy fallback.
+6. Construct the lexicographically first feasible questionId set.
+7. Validate 100 unique, 25/subject, KP [6,6,6,7], difficulty 10/10/5, lineage exclusion, and canonical SHA.
+8. Reject the historical manifest SHA with status REJECTED_PRE_SPLIT_SAMPLE.
+```
+
+- [x] **Step 5: Run focused GREEN and V1/V2 sample regression**
+
+Run:
+
+```bash
+node --test tools/question-annotation/test/sampleV2.test.mjs
+node --test tools/question-annotation/test/sample.test.mjs tools/question-annotation/test/sampleV2.test.mjs
+```
+
+Expected: all tests pass with zero new failures; historical V1 and V2-1 tests remain green.
+
+- [x] **Step 6: Generate the real replacement without touching rejected evidence**
+
+Before generation, record both the internal manifest SHA and file SHA of `gold-sample-v2.json`. Generate only `gold-sample-v2r.json`, then re-read both files and assert:
+
+```text
+old internal SHA before = old internal SHA after = 439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc
+old file SHA before = old file SHA after
+new goldVersion = gold-sample-v2r
+new manifest SHA != rejected SHA
+new validation ok = true
+new manifest contains no stem/options/answer/analysis
+new manifest contains no split
+```
+
+Do not stage either local-data file.
+
+- [x] **Step 7: Run the real Sample Quality Audit and stop at the human gate**
+
+Report, for all 16 KPs, selected total and BASIC/MEDIUM/HARD. Required acceptance:
+
+```text
+100 total; 25/subject; KP counts exactly 7/6/6/6 per subject;
+difficulty exactly 10/10/5 per subject; V1 overlaps id/fingerprint/family = 0;
+rejected file unchanged; no DEV/HOLDOUT split fields
+```
+
+Stop and request explicit human acceptance of the new manifest SHA. V2-2 is still forbidden at this point.
+
+- [x] **Step 8: Stage code/tests explicitly and commit only if the user requests Git writes**
+
+```bash
+git add tools/question-annotation/core/sampleV2.js tools/question-annotation/test/sampleV2.test.mjs
+git commit -m "fix: balance retrieval v2 gold sample"
+```
+
+Never use `git add .` or `git add -A`; never stage local-data.
+
+**Historical stop result:** V2-1R code passed, but the real sample was not accepted. `gold-sample-v2r.json` is permanently rejected and V2-2 remains blocked. Proceed only to V2-1R2.
+
+---
+
+# Task V2-1R2 — Difficulty Spread Replacement Sample Contract
+
+**Goal:** generate a third deterministic 100-question sample that preserves the exact V2-1R hard constraints while selecting the KP × difficulty allocation matrix with the pre-registered five-level Difficulty Spread objective. Preserve both rejected samples unchanged. No split or Gold truth is created.
+
+**Files:**
+- Modify: `tools/question-annotation/core/sampleV2.js`
+- Modify: `tools/question-annotation/test/sampleV2.test.mjs`
+- Create locally only (gitignored): `tools/question-annotation/local-data/gold-sample-v2r2.json`
+- Preserve byte-for-byte: `tools/question-annotation/local-data/gold-sample-v2.json`
+- Preserve byte-for-byte: `tools/question-annotation/local-data/gold-sample-v2r.json`
+
+**Interfaces (additive; historical V2-1 and V2-1R exports and outputs remain unchanged):**
+
+```ts
+const V2R2_GOLD_SAMPLE_VERSION = 'gold-sample-v2r2';
+const V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256 = '368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854';
+
+type V2R2MatrixRow = {
+  knowledgePointId: string;
+  BASIC: number;
+  MEDIUM: number;
+  HARD: number;
+};
+
+type V2R2MatrixScore = {
+  maxHard: number;
+  hardRange: number;
+  difficultyDeviationCost: number;
+  extraSevenEligible: number;
+  extraSevenKpId: string;
+  canonicalMatrix: Array<[string, number, number, number]>;
+};
+
+function scoreV2R2Matrix(
+  rows: V2R2MatrixRow[],
+  eligibleTotalByKp: ReadonlyMap<string, number>,
+): V2R2MatrixScore;
+
+function compareV2R2MatrixScores(left: V2R2MatrixScore, right: V2R2MatrixScore): number;
+
+function sampleV2R2QuestionIds(
+  snapshot: AnnotationSnapshot,
+  oldGold: OldGoldLineage,
+): string[];
+
+function buildV2R2SampleManifest(input: {
+  snapshotId: string;
+  contentSha256: string;
+  entries: GoldSampleEntry[];
+}): Record<string, unknown>;
+
+function validateV2R2SampleManifest(
+  manifest: Record<string, unknown>,
+  snapshot: AnnotationSnapshot,
+  oldGold: OldGoldLineage,
+): { ok: boolean; errors: string[] };
+```
+
+**Locked hard constraints:**
+
+```text
+100 unique; 25/subject
+four required KPs per subject; selected totals are exactly 7/6/6/6
+BASIC/MEDIUM/HARD are exactly 10/10/5 per subject and 40/40/20 globally
+current INDEPENDENT_UNIT only
+V1 questionId, exact fingerprint, and version family overlap are all zero
+every selected question has exactly one subject-local required KP relation
+no greedy fallback, partial sample, 5–8 tolerance, or difficulty relaxation
+```
+
+**Locked matrix comparator:**
+
+For every hard-feasible matrix, compute the score below. `compareV2R2MatrixScores(a, b) < 0` means `a` is preferred.
+
+```js
+// Objective 1: lower maxHard wins.
+score.maxHard = Math.max(...rows.map((row) => row.HARD));
+
+// Objective 2: lower hardRange wins.
+score.hardRange = score.maxHard - Math.min(...rows.map((row) => row.HARD));
+
+// Objective 3: lower integer composition deviation wins.
+score.difficultyDeviationCost = rows.reduce((sum, row) => {
+  const t = row.BASIC + row.MEDIUM + row.HARD;
+  return sum
+    + (5 * row.BASIC - 2 * t) ** 2
+    + (5 * row.MEDIUM - 2 * t) ** 2
+    + (5 * row.HARD - t) ** 2;
+}, 0);
+
+// Objective 4: higher eligible total for the 7-owner, then kp id ASC.
+// Objective 5: rows sorted by kp id and compared as [kpId,BASIC,MEDIUM,HARD] ASC.
+```
+
+The comparator order is exact:
+
+```text
+1. maxHard ASC
+2. hardRange ASC
+3. difficultyDeviationCost ASC
+4. extraSevenEligible DESC
+5. extraSevenKpId ASC
+6. canonicalMatrix lexicographic ASC
+```
+
+Items 4 and 5 above are the two sub-steps of Design Objective 4; canonical matrix comparison is Design Objective 5. `questionId` is absent from this comparator. After the winning matrix is frozen, each KP × difficulty cell selects `questionId ASC`. Source, chapter, and year remain diagnostics only.
+
+**Read-only real-data expectation (not hardcoded):**
+
+The implementation must recompute these values from the frozen pool. They are pre-registered expected evidence, not constants used by the solver.
+
+The observed `2/1/1/1` patterns are not additional hard quotas. The implementation always minimizes the locked objectives over whatever matrices satisfy availability; it never requires every KP to contain a HARD question.
+
+| Subject | minimum maxHard | winning HARD pattern in KP-id order | extra-7 owner | deviation |
+|---|---:|---|---|---:|
+| DS | 2 | ds-graph 1 / ds-list 1 / ds-sort 2 / ds-tree 1 | ds-graph | 58 |
+| CO | 2 | co-cache 1 / co-cpu 2 / co-data 1 / co-instruction 1 | co-cache | 58 |
+| OS | 2 | os-file 1 / os-memory 2 / os-process 1 / os-sync 1 | os-file | 58 |
+| CN | 2 | net-app 1 / net-ip 2 / net-link 1 / net-tcp 1 | net-app | 58 |
+
+- [ ] **Step 1: Add RED tests for third-version identity and immutable history**
+
+Add assertions equivalent to:
+
+```js
+assert.equal(V2R2_GOLD_SAMPLE_VERSION, 'gold-sample-v2r2');
+assert.equal(
+  V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256,
+  '368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854',
+);
+assert.notEqual(buildV2R2SampleManifest(input).goldVersion, 'gold-sample-v2');
+assert.notEqual(buildV2R2SampleManifest(input).goldVersion, 'gold-sample-v2r');
+assert.match(validateV2R2SampleManifest(rejectedV2, snapshot, oldGold).errors.join('\n'), /REJECTED_PRE_SPLIT_SAMPLE/);
+assert.match(validateV2R2SampleManifest(rejectedV2R, snapshot, oldGold).errors.join('\n'), /REJECTED_PRE_SPLIT_SAMPLE/);
+```
+
+- [ ] **Step 2: Add RED tests for every matrix objective in priority order**
+
+Add independently discriminating fixtures:
+
+```text
+'V2-1R2 objective 1: maxHard 2 beats maxHard 3 regardless of later costs'
+'V2-1R2 objective 2: HARD range 1 beats range 2 when maxHard ties'
+'V2-1R2 objective 3: lower locked integer deviation wins after HARD ties'
+'V2-1R2 objective 3: deviation uses exact integer formula and no floating point'
+'V2-1R2 objective 4: higher eligible total wins extra-7 ownership'
+'V2-1R2 objective 4: knowledgePointId ASC breaks equal eligible-total ties'
+'V2-1R2 objective 5: canonical [kpId,B,M,H] matrix order is the final tie-break'
+```
+
+Each test changes only the criterion named in that test while all earlier criteria tie.
+
+- [ ] **Step 3: Add RED end-to-end sampling regressions**
+
+```text
+'V2-1R2: preserves 100, 25/subject, KP [6,6,6,7], and difficulty 10/10/5'
+'V2-1R2: replaces feasible 4/1/0/0 with optimal 2/1/1/1'
+'V2-1R2: matrix freezes before questionId ASC cell selection'
+'V2-1R2: input ordering does not change ids or manifest SHA'
+'V2-1R2: changing source/chapter/year does not change ids'
+'V2-1R2: V1 id/fingerprint/family exclusions remain zero'
+'V2-1R2: no hard-feasible matrix fails closed with KP × difficulty diagnostics'
+'V2-1R2: validator rejects KP, difficulty, HARD-objective, or version drift'
+```
+
+- [ ] **Step 4: Run focused tests and verify behavior RED**
+
+Run:
+
+```bash
+node --test tools/question-annotation/test/sampleV2.test.mjs
+```
+
+Expected: new V2-1R2 assertions fail because the V2R2 version, score/comparator, sampler, builder, and validator are missing. Historical V2-1 and V2-1R assertions remain green. A behavior fixture must show the historical V2R objective selecting `4/1/0/0` while the expected V2R2 result is `2/1/1/1`; a module-resolution failure alone is insufficient RED evidence.
+
+- [ ] **Step 5: Implement exhaustive hard-feasible matrix ranking and cell selection**
+
+Reuse `buildV2EligiblePool`, `computeRequiredV2KpSet`, the existing KP × difficulty availability construction, canonical manifest hashing, and the historical validators without changing their outputs. Enumerate every integer row allocation permitted by availability and exact row/column totals, score each complete matrix, and retain the minimum under `compareV2R2MatrixScores`. Do not prune on question ids or diagnostic metadata. After the matrix winner is fixed, take the lowest `questionId ASC` entries required by each cell. `validateV2R2SampleManifest` recomputes the canonical V2R2 selection from the same snapshot and V1 lineage and rejects a manifest whose sorted ids differ, so a hard-feasible but objectively inferior matrix cannot validate.
+
+Fail closed with `SAMPLING DESIGN BLOCKED` plus subject and all KP × difficulty availability counts when no complete matrix exists. Do not introduce an external solver dependency.
+
+- [ ] **Step 6: Run focused GREEN and all sampling regressions**
+
+Run:
+
+```bash
+node --test tools/question-annotation/test/sampleV2.test.mjs
+node --test tools/question-annotation/test/sample.test.mjs tools/question-annotation/test/gold.test.mjs tools/question-annotation/test/sampleV2.test.mjs
+cd tools/question-annotation && npm test
+cd ../.. && npm test
+```
+
+Expected: zero failures; historical V1, V2-1, and V2-1R behavior remains reproducible; V2-1R2 tests pass.
+
+- [ ] **Step 7: Generate only `gold-sample-v2r2.json` and prove both rejected artifacts unchanged**
+
+Before generation, record internal manifest SHA and file SHA for both rejected files. Refuse overwrite if `gold-sample-v2r2.json` already exists. Generate only the new local file, validate it, then prove:
+
+```text
+gold-sample-v2 internal SHA before/after = 439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc
+gold-sample-v2 file SHA before = after
+gold-sample-v2r internal SHA before/after = 368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854
+gold-sample-v2r file SHA before = after
+new goldVersion = gold-sample-v2r2
+new SHA differs from both rejected SHAs
+new manifest contains no split, stem, options, answer, or analysis
+```
+
+Do not stage any local-data file.
+
+- [ ] **Step 8: Run the real matrix/sample audit and stop at human acceptance**
+
+Report all 16 KP rows with eligible/selected/BASIC/MEDIUM/HARD, each subject's five matrix-objective values, HARD pattern, chapter/source/year diagnostics, V1 overlaps, repeated identity, input-order independence, and both rejected-artifact hashes. If the recomputed real winners differ from the pre-registered table, stop with `SAMPLING DESIGN BLOCKED` and diagnose the data/contract drift; do not silently accept a different matrix.
+
+Even when all code and hard constraints pass, stop with `V2-1R2 CODE PASS / AWAITING SAMPLE ACCEPTANCE`. V2-2 remains forbidden until explicit human acceptance.
+
+- [ ] **Step 9: Stage only source/tests and commit only when Git writes are authorized**
+
+```bash
+git add tools/question-annotation/core/sampleV2.js tools/question-annotation/test/sampleV2.test.mjs
+git commit -m "fix: spread retrieval v2 sampling difficulty"
+```
+
+Never use `git add .` or `git add -A`; never stage local-data.
+
+**Stop condition:** `gold-sample-v2r2.json` must validate, match the pre-registered matrix objective result, preserve both rejected artifacts unchanged, and receive explicit human acceptance. Until then, V2-2 remains blocked.
 
 ---
 
@@ -220,7 +663,7 @@ function buildV2SplitManifest(input: { goldVersion: string; snapshotId: string; 
 function validateV2SplitManifest(manifest: Record<string, unknown>): { ok: boolean; errors: string[] };
 ```
 
-**Preconditions:** V2-1 committed; the frozen 100 sample manifest exists (git-safe) and validates.
+**Preconditions:** V2-1R2 code/tests committed if Git writes were authorized; `gold-sample-v2r2.json` exists, validates under the five-level matrix objective, and has explicit human acceptance. `gold-sample-v2.json` SHA `439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc` and `gold-sample-v2r.json` SHA `368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854` are invalid inputs.
 
 **RED test** (same synthetic fixture; deterministic):
 
@@ -233,6 +676,7 @@ function validateV2SplitManifest(manifest: Record<string, unknown>): { ok: boole
 'V2-2: deterministic'                         — two runs deepEqual
 'V2-2: split manifest sha canonical'
 'V2-2: split drift fails closed'              — changing one split label fails validation
+'V2-2: rejected pre-split sample is refused'  — old version or rejected SHA throws before assignment
 ```
 
 **RED command:** `node --test tools/question-annotation/test/sampleV2.test.mjs`
@@ -259,7 +703,7 @@ function validateV2SplitManifest(manifest: Record<string, unknown>): { ok: boole
 
 # Task V2-3 — Gold Authoring V2 Isolation
 
-**Goal:** extend the existing Gold authoring CLI/validation to support the V2 contract (`gold-sample-v2`, `gold-set-v2`, `gold-truth-v2`, 100/72/28) without breaking V1 (40/24/16).
+**Goal:** extend the existing Gold authoring CLI/validation to support the accepted V2 contract (`gold-sample-v2r2`, `gold-set-v2`, `gold-truth-v2`, 100/72/28) without breaking V1 (40/24/16) or consuming either rejected sampling artifact.
 
 **Files:**
 - Modify: `tools/question-annotation/core/gold.js` (parameterize counts/versions; V1 defaults unchanged)
@@ -300,7 +744,7 @@ V1 functions (`createGoldSet`, `loadGoldSet`, `freezeGoldManifest`, `GOLD_SET_VE
 
 **Expected RED:** `createGoldSetV2` / `freezeGoldManifestV2` missing (module export missing).
 
-**Minimal implementation:** introduce a `goldContract` parameter (default = V1 contract) threaded through gold.js internals. `createGoldSetV2` / `loadGoldSetV2` / `freezeGoldManifestV2` are thin wrappers delegating to the shared functions with `GOLD_CONTRACT_V2`; there is exactly one canonical validation/hash/freeze implementation (no duplicated V2 logic). Extend `gold-author.mjs` with V2 default paths (`gold-sample-v2.json`, `gold-set-v2.json`, `gold-truth-manifest-v2.json`) selectable via `--gold-version v2`; `show`/`next`/authoring views do not print split; the frozen manifest still stores split internally.
+**Minimal implementation:** introduce a `goldContract` parameter (default = V1 contract) threaded through gold.js internals. `createGoldSetV2` / `loadGoldSetV2` / `freezeGoldManifestV2` are thin wrappers delegating to the shared functions with `GOLD_CONTRACT_V2`; there is exactly one canonical validation/hash/freeze implementation (no duplicated V2 logic). Extend `gold-author.mjs` with V2 default paths (`gold-sample-v2r2.json`, `gold-set-v2.json`, `gold-truth-manifest-v2.json`) selectable via `--gold-version v2`; reject `gold-sample-v2`, `gold-sample-v2r`, and both `REJECTED_PRE_SPLIT_SAMPLE` SHAs before authoring state is created; `show`/`next`/authoring views do not print split; the frozen manifest still stores split internally.
 
 **GREEN command:** `node --test tools/question-annotation/test/goldV2.test.mjs tools/question-annotation/test/gold.test.mjs`
 
@@ -663,7 +1107,9 @@ Report exact total/pass/fail/skip. Confirm Gold SHA (V1 `6ca5fa53e8b0db415c7d713
 
 ### Spec coverage
 
-- V2-1 ↔ Design §26–29 (V2 sample contract, sampling, independence)
+- V2-1 ↔ Design §26–29, §55 (historical sample implementation; real output rejected before split)
+- V2-1R ↔ Design §29, §33, §55–56 (historical balanced-KP implementation; real output rejected for difficulty × KP concentration)
+- V2-1R2 ↔ Design §29, §33, §56 (five-level Difficulty Spread matrix objective, third-version identity, two-artifact isolation)
 - V2-2 ↔ Design §26, §30 (split, frozen identity)
 - V2-3 ↔ Design §31–33 (Gold authoring, version isolation, split hiding)
 - HUMAN GATE ↔ Design §31–32 (human truth, no retriever oracle)
