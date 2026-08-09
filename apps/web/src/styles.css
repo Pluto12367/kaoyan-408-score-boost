@@ -621,12 +621,18 @@ textarea:focus-visible,
 }
 
 .sidebar {
+  align-self: start;
   background: var(--slate-900);
   color: #f9fafb;
   display: flex;
   flex-direction: column;
   gap: 36px;
+  height: 100vh;
+  height: 100dvh;
+  overflow-y: auto;
   padding: 28px 22px;
+  position: sticky;
+  top: 0;
 }
 
 .sidebar h1 {
@@ -3068,6 +3074,9 @@ textarea:focus-visible,
   }
 
   .sidebar {
+    align-self: stretch;
+    height: auto;
+    overflow: visible;
     position: static;
   }
 
@@ -4490,6 +4499,37 @@ textarea:focus-visible,
 /* ---- Stage 6: mobile bottom navigation & boundary polish ---- */
 .bottom-nav {
   display: none;
+}
+
+@media (min-width: 721px) and (max-width: 900px) {
+  .sidebar {
+    align-self: start;
+    gap: 0;
+    max-width: 100vw;
+    overflow: visible;
+    padding: 8px 12px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .sidebar-brand {
+    display: none;
+  }
+
+  .sidebar .role-navigation {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .sidebar .role-navigation button {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    white-space: nowrap;
+    width: auto;
+  }
 }
 
 @media (max-width: 720px) {
