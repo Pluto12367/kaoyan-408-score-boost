@@ -3,6 +3,35 @@ import { SUBJECTS, buildGoldManifest } from './sample.js';
 
 export const GOLD_SET_VERSION = 'gold-set-v1';
 export const GOLD_SAMPLE_MANIFEST_VERSION = 'gold-sample-v1';
+export const GOLD_SET_VERSION_V2 = 'gold-set-v2';
+export const GOLD_SAMPLE_MANIFEST_VERSION_V2 = 'gold-sample-v2r2';
+export const GOLD_CONTRACT_V2 = Object.freeze({
+  total: 100,
+  dev: 72,
+  holdout: 28,
+  perSubject: 25,
+  devPerSubject: 18,
+  holdoutPerSubject: 7,
+});
+
+const GOLD_CONTRACT_V1 = Object.freeze({
+  total: 40,
+  dev: 24,
+  holdout: 16,
+  perSubject: 10,
+  devPerSubject: 6,
+  holdoutPerSubject: 4,
+});
+const GOLD_RUNTIME_V1 = Object.freeze({
+  contract: GOLD_CONTRACT_V1,
+  goldSetVersion: GOLD_SET_VERSION,
+  sampleManifestVersion: GOLD_SAMPLE_MANIFEST_VERSION,
+});
+const GOLD_RUNTIME_V2 = Object.freeze({
+  contract: GOLD_CONTRACT_V2,
+  goldSetVersion: GOLD_SET_VERSION_V2,
+  sampleManifestVersion: GOLD_SAMPLE_MANIFEST_VERSION_V2,
+});
 
 /**
  * Validate one Gold authoring entry. The locked signature is
@@ -97,14 +126,14 @@ export function validateGoldEntry(entry, nodeIds, byQuestion, nodeSubject, conte
 }
 
 /**
- * Initialize a gitignored local gold authoring workspace from the frozen Task 4
- * sample. `frozen` entries carry questionId/contentFingerprint/subject/split;
- * the immutable frozen sample plus its manifest sha256 are stored so later
- * runs can fail closed if the frozen sample drifted.
+ * Initialize a gitignored local gold authoring workspace from a frozen sample.
+ * `frozen` entries carry questionId/contentFingerprint/subject/split; the
+ * immutable frozen sample plus its manifest sha256 are stored so later runs
+ * can fail closed if the frozen sample drifted.
  */
-export function createGoldSet({ snapshotId, frozen, frozenManifestSha256 }) {
-  if (!Array.isArray(frozen) || frozen.length !== 40) {
-    throw new Error(`createGoldSet expects 40 frozen entries, got ${frozen?.length ?? 'none'}`);
+function createGoldSetWithRuntime({ snapshotId, frozen, frozenManifestSha256 }, runtime) {
+  if (!Array.isArray(frozen) || frozen.length !== runtime.contract.total) {
+    throw new Error(`createGoldSet expects ${runtime.contract.total} frozen entries, got ${frozen?.length ?? 'none'}`);
   }
   const sortedFrozen = [...frozen]
     .map((entry) => ({
@@ -118,7 +147,15 @@ export function createGoldSet({ snapshotId, frozen, frozenManifestSha256 }) {
   for (const entry of sortedFrozen) {
     authoring[entry.questionId] = { status: 'unstarted', primaryNodeId: null, secondaryNodeIds: [] };
   }
-  return { goldVersion: GOLD_SET_VERSION, snapshotId, frozenManifestSha256, frozen: sortedFrozen, authoring };
+  return { goldVersion: runtime.goldSetVersion, snapshotId, frozenManifestSha256, frozen: sortedFrozen, authoring };
+}
+
+export function createGoldSet({ snapshotId, frozen, frozenManifestSha256 }) {
+  return createGoldSetWithRuntime({ snapshotId, frozen, frozenManifestSha256 }, GOLD_RUNTIME_V1);
+}
+
+export function createGoldSetV2({ snapshotId, frozen, frozenManifestSha256 }) {
+  return createGoldSetWithRuntime({ snapshotId, frozen, frozenManifestSha256 }, GOLD_RUNTIME_V2);
 }
 
 export function saveGoldSet(path, goldSet) {
@@ -129,10 +166,10 @@ export function saveGoldSet(path, goldSet) {
  * Resume-safe load. Returns null when the file does not exist yet and throws
  * on malformed or drifted gold-set files.
  */
-export function loadGoldSet(path) {
+function loadGoldSetWithRuntime(path, runtime) {
   if (!existsSync(path)) return null;
   const goldSet = JSON.parse(readFileSync(path, 'utf8'));
-  if (goldSet.goldVersion !== GOLD_SET_VERSION) {
+  if (goldSet.goldVersion !== runtime.goldSetVersion) {
     throw new Error(`gold set version mismatch: ${goldSet.goldVersion}`);
   }
   if (typeof goldSet.snapshotId !== 'string' || goldSet.snapshotId.length === 0) {
@@ -141,13 +178,21 @@ export function loadGoldSet(path) {
   if (!/^[a-f0-9]{64}$/.test(goldSet.frozenManifestSha256 ?? '')) {
     throw new Error('gold set frozenManifestSha256 invalid');
   }
-  if (!Array.isArray(goldSet.frozen) || goldSet.frozen.length !== 40) {
-    throw new Error(`gold set frozen must have 40 entries, got ${goldSet.frozen?.length ?? 'none'}`);
+  if (!Array.isArray(goldSet.frozen) || goldSet.frozen.length !== runtime.contract.total) {
+    throw new Error(`gold set frozen must have ${runtime.contract.total} entries, got ${goldSet.frozen?.length ?? 'none'}`);
   }
   if (!goldSet.authoring || typeof goldSet.authoring !== 'object' || Array.isArray(goldSet.authoring)) {
     throw new Error('gold set authoring missing');
   }
   return goldSet;
+}
+
+export function loadGoldSet(path) {
+  return loadGoldSetWithRuntime(path, GOLD_RUNTIME_V1);
+}
+
+export function loadGoldSetV2(path) {
+  return loadGoldSetWithRuntime(path, GOLD_RUNTIME_V2);
 }
 
 function buildSnapshotMaps(snapshot) {
@@ -167,31 +212,34 @@ function buildSnapshotMaps(snapshot) {
  * Freeze the final Gold Truth manifest. Only succeeds when:
  * - the gold-set snapshot identity matches the snapshot;
  * - the immutable frozen sample (Task 4) is untouched (manifest sha256 recomputed);
- * - all 40 frozen question ids are authored and status === 'confirmed';
+ * - every frozen question id is authored and status === 'confirmed';
  * - every entry passes validateGoldEntry (node eligibility, subject,
  *   fingerprint/split binding);
- * - aggregate counts match the frozen contract (24 DEV / 16 HOLDOUT, 10 per
- *   subject, 6/4 per subject).
+ * - aggregate counts match the selected V1 or V2 frozen contract.
  *
- * The returned manifest is built by the Task 4 buildGoldManifest (same shape),
- * so the Task 4 structural validator still accepts it; the sha256 changes when
- * PRIMARY/SECONDARY change. Incomplete authoring never yields a manifest.
+ * The returned manifest uses the shared buildGoldManifest shape and hashing;
+ * version-specific aggregate validation happens in this function. The sha256
+ * changes when PRIMARY/SECONDARY change. Incomplete authoring never yields a
+ * manifest.
  */
-export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
+function freezeGoldManifestWithRuntime({ goldVersion, goldSet, snapshot }, runtime) {
   const errors = [];
   if (!goldSet || typeof goldSet !== 'object') {
     return { ok: false, errors: ['goldSet missing'], manifest: undefined };
   }
+  if (goldSet.goldVersion !== runtime.goldSetVersion) {
+    errors.push(`gold set version mismatch: ${goldSet.goldVersion}`);
+  }
   if (goldSet.snapshotId !== snapshot.snapshotId) {
     errors.push(`goldSet snapshot ${goldSet.snapshotId} does not match snapshot ${snapshot.snapshotId}`);
   }
-  if (!Array.isArray(goldSet.frozen) || goldSet.frozen.length !== 40) {
-    errors.push(`goldSet frozen must have 40 entries, got ${goldSet.frozen?.length ?? 'none'}`);
+  if (!Array.isArray(goldSet.frozen) || goldSet.frozen.length !== runtime.contract.total) {
+    errors.push(`goldSet frozen must have ${runtime.contract.total} entries, got ${goldSet.frozen?.length ?? 'none'}`);
     return { ok: false, errors: errors.sort(), manifest: undefined };
   }
 
   const recomputedFrozenManifest = buildGoldManifest({
-    goldVersion: GOLD_SAMPLE_MANIFEST_VERSION,
+    goldVersion: runtime.sampleManifestVersion,
     snapshotId: goldSet.snapshotId,
     entries: goldSet.frozen.map((entry) => ({
       questionId: entry.questionId,
@@ -206,7 +254,7 @@ export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
   }
 
   const frozenById = new Map(goldSet.frozen.map((entry) => [entry.questionId, entry]));
-  if (frozenById.size !== 40) {
+  if (frozenById.size !== runtime.contract.total) {
     errors.push('goldSet frozen question ids must be unique');
   }
   const authoring = goldSet.authoring ?? {};
@@ -255,13 +303,13 @@ export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
     }
   }
 
-  if (manifestEntries.length !== 40) {
-    errors.push(`confirmed gold entries ${manifestEntries.length} != 40`);
+  if (manifestEntries.length !== runtime.contract.total) {
+    errors.push(`confirmed gold entries ${manifestEntries.length} != ${runtime.contract.total}`);
   }
   const dev = manifestEntries.filter((entry) => entry.split === 'DEV').length;
   const holdout = manifestEntries.filter((entry) => entry.split === 'HOLDOUT').length;
-  if (dev !== 24) errors.push(`DEV total ${dev} != 24`);
-  if (holdout !== 16) errors.push(`HOLDOUT total ${holdout} != 16`);
+  if (dev !== runtime.contract.dev) errors.push(`DEV total ${dev} != ${runtime.contract.dev}`);
+  if (holdout !== runtime.contract.holdout) errors.push(`HOLDOUT total ${holdout} != ${runtime.contract.holdout}`);
   const perSubject = {};
   const devPerSubject = {};
   const holdoutPerSubject = {};
@@ -272,14 +320,14 @@ export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
     else holdoutPerSubject[subject] = (holdoutPerSubject[subject] ?? 0) + 1;
   }
   for (const subject of SUBJECTS) {
-    if (perSubject[subject] !== 10) {
-      errors.push(`subject ${subject} has ${perSubject[subject] ?? 0} confirmed gold questions, expected 10`);
+    if (perSubject[subject] !== runtime.contract.perSubject) {
+      errors.push(`subject ${subject} has ${perSubject[subject] ?? 0} confirmed gold questions, expected ${runtime.contract.perSubject}`);
     }
-    if (devPerSubject[subject] !== 6) {
-      errors.push(`subject ${subject} DEV ${devPerSubject[subject] ?? 0} != 6`);
+    if (devPerSubject[subject] !== runtime.contract.devPerSubject) {
+      errors.push(`subject ${subject} DEV ${devPerSubject[subject] ?? 0} != ${runtime.contract.devPerSubject}`);
     }
-    if (holdoutPerSubject[subject] !== 4) {
-      errors.push(`subject ${subject} HOLDOUT ${holdoutPerSubject[subject] ?? 0} != 4`);
+    if (holdoutPerSubject[subject] !== runtime.contract.holdoutPerSubject) {
+      errors.push(`subject ${subject} HOLDOUT ${holdoutPerSubject[subject] ?? 0} != ${runtime.contract.holdoutPerSubject}`);
     }
   }
 
@@ -288,4 +336,12 @@ export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
   }
   const manifest = buildGoldManifest({ goldVersion, snapshotId: goldSet.snapshotId, entries: manifestEntries });
   return { ok: true, errors: [], manifest };
+}
+
+export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
+  return freezeGoldManifestWithRuntime({ goldVersion, goldSet, snapshot }, GOLD_RUNTIME_V1);
+}
+
+export function freezeGoldManifestV2({ goldVersion, goldSet, snapshot }) {
+  return freezeGoldManifestWithRuntime({ goldVersion, goldSet, snapshot }, GOLD_RUNTIME_V2);
 }

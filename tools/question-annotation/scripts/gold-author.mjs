@@ -4,12 +4,27 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { stdin as input, stdout as output } from 'node:process';
 import {
+  GOLD_CONTRACT_V2,
   createGoldSet,
+  createGoldSetV2,
   freezeGoldManifest,
+  freezeGoldManifestV2,
   loadGoldSet,
+  loadGoldSetV2,
   saveGoldSet,
   validateGoldEntry,
 } from '../core/gold.js';
+import { buildGoldManifest } from '../core/sample.js';
+import {
+  V2_GOLD_SAMPLE_VERSION,
+  V2R_GOLD_SAMPLE_VERSION,
+  V2R2_ACCEPTED_SAMPLE_SHA256,
+  V2R2_GOLD_SAMPLE_VERSION,
+  V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256,
+  V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256,
+  buildV2R2SampleManifest,
+  validateV2SplitManifest,
+} from '../core/sampleV2.js';
 import {
   getWorkspaceSummary,
   listNodes,
@@ -19,36 +34,61 @@ import {
 } from '../workspace/workspace.mjs';
 
 const TOOL_ROOT = fileURLToPath(new URL('..', import.meta.url));
-const DEFAULTS = {
+const DEFAULTS_V1 = {
   workspace: join(TOOL_ROOT, 'local-data', 'annotation-workspace.db'),
   sample: join(TOOL_ROOT, 'local-data', 'gold-sample-v1.json'),
   goldSet: join(TOOL_ROOT, 'local-data', 'gold-set-v1.json'),
   manifestOut: join(TOOL_ROOT, 'local-data', 'gold-truth-manifest-v1.json'),
 };
+const DEFAULTS_V2 = {
+  workspace: DEFAULTS_V1.workspace,
+  sample: join(TOOL_ROOT, 'local-data', 'gold-sample-v2r2.json'),
+  split: join(TOOL_ROOT, 'local-data', 'gold-split-v2.json'),
+  goldSet: join(TOOL_ROOT, 'local-data', 'gold-set-v2.json'),
+  manifestOut: join(TOOL_ROOT, 'local-data', 'gold-truth-manifest-v2.json'),
+};
 const DEFAULT_GOLD_VERSION = 'gold-truth-v1';
+const DEFAULT_GOLD_VERSION_V2 = 'gold-truth-v2';
 const VALID_SUBJECTS = ['DS', 'CO', 'OS', 'CN'];
+
+export function resolveGoldAuthoringConfig(flags = {}) {
+  const isV2 = flags.goldVersion === 'v2';
+  const defaults = isV2 ? DEFAULTS_V2 : DEFAULTS_V1;
+  return {
+    mode: isV2 ? 'v2' : 'v1',
+    workspace: flags.workspace ?? defaults.workspace,
+    sample: flags.sample ?? defaults.sample,
+    split: isV2 ? (flags.split ?? defaults.split) : undefined,
+    goldSet: flags.goldSet ?? defaults.goldSet,
+    manifestOut: flags.manifestOut ?? defaults.manifestOut,
+    finalGoldVersion: isV2 ? DEFAULT_GOLD_VERSION_V2 : (flags.goldVersion ?? DEFAULT_GOLD_VERSION),
+    total: isV2 ? GOLD_CONTRACT_V2.total : 40,
+    hideSplit: isV2,
+  };
+}
 
 function printHelp() {
   console.log(`usage: node tools/question-annotation/scripts/gold-author.mjs <command> [options]
 
 commands:
   status                              show authoring progress
-  list                                list the 40 frozen gold questions (id/subject/split/status)
+  list                                list frozen gold questions and authoring status
   next                                show the next unconfirmed question (content shown locally)
   show <questionId>                   show a question and its current selection
   search-nodes <query> --subject <code>   search active atomic nodes of one subject (DS/CO/OS/CN)
   set <questionId> --primary <nodeId> [--secondary <nodeId> ...]
   confirm <questionId>                lock a valid selection as human-confirmed
   reopen <questionId>                 move a confirmed question back to draft
-  freeze                              write the final frozen Gold Truth manifest (only at 40/40)
+  freeze                              write the final frozen Gold Truth manifest (40/40 V1 or 100/100 V2)
   exit | quit                         leave the interactive session
 
 options:
   --workspace <path>    annotation workspace db (default: local-data/annotation-workspace.db)
   --sample <path>       frozen Task 4 gold sample json (default: local-data/gold-sample-v1.json)
+  --split <path>        V2 frozen split json (default in V2: local-data/gold-split-v2.json)
   --gold-set <path>     authoring state json (default: local-data/gold-set-v1.json)
   --manifest-out <path> final manifest output (default: local-data/gold-truth-manifest-v1.json)
-  --gold-version <v>    goldVersion for the final manifest (default: gold-truth-v1)
+  --gold-version <v>    use v2 for isolated V2 authoring; otherwise V1 final goldVersion
 
 Run without a command to start the interactive session.`);
 }
@@ -59,6 +99,7 @@ function parseArgs(argv) {
     const token = argv[index];
     if (token === '--workspace') args.flags.workspace = argv[++index];
     else if (token === '--sample') args.flags.sample = argv[++index];
+    else if (token === '--split') args.flags.split = argv[++index];
     else if (token === '--gold-set') args.flags.goldSet = argv[++index];
     else if (token === '--manifest-out') args.flags.manifestOut = argv[++index];
     else if (token === '--gold-version') args.flags.goldVersion = argv[++index];
@@ -78,7 +119,102 @@ function parseArgs(argv) {
   return args;
 }
 
-function loadContext({ workspacePath, samplePath }) {
+export function buildFrozenV2AuthoringContract({ snapshotId, sampleEntries, split }) {
+  if (!Array.isArray(sampleEntries) || sampleEntries.length !== GOLD_CONTRACT_V2.total) {
+    throw new Error(`V2 frozen sample must have ${GOLD_CONTRACT_V2.total} entries, got ${sampleEntries?.length ?? 'none'}`);
+  }
+  const dev = Array.isArray(split?.dev) ? split.dev : [];
+  const holdout = Array.isArray(split?.holdout) ? split.holdout : [];
+  if (dev.length !== GOLD_CONTRACT_V2.dev || holdout.length !== GOLD_CONTRACT_V2.holdout) {
+    throw new Error(`V2 frozen split must be ${GOLD_CONTRACT_V2.dev}/${GOLD_CONTRACT_V2.holdout}, got ${dev.length}/${holdout.length}`);
+  }
+  const splitByQuestion = new Map();
+  for (const [label, ids] of [['DEV', dev], ['HOLDOUT', holdout]]) {
+    for (const questionId of ids) {
+      if (typeof questionId !== 'string' || questionId.length === 0) {
+        throw new Error(`V2 frozen split ${label} contains invalid question id`);
+      }
+      if (splitByQuestion.has(questionId)) throw new Error(`V2 frozen split duplicate question ${questionId}`);
+      splitByQuestion.set(questionId, label);
+    }
+  }
+  const seen = new Set();
+  const entries = sampleEntries.map((entry) => {
+    if (!entry || typeof entry.questionId !== 'string' || entry.questionId.length === 0) {
+      throw new Error('V2 frozen sample contains invalid question id');
+    }
+    if (seen.has(entry.questionId)) throw new Error(`V2 frozen sample duplicate question ${entry.questionId}`);
+    seen.add(entry.questionId);
+    const frozenSplit = splitByQuestion.get(entry.questionId);
+    if (!frozenSplit) throw new Error(`V2 frozen sample question ${entry.questionId} missing from split`);
+    if (typeof entry.contentFingerprint !== 'string' || entry.contentFingerprint.length === 0) {
+      throw new Error(`V2 frozen sample fingerprint missing for ${entry.questionId}`);
+    }
+    return {
+      questionId: entry.questionId,
+      contentFingerprint: entry.contentFingerprint,
+      subject: entry.subject,
+      split: frozenSplit,
+    };
+  }).sort((left, right) => left.questionId.localeCompare(right.questionId));
+  if (splitByQuestion.size !== entries.length) {
+    throw new Error(`V2 frozen split unique ids ${splitByQuestion.size} != sample entries ${entries.length}`);
+  }
+  const manifest = buildGoldManifest({
+    goldVersion: V2R2_GOLD_SAMPLE_VERSION,
+    snapshotId,
+    entries: entries.map((entry) => ({
+      questionId: entry.questionId,
+      contentFingerprint: entry.contentFingerprint,
+      primaryNodeId: null,
+      secondaryNodeIds: [],
+      split: entry.split,
+    })),
+  });
+  return { entries, manifestSha256: manifest.sha256 };
+}
+
+export function prepareV2AuthoringSample({ sample, splitManifest }) {
+  if (
+    sample?.goldVersion === V2_GOLD_SAMPLE_VERSION
+    || sample?.goldVersion === V2R_GOLD_SAMPLE_VERSION
+    || sample?.sha256 === V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256
+    || sample?.sha256 === V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256
+  ) {
+    throw new Error('REJECTED_PRE_SPLIT_SAMPLE cannot be used for V2 Gold authoring');
+  }
+  if (sample?.goldVersion !== V2R2_GOLD_SAMPLE_VERSION) {
+    throw new Error(`V2 Gold authoring requires ${V2R2_GOLD_SAMPLE_VERSION}`);
+  }
+  if (sample.sha256 !== V2R2_ACCEPTED_SAMPLE_SHA256) {
+    throw new Error(`V2 Gold authoring sample SHA ${sample.sha256} != accepted SHA ${V2R2_ACCEPTED_SAMPLE_SHA256}`);
+  }
+  const recomputed = buildV2R2SampleManifest({
+    snapshotId: sample.snapshotId,
+    contentSha256: sample.contentSha256,
+    entries: sample.entries,
+  });
+  if (recomputed.sha256 !== sample.sha256) {
+    throw new Error('V2 Gold authoring sample sha256 mismatch');
+  }
+  const splitValidation = validateV2SplitManifest(splitManifest);
+  if (!splitValidation.ok) {
+    throw new Error(`V2 Gold authoring split invalid: ${splitValidation.errors.join('; ')}`);
+  }
+  if (splitManifest.snapshotId !== sample.snapshotId) {
+    throw new Error(`V2 Gold authoring split snapshot ${splitManifest.snapshotId} != sample ${sample.snapshotId}`);
+  }
+  if (splitManifest.sampleSha256 !== sample.sha256) {
+    throw new Error('V2 Gold authoring split sample SHA mismatch');
+  }
+  return buildFrozenV2AuthoringContract({
+    snapshotId: sample.snapshotId,
+    sampleEntries: sample.entries,
+    split: splitManifest.split,
+  });
+}
+
+function loadContext({ workspacePath, samplePath, splitPath, mode }) {
   const db = openWorkspace(workspacePath);
   const summary = getWorkspaceSummary(db);
   const workspaceValidation = validateWorkspace(db);
@@ -95,8 +231,17 @@ function loadContext({ workspacePath, samplePath }) {
   if (sample.snapshotId !== summary.snapshotId) {
     throw new Error(`frozen sample snapshot ${sample.snapshotId} does not match workspace ${summary.snapshotId}`);
   }
-  const sampleEntries = sample.entries ?? [];
-  if (sampleEntries.length !== 40) {
+  let sampleEntries = sample.entries ?? [];
+  let frozenManifestSha256 = sample.manifestSha256;
+  if (mode === 'v2') {
+    if (!existsSync(splitPath)) throw new Error(`frozen V2 split not found: ${splitPath}`);
+    const prepared = prepareV2AuthoringSample({
+      sample,
+      splitManifest: JSON.parse(readFileSync(splitPath, 'utf8')),
+    });
+    sampleEntries = prepared.entries;
+    frozenManifestSha256 = prepared.manifestSha256;
+  } else if (sampleEntries.length !== 40) {
     throw new Error(`frozen sample must have 40 entries, got ${sampleEntries.length}`);
   }
   const questionById = new Map(questions.map((question) => [question.questionId, question]));
@@ -126,10 +271,18 @@ function loadContext({ workspacePath, samplePath }) {
     })),
     nodes: nodes.map((node) => ({ id: node.nodeId, subject: node.subject, nodeType: node.nodeType, isActive: node.isActive })),
   };
-  return { summary, questions, nodes, sample, maps, questionById, snapshotForFreeze };
+  return {
+    summary,
+    questions,
+    nodes,
+    sample: { ...sample, entries: sampleEntries, manifestSha256: frozenManifestSha256 },
+    maps,
+    questionById,
+    snapshotForFreeze,
+  };
 }
 
-function loadOrCreateGoldSet({ goldSetPath, sample, snapshotId }) {
+function loadOrCreateGoldSet({ goldSetPath, sample, snapshotId, mode }) {
   const frozen = sample.entries.map((entry) => ({
     questionId: entry.questionId,
     contentFingerprint: entry.contentFingerprint,
@@ -137,9 +290,11 @@ function loadOrCreateGoldSet({ goldSetPath, sample, snapshotId }) {
     split: entry.split,
   }));
   const frozenManifestSha256 = sample.manifestSha256;
-  let goldSet = loadGoldSet(goldSetPath);
+  const create = mode === 'v2' ? createGoldSetV2 : createGoldSet;
+  const load = mode === 'v2' ? loadGoldSetV2 : loadGoldSet;
+  let goldSet = load(goldSetPath);
   if (!goldSet) {
-    goldSet = createGoldSet({ snapshotId, frozen, frozenManifestSha256 });
+    goldSet = create({ snapshotId, frozen, frozenManifestSha256 });
     saveGoldSet(goldSetPath, goldSet);
     return goldSet;
   }
@@ -166,21 +321,35 @@ function nextUnconfirmed(ctx) {
   return ctx.goldSet.frozen.find((entry) => ctx.goldSet.authoring[entry.questionId].status !== 'confirmed')?.questionId ?? null;
 }
 
+export function formatAuthoringListLine(frozen, authored, { hideSplit = false } = {}) {
+  const columns = [frozen.questionId, frozen.subject];
+  if (!hideSplit) columns.push(frozen.split);
+  columns.push(authored.status);
+  return columns.join('\t');
+}
+
+export function formatAuthoringQuestionHeader(question, frozen, authored, { hideSplit = false } = {}) {
+  const fields = [`question: ${question.questionId}`, `subject: ${question.subject}`];
+  if (!hideSplit) fields.push(`split: ${frozen.split}`);
+  fields.push(`status: ${authored.status}`);
+  return fields.join('  ');
+}
+
 function printStatus(ctx) {
   const authoring = Object.values(ctx.goldSet.authoring);
   const confirmed = authoring.filter((entry) => entry.status === 'confirmed').length;
   const draft = authoring.filter((entry) => entry.status === 'draft').length;
-  const unstarted = 40 - confirmed - draft;
+  const unstarted = ctx.config.total - confirmed - draft;
   console.log(`gold set: ${ctx.goldSet.snapshotId} (frozen manifest ${ctx.goldSet.frozenManifestSha256.slice(0, 12)}...)`);
-  console.log(`progress: ${confirmed}/40 confirmed, ${draft} draft, ${unstarted} unstarted`);
+  console.log(`progress: ${confirmed}/${ctx.config.total} confirmed, ${draft} draft, ${unstarted} unstarted`);
   const nextId = nextUnconfirmed(ctx);
-  console.log(`next unconfirmed: ${nextId ?? '(all 40 confirmed)'}`);
+  console.log(`next unconfirmed: ${nextId ?? `(all ${ctx.config.total} confirmed)`}`);
 }
 
 function printList(ctx) {
   for (const entry of ctx.goldSet.frozen) {
     const authored = ctx.goldSet.authoring[entry.questionId];
-    console.log(`${entry.questionId}\t${entry.subject}\t${entry.split}\t${authored.status}`);
+    console.log(formatAuthoringListLine(entry, authored, { hideSplit: ctx.config.hideSplit }));
   }
 }
 
@@ -190,7 +359,7 @@ function showQuestion(ctx, questionId) {
   const authored = ctx.goldSet.authoring[questionId];
   if (!authored) throw new Error(`question ${questionId} is not a frozen gold question`);
   const frozen = ctx.goldSet.frozen.find((entry) => entry.questionId === questionId);
-  console.log(`question: ${questionId}  subject: ${question.subject}  split: ${frozen.split}  status: ${authored.status}`);
+  console.log(formatAuthoringQuestionHeader(question, frozen, authored, { hideSplit: ctx.config.hideSplit }));
   console.log(`difficulty: ${question.difficulty ?? 'n/a'}  source: ${question.source ?? 'n/a'}  year: ${question.year ?? 'n/a'}`);
   console.log('--- stem ---');
   console.log(question.stem);
@@ -285,7 +454,8 @@ function applyReopen(ctx, questionId) {
 }
 
 function applyFreeze(ctx, { goldVersion, manifestOut }) {
-  const result = freezeGoldManifest({ goldVersion, goldSet: ctx.goldSet, snapshot: ctx.snapshotForFreeze });
+  const freeze = ctx.config.mode === 'v2' ? freezeGoldManifestV2 : freezeGoldManifest;
+  const result = freeze({ goldVersion, goldSet: ctx.goldSet, snapshot: ctx.snapshotForFreeze });
   if (!result.ok) {
     throw new Error(`cannot freeze: ${result.errors.join('; ')}`);
   }
@@ -306,7 +476,7 @@ function runOneShot(args, ctx) {
     case 'next': {
       const id = nextUnconfirmed(ctx);
       if (id) showQuestion(ctx, id);
-      else console.log('all 40 gold questions are confirmed');
+      else console.log(`all ${ctx.config.total} gold questions are confirmed`);
       break;
     }
     case 'show': {
@@ -341,8 +511,8 @@ function runOneShot(args, ctx) {
     }
     case 'freeze':
       applyFreeze(ctx, {
-        goldVersion: args.flags.goldVersion ?? DEFAULT_GOLD_VERSION,
-        manifestOut: args.flags.manifestOut ?? DEFAULTS.manifestOut,
+        goldVersion: ctx.config.finalGoldVersion,
+        manifestOut: args.flags.manifestOut ?? ctx.config.manifestOut,
       });
       break;
     default:
@@ -386,14 +556,21 @@ async function main() {
     printHelp();
     return;
   }
-  const workspacePath = args.flags.workspace ?? DEFAULTS.workspace;
-  const samplePath = args.flags.sample ?? DEFAULTS.sample;
-  const goldSetPath = args.flags.goldSet ?? DEFAULTS.goldSet;
+  const config = resolveGoldAuthoringConfig(args.flags);
+  const workspacePath = config.workspace;
+  const samplePath = config.sample;
+  const goldSetPath = config.goldSet;
   const ctx = {
-    ...loadContext({ workspacePath, samplePath }),
+    ...loadContext({ workspacePath, samplePath, splitPath: config.split, mode: config.mode }),
     goldSetPath,
+    config,
   };
-  ctx.goldSet = loadOrCreateGoldSet({ goldSetPath, sample: ctx.sample, snapshotId: ctx.summary.snapshotId });
+  ctx.goldSet = loadOrCreateGoldSet({
+    goldSetPath,
+    sample: ctx.sample,
+    snapshotId: ctx.summary.snapshotId,
+    mode: config.mode,
+  });
   if (!args.command) {
     await runInteractive(ctx);
     return;
