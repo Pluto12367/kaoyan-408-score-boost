@@ -18,7 +18,7 @@ function fullWidthToHalf(char) {
   return char;
 }
 
-function normalizeText(value) {
+export function normalizeText(value) {
   let text = String(value ?? '').trim();
   text = [...text].map(fullWidthToHalf).join('');
   text = text.toLowerCase();
