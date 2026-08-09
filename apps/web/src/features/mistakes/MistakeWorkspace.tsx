@@ -9,6 +9,7 @@ import type { ModuleResource } from '../../hooks/moduleResource';
 
 interface MistakeWorkspaceProps {
   wrongQuestions: WrongQuestion[];
+  initialKnowledgePointId?: string | null;
   summary: ModuleResource<WrongQuestionSummary>;
   status: string;
   detailQuestionId: string | null;
@@ -38,11 +39,16 @@ const FALLBACK_REASONS = [
   '审题错误', '推理过程错误', '时间不足', '蒙题',
 ];
 
-export function MistakeWorkspace({ wrongQuestions, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onRetrySummary }: MistakeWorkspaceProps) {
+export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onRetrySummary }: MistakeWorkspaceProps) {
   const summaryData = summary.data;
   const [subject, setSubject] = useState('');
   const [chapter, setChapter] = useState('');
   const [knowledgePointId, setKnowledgePointId] = useState('');
+  useEffect(() => {
+    if (initialKnowledgePointId !== undefined) {
+      setKnowledgePointId(initialKnowledgePointId ?? '');
+    }
+  }, [initialKnowledgePointId]);
   const [masteryStatus, setMasteryStatus] = useState<WrongQuestionMasteryStatus | ''>('');
   const [mistakeReason, setMistakeReason] = useState('');
   const [minWrongCount, setMinWrongCount] = useState('');

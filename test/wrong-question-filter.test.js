@@ -106,3 +106,11 @@ test('stage 4: App submits variant answers with the original question marker', a
   assert.match(app, /variantQuestionId: isVariant \? variantOfQuestionId : undefined/);
   assert.match(app, /onPracticeVariant/);
 });
+
+test('mistake workspace synchronizes an explicit initial knowledge-point filter', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+  assert.match(workspace, /initialKnowledgePointId\?: string \| null/);
+  assert.match(workspace, /setKnowledgePointId\(initialKnowledgePointId \?\? ''\)/);
+  assert.match(workspace, /\[initialKnowledgePointId\]/);
+  assert.match(workspace, /isMockAllowed\(\)/);
+});

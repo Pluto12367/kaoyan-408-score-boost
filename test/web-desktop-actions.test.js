@@ -33,10 +33,10 @@ test('desktop fix: report mastery actions navigate to wrong-book / question', as
   assert.match(app, /onNavigate=\{setActiveSection\}/);
 });
 
-test('desktop fix: dashboard hero and insight cards navigate to plan/question/report', async () => {
+test('desktop fix: dashboard route and lower insight cards expose their destinations', async () => {
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
-  assert.match(launchpad, /student-plan-ring[^>]*onClick=\{\(\) => onNavigate\('plan'\)\}/);
-  assert.match(launchpad, /item\.label === '今日任务'/);
+  assert.match(launchpad, /onOpenPlan=\{\(\) => onNavigate\('plan'\)\}/);
+  assert.match(launchpad, /onOpenWrongBook=\{\(\) => onNavigate\('wrong-book'\)\}/);
   assert.match(launchpad, /onClick=\{\(\) => onNavigate\('question'\)\}/);
   assert.match(launchpad, /onOpenReview\(item\.questionId\)/);
   assert.match(launchpad, /onNavigate\('report'\)/);

@@ -9,12 +9,16 @@ import { OnboardingWizard } from '../../components/OnboardingWizard';
 import { ResumeSessionBanner } from '../../components/ResumeSessionBanner';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
+import type { TodayPlanTask } from './todayLearningRoute';
+import { TodayLearningRoute } from './TodayLearningRouteView';
 
 interface StudentLaunchpadProps {
   showOnboarding: boolean;
   todayPlan: TodayPlanType | null;
   todayPlanLoading: boolean;
   todayPlanError: string;
+  todayTaskLaunchingId: string | null;
+  todayTaskLaunchError: string;
   latestPaper: GeneratedPaper | null;
   examResult: PaperSubmitResult | null;
   examQuestionCount: number;
@@ -28,21 +32,19 @@ interface StudentLaunchpadProps {
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
   onNavigate: (section: RoleSection) => void;
-  onContinueToday: () => void;
+  onLaunchTodayTask: (task: TodayPlanTask) => void;
+  onRetryTodayPlan: () => void;
 }
 
 const SUBJECTS: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
-const quickActions = [
-  ['开始专项训练', '按当前薄弱科目生成一组短练习', 'primary'],
-  ['查看错题复盘', '回到错因、解析和同考点练习', 'soft'],
-  ['生成提分报告', '查看四科掌握度和下一步建议', 'soft'],
-];
 
 export function StudentLaunchpad({
   showOnboarding,
   todayPlan,
   todayPlanLoading,
   todayPlanError,
+  todayTaskLaunchingId,
+  todayTaskLaunchError,
   latestPaper,
   examResult,
   examQuestionCount,
@@ -56,7 +58,8 @@ export function StudentLaunchpad({
   onResumeSession,
   onStartExam,
   onNavigate,
-  onContinueToday,
+  onLaunchTodayTask,
+  onRetryTodayPlan,
 }: StudentLaunchpadProps) {
   const [paperType, setPaperType] = useState<PrepareExamPaperInput['paperType']>('模拟卷');
   const [subject, setSubject] = useState<Subject>('数据结构');
@@ -75,59 +78,6 @@ export function StudentLaunchpad({
       setPreparing(false);
     }
   }
-
-  const todaySummary = todayPlan?.summary;
-  const heroProgressPercent = todaySummary && todaySummary.totalTasks > 0
-    ? `${todaySummary.completionRate ?? Math.round((todaySummary.completedTasks / todaySummary.totalTasks) * 100)}%`
-    : todayPlanLoading
-      ? '…'
-      : '--';
-  const todayPlanRemainingMinutes = todayPlan
-    ? todayPlan.priorityTasks.reduce((sum, task) => {
-        const done = task.status === 'completed' || task.completed;
-        return done ? sum : sum + (task.minutes ?? 0);
-      }, 0)
-    : 0;
-  const heroProgressText = todayPlan
-    ? `今日任务进度 ${heroProgressPercent} · 已完成 ${todaySummary?.completedTasks ?? 0} / ${todaySummary?.totalTasks ?? 0}${
-        todayPlanRemainingMinutes > 0 ? ` · 剩余约 ${todayPlanRemainingMinutes} 分钟` : ''
-      }`
-    : todayPlanLoading
-      ? '正在加载今日计划…'
-      : todayPlanError
-        ? '今日计划加载失败，可稍后重试'
-        : '完成今日计划后，这里会显示学习进度';
-
-  const kpiCards = [
-    {
-      label: '今日任务',
-      value: todaySummary ? `${todaySummary.completedTasks}/${todaySummary.totalTasks}` : '--',
-      helper: todayPlan
-        ? `剩余 ${todayPlan.priorityTasks.filter((task) => task.status !== 'completed' && !task.completed).length} 个核心任务`
-        : '完成今日计划后更新',
-    },
-    {
-      label: '连续学习',
-      value: todaySummary?.streakDays != null
-        ? `${todaySummary.streakDays} 天`
-        : learningCalendar
-          ? `${learningCalendar.streakDays} 天`
-          : '--',
-      helper: '保持节奏比临时冲刺更稳',
-    },
-    {
-      label: '预计提分空间',
-      value: report && (report.completionRate > 0 || report.weakPoints.length > 0)
-        ? `${report.estimatedGain} 分`
-        : '--',
-      helper: report ? '基于薄弱点和目标分估算（与报告口径一致）' : '完成诊断与练习后估算',
-    },
-    {
-      label: '待复盘',
-      value: wrongQuestionSummary ? `${wrongQuestionSummary.pendingCount} 题` : '--',
-      helper: wrongQuestionSummary ? '优先处理近 7 天错题' : '暂无待复盘错题',
-    },
-  ];
 
   const subjectTones = ['blue', 'teal', 'purple', 'amber'];
   const subjectCards = (masteryMap?.subjects ?? []).map((subject, index) => ({
@@ -176,67 +126,18 @@ export function StudentLaunchpad({
 
   return (
     <>
-      <section className="panel student-dashboard-hero">
-        <div className="student-hero-copy">
-          <p className="eyebrow">学习总览</p>
-          <h3>把今天该做的事先做清楚</h3>
-          <p>围绕 408 四科，把计划、刷题、错题和提分报告收在一个工作台里。</p>
-          <div className="student-hero-actions">
-            <button type="button" className="primary-action" onClick={onContinueToday}>
-              <ClipboardCheck size={18} /> 继续今日学习
-            </button>
-            <button type="button" className="secondary-action" onClick={() => onNavigate('score-center')}>
-              今日提分
-            </button>
-            <button type="button" className="secondary-action" onClick={() => onNavigate('knowledge-catalog')}>
-              408知识图谱
-            </button>
-            <span>{heroProgressText}</span>
-          </div>
-        </div>
-        <button type="button" className="student-plan-ring" aria-label="今日计划进度，点击查看今日计划" onClick={() => onNavigate('plan')}>
-          <strong>{heroProgressPercent}</strong>
-          <span>今日计划</span>
-        </button>
-      </section>
-
-      <section className="student-kpi-strip" aria-label="学习关键指标">
-        {kpiCards.map((item) => item.label === '今日任务' ? (
-          <button type="button" key={item.label} className="student-insight-card" onClick={() => onNavigate('plan')}>
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-            <small>{item.helper}</small>
-          </button>
-        ) : (
-          <article key={item.label} className="student-insight-card">
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-            <small>{item.helper}</small>
-          </article>
-        ))}
-      </section>
-
-      <section className="student-action-grid" aria-label="常用学习动作">
-        {quickActions.map(([title, description, tone], index) => (
-          <article key={title} className={`student-action-card tone-${tone}`}>
-            <div>
-              <strong>{title}</strong>
-              <span>{description}</span>
-            </div>
-            <button
-              type="button"
-              className={tone === 'primary' ? 'primary-action' : 'secondary-action'}
-              onClick={() => {
-                if (index === 0) void startConfiguredExam();
-                if (index === 1) onNavigate('wrong-book');
-                if (index === 2) onNavigate('report');
-              }}
-            >
-              {index === 0 ? '立即开始' : '查看'}
-            </button>
-          </article>
-        ))}
-      </section>
+      <TodayLearningRoute
+        plan={todayPlan}
+        loading={todayPlanLoading}
+        error={todayPlanError}
+        launchingTaskId={todayTaskLaunchingId}
+        launchError={todayTaskLaunchError}
+        onRetry={onRetryTodayPlan}
+        onLaunch={onLaunchTodayTask}
+        onOpenPlan={() => onNavigate('plan')}
+        onOpenWrongBook={() => onNavigate('wrong-book')}
+        onOpenReport={() => onNavigate('report')}
+      />
 
       <section className="panel student-subject-panel">
         <div className="panel-heading">
@@ -316,6 +217,7 @@ export function StudentLaunchpad({
         enabled={remoteSessionsEnabled}
         allowedTypes={['practice_set', 'stage_assessment', 'paper']}
         onResume={onResumeSession}
+        actionClassName="secondary-action"
       />
       <section className="panel exam-entry-panel">
         <div className="panel-heading">
@@ -339,7 +241,7 @@ export function StudentLaunchpad({
           </label>
         </div>
         {prepareError ? <p className="task-status">{prepareError}</p> : null}
-        <button type="button" className="primary-action" disabled={preparing} onClick={() => void startConfiguredExam()}>
+        <button type="button" className="secondary-action" disabled={preparing} onClick={() => void startConfiguredExam()}>
           <ClipboardCheck size={18} /> {preparing ? '正在准备试卷...' : '生成并开始考试'}
         </button>
         {examResult && latestPaper && examResult.paperId === latestPaper.id ? (

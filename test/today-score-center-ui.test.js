@@ -52,7 +52,7 @@ test('recommendation card and explain drawer expose score, action, minutes and r
   assert.match(drawer, /examValue/);
 });
 
-test('score center is wired into navigation and the student shell', async () => {
+test('score center remains in navigation and the student shell without a competing homepage CTA', async () => {
   const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
   assert.match(navigation, /'score-center'/);
   assert.match(navigation, /今日提分/);
@@ -62,8 +62,11 @@ test('score center is wired into navigation and the student shell', async () => 
   assert.match(app, /visibleSection === 'score-center'/);
 
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
-  assert.match(launchpad, /onNavigate\('score-center'\)/);
-  assert.match(launchpad, /今日提分/);
+  assert.doesNotMatch(
+    launchpad,
+    /onNavigate\('score-center'\)|score-center/,
+    'the homepage should not duplicate score center as a competing first-screen action',
+  );
 });
 
 test('today plan API type carries the optional score center plan', async () => {

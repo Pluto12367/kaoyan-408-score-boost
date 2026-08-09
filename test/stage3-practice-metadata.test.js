@@ -4,11 +4,11 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('stage 1: dashboard hero main action points to 继续今日学习', async () => {
+test('stage 1: dashboard route owns the current task primary action', async () => {
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
-  assert.match(launchpad, /继续今日学习/);
-  assert.doesNotMatch(launchpad, /继续刷题/);
-  assert.match(launchpad, /onContinueToday/);
+  assert.match(launchpad, /<TodayLearningRoute/);
+  assert.match(launchpad, /onLaunch=\{onLaunchTodayTask\}/);
+  assert.doesNotMatch(launchpad, /onContinueToday/);
 });
 
 test('stage 3: PracticeRecord schema persists answer metadata', async () => {

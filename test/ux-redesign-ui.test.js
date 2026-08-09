@@ -28,34 +28,30 @@ test('App switches role workspaces by active section instead of rendering every 
 test('redesigned student workspace exposes preview-aligned learning dashboard sections', async () => {
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
 
-  assert.match(launchpad, /student-dashboard-hero/);
-  assert.match(launchpad, /student-kpi-strip/);
-  assert.match(launchpad, /student-action-grid/);
+  assert.match(launchpad, /<TodayLearningRoute/);
+  assert.doesNotMatch(launchpad, /const quickActions|student-dashboard-hero|student-kpi-strip|student-action-grid/);
   assert.match(launchpad, /student-schedule-card/);
   assert.match(launchpad, /student-insight-card/);
   assert.match(launchpad, /student-subject-grid/);
   assert.match(launchpad, /student-focus-grid/);
-  assert.match(launchpad, /继续今日学习/);
-  assert.match(launchpad, /开始专项训练/);
-  assert.match(launchpad, /查看错题复盘/);
   assert.match(launchpad, /本周学习节奏/);
   assert.match(launchpad, /薄弱知识点 TOP5/);
   assert.match(launchpad, /掌握度趋势/);
 
   const styles = await source('apps/web/src/styles.css');
-  assert.match(styles, /student-kpi-strip/);
-  assert.match(styles, /student-action-grid/);
+  assert.match(styles, /today-route-header/);
+  assert.match(styles, /today-route-list/);
   assert.match(styles, /student-schedule-card/);
 });
 
-test('student dashboard drives all preview sections from real data props instead of fabricated numbers', async () => {
+test('student dashboard drives route and lower sections from real data props instead of fabricated numbers', async () => {
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
 
   assert.doesNotMatch(launchpad, /328\/420/);
   assert.doesNotMatch(launchpad, /已完成 7 \/ 10/);
   assert.doesNotMatch(launchpad, /\[38, 42, 50/);
   assert.doesNotMatch(launchpad, /待复盘', '24 题/);
-  assert.match(launchpad, /heroProgressText/);
+  assert.match(launchpad, /plan=\{todayPlan\}/);
   assert.match(launchpad, /masteryMap/);
   assert.match(launchpad, /wrongQuestionSummary/);
   assert.match(launchpad, /掌握度趋势/);

@@ -153,10 +153,13 @@ test('catalog page builds a point index once and wires the detail drawer', async
   assert.match(page, /relatedContexts/, 'page should resolve related points into contexts');
 });
 
-test('student launchpad exposes the knowledge catalog entry through existing navigation', async () => {
+test('knowledge catalog remains in navigation without competing with the first-screen route', async () => {
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
-  assert.match(launchpad, /408知识图谱/, 'launchpad should show a 408知识图谱 entry');
-  assert.match(launchpad, /onNavigate\('knowledge-catalog'\)/, 'entry should navigate to knowledge-catalog');
+  assert.doesNotMatch(
+    launchpad,
+    /onNavigate\('knowledge-catalog'\)|408知识图谱/,
+    'launchpad should not duplicate the catalog as a competing first-screen action',
+  );
 });
 
 test('catalogData joins chapter/section stats from the real stats file', async () => {
