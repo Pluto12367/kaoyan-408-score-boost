@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalJsonHash } from '../core/canonical.js';
+import * as sampleV2Module from '../core/sampleV2.js';
 import {
   V2_GOLD_SAMPLE_VERSION,
   buildV2EligiblePool,
@@ -399,4 +400,274 @@ test('V2-1: canonicalJsonHash is key-order independent (shared utility)', () => 
 
 test('V2-1: version constants are locked', () => {
   assert.equal(V2_GOLD_SAMPLE_VERSION, 'gold-sample-v2');
+});
+
+function addConcentratedQuestion(snapshot, { subject, number, knowledgePointId, difficulty }) {
+  const id = `${subject}-q-${String(number).padStart(3, '0')}`;
+  snapshot.questions.push({
+    id,
+    subject,
+    stem: `balanced fixture ${id}`,
+    options: ['A', 'B'],
+    answer: 'A',
+    analysis: `balanced fixture analysis ${id}`,
+    difficulty,
+    type: 'SINGLE_CHOICE',
+    source: 'same-source',
+    year: 2026,
+    expectedTimeSec: 100,
+    contentFingerprint: `fp-${id}`,
+    familyId: `family-${id}`,
+    versionNumber: 1,
+    isCurrent: true,
+    chapterName: 'diagnostic-only-chapter',
+    sectionName: 'diagnostic-only-section',
+  });
+  snapshot.questionKnowledgePoints.push({ questionId: id, knowledgePointId });
+  snapshot.roles[id] = 'INDEPENDENT_UNIT';
+  snapshot.duplicateRepresentative[id] = null;
+}
+
+/**
+ * Per subject, the historical two-phase sampler deterministically selects:
+ * kp-1=1, kp-2=11, kp-3=1, kp-4=12. A joint solution nevertheless exists.
+ */
+function buildConcentratedFixture() {
+  const snapshot = {
+    snapshotId: 'snap-v2r-concentrated',
+    contentSha256: 'v2r-concentrated-content-sha',
+    questions: [],
+    knowledgePoints: [],
+    questionKnowledgePoints: [],
+    nodes: [],
+    roles: {},
+    duplicateRepresentative: {},
+  };
+
+  for (const subject of SUBJECTS) {
+    for (let k = 1; k <= 4; k += 1) {
+      snapshot.knowledgePoints.push({
+        id: kpId(subject, k),
+        subject,
+        chapter: `${subject}-chapter-${k}`,
+        title: `${subject}-title-${k}`,
+      });
+    }
+    const add = (number, kp, difficulty) => addConcentratedQuestion(snapshot, {
+      subject,
+      number,
+      knowledgePointId: kpId(subject, kp),
+      difficulty,
+    });
+
+    for (let number = 1; number <= 7; number += 1) add(number, 2, 'BASIC');
+    add(8, 4, 'BASIC');
+    add(9, 1, 'BASIC');
+    add(10, 3, 'BASIC');
+    for (let number = 11; number <= 14; number += 1) add(number, 2, 'MEDIUM');
+    for (let number = 15; number <= 20; number += 1) add(number, 4, 'MEDIUM');
+    for (let number = 21; number <= 25; number += 1) add(number, 4, 'HARD');
+
+    add(100, 1, 'BASIC');
+    add(101, 1, 'MEDIUM');
+    add(102, 1, 'MEDIUM');
+    add(103, 1, 'MEDIUM');
+    add(104, 1, 'HARD');
+    add(105, 3, 'BASIC');
+    add(106, 3, 'MEDIUM');
+    add(107, 3, 'MEDIUM');
+    add(108, 3, 'MEDIUM');
+    add(109, 3, 'HARD');
+    add(110, 4, 'BASIC');
+    add(111, 4, 'BASIC');
+  }
+
+  return {
+    snapshot,
+    oldGold: { ids: new Set(), fingerprints: new Set(), families: new Set() },
+  };
+}
+
+function kpDifficultyMatrix(snapshot, ids) {
+  const byId = new Map(snapshot.questions.map((question) => [question.id, question]));
+  const kpByQuestion = new Map(snapshot.questionKnowledgePoints.map((relation) => [relation.questionId, relation.knowledgePointId]));
+  const matrix = {};
+  for (const id of ids) {
+    const question = byId.get(id);
+    const kp = kpByQuestion.get(id);
+    matrix[question.subject] ??= {};
+    matrix[question.subject][kp] ??= { BASIC: 0, MEDIUM: 0, HARD: 0, total: 0 };
+    matrix[question.subject][kp][question.difficulty] += 1;
+    matrix[question.subject][kp].total += 1;
+  }
+  return matrix;
+}
+
+function runV2RSampler(snapshot, oldGold) {
+  const sampler = sampleV2Module.sampleV2RQuestionIds ?? sampleV2QuestionIds;
+  return sampler(snapshot, oldGold);
+}
+
+function buildNoJointSolutionFixture() {
+  const fixture = buildConcentratedFixture();
+  const { snapshot } = fixture;
+  const questionById = new Map(snapshot.questions.map((question) => [question.id, question]));
+  snapshot.questionKnowledgePoints = snapshot.questionKnowledgePoints.map((relation) => {
+    const question = questionById.get(relation.questionId);
+    if (question.subject === 'DS' && question.difficulty === 'BASIC') {
+      return { ...relation, knowledgePointId: kpId('DS', 1) };
+    }
+    return relation;
+  });
+  for (let number = 900; number <= 902; number += 1) {
+    addConcentratedQuestion(snapshot, { subject: 'DS', number, knowledgePointId: kpId('DS', 2), difficulty: 'MEDIUM' });
+  }
+  for (let number = 903; number <= 905; number += 1) {
+    addConcentratedQuestion(snapshot, { subject: 'DS', number, knowledgePointId: kpId('DS', 3), difficulty: 'MEDIUM' });
+  }
+  return fixture;
+}
+
+test('V2-1R R1 — behavior regression replaces historical 1/11/1/12 with KP counts 6/7 only', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const ids = runV2RSampler(snapshot, oldGold);
+  const matrix = kpDifficultyMatrix(snapshot, ids);
+  for (const subject of SUBJECTS) {
+    const counts = Object.values(matrix[subject]).map((row) => row.total).sort((a, b) => a - b);
+    assert.deepEqual(counts, [6, 6, 6, 7], `${subject} actual KP counts=${counts.join('/')}`);
+  }
+});
+
+test('V2-1R R2 — joint KP and difficulty quotas hold simultaneously', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const matrix = kpDifficultyMatrix(snapshot, runV2RSampler(snapshot, oldGold));
+  for (const subject of SUBJECTS) {
+    const rows = Object.values(matrix[subject]);
+    assert.deepEqual(rows.map((row) => row.total).sort((a, b) => a - b), [6, 6, 6, 7]);
+    assert.deepEqual(
+      rows.reduce((sum, row) => ({
+        BASIC: sum.BASIC + row.BASIC,
+        MEDIUM: sum.MEDIUM + row.MEDIUM,
+        HARD: sum.HARD + row.HARD,
+      }), { BASIC: 0, MEDIUM: 0, HARD: 0 }),
+      { BASIC: 10, MEDIUM: 10, HARD: 5 },
+    );
+  }
+});
+
+test('V2-1R R3 — exactly one KP per subject receives the seventh question', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const matrix = kpDifficultyMatrix(snapshot, runV2RSampler(snapshot, oldGold));
+  for (const subject of SUBJECTS) {
+    assert.equal(Object.values(matrix[subject]).filter((row) => row.total === 7).length, 1);
+  }
+});
+
+test('V2-1R R4 — KP range is exactly min 6 max 7', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const matrix = kpDifficultyMatrix(snapshot, runV2RSampler(snapshot, oldGold));
+  for (const subject of SUBJECTS) {
+    const counts = Object.values(matrix[subject]).map((row) => row.total);
+    assert.equal(Math.min(...counts), 6);
+    assert.equal(Math.max(...counts), 7);
+  }
+});
+
+test('V2-1R R5 — multiple feasible extra-7 owners resolve to the deterministic kp-2 owner', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const matrix = kpDifficultyMatrix(snapshot, runV2RSampler(snapshot, oldGold));
+  for (const subject of SUBJECTS) {
+    const owner = Object.entries(matrix[subject]).find(([, row]) => row.total === 7)?.[0];
+    assert.equal(owner, kpId(subject, 2));
+  }
+});
+
+test('V2-1R R6 — matrix winner is induced by the lexicographically first feasible question set', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const matrix = kpDifficultyMatrix(snapshot, runV2RSampler(snapshot, oldGold));
+  for (const subject of SUBJECTS) {
+    assert.deepEqual(matrix[subject][kpId(subject, 1)], { BASIC: 2, MEDIUM: 3, HARD: 1, total: 6 });
+    assert.deepEqual(matrix[subject][kpId(subject, 2)], { BASIC: 6, MEDIUM: 1, HARD: 0, total: 7 });
+    assert.deepEqual(matrix[subject][kpId(subject, 3)], { BASIC: 2, MEDIUM: 3, HARD: 1, total: 6 });
+    assert.deepEqual(matrix[subject][kpId(subject, 4)], { BASIC: 0, MEDIUM: 3, HARD: 3, total: 6 });
+  }
+});
+
+test('V2-1R R7 — joint solver escapes the historical greedy trap', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const historical = kpDifficultyMatrix(snapshot, sampleV2QuestionIds(snapshot, oldGold));
+  const replacement = kpDifficultyMatrix(snapshot, runV2RSampler(snapshot, oldGold));
+  for (const subject of SUBJECTS) {
+    assert.deepEqual(
+      [1, 2, 3, 4].map((index) => historical[subject][kpId(subject, index)].total),
+      [1, 11, 1, 12],
+    );
+    assert.deepEqual(Object.values(replacement[subject]).map((row) => row.total).sort((a, b) => a - b), [6, 6, 6, 7]);
+  }
+});
+
+test('V2-1R R8 — no joint solution fails closed without relaxing KP or difficulty quotas', () => {
+  const { snapshot, oldGold } = buildNoJointSolutionFixture();
+  assert.equal(typeof sampleV2Module.auditV2RSamplingFeasibility, 'function');
+  const audit = sampleV2Module.auditV2RSamplingFeasibility(snapshot, oldGold);
+  assert.equal(audit.feasible, false);
+  assert.match(audit.errors.join('\n'), /SAMPLING DESIGN BLOCKED.*DS/s);
+  assert.throws(() => runV2RSampler(snapshot, oldGold), /SAMPLING DESIGN BLOCKED.*DS/s);
+});
+
+test('V2-1R R9 — replacement version and manifest cannot overwrite the rejected contract', () => {
+  assert.equal(sampleV2Module.V2R_GOLD_SAMPLE_VERSION, 'gold-sample-v2r');
+  assert.equal(
+    sampleV2Module.V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256,
+    '439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc',
+  );
+  assert.equal(typeof sampleV2Module.buildV2RSampleManifest, 'function');
+  assert.equal(typeof sampleV2Module.validateV2RSampleManifest, 'function');
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const ids = runV2RSampler(snapshot, oldGold);
+  const manifest = sampleV2Module.buildV2RSampleManifest({
+    snapshotId: snapshot.snapshotId,
+    contentSha256: snapshot.contentSha256,
+    entries: sampleEntries(snapshot, ids),
+  });
+  assert.equal(manifest.goldVersion, 'gold-sample-v2r');
+  assert.notEqual(manifest.goldVersion, V2_GOLD_SAMPLE_VERSION);
+  assert.equal(sampleV2Module.validateV2RSampleManifest(manifest, snapshot, oldGold).ok, true);
+  const rejected = { ...manifest, goldVersion: V2_GOLD_SAMPLE_VERSION, sha256: sampleV2Module.V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256 };
+  assert.match(sampleV2Module.validateV2RSampleManifest(rejected, snapshot, oldGold).errors.join('\n'), /REJECTED_PRE_SPLIT_SAMPLE/);
+});
+
+test('V2-1R R10 — repeated and reordered input yields identical ids and SHA; diagnostics do not affect selection', () => {
+  const { snapshot, oldGold } = buildConcentratedFixture();
+  const first = runV2RSampler(snapshot, oldGold);
+  const reordered = {
+    ...snapshot,
+    questions: [...snapshot.questions].reverse(),
+    questionKnowledgePoints: [...snapshot.questionKnowledgePoints].reverse(),
+  };
+  const second = runV2RSampler(reordered, oldGold);
+  assert.deepEqual(second, first);
+  assert.equal(typeof sampleV2Module.buildV2RSampleManifest, 'function');
+  const firstManifest = sampleV2Module.buildV2RSampleManifest({
+    snapshotId: snapshot.snapshotId,
+    contentSha256: snapshot.contentSha256,
+    entries: sampleEntries(snapshot, first),
+  });
+  const secondManifest = sampleV2Module.buildV2RSampleManifest({
+    snapshotId: reordered.snapshotId,
+    contentSha256: reordered.contentSha256,
+    entries: sampleEntries(reordered, second),
+  });
+  assert.equal(secondManifest.sha256, firstManifest.sha256);
+
+  const diagnosticsChanged = {
+    ...snapshot,
+    questions: snapshot.questions.map((question, index) => ({
+      ...question,
+      source: `diagnostic-source-${index}`,
+      year: 1900 + index,
+      chapterName: `diagnostic-chapter-${index}`,
+    })),
+  };
+  assert.deepEqual(runV2RSampler(diagnosticsChanged, oldGold), first);
 });
