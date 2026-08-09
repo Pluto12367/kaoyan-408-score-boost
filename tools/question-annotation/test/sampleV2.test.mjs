@@ -671,3 +671,316 @@ test('V2-1R R10 — repeated and reordered input yields identical ids and SHA; d
   };
   assert.deepEqual(runV2RSampler(diagnosticsChanged, oldGold), first);
 });
+
+function buildHardConcentrationFixture() {
+  const snapshot = {
+    snapshotId: 'snap-v2r2-hard-concentration',
+    contentSha256: 'v2r2-hard-concentration-content-sha',
+    questions: [],
+    knowledgePoints: [],
+    questionKnowledgePoints: [],
+    nodes: [],
+    roles: {},
+    duplicateRepresentative: {},
+  };
+
+  for (const subject of SUBJECTS) {
+    for (let k = 1; k <= 4; k += 1) {
+      snapshot.knowledgePoints.push({
+        id: kpId(subject, k),
+        subject,
+        chapter: `${subject}-chapter-${k}`,
+        title: `${subject}-title-${k}`,
+      });
+    }
+    let number = 0;
+    const addMany = (kp, difficulty, count) => {
+      for (let index = 0; index < count; index += 1) {
+        number += 1;
+        addConcentratedQuestion(snapshot, {
+          subject,
+          number,
+          knowledgePointId: kpId(subject, kp),
+          difficulty,
+        });
+      }
+    };
+
+    // The lexicographically first 25 questions form the rejected 4/1/0/0
+    // HARD allocation. Later ids make a 2/1/1/1 allocation feasible.
+    addMany(1, 'BASIC', 2);
+    addMany(1, 'MEDIUM', 1);
+    addMany(1, 'HARD', 4);
+    addMany(2, 'BASIC', 2);
+    addMany(2, 'MEDIUM', 3);
+    addMany(2, 'HARD', 1);
+    addMany(3, 'BASIC', 3);
+    addMany(3, 'MEDIUM', 3);
+    addMany(4, 'BASIC', 3);
+    addMany(4, 'MEDIUM', 3);
+
+    addMany(1, 'BASIC', 1);
+    addMany(1, 'MEDIUM', 1);
+    addMany(3, 'HARD', 1);
+    addMany(4, 'HARD', 1);
+  }
+
+  return {
+    snapshot,
+    oldGold: { ids: new Set(), fingerprints: new Set(), families: new Set() },
+  };
+}
+
+function allocationMatrix(rows) {
+  return Object.fromEntries(rows.map(([id, BASIC, MEDIUM, HARD]) => [id, { BASIC, MEDIUM, HARD }]));
+}
+
+function integerDeviation(matrix) {
+  return Object.values(matrix).reduce((total, row) => {
+    const kpTotal = row.BASIC + row.MEDIUM + row.HARD;
+    return total
+      + (5 * row.BASIC - 2 * kpTotal) ** 2
+      + (5 * row.MEDIUM - 2 * kpTotal) ** 2
+      + (5 * row.HARD - kpTotal) ** 2;
+  }, 0);
+}
+
+function hardCountsForSubject(snapshot, ids, subject) {
+  const matrix = kpDifficultyMatrix(snapshot, ids)[subject];
+  return Object.fromEntries(
+    Object.entries(matrix).map(([id, row]) => [id, row.HARD]),
+  );
+}
+
+function renameDsKpsToSyntheticIds(snapshot) {
+  const replacements = new Map([
+    [kpId('DS', 1), 'aa'],
+    [kpId('DS', 2), 'bb'],
+    [kpId('DS', 3), 'cc'],
+    [kpId('DS', 4), 'dd'],
+  ]);
+  snapshot.knowledgePoints = snapshot.knowledgePoints.map((point) => ({
+    ...point,
+    id: replacements.get(point.id) ?? point.id,
+  }));
+  snapshot.questionKnowledgePoints = snapshot.questionKnowledgePoints.map((relation) => ({
+    ...relation,
+    knowledgePointId: replacements.get(relation.knowledgePointId) ?? relation.knowledgePointId,
+  }));
+}
+
+function runV2R2Sampler(snapshot, oldGold) {
+  assert.equal(typeof sampleV2Module.sampleV2R2QuestionIds, 'function');
+  return sampleV2Module.sampleV2R2QuestionIds(snapshot, oldGold);
+}
+
+test('V2-1R2 R2-1 — rejected V2R question-set selector concentrates HARD 4/1/0/0; V2R2 minimizes maxHard to 2', () => {
+  const { snapshot, oldGold } = buildHardConcentrationFixture();
+  const rejectedHard = Object.values(hardCountsForSubject(snapshot, sampleV2Module.sampleV2RQuestionIds(snapshot, oldGold), 'DS'))
+    .sort((a, b) => b - a);
+  assert.deepEqual(rejectedHard, [4, 1, 0, 0]);
+
+  const replacementHard = Object.values(hardCountsForSubject(snapshot, runV2R2Sampler(snapshot, oldGold), 'DS'))
+    .sort((a, b) => b - a);
+  assert.deepEqual(replacementHard, [2, 1, 1, 1]);
+});
+
+test('V2-1R2 R2-2 — matrix objective 1 minimizes maxHard', () => {
+  assert.equal(typeof sampleV2Module.scoreV2R2Matrix, 'function');
+  assert.equal(typeof sampleV2Module.compareV2R2MatrixScores, 'function');
+  const eligible = new Map([['aa', 20], ['bb', 19], ['cc', 18], ['dd', 17]]);
+  const concentrated = allocationMatrix([
+    ['aa', 2, 1, 4], ['bb', 2, 3, 1], ['cc', 3, 3, 0], ['dd', 3, 3, 0],
+  ]);
+  const middle = allocationMatrix([
+    ['aa', 2, 2, 3], ['bb', 2, 3, 1], ['cc', 3, 2, 1], ['dd', 3, 3, 0],
+  ]);
+  const spread = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 3, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const scores = [concentrated, middle, spread].map((matrix) => sampleV2Module.scoreV2R2Matrix(matrix, eligible));
+  assert.deepEqual(scores.map((score) => score.maxHard), [4, 3, 2]);
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(scores[2], scores[1]) < 0, true);
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(scores[1], scores[0]) < 0, true);
+});
+
+test('V2-1R2 R2-3 — matrix objective 2 minimizes hardRange after maxHard', () => {
+  const eligible = new Map([['aa', 20], ['bb', 19], ['cc', 18], ['dd', 17]]);
+  const zeroHard = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 2, 2], ['cc', 2, 3, 1], ['dd', 3, 3, 0],
+  ]);
+  const allCovered = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 3, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const zeroScore = sampleV2Module.scoreV2R2Matrix(zeroHard, eligible);
+  const coveredScore = sampleV2Module.scoreV2R2Matrix(allCovered, eligible);
+  assert.equal(zeroScore.maxHard, 2);
+  assert.equal(coveredScore.maxHard, 2);
+  assert.equal(zeroScore.hardRange, 2);
+  assert.equal(coveredScore.hardRange, 1);
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(coveredScore, zeroScore) < 0, true);
+});
+
+test('V2-1R2 R2-4 — matrix objective 3 uses the locked integer deviation cost', () => {
+  const eligible = new Map([['aa', 20], ['bb', 19], ['cc', 18], ['dd', 17]]);
+  const balanced = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 3, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const skewed = allocationMatrix([
+    ['aa', 4, 1, 2], ['bb', 1, 4, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const balancedScore = sampleV2Module.scoreV2R2Matrix(balanced, eligible);
+  const skewedScore = sampleV2Module.scoreV2R2Matrix(skewed, eligible);
+  assert.equal(balancedScore.difficultyDeviationCost, integerDeviation(balanced));
+  assert.equal(skewedScore.difficultyDeviationCost, integerDeviation(skewed));
+  assert.equal(balancedScore.difficultyDeviationCost < skewedScore.difficultyDeviationCost, true);
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(balancedScore, skewedScore) < 0, true);
+});
+
+test('V2-1R2 R2-5 — extra-7 eligible total cannot outrank a better deviation cost', () => {
+  const eligible = new Map([['aa', 10], ['bb', 99], ['cc', 18], ['dd', 17]]);
+  const betterDeviation = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 3, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const higherEligibleOwner = allocationMatrix([
+    ['aa', 4, 1, 1], ['bb', 1, 4, 2], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const betterScore = sampleV2Module.scoreV2R2Matrix(betterDeviation, eligible);
+  const eligibleScore = sampleV2Module.scoreV2R2Matrix(higherEligibleOwner, eligible);
+  assert.equal(betterScore.maxHard, eligibleScore.maxHard);
+  assert.equal(betterScore.hardRange, eligibleScore.hardRange);
+  assert.equal(betterScore.difficultyDeviationCost < eligibleScore.difficultyDeviationCost, true);
+  assert.equal(betterScore.extraSevenEligible < eligibleScore.extraSevenEligible, true);
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(betterScore, eligibleScore) < 0, true);
+});
+
+test('V2-1R2 R2-6 — objective 4 gives the seventh slot to the higher eligible-total KP', () => {
+  const eligible = new Map([['aa', 10], ['bb', 20], ['cc', 18], ['dd', 17]]);
+  const extraAa = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 3, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const extraBb = allocationMatrix([
+    ['aa', 2, 3, 1], ['bb', 3, 2, 2], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const aaScore = sampleV2Module.scoreV2R2Matrix(extraAa, eligible);
+  const bbScore = sampleV2Module.scoreV2R2Matrix(extraBb, eligible);
+  assert.equal(aaScore.difficultyDeviationCost, bbScore.difficultyDeviationCost);
+  assert.equal(bbScore.extraSevenEligible, 20);
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(bbScore, aaScore) < 0, true);
+});
+
+test('V2-1R2 R2-7 — objective 4 breaks equal eligible totals by extra-7 kpId ASC', () => {
+  const eligible = new Map([['aa', 20], ['bb', 20], ['cc', 18], ['dd', 17]]);
+  const extraAa = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 3, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const extraBb = allocationMatrix([
+    ['aa', 2, 3, 1], ['bb', 3, 2, 2], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const aaScore = sampleV2Module.scoreV2R2Matrix(extraAa, eligible);
+  const bbScore = sampleV2Module.scoreV2R2Matrix(extraBb, eligible);
+  assert.equal(aaScore.extraSevenEligible, bbScore.extraSevenEligible);
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(aaScore, bbScore) < 0, true);
+});
+
+test('V2-1R2 R2-8 — objective 5 uses canonical matrix lexical ASC only as final tie-break', () => {
+  const eligible = new Map([['aa', 20], ['bb', 19], ['cc', 18], ['dd', 17]]);
+  const lexicalFirst = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 2, 3, 1], ['cc', 2, 3, 1], ['dd', 3, 2, 1],
+  ]);
+  const lexicalSecond = allocationMatrix([
+    ['aa', 3, 2, 2], ['bb', 3, 2, 1], ['cc', 2, 3, 1], ['dd', 2, 3, 1],
+  ]);
+  const firstScore = sampleV2Module.scoreV2R2Matrix(lexicalFirst, eligible);
+  const secondScore = sampleV2Module.scoreV2R2Matrix(lexicalSecond, eligible);
+  assert.deepEqual(
+    [firstScore.maxHard, firstScore.hardRange, firstScore.difficultyDeviationCost, firstScore.extraSevenKpId],
+    [secondScore.maxHard, secondScore.hardRange, secondScore.difficultyDeviationCost, secondScore.extraSevenKpId],
+  );
+  assert.equal(sampleV2Module.compareV2R2MatrixScores(firstScore, secondScore) < 0, true);
+});
+
+test('V2-1R2 R2-9 — solver has no hardcoded subject or production KP solution', () => {
+  const { snapshot, oldGold } = buildHardConcentrationFixture();
+  renameDsKpsToSyntheticIds(snapshot);
+  const ids = runV2R2Sampler(snapshot, oldGold);
+  const hard = hardCountsForSubject(snapshot, ids, 'DS');
+  assert.deepEqual(Object.keys(hard).sort(), ['aa', 'bb', 'cc', 'dd']);
+  assert.equal(Math.max(...Object.values(hard)), 2);
+  assert.equal(Math.max(...Object.values(hard)) - Math.min(...Object.values(hard)), 1);
+});
+
+test('V2-1R2 R2-10 — impossible 7/6/6/6 + 10/10/5 allocation throws without relaxation', () => {
+  const { snapshot, oldGold } = buildNoJointSolutionFixture();
+  assert.throws(() => runV2R2Sampler(snapshot, oldGold), /SAMPLING DESIGN BLOCKED.*DS/s);
+});
+
+test('V2-1R2 R2-11 — validator rejects V2 and V2R versions as accepted V2R2 contracts', () => {
+  const { snapshot, oldGold } = buildHardConcentrationFixture();
+  const ids = runV2R2Sampler(snapshot, oldGold);
+  const valid = sampleV2Module.buildV2R2SampleManifest({
+    snapshotId: snapshot.snapshotId,
+    contentSha256: snapshot.contentSha256,
+    entries: sampleEntries(snapshot, ids),
+  });
+  for (const rejectedVersion of ['gold-sample-v2', 'gold-sample-v2r']) {
+    const rejected = buildV2SampleManifest({
+      snapshotId: snapshot.snapshotId,
+      contentSha256: snapshot.contentSha256,
+      goldVersion: rejectedVersion,
+      entries: valid.entries,
+    });
+    assert.equal(sampleV2Module.validateV2R2SampleManifest(rejected, snapshot, oldGold).ok, false);
+  }
+});
+
+test('V2-1R2 R2-12 — validator accepts the canonical gold-sample-v2r2 contract', () => {
+  const { snapshot, oldGold } = buildHardConcentrationFixture();
+  const ids = runV2R2Sampler(snapshot, oldGold);
+  const manifest = sampleV2Module.buildV2R2SampleManifest({
+    snapshotId: snapshot.snapshotId,
+    contentSha256: snapshot.contentSha256,
+    entries: sampleEntries(snapshot, ids),
+  });
+  assert.equal(sampleV2Module.V2R2_GOLD_SAMPLE_VERSION, 'gold-sample-v2r2');
+  assert.equal(manifest.goldVersion, 'gold-sample-v2r2');
+  assert.deepEqual(sampleV2Module.validateV2R2SampleManifest(manifest, snapshot, oldGold), { ok: true, errors: [] });
+});
+
+test('V2-1R2 — repeated and reordered input yields identical ids and manifest SHA', () => {
+  const { snapshot, oldGold } = buildHardConcentrationFixture();
+  const first = runV2R2Sampler(snapshot, oldGold);
+  const reordered = {
+    ...snapshot,
+    questions: [...snapshot.questions].reverse(),
+    knowledgePoints: [...snapshot.knowledgePoints].reverse(),
+    questionKnowledgePoints: [...snapshot.questionKnowledgePoints].reverse(),
+  };
+  const second = runV2R2Sampler(reordered, oldGold);
+  assert.deepEqual(second, first);
+  const firstManifest = sampleV2Module.buildV2R2SampleManifest({
+    snapshotId: snapshot.snapshotId,
+    contentSha256: snapshot.contentSha256,
+    entries: sampleEntries(snapshot, first),
+  });
+  const secondManifest = sampleV2Module.buildV2R2SampleManifest({
+    snapshotId: reordered.snapshotId,
+    contentSha256: reordered.contentSha256,
+    entries: sampleEntries(reordered, second),
+  });
+  assert.equal(secondManifest.sha256, firstManifest.sha256);
+});
+
+test('V2-1R2 — validator rejects a hard-feasible but objectively inferior sample', () => {
+  const { snapshot, oldGold } = buildHardConcentrationFixture();
+  const rejectedIds = sampleV2Module.sampleV2RQuestionIds(snapshot, oldGold);
+  const inferior = buildV2SampleManifest({
+    snapshotId: snapshot.snapshotId,
+    contentSha256: snapshot.contentSha256,
+    goldVersion: 'gold-sample-v2r2',
+    entries: sampleEntries(snapshot, rejectedIds),
+  });
+  const validation = sampleV2Module.validateV2R2SampleManifest(inferior, snapshot, oldGold);
+  assert.equal(validation.ok, false);
+  assert.match(validation.errors.join('\n'), /canonical V2R2 selection/);
+});

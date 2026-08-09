@@ -2,7 +2,9 @@ import { canonicalJsonHash } from './canonical.js';
 
 export const V2_GOLD_SAMPLE_VERSION = 'gold-sample-v2';
 export const V2R_GOLD_SAMPLE_VERSION = 'gold-sample-v2r';
+export const V2R2_GOLD_SAMPLE_VERSION = 'gold-sample-v2r2';
 export const V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256 = '439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc';
+export const V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256 = '368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854';
 export const V2_TOTAL = 100;
 export const V2_PER_SUBJECT = 25;
 export const V2_DIFFICULTY_QUOTA = { BASIC: 10, MEDIUM: 10, HARD: 5 };
@@ -149,6 +151,171 @@ function solveSubjectV2R({ subject, subjectKps, candidates, ownedKpByQuestion })
   return { ok: true, ids: bestIds, matrix: bestMatrix, extraSevenKpId: bestExtraSevenKpId };
 }
 
+function compareCanonicalMatrices(left, right) {
+  for (let rowIndex = 0; rowIndex < Math.min(left.length, right.length); rowIndex += 1) {
+    const leftRow = left[rowIndex];
+    const rightRow = right[rowIndex];
+    const kpCompared = leftRow[0].localeCompare(rightRow[0]);
+    if (kpCompared !== 0) return kpCompared;
+    for (let columnIndex = 1; columnIndex < leftRow.length; columnIndex += 1) {
+      if (leftRow[columnIndex] !== rightRow[columnIndex]) {
+        return leftRow[columnIndex] - rightRow[columnIndex];
+      }
+    }
+  }
+  return left.length - right.length;
+}
+
+export function scoreV2R2Matrix(matrix, eligibleTotalByKp) {
+  const canonicalMatrix = Object.keys(matrix ?? {})
+    .sort((a, b) => a.localeCompare(b))
+    .map((kpId) => [
+      kpId,
+      matrix[kpId].BASIC,
+      matrix[kpId].MEDIUM,
+      matrix[kpId].HARD,
+    ]);
+  const extraSevenRows = canonicalMatrix.filter(([, basic, medium, hard]) => basic + medium + hard === 7);
+  if (canonicalMatrix.length !== 4 || extraSevenRows.length !== 1) {
+    throw new Error('V2R2 matrix must contain four KPs with exactly one seven-question row');
+  }
+  const hardCounts = canonicalMatrix.map(([, , , hard]) => hard);
+  const maxHard = Math.max(...hardCounts);
+  const minHard = Math.min(...hardCounts);
+  const difficultyDeviationCost = canonicalMatrix.reduce((total, [, basic, medium, hard]) => {
+    const kpTotal = basic + medium + hard;
+    return total
+      + (5 * basic - 2 * kpTotal) ** 2
+      + (5 * medium - 2 * kpTotal) ** 2
+      + (5 * hard - kpTotal) ** 2;
+  }, 0);
+  const extraSevenKpId = extraSevenRows[0][0];
+  const extraSevenEligible = eligibleTotalByKp.get(extraSevenKpId);
+  if (!Number.isInteger(extraSevenEligible) || extraSevenEligible < 0) {
+    throw new Error(`V2R2 eligible total missing for ${extraSevenKpId}`);
+  }
+  return {
+    maxHard,
+    hardRange: maxHard - minHard,
+    difficultyDeviationCost,
+    extraSevenEligible,
+    extraSevenKpId,
+    canonicalMatrix,
+  };
+}
+
+export function compareV2R2MatrixScores(left, right) {
+  if (left.maxHard !== right.maxHard) return left.maxHard - right.maxHard;
+  if (left.hardRange !== right.hardRange) return left.hardRange - right.hardRange;
+  if (left.difficultyDeviationCost !== right.difficultyDeviationCost) {
+    return left.difficultyDeviationCost - right.difficultyDeviationCost;
+  }
+  if (left.extraSevenEligible !== right.extraSevenEligible) {
+    return right.extraSevenEligible - left.extraSevenEligible;
+  }
+  const extraSevenKpCompared = left.extraSevenKpId.localeCompare(right.extraSevenKpId);
+  if (extraSevenKpCompared !== 0) return extraSevenKpCompared;
+  return compareCanonicalMatrices(left.canonicalMatrix, right.canonicalMatrix);
+}
+
+function enumerateFeasibleAllocationMatrices({ subjectKps, cells, onMatrix }) {
+  const matrix = {};
+  const visit = (kpIndex, remaining, extraSevenKpId) => {
+    if (kpIndex === subjectKps.length) {
+      if (DIFFICULTY_ORDER.some((difficulty) => remaining[difficulty] !== 0)) return;
+      onMatrix(Object.fromEntries(subjectKps.map((kpId) => [kpId, { ...matrix[kpId] }])));
+      return;
+    }
+
+    const kpId = subjectKps[kpIndex];
+    const quota = kpId === extraSevenKpId ? V2_KP_MAX_PER_SUBJECT : V2_KP_MIN_PER_SUBJECT;
+    const available = Object.fromEntries(
+      DIFFICULTY_ORDER.map((difficulty) => [difficulty, cells.get(`${kpId}|${difficulty}`).length]),
+    );
+    for (let basic = 0; basic <= Math.min(quota, remaining.BASIC, available.BASIC); basic += 1) {
+      for (let medium = 0; medium <= Math.min(quota - basic, remaining.MEDIUM, available.MEDIUM); medium += 1) {
+        const hard = quota - basic - medium;
+        if (hard < 0 || hard > remaining.HARD || hard > available.HARD) continue;
+        matrix[kpId] = { BASIC: basic, MEDIUM: medium, HARD: hard };
+        visit(kpIndex + 1, {
+          BASIC: remaining.BASIC - basic,
+          MEDIUM: remaining.MEDIUM - medium,
+          HARD: remaining.HARD - hard,
+        }, extraSevenKpId);
+      }
+    }
+    delete matrix[kpId];
+  };
+
+  for (const extraSevenKpId of subjectKps) {
+    visit(0, { ...V2_DIFFICULTY_QUOTA }, extraSevenKpId);
+  }
+}
+
+function solveSubjectV2R2({ subject, subjectKps, candidates, ownedKpByQuestion }) {
+  const cells = new Map();
+  for (const kpId of subjectKps) {
+    for (const difficulty of DIFFICULTY_ORDER) cells.set(`${kpId}|${difficulty}`, []);
+  }
+  for (const question of candidates) {
+    const kpId = ownedKpByQuestion.get(question.id);
+    const key = `${kpId}|${question.difficulty}`;
+    if (cells.has(key)) cells.get(key).push(question.id);
+  }
+  for (const ids of cells.values()) ids.sort((a, b) => a.localeCompare(b));
+
+  const eligibleTotalByKp = new Map(subjectKps.map((kpId) => [
+    kpId,
+    DIFFICULTY_ORDER.reduce(
+      (total, difficulty) => total + cells.get(`${kpId}|${difficulty}`).length,
+      0,
+    ),
+  ]));
+  let bestMatrix = null;
+  let bestScore = null;
+
+  enumerateFeasibleAllocationMatrices({
+    subjectKps,
+    cells,
+    onMatrix: (candidateMatrix) => {
+      const candidateScore = scoreV2R2Matrix(candidateMatrix, eligibleTotalByKp);
+      if (bestScore === null || compareV2R2MatrixScores(candidateScore, bestScore) < 0) {
+        bestMatrix = candidateMatrix;
+        bestScore = candidateScore;
+      }
+    },
+  });
+
+  if (bestMatrix === null) {
+    const availability = subjectKps.map((kpId) => {
+      const counts = DIFFICULTY_ORDER.map(
+        (difficulty) => `${difficulty}=${cells.get(`${kpId}|${difficulty}`).length}`,
+      ).join(',');
+      return `${kpId}[${counts}]`;
+    }).join(' ');
+    return {
+      ok: false,
+      error: `SAMPLING DESIGN BLOCKED: ${subject} has no joint 7/6/6/6 + 10/10/5 allocation; ${availability}`,
+    };
+  }
+
+  // The allocation matrix is frozen before any concrete question is chosen.
+  const ids = [];
+  for (const kpId of subjectKps) {
+    for (const difficulty of DIFFICULTY_ORDER) {
+      ids.push(...cells.get(`${kpId}|${difficulty}`).slice(0, bestMatrix[kpId][difficulty]));
+    }
+  }
+  ids.sort((a, b) => a.localeCompare(b));
+  return {
+    ok: true,
+    ids,
+    matrix: bestMatrix,
+    score: bestScore,
+    extraSevenKpId: bestScore.extraSevenKpId,
+  };
+}
+
 function solveV2R(snapshot, oldGold) {
   const errors = [];
   const rows = [];
@@ -210,6 +377,67 @@ function solveV2R(snapshot, oldGold) {
   return { feasible: errors.length === 0, rows, errors: errors.sort(), selections, pool, required };
 }
 
+function solveV2R2(snapshot, oldGold) {
+  const errors = [];
+  const rows = [];
+  const selections = new Map();
+  const pool = buildV2EligiblePool(snapshot, oldGold);
+  const required = computeRequiredV2KpSet(snapshot);
+  const kpSubject = new Map((snapshot.knowledgePoints ?? []).map((point) => [point.id, point.subject]));
+  const kpIdsByQuestion = buildKpIndex(snapshot);
+  const ownedKpByQuestion = new Map();
+
+  if (required.size !== 16) {
+    errors.push(`SAMPLING DESIGN BLOCKED: required V2 KP set size ${required.size} != 16`);
+  }
+  for (const question of pool) {
+    const owned = [...(kpIdsByQuestion.get(question.id) ?? [])]
+      .filter((kpId) => required.has(kpId) && kpSubject.get(kpId) === question.subject)
+      .sort();
+    if (owned.length !== 1) {
+      errors.push(
+        `SAMPLING DESIGN BLOCKED: ${question.subject} question ${question.id} has ${owned.length} required KP relations`,
+      );
+      continue;
+    }
+    if (!DIFFICULTY_ORDER.includes(question.difficulty)) {
+      errors.push(
+        `SAMPLING DESIGN BLOCKED: ${question.subject} question ${question.id} has unsupported difficulty ${question.difficulty}`,
+      );
+      continue;
+    }
+    ownedKpByQuestion.set(question.id, owned[0]);
+  }
+
+  for (const subject of SUBJECTS) {
+    const subjectKps = [...required].filter((kpId) => kpSubject.get(kpId) === subject).sort();
+    if (subjectKps.length !== 4) {
+      errors.push(`SAMPLING DESIGN BLOCKED: ${subject} required KP count ${subjectKps.length} != 4`);
+      continue;
+    }
+    const candidates = pool
+      .filter((question) => question.subject === subject && ownedKpByQuestion.has(question.id))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    for (const kpId of subjectKps) {
+      const counts = { BASIC: 0, MEDIUM: 0, HARD: 0 };
+      for (const question of candidates) {
+        if (ownedKpByQuestion.get(question.id) === kpId) counts[question.difficulty] += 1;
+      }
+      rows.push({
+        subject,
+        knowledgePointId: kpId,
+        eligible: counts.BASIC + counts.MEDIUM + counts.HARD,
+        ...counts,
+      });
+    }
+    const solved = solveSubjectV2R2({ subject, subjectKps, candidates, ownedKpByQuestion });
+    if (!solved.ok) errors.push(solved.error);
+    else selections.set(subject, solved);
+  }
+
+  return { feasible: errors.length === 0, rows, errors: errors.sort(), selections, pool, required };
+}
+
 export function auditV2RSamplingFeasibility(snapshot, oldGold) {
   const solved = solveV2R(snapshot, oldGold);
   return { feasible: solved.feasible, rows: solved.rows, errors: solved.errors };
@@ -217,6 +445,32 @@ export function auditV2RSamplingFeasibility(snapshot, oldGold) {
 
 export function sampleV2RQuestionIds(snapshot, oldGold) {
   const solved = solveV2R(snapshot, oldGold);
+  if (!solved.feasible) throw new Error(solved.errors.join('\n'));
+  return SUBJECTS.flatMap((subject) => solved.selections.get(subject).ids)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+export function auditV2R2SamplingFeasibility(snapshot, oldGold) {
+  const solved = solveV2R2(snapshot, oldGold);
+  return {
+    feasible: solved.feasible,
+    rows: solved.rows,
+    errors: solved.errors,
+    subjects: Object.fromEntries(
+      SUBJECTS.filter((subject) => solved.selections.has(subject)).map((subject) => {
+        const selection = solved.selections.get(subject);
+        return [subject, {
+          matrix: selection.matrix,
+          score: selection.score,
+          extraSevenKpId: selection.extraSevenKpId,
+        }];
+      }),
+    ),
+  };
+}
+
+export function sampleV2R2QuestionIds(snapshot, oldGold) {
+  const solved = solveV2R2(snapshot, oldGold);
   if (!solved.feasible) throw new Error(solved.errors.join('\n'));
   return SUBJECTS.flatMap((subject) => solved.selections.get(subject).ids)
     .sort((a, b) => a.localeCompare(b));
@@ -336,6 +590,15 @@ export function buildV2RSampleManifest({ snapshotId, contentSha256, entries }) {
     snapshotId,
     contentSha256,
     goldVersion: V2R_GOLD_SAMPLE_VERSION,
+    entries,
+  });
+}
+
+export function buildV2R2SampleManifest({ snapshotId, contentSha256, entries }) {
+  return buildV2SampleManifest({
+    snapshotId,
+    contentSha256,
+    goldVersion: V2R2_GOLD_SAMPLE_VERSION,
     entries,
   });
 }
@@ -538,4 +801,57 @@ export function validateV2RSampleManifest(manifest, snapshot, oldGold = null) {
     }
   }
   return { ok: errors.length === 0, errors: errors.sort() };
+}
+
+export function validateV2R2SampleManifest(manifest, snapshot, oldGold = null) {
+  if (!manifest || typeof manifest !== 'object') {
+    return { ok: false, errors: ['sample manifest missing'] };
+  }
+  const errors = [];
+  if (
+    manifest.goldVersion === V2_GOLD_SAMPLE_VERSION
+    || manifest.goldVersion === V2R_GOLD_SAMPLE_VERSION
+    || manifest.sha256 === V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256
+    || manifest.sha256 === V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256
+  ) {
+    errors.push('manifest: REJECTED_PRE_SPLIT_SAMPLE is forbidden');
+  }
+  if (manifest.goldVersion !== V2R2_GOLD_SAMPLE_VERSION) {
+    errors.push(`manifest: goldVersion ${manifest.goldVersion} != ${V2R2_GOLD_SAMPLE_VERSION}`);
+  }
+
+  const entries = Array.isArray(manifest.entries) ? manifest.entries : [];
+  const recomputed = buildV2SampleManifest({
+    snapshotId: manifest.snapshotId,
+    contentSha256: manifest.contentSha256,
+    goldVersion: manifest.goldVersion,
+    entries,
+  });
+  if (manifest.sha256 !== recomputed.sha256) errors.push('manifest: sha256 mismatch');
+
+  // Reuse the already locked balanced-KP structural and lineage validation
+  // without changing the historical V2R public contract.
+  const v2rProxy = {
+    ...manifest,
+    goldVersion: V2R_GOLD_SAMPLE_VERSION,
+    sha256: buildV2SampleManifest({
+      snapshotId: manifest.snapshotId,
+      contentSha256: manifest.contentSha256,
+      goldVersion: V2R_GOLD_SAMPLE_VERSION,
+      entries,
+    }).sha256,
+  };
+  errors.push(...validateV2RSampleManifest(v2rProxy, snapshot, oldGold).errors);
+
+  try {
+    const canonicalIds = sampleV2R2QuestionIds(snapshot, oldGold);
+    const manifestIds = entries.map((entry) => entry.questionId).sort((a, b) => a.localeCompare(b));
+    if (compareIdArrays(manifestIds, canonicalIds) !== 0) {
+      errors.push('manifest: entries differ from canonical V2R2 selection');
+    }
+  } catch (error) {
+    errors.push(`manifest: canonical V2R2 selection unavailable: ${error.message}`);
+  }
+
+  return { ok: errors.length === 0, errors: [...new Set(errors)].sort() };
 }
