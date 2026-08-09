@@ -88,6 +88,7 @@ rrf(node) = Σ_{view ∈ {stem, analysis}} 1 / (k + rank_view(node))
 ```
 
 - k = 60 (fixed; the pre-existing RRF constant from Task 8. It is not re-tuned on old DEV or on the new V2 DEV).
+- Inputs to fusion are the FULL same-subject rankings of both views. There is NO pre-fusion truncation to Top8/Top12: every active atomic node of `question.subject` is ranked by the stem view and by the analysis view, and both full rankings feed the RRF. This prevents reintroducing the single-view Top12 boundary cut that caused V1 misses at rank 14.
 - Deterministic, parameter count = 1 (fixed), interpretable (stemRank/analysisRank/rrfScore on each candidate).
 - Miss 2 (14, 1) and Miss 3 (14, 12) both gain contributions from the analysis view.
 
@@ -110,6 +111,19 @@ score(node) = α * sim(stem, node) + β * sim(analysis, node)
 ## 8. Recommended Aggregation
 
 **Approach A — RRF over stem + analysis (k = 60), semantic views only.**
+
+Locked retrieval contract:
+
+```text
+stem ranking depth:    FULL same-subject ranking (all active atomic nodes of question.subject)
+analysis ranking depth: FULL same-subject ranking
+fusion:                RRF, contribution 1 / (60 + rank), summed over the two views
+final TopK:            Top12 (expanded), Top8 is the initial view of the same list
+tie-break:             rrfScore DESC, then nodeId ASC
+structural bonus:      none
+```
+
+No pre-fusion cutoff and no structural bonus. The full same-subject ranking is tractable at the current offline tool scale (≤ ~320 active atomic nodes per subject).
 
 Rationale:
 
@@ -144,6 +158,8 @@ This is the ONE default V2 aggregation. Alternative approaches B/C are documente
 
 Deterministic KnowledgeNode → passage builder using only structured information that already exists in the snapshot/knowledge tree.
 
+Honest scope statement: the V2 passage builder produces a canonical labeled hierarchical representation. It does NOT add semantic attributes that do not exist in the tree. In particular it cannot add the missing property text for Miss 1 (e.g., the binary-linked-list null-pointer property); closing that gap requires a separate knowledge-catalog semantic metadata enhancement (V3 candidate), not a retrieval-side invention.
+
 ## 13. Real KnowledgeNode Schema Audit
 
 Audited from the frozen snapshot (`snap-399242fb3d7f`):
@@ -163,22 +179,32 @@ sectionName
 
 Additionally, the tree contains subject-level nodes with full Chinese names (e.g., subject `DS` → name `数据结构`), which is legitimate structured information for subject-name enrichment.
 
+Audit of the authoritative tree (`data/408/knowledge-tree-408-v2.json`) versus the snapshot/exporter/workspace:
+
+```text
+snapshot node fields: id, name, subject, nodeType, parentId, isActive, chapterName, sectionName
+exporter enriches:    chapterName, sectionName from parent hierarchy
+workspace columns:    node_id, snapshot_id, parent_id, subject, node_type, name, is_active, chapter_name, section_name
+tree extra fields:    level, order, scoreWeight, importance, estimatedFrequency, difficulty, syllabusVersion, frequencySource
+```
+
+The tree's extra fields (`importance`, `difficulty`, `estimatedFrequency`, `frequencySource`, `order`, `scoreWeight`, `syllabusVersion`, `level`) are numeric/version metadata, not candidate-discriminative semantic passage text, and are out of scope for P2 passage text.
+
 Not available fields (must NOT be assumed):
 
 ```text
 aliases
 keywords
 description
-importance
-stage
-level
-parentName (derivable from parentId + tree lookup, but not a stored field)
 ```
+
+`parentName` is derivable from `parentId` + tree lookup, but for atomic points the parent section name is already `sectionName`, so no new field is introduced.
 
 ## 14. Passage Enrichment Candidate Levels
 
-- V1: `name + chapterName + sectionName` (space-joined).
-- V2 Minimal: `subjectName + chapterName + sectionName + name` in a labeled canonical format.
+- V1: `name + chapterName + sectionName` (space-joined, unlabeled).
+- V2 canonical labeled hierarchical passage: `考点：<name> 章节：<chapterName> 小节：<sectionName>`.
+  - `subjectName` is deliberately excluded: the subject is a hard filter, so it is constant within a candidate pool and carries no intra-subject discrimination.
 - V2 Expanded (only if the schema later adds legitimate fields): aliases/keywords/description. They do not exist today and are excluded from the current V2 contract.
 
 ## 15. No nodeId as Semantic Content
@@ -189,22 +215,31 @@ parentName (derivable from parentId + tree lookup, but not a stored field)
 
 - For atomic points, `parentId` points to the section node and `sectionName` is already that section's name; parent/section context is therefore already captured without a new field.
 - Chapter context is captured by `chapterName`.
-- Subject context is captured by the tree's subject node name.
-- To prevent broad-concept flooding, the labeled format keeps level labels (`科目/章节/小节/考点`) so each field is distinguishable and no single broad level dominates the embedding.
+- Subject context is intentionally NOT in the passage: the subject is a hard filter, so it is constant within a candidate pool and carries no intra-subject discrimination.
+- To prevent broad-concept flooding, the labeled format keeps level labels (`考点/章节/小节`) so each field is distinguishable and no single broad level dominates the embedding.
 
 ## 17. Canonical Passage Format (locked)
 
 ```text
-科目：<subjectName> 章节：<chapterName> 小节：<sectionName> 考点：<name>
+考点：<name> 章节：<chapterName> 小节：<sectionName>
 ```
 
 Rules (deterministic):
 
-- Field order is fixed: subjectName, chapterName, sectionName, name.
+- Field order is fixed: name, chapterName, sectionName (labeled 考点/章节/小节).
 - Empty fields are omitted together with their label.
 - Fields appear exactly once; no value-based deduplication (identical values across levels are kept as-is; determinism is guaranteed by fixed order).
 - No nodeId in the text.
-- Exactly one production format (`knowledge-node-passage-v2`); no parallel formats.
+- No subjectName (non-discriminative under the hard subject filter).
+- Exactly one production format; no parallel formats.
+
+What P2 genuinely adds versus P1:
+
+- explicit level labels (考点/章节/小节) that help the embedding distinguish node name from chapter/section context;
+- fixed canonical field order and hierarchy framing;
+- deterministic duplicate suppression of empty fields.
+
+P2 does NOT add any attribute semantics missing from the tree (e.g., the Miss 1 property text). It only validates whether field order / hierarchy context / labeled representation improve retrieval. This is an honest limitation, not a claim to close the Miss 1 gap.
 
 ## 18. Passage Versioning
 
@@ -235,14 +270,16 @@ See Architecture (§5). Data flow is fully textual: QueryView Builder → E5 que
 ## 24. Data Roles
 
 ```text
-V1 DEV 24:            development evidence (representation sanity, regression)
-V1 consumed HOLDOUT 16: diagnostic/regression evidence only; never a final test
-NEW V2 benchmark:     the only final blind test set
+V1 DEV 24:            regression / diagnostic evidence only
+V1 consumed HOLDOUT 16: regression / diagnostic evidence only; never a final test
+NEW V2 DEV 72:        the ONLY source of V2 final configuration selection metrics
+NEW V2 HOLDOUT 28:    the only final blind test set
 ```
 
 ## 25. Old 40 Usage
 
 - The old 40 may be used for representation sanity, regression, and design validation.
+- They may be reported as `legacy regression metrics` alongside V2 experiments, but they must NOT enter the V2 final configuration selection metric. The pre-registered matrix winner is selected ONLY on the new V2 DEV 72. Merging old 40 + new 72 into a 112-question selection set is forbidden, to prevent the known 3 misses from over-influencing V2 selection.
 - They may not be used as the V2 final blind Gate.
 
 ## 26. New V2 Benchmark
@@ -301,6 +338,7 @@ Deterministic stratified sample of 100 from the 286 remaining independent curren
 
 - Human authoring only: PRIMARY exactly 1, SECONDARY 0–2.
 - Gold truth is decided from knowledge-tree search + manual judgement; retriever candidate output is never used as the Gold oracle (no circular evaluation).
+- The frozen split (DEV/HOLDOUT) is stored in the manifest but is NOT displayed as a judgment cue in the authoring UX. The authoring view shows question, subject, knowledge tree and authoring state only. If the existing CLI cannot hide the split without cost, this does not block V2, but the invariant is recorded: split must never affect Gold labeling decisions.
 
 ## 32. Gold Authoring Workload
 
@@ -332,8 +370,8 @@ Query:
   Q2 stem + analysis RRF (k=60)      [V2 default]
 
 Passage:
-  P1 V1 (name + chapterName + sectionName)
-  P2 enriched-v2 (knowledge-node-passage-v2)
+  P1 V1 (unlabeled name + chapterName + sectionName)
+  P2 canonical labeled hierarchical passage v2 (考点：<name> 章节：<chapterName> 小节：<sectionName>)
 
 Matrix (4 cells):
   Q1P1  = V1 baseline reproduction
@@ -365,30 +403,22 @@ No additional variants may be added after seeing DEV results.
 
 Default expectation: Q2P2 wins; a simpler cell may win only if it ties or strictly dominates on the priority order.
 
-## 39. New HOLDOUT Gate Options
+## 39. New HOLDOUT Gate
 
-For 28 HOLDOUT questions:
+The single locked gate is defined below (§40). The earlier draft options (26/28 and 27/28 @12 variants) are rejected: 26/28 (92.86%) would be an unannounced relaxation of the V1 standard (15/16 ≈ 93.75%) and must not be described as equivalent to it. A 27/28 @12 variant would break the Top12 candidate-ceiling guarantee.
 
-```text
-G1 (strict):  Recall@8 >= 27/28 (96.43%), Recall@12 = 28/28 (100%), Macro >= 0.90
-G2 (balanced): Recall@8 >= 26/28 (92.86%), Recall@12 = 28/28 (100%), Macro >= 0.90
-G3 (moderate): Recall@8 >= 26/28 (92.86%), Recall@12 >= 27/28 (96.43%), Macro >= 0.90
-```
+## 40. Final Holdout Gate
 
-All gates also require: crossSubject = 0, activeAtomicViolations = 0, invalidNodes = 0, duplicates = 0, nonFiniteScores = 0.
-
-## 40. Recommended Holdout Gate
-
-**G2 (balanced):**
+Final locked Holdout Gate (28 questions, locked before any new HOLDOUT evaluation):
 
 ```text
-PRIMARY Recall@8:    >= 26/28 (92.86%)
+PRIMARY Recall@8:    >= 27/28 (96.43%)
 PRIMARY Recall@12:   = 28/28 (100%)
 Macro AllRelevant@12: >= 0.90
 Safety:              all zero
 ```
 
-Rationale: 26/28 is the smallest integer meeting the ≈93% floor on a 28-question sample; Recall@12 must be 100% because Top12 is the ceiling for the later AI candidate selector. Per-subject metrics are diagnostics only (7/subject is too small for an independent hard gate).
+Rationale: 27/28 preserves the "at most 1 Top8 miss" engineering standard from V1 (15/16 ≈ 93.75%) without secretly relaxing it, while allowing exactly one boundary miss. Recall@12 must be 28/28 (100%) because Top12 is the ceiling for the later AI candidate selector. Per-subject metrics are diagnostics only (7/subject is too small for an independent hard gate).
 
 ## 41. One-shot Policy
 
@@ -435,6 +465,7 @@ Fail closed where data integrity matters; graceful deterministic fallback where 
 ```text
 QUERY_VIEW_VERSION            = query-views-v2
 PASSAGE_VERSION               = knowledge-node-passage-v2
+PASSAGE_FORMAT                = canonical-labeled-hierarchical-passage-v2
 SEMANTIC_AGGREGATION_VERSION  = semantic-rrf-v2
 SEMANTIC_RETRIEVER_VERSION    = semantic-retriever-v2
 V2_GOLD_VERSION               = gold-truth-v2
@@ -485,7 +516,7 @@ Recommendation: **Option 1**. No blocker found in the schema audit (286 remainin
 ## 50. Acceptance Criteria for V2
 
 - Multi-view semantic retrieval implemented per this design (stem + analysis RRF k=60).
-- Deterministic passage enrichment (`knowledge-node-passage-v2`) with the locked labeled format.
+- Deterministic canonical labeled hierarchical passage (`knowledge-node-passage-v2` / `canonical-labeled-hierarchical-passage-v2`) with the locked format.
 - No nodeId in semantic text; no aliases/keywords/description invented.
 - Pre-registered 4-cell matrix executed on new DEV; final selection by the locked rule.
 - New 28-question blind HOLDOUT evaluated once; G2 gate; no retune after.
@@ -497,7 +528,21 @@ Recommendation: **Option 1**. No blocker found in the schema audit (286 remainin
 - Leakage: old HOLDOUT is explicitly diagnostic/regression-only; new 100 excludes exact/version duplicates of old Gold and is not derived from the 3 misses.
 - Benchmark math: 4 × 25 = 100; 4 × 18 = 72; 4 × 7 = 28.
 - Versioning: V1/V2 fully isolated (config, gold files, passage version, cache content).
-- Gate: exact integer thresholds (26/28, 28/28) locked before any new HOLDOUT evaluation.
+- Gate: exactly one locked gate (27/28 @8, 28/28 @12) locked before any new HOLDOUT evaluation; no open options remain in the body.
+- Passage: P2 adds explicit level labels and hierarchy framing; it does NOT add missing attribute semantics (audited — the tree has no aliases/keywords/description, and numeric metadata is out of scope). Miss 1's attribute gap is deferred to a separate knowledge-catalog semantic metadata enhancement.
+- Fusion: with full same-subject rankings feeding RRF (no pre-fusion truncation), a node at stem rank 14 with analysis rank 1 still receives both contributions and can be rescued into Top12 — this directly addresses the V1 boundary misses.
+- Data roles: old 40 → regression only; new 72 → selection; new 28 → blind final gate. Old 40 never enters the selection metric.
+- Gold: new HOLDOUT truth authoring is not influenced by retriever output, and the split is hidden from authoring UX.
+
+## 52. Design Review Amendment (2026-08-09)
+
+Resolutions from the design review:
+
+1. Passage enrichment is reframed as `canonical labeled hierarchical passage v2`: it validates field order, hierarchy context and labeled representation only. It does not add attribute semantics missing from the tree; the Miss 1 property gap is deferred to a separate knowledge-catalog semantic metadata enhancement (V3 candidate). `subjectName` is excluded (constant under the hard subject filter).
+2. Multi-view RRF pre-fusion depth is locked: FULL same-subject rankings for both stem and analysis; no Top8/Top12 pre-truncation; k = 60; rrfScore DESC then nodeId ASC; no structural bonus.
+3. Data roles are locked: old 40 → regression/diagnostic only (legacy regression metrics); winner selected only on new V2 DEV 72; new 28 is the only blind final gate. Merging old 40 + new 72 is forbidden.
+4. Gold authoring hides the split in the authoring UX (manifest still stores the frozen split); retriever output remains forbidden as the Gold oracle.
+5. The Holdout Gate is locked to a single standard: PRIMARY Recall@8 >= 27/28 (96.43%), PRIMARY Recall@12 = 28/28 (100%), Macro >= 0.90, safety all zero.
 
 ## 52. Alternatives Rejected
 
