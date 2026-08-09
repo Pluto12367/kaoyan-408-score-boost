@@ -39,6 +39,90 @@ TopK: Top12 expanded; Top8 initial view of the same list
 Final V2 Holdout Gate (28): Recall@8 >= 27/28 (96.43%), Recall@12 = 28/28 (100%), Macro AllRelevant@12 >= 0.90, safety counters all zero
 ```
 
+## Refined Locked Contracts (2026-08-09)
+
+### 1. Difficulty quota — exact integers (no tolerance)
+
+```text
+per subject (25): BASIC 10 / MEDIUM 10 / HARD 5
+global (100):     BASIC 40 / MEDIUM 40 / HARD 20
+```
+
+Any subject unable to satisfy exactly 10/10/5 → `BLOCKED` with a shortage diagnostic (which subject/bucket and shortfall count). No automatic relaxation to 9/11/5, 11/9/5, or any "within tolerance" acceptance.
+
+### 2. Required V2 KnowledgePoint set — canonical source
+
+Audited from the frozen snapshot (`snap-399242fb3d7f`):
+
+```text
+production KnowledgePoint rows: 18
+required V2 KP count:           16
+canonical source: REQUIRED_V2_KP_SET = { knowledgePointId | ∃ eligible (INDEPENDENT_UNIT, current) question q with relation (q.id, knowledgePointId) }
+why 16 vs 18: the other 2 rows (os-memory-1785901175429, os-memory-1785938815312, both titled 分页与地址转换) have zero question relations (eligible or otherwise) in the snapshot; they are orphan rows and cannot be sampled. The 16 required KPs match the V1 gold coverage contract and are all referenced by ≥1 eligible question.
+```
+
+Exact set:
+
+```text
+CO: co-cache (Cache 映射与替换), co-cpu (数据通路与控制器), co-data (补码、浮点数与溢出判断), co-instruction (寻址方式与指令格式)
+DS: ds-graph (图的遍历与最短路径), ds-list (线性表结构与操作), ds-sort (排序算法复杂度与稳定性), ds-tree (树的遍历应用)
+CN: net-app (DNS、HTTP 与邮件协议), net-ip (IP、子网划分与路由), net-link (差错控制、流量控制与 MAC), net-tcp (TCP 可靠传输)
+OS: os-file (文件分配、目录与磁盘调度), os-memory (分页、分段与虚拟内存), os-process (进程状态、调度与上下文切换), os-sync (进程同步与互斥)
+```
+
+V2-1 computes this set programmatically and fails closed if its size is not 16 or if any required KP has zero eligible questions.
+
+### 3. Analysis view availability — exact rule (no heuristic threshold)
+
+```text
+normalizedAnalysis = normalizeText(analysis ?? '')
+usable = normalizedAnalysis.length > 0
+```
+
+`null`, `undefined`, `""`, whitespace-only → analysis unavailable → stem-only fallback. Any non-empty normalized analysis → analysis view participates. No "too short", "template detection", or token-count heuristic in V2 first version (this supersedes the design draft's "<5 characters" example; such heuristics would require a future Design amendment).
+
+### 4. PRIMARY MRR — exact formula
+
+```text
+RR(q) = 1 / rank(PRIMARY(q))   if PRIMARY in the retrieved set (rank >= 1)
+RR(q) = 0                      if PRIMARY not retrieved
+PrimaryMRR = mean(RR(q)) over exactly the 72 V2 DEV questions
+```
+
+SECONDARY never participates in MRR.
+
+### 5. Final selection — fully deterministic
+
+```text
+1. higher PRIMARY Recall@12
+2. higher PRIMARY Recall@8
+3. higher Macro AllRelevantRecall@12
+4. higher PRIMARY MRR
+5. lower complexityCost
+6. experimentId ASC
+
+complexityCost: Q1P1=0, Q1P2=1, Q2P1=1, Q2P2=2
+experimentId ASC: Q1P1 < Q1P2 < Q2P1 < Q2P2
+```
+
+Even if Q1P2 and Q2P1 tie on all metrics and complexityCost, experimentId ASC selects Q1P2 — never a manual decision.
+
+### 6. Sampling determinism
+
+```text
+hard constraints (violation = fail closed): 100 unique; 25/subject; 10/10/5 per subject;
+  REQUIRED_V2_KP_SET coverage; all current INDEPENDENT_UNIT; old Gold id/fingerprint/family excluded
+secondary diversity objective (deterministic, not a hard gate): minimize repetition of chapter / source / year
+  among already-selected questions; evaluated in fixed order (chapter, source, year), equal weights
+final tie-break: questionId ASC
+```
+
+The same snapshot always yields the same 100 ids.
+
+### 7. Gold V1/V2 core — one canonical implementation
+
+`createGoldSetV2` / `loadGoldSetV2` / `freezeGoldManifestV2` are THIN wrappers that delegate to the shared parameterized `createGoldSet` / `loadGoldSet` / `freezeGoldManifest` with `GOLD_CONTRACT_V2`. There is exactly one canonical validation, one canonical manifest hash, and one canonical freeze implementation. No duplicated V2 hashing/freezing logic (explicitly forbidden — the Task 5C drift class must not recur).
+
 ---
 
 # Task V2-1 — Versioned Gold V2 Sample Contract
@@ -53,6 +137,8 @@ Final V2 Holdout Gate (28): Recall@8 >= 27/28 (96.43%), Recall@12 = 28/28 (100%)
 ```ts
 const V2_GOLD_SAMPLE_VERSION = 'gold-sample-v2';
 const V2_TOTAL = 100; const V2_PER_SUBJECT = 25;
+const REQUIRED_V2_KP_SET: ReadonlySet<string>;   // computed from eligible-referenced KPs; must equal the 16 listed in Refined Contract 2
+function computeRequiredV2KpSet(snapshot: AnnotationSnapshot): ReadonlySet<string>;
 function sampleV2QuestionIds(snapshot: AnnotationSnapshot, oldGoldIds: ReadonlySet<string>, oldGoldFingerprints: ReadonlySet<string>, oldGoldFamilies: ReadonlySet<string>): string[];
 function buildV2SampleManifest(input: { snapshotId: string; contentSha256: string; goldVersion: string; entries: Array<{ questionId: string; contentFingerprint: string; subject: string; difficulty: string; source: string; year: number | null }> }): Record<string, unknown>;
 function validateV2SampleManifest(manifest: Record<string, unknown>, snapshot: AnnotationSnapshot): { ok: boolean; errors: string[] };
@@ -69,10 +155,13 @@ function validateV2SampleManifest(manifest: Record<string, unknown>, snapshot: A
 'V2-1: selects only current INDEPENDENT_UNIT' — every selected id is current and role INDEPENDENT_UNIT
 'V2-1: returns exactly 100 unique ids'       — new Set(ids).size === 100
 'V2-1: 25 per subject'                       — counts === {DS:25, CO:25, OS:25, CN:25}
-'V2-1: covers all 16 referenced KPs'         — every eligible-referenced KP id has ≥1 selected question
-'V2-1: difficulty target within tolerance'   — BASIC 38–42%, MEDIUM 38–42%, HARD 18–22%
+'V2-1: required KP set is the canonical 16'  — computeRequiredV2KpSet(snapshot).size === 16 and equals the listed set
+'V2-1: covers all 16 required KPs'           — every REQUIRED_V2_KP_SET id has ≥1 selected question
+'V2-1: difficulty exact 10/10/5 per subject' — counts per subject === {BASIC:10, MEDIUM:10, HARD:5}
+'V2-1: difficulty exact global 40/40/20'     — global counts === {BASIC:40, MEDIUM:40, HARD:20}
 'V2-1: deterministic for same snapshot'      — two runs deepEqual
 'V2-1: shortage fails closed'                — subject with <25 eligible throws with subject name
+'V2-1: difficulty shortage fails closed'     — subject missing 10 BASIC or 10 MEDIUM or 5 HARD throws with bucket diagnostic
 'V2-1: manifest sha canonical'               — same input → same sha; any field change → different sha
 'V2-1: manifest is Git-safe'                 — no stem/options/answer/analysis keys
 ```
@@ -87,11 +176,14 @@ function validateV2SampleManifest(manifest: Record<string, unknown>, snapshot: A
 // 1) eligible = current AND role INDEPENDENT_UNIT AND not in oldGoldIds
 //    AND fingerprint not in oldGoldFingerprints AND family not in oldGoldFamilies
 // 2) group by subject; sort each subject's eligible by (questionId) ASC
-// 3) per subject: phase A pick one question per referenced KP (sorted kpId, then questionId, skip picked)
-// 4) per subject: fill to 25 using deterministic diversity-aware selection
-//    (minimize difficulty-bucket overshoot vs target 40/40/20, tie-break questionId ASC)
-// 5) fail closed if any subject < 25
-// 6) buildV2SampleManifest: canonical sorted entries + sha256; validateV2SampleManifest checks counts,
+// 3) compute REQUIRED_V2_KP_SET from eligible-referenced KPs; fail closed if != 16 or any required KP has 0 eligible
+// 4) per subject: phase A pick one question per required KP (sorted kpId, then questionId, skip picked)
+// 5) per subject: enforce exact difficulty quotas 10 BASIC / 10 MEDIUM / 5 HARD by selecting the
+//    next question of the required bucket in questionId ASC order; shortage -> BLOCKED diagnostic
+// 6) per subject: fill remaining slots with deterministic diversity objective
+//    (minimize repetition of chapter/source/year against already-selected, tie-break questionId ASC)
+// 7) fail closed if any subject < 25
+// 8) buildV2SampleManifest: canonical sorted entries + sha256; validateV2SampleManifest checks counts,
 //    uniqueness, subject codes, fingerprint presence, KP coverage, difficulty bucket tolerance
 ```
 
@@ -101,7 +193,7 @@ function validateV2SampleManifest(manifest: Record<string, unknown>, snapshot: A
 
 **Regression command:** `node --test tools/question-annotation/test/sample.test.mjs tools/question-annotation/test/sampleV2.test.mjs`
 
-**Acceptance criteria:** 100 unique ids, 25/subject, 16/16 KP coverage, difficulty within tolerance, deterministic, fail-closed shortage, manifest SHA canonical, Git-safe (no question text), V1 sample tests still pass.
+**Acceptance criteria:** 100 unique ids, 25/subject, exact 10/10/5 per subject and 40/40/20 global, canonical 16-KP coverage, deterministic, fail-closed shortage (subject and difficulty buckets), manifest SHA canonical, Git-safe (no question text), V1 sample tests still pass.
 
 **Explicit git add:** `git add tools/question-annotation/core/sampleV2.js tools/question-annotation/test/sampleV2.test.mjs`
 
@@ -201,13 +293,14 @@ V1 functions (`createGoldSet`, `loadGoldSet`, `freezeGoldManifest`, `GOLD_SET_VE
 'V2-3: resume preserves progress'
 'V2-3: authoring view omits split labels'       — CLI show/next output does not print DEV/HOLDOUT
 'V2-3: V2 files do not collide with V1 files'   — gold-set-v2.json vs gold-set-v1.json
+'V2-3: V2 wrappers delegate to the shared core'  — createGoldSetV2 === createGoldSet with GOLD_CONTRACT_V2; same hash/freeze functions
 ```
 
 **RED command:** `node --test tools/question-annotation/test/goldV2.test.mjs`
 
 **Expected RED:** `createGoldSetV2` / `freezeGoldManifestV2` missing (module export missing).
 
-**Minimal implementation:** introduce a `goldContract` parameter (default = V1 contract) threaded through gold.js internals; add V2 variants with the V2 contract and `gold-set-v2` version string. Extend `gold-author.mjs` with V2 default paths (`gold-sample-v2.json`, `gold-set-v2.json`, `gold-truth-manifest-v2.json`) selectable via `--gold-version v2`; `show`/`next`/authoring views do not print split; the frozen manifest still stores split internally.
+**Minimal implementation:** introduce a `goldContract` parameter (default = V1 contract) threaded through gold.js internals. `createGoldSetV2` / `loadGoldSetV2` / `freezeGoldManifestV2` are thin wrappers delegating to the shared functions with `GOLD_CONTRACT_V2`; there is exactly one canonical validation/hash/freeze implementation (no duplicated V2 logic). Extend `gold-author.mjs` with V2 default paths (`gold-sample-v2.json`, `gold-set-v2.json`, `gold-truth-manifest-v2.json`) selectable via `--gold-version v2`; `show`/`next`/authoring views do not print split; the frozen manifest still stores split internally.
 
 **GREEN command:** `node --test tools/question-annotation/test/goldV2.test.mjs tools/question-annotation/test/gold.test.mjs`
 
@@ -263,10 +356,13 @@ function buildQueryViews(question: { stem: string; analysis: string | null | und
 ```text
 'V2-4: Q1 stem-only returns exactly one stem view'
 'V2-4: Q2 returns stem and analysis views'
-'V2-4: empty analysis falls back to stem-only'
 'V2-4: null analysis falls back to stem-only'
-'V2-4: analysis shorter than 5 normalized characters falls back to stem-only'
+'V2-4: undefined analysis falls back to stem-only'
+'V2-4: empty string analysis falls back to stem-only'
+'V2-4: whitespace-only analysis falls back to stem-only'
+'V2-4: any non-empty normalized analysis is a valid analysis view'  — e.g. '页号' yields availability 'stem+analysis'
 'V2-4: analysis normalization is deterministic'
+'V2-4: same input yields same availability'
 'V2-4: query never contains gold/split/retriever data'   — assert content contains only question text
 ```
 
@@ -274,7 +370,7 @@ function buildQueryViews(question: { stem: string; analysis: string | null | und
 
 **Expected RED:** `ERR_MODULE_NOT_FOUND` for `../core/queryViews.js`.
 
-**Minimal implementation:** pure function applying the shared `normalizeText` (from `core/lexical.js`) to detect effective analysis length; returns views and availability. No model/provider interaction.
+**Minimal implementation:** pure function applying the shared `normalizeText` (from `core/lexical.js`); analysis usable iff `normalizeText(analysis ?? '').length > 0`; otherwise stem-only fallback. No heuristic thresholds. No model/provider interaction.
 
 **GREEN command:** `node --test tools/question-annotation/test/queryViews.test.mjs`
 
@@ -472,6 +568,9 @@ function validateFrozenV2Config(config: Record<string, unknown>, expectedHash: s
 
 ```text
 'V2-8: selection order Recall@12 → @8 → Macro → MRR → simpler'
+'V2-8: MRR is PRIMARY MRR (1/rank of primary; 0 when absent; mean over 72)'
+'V2-8: complexityCost Q1P1=0 Q1P2=1 Q2P1=1 Q2P2=2'
+'V2-8: experimentId ASC final tie-break'        — Q1P2 beats Q2P1 on full metric + cost tie
 'V2-8: accepts only 72-DEV metric inputs'      — passing a metrics object keyed 'dev-40' or total 112 throws
 'V2-8: config hash canonical and field-sensitive'
 'V2-8: freeze sets selectedOn DEV-V2 and holdoutEvaluatedBeforeFreeze=0'
@@ -482,7 +581,7 @@ function validateFrozenV2Config(config: Record<string, unknown>, expectedHash: s
 
 **Expected RED:** `selectV2Winner` / `buildFinalV2Config` missing.
 
-**Minimal implementation:** pure selection over the 4-cell DEV metrics (72 only); build `config/final-retriever-v2.json` with cell, queryMode, passageFormat, model identity, versions, goldSha256, snapshotId, topKInitial 8, topKExpanded 12, selectedOn `DEV-V2`, holdoutEvaluatedBeforeFreeze 0; hash via canonical sorted keys (reuse the canonicalization from `core/benchmark.js`).
+**Minimal implementation:** pure selection over the 4-cell DEV metrics (72 only) using the locked order (Recall@12 → Recall@8 → Macro → PRIMARY MRR → complexityCost ASC → experimentId ASC); build `config/final-retriever-v2.json` with cell, queryMode, passageFormat, model identity, versions, goldSha256, snapshotId, topKInitial 8, topKExpanded 12, selectedOn `DEV-V2`, holdoutEvaluatedBeforeFreeze 0; hash via canonical sorted keys (reuse the canonicalization from `core/benchmark.js`).
 
 **GREEN command:** `node --test tools/question-annotation/test/benchmarkV2.test.mjs`
 
