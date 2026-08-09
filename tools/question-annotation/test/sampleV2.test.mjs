@@ -984,3 +984,170 @@ test('V2-1R2 — validator rejects a hard-feasible but objectively inferior samp
   assert.equal(validation.ok, false);
   assert.match(validation.errors.join('\n'), /canonical V2R2 selection/);
 });
+
+function runV2Split(entries) {
+  assert.equal(typeof sampleV2Module.splitV2DevHoldout, 'function');
+  return sampleV2Module.splitV2DevHoldout(entries);
+}
+
+function acceptedV2R2Identity() {
+  return {
+    goldVersion: 'gold-sample-v2r2',
+    sampleSha256: 'be4485afd48a9107be3cfc63e896047911b642f95d013a649b7e17d8638109d4',
+  };
+}
+
+function buildSyntheticV2R2Entries() {
+  const { snapshot, oldGold } = buildHardConcentrationFixture();
+  const ids = sampleV2Module.sampleV2R2QuestionIds(snapshot, oldGold);
+  return { snapshot, entries: sampleEntries(snapshot, ids) };
+}
+
+test('V2-2 — 72 DEV / 28 HOLDOUT with 18/7 per subject', () => {
+  const { snapshot, entries } = buildSyntheticV2R2Entries();
+  const split = runV2Split(entries);
+  assert.equal(split.dev.length, 72);
+  assert.equal(split.holdout.length, 28);
+  const byId = new Map(snapshot.questions.map((question) => [question.id, question]));
+  for (const subject of SUBJECTS) {
+    assert.equal(split.dev.filter((id) => byId.get(id).subject === subject).length, 18, `${subject} DEV`);
+    assert.equal(split.holdout.filter((id) => byId.get(id).subject === subject).length, 7, `${subject} HOLDOUT`);
+  }
+});
+
+test('V2-2 — split preserves exactly the same 100 unique ids with no overlap', () => {
+  const { entries } = buildSyntheticV2R2Entries();
+  const split = runV2Split(entries);
+  const inputIds = entries.map((entry) => entry.questionId).sort((a, b) => a.localeCompare(b));
+  const outputIds = [...split.dev, ...split.holdout].sort((a, b) => a.localeCompare(b));
+  assert.deepEqual(outputIds, inputIds);
+  assert.equal(new Set(outputIds).size, 100);
+  assert.equal(split.dev.filter((id) => new Set(split.holdout).has(id)).length, 0);
+});
+
+test('V2-2 — fixed HOLDOUT indices use difficulty bucket then questionId order', () => {
+  const { entries } = buildSyntheticV2R2Entries();
+  const split = runV2Split(entries);
+  const difficultyRank = { BASIC: 0, MEDIUM: 1, HARD: 2 };
+  const expectedIndices = [2, 6, 10, 14, 18, 22, 24];
+  for (const subject of SUBJECTS) {
+    const ordered = entries
+      .filter((entry) => entry.subject === subject)
+      .sort((a, b) => difficultyRank[a.difficulty] - difficultyRank[b.difficulty] || a.questionId.localeCompare(b.questionId));
+    const expected = expectedIndices.map((index) => ordered[index].questionId).sort((a, b) => a.localeCompare(b));
+    const actual = split.holdout
+      .filter((id) => entries.find((entry) => entry.questionId === id).subject === subject)
+      .sort((a, b) => a.localeCompare(b));
+    assert.deepEqual(actual, expected, subject);
+  }
+});
+
+test('V2-2 — split is deterministic and input-order independent', () => {
+  const { entries } = buildSyntheticV2R2Entries();
+  const first = runV2Split(entries);
+  const repeated = runV2Split(entries);
+  const reversed = runV2Split([...entries].reverse());
+  assert.deepEqual(repeated, first);
+  assert.deepEqual(reversed, first);
+});
+
+test('V2-2 — splitter rejects malformed totals, duplicate ids and subject drift', () => {
+  const { entries } = buildSyntheticV2R2Entries();
+  assert.throws(() => runV2Split(entries.slice(0, 99)), /exactly 100/);
+  assert.throws(() => runV2Split([...entries.slice(0, 99), entries[0]]), /duplicate/);
+  assert.throws(() => runV2Split(entries.map((entry, index) => index === 0 ? { ...entry, subject: 'OTHER' } : entry)), /subject/);
+});
+
+test('V2-2 — split manifest SHA is canonical and accepted identity is locked', () => {
+  assert.equal(typeof sampleV2Module.buildV2SplitManifest, 'function');
+  assert.equal(typeof sampleV2Module.validateV2SplitManifest, 'function');
+  assert.equal(
+    sampleV2Module.V2R2_ACCEPTED_SAMPLE_SHA256,
+    'be4485afd48a9107be3cfc63e896047911b642f95d013a649b7e17d8638109d4',
+  );
+  const { snapshot, entries } = buildSyntheticV2R2Entries();
+  const split = runV2Split(entries);
+  const identity = acceptedV2R2Identity();
+  const first = sampleV2Module.buildV2SplitManifest({
+    ...identity,
+    snapshotId: snapshot.snapshotId,
+    split,
+  });
+  const reordered = sampleV2Module.buildV2SplitManifest({
+    ...identity,
+    snapshotId: snapshot.snapshotId,
+    split: { dev: [...split.dev].reverse(), holdout: [...split.holdout].reverse() },
+  });
+  assert.equal(first.sha256, reordered.sha256);
+  assert.deepEqual(sampleV2Module.validateV2SplitManifest(first), { ok: true, errors: [] });
+  assert.equal(first.sampleSha256, identity.sampleSha256);
+  assert.equal(first.goldVersion, identity.goldVersion);
+});
+
+test('V2-2 — split drift and identity drift fail closed', () => {
+  const { snapshot, entries } = buildSyntheticV2R2Entries();
+  const split = runV2Split(entries);
+  const manifest = sampleV2Module.buildV2SplitManifest({
+    ...acceptedV2R2Identity(),
+    snapshotId: snapshot.snapshotId,
+    split,
+  });
+  const drifted = {
+    ...manifest,
+    split: {
+      dev: manifest.split.dev.slice(1),
+      holdout: [...manifest.split.holdout, manifest.split.dev[0]],
+    },
+  };
+  const validation = sampleV2Module.validateV2SplitManifest(drifted);
+  assert.equal(validation.ok, false);
+  assert.match(validation.errors.join('\n'), /sha256 mismatch|DEV total|HOLDOUT total/);
+});
+
+test('V2-2 — rejected V2 and V2R versions or SHAs are refused', () => {
+  const { snapshot, entries } = buildSyntheticV2R2Entries();
+  const split = runV2Split(entries);
+  for (const goldVersion of ['gold-sample-v2', 'gold-sample-v2r']) {
+    assert.throws(() => sampleV2Module.buildV2SplitManifest({
+      goldVersion,
+      snapshotId: snapshot.snapshotId,
+      sampleSha256: acceptedV2R2Identity().sampleSha256,
+      split,
+    }), /REJECTED_PRE_SPLIT_SAMPLE|gold-sample-v2r2/);
+  }
+  for (const sampleSha256 of [
+    '439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc',
+    '368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854',
+  ]) {
+    assert.throws(() => sampleV2Module.buildV2SplitManifest({
+      goldVersion: acceptedV2R2Identity().goldVersion,
+      snapshotId: snapshot.snapshotId,
+      sampleSha256,
+      split,
+    }), /REJECTED_PRE_SPLIT_SAMPLE|accepted sample SHA/);
+  }
+});
+
+test('V2-2 — split manifest rejects non-string ids without leaking sort errors', () => {
+  const { snapshot, entries } = buildSyntheticV2R2Entries();
+  const split = runV2Split(entries);
+  const invalidSplit = { ...split, dev: [split.dev[0], 42, ...split.dev.slice(2)] };
+
+  assert.throws(() => sampleV2Module.buildV2SplitManifest({
+    ...acceptedV2R2Identity(),
+    snapshotId: snapshot.snapshotId,
+    split: invalidSplit,
+  }), /invalid question id/);
+
+  const manifest = sampleV2Module.buildV2SplitManifest({
+    ...acceptedV2R2Identity(),
+    snapshotId: snapshot.snapshotId,
+    split,
+  });
+  const validation = sampleV2Module.validateV2SplitManifest({
+    ...manifest,
+    split: { ...manifest.split, dev: invalidSplit.dev },
+  });
+  assert.equal(validation.ok, false);
+  assert.match(validation.errors.join('\n'), /invalid question id/);
+});

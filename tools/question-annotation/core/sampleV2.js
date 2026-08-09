@@ -5,13 +5,19 @@ export const V2R_GOLD_SAMPLE_VERSION = 'gold-sample-v2r';
 export const V2R2_GOLD_SAMPLE_VERSION = 'gold-sample-v2r2';
 export const V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256 = '439f3527666784bb6a5ebe73ab44871e732846f59a0482b4543036eb8492a2fc';
 export const V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256 = '368c025c8438d7a7e73efcfb4df73d90b7479e92ef64d6ecf4a19971e9590854';
+export const V2R2_ACCEPTED_SAMPLE_SHA256 = 'be4485afd48a9107be3cfc63e896047911b642f95d013a649b7e17d8638109d4';
 export const V2_TOTAL = 100;
 export const V2_PER_SUBJECT = 25;
+export const V2_DEV_TOTAL = 72;
+export const V2_HOLDOUT_TOTAL = 28;
+export const V2_DEV_PER_SUBJECT = 18;
+export const V2_HOLDOUT_PER_SUBJECT = 7;
 export const V2_DIFFICULTY_QUOTA = { BASIC: 10, MEDIUM: 10, HARD: 5 };
 export const V2_KP_MIN_PER_SUBJECT = 6;
 export const V2_KP_MAX_PER_SUBJECT = 7;
 const SUBJECTS = ['DS', 'CO', 'OS', 'CN'];
 const DIFFICULTY_ORDER = ['BASIC', 'MEDIUM', 'HARD'];
+const V2_HOLDOUT_INDICES = new Set([2, 6, 10, 14, 18, 22, 24]);
 
 /**
  * Canonical REQUIRED_V2_KP_SET: knowledge points referenced by at least one
@@ -474,6 +480,144 @@ export function sampleV2R2QuestionIds(snapshot, oldGold) {
   if (!solved.feasible) throw new Error(solved.errors.join('\n'));
   return SUBJECTS.flatMap((subject) => solved.selections.get(subject).ids)
     .sort((a, b) => a.localeCompare(b));
+}
+
+export function splitV2DevHoldout(sampleEntries) {
+  if (!Array.isArray(sampleEntries) || sampleEntries.length !== V2_TOTAL) {
+    throw new Error(`splitV2DevHoldout expects exactly ${V2_TOTAL} entries, got ${sampleEntries?.length ?? 'none'}`);
+  }
+  const bySubject = new Map(SUBJECTS.map((subject) => [subject, []]));
+  const seen = new Set();
+  for (const entry of sampleEntries) {
+    if (!entry || typeof entry.questionId !== 'string' || entry.questionId.length === 0) {
+      throw new Error('splitV2DevHoldout entry missing questionId');
+    }
+    if (seen.has(entry.questionId)) {
+      throw new Error(`splitV2DevHoldout duplicate questionId ${entry.questionId}`);
+    }
+    seen.add(entry.questionId);
+    if (!SUBJECTS.includes(entry.subject)) {
+      throw new Error(`splitV2DevHoldout invalid subject ${entry.subject}`);
+    }
+    if (!DIFFICULTY_ORDER.includes(entry.difficulty)) {
+      throw new Error(`splitV2DevHoldout invalid difficulty ${entry.difficulty}`);
+    }
+    bySubject.get(entry.subject).push(entry);
+  }
+
+  const dev = [];
+  const holdout = [];
+  for (const subject of SUBJECTS) {
+    const ordered = bySubject.get(subject).sort(
+      (left, right) =>
+        DIFFICULTY_ORDER.indexOf(left.difficulty) - DIFFICULTY_ORDER.indexOf(right.difficulty)
+        || left.questionId.localeCompare(right.questionId),
+    );
+    if (ordered.length !== V2_PER_SUBJECT) {
+      throw new Error(`splitV2DevHoldout subject ${subject} has ${ordered.length} entries, expected ${V2_PER_SUBJECT}`);
+    }
+    for (let index = 0; index < ordered.length; index += 1) {
+      if (V2_HOLDOUT_INDICES.has(index)) holdout.push(ordered[index].questionId);
+      else dev.push(ordered[index].questionId);
+    }
+  }
+  return {
+    dev: dev.sort((a, b) => a.localeCompare(b)),
+    holdout: holdout.sort((a, b) => a.localeCompare(b)),
+  };
+}
+
+function acceptedV2R2IdentityErrors(goldVersion, sampleSha256) {
+  const errors = [];
+  if (
+    goldVersion === V2_GOLD_SAMPLE_VERSION
+    || goldVersion === V2R_GOLD_SAMPLE_VERSION
+    || sampleSha256 === V2_REJECTED_PRE_SPLIT_SAMPLE_SHA256
+    || sampleSha256 === V2R_REJECTED_PRE_SPLIT_SAMPLE_SHA256
+  ) {
+    errors.push('split: REJECTED_PRE_SPLIT_SAMPLE is forbidden');
+  }
+  if (goldVersion !== V2R2_GOLD_SAMPLE_VERSION) {
+    errors.push(`split: goldVersion ${goldVersion} != ${V2R2_GOLD_SAMPLE_VERSION}`);
+  }
+  if (sampleSha256 !== V2R2_ACCEPTED_SAMPLE_SHA256) {
+    errors.push(`split: sampleSha256 ${sampleSha256} != accepted sample SHA ${V2R2_ACCEPTED_SAMPLE_SHA256}`);
+  }
+  return errors;
+}
+
+function validateV2SplitPayload(payload) {
+  const errors = acceptedV2R2IdentityErrors(payload?.goldVersion, payload?.sampleSha256);
+  if (typeof payload?.snapshotId !== 'string' || payload.snapshotId.length === 0) {
+    errors.push('split: snapshotId missing');
+  }
+  if (!payload?.split || typeof payload.split !== 'object') {
+    errors.push('split: split missing');
+    return errors;
+  }
+  const dev = Array.isArray(payload.split.dev) ? payload.split.dev : [];
+  const holdout = Array.isArray(payload.split.holdout) ? payload.split.holdout : [];
+  if (!Array.isArray(payload.split.dev)) errors.push('split: DEV ids missing');
+  if (!Array.isArray(payload.split.holdout)) errors.push('split: HOLDOUT ids missing');
+  if (dev.length !== V2_DEV_TOTAL) errors.push(`split: DEV total ${dev.length} != ${V2_DEV_TOTAL}`);
+  if (holdout.length !== V2_HOLDOUT_TOTAL) errors.push(`split: HOLDOUT total ${holdout.length} != ${V2_HOLDOUT_TOTAL}`);
+  const seen = new Set();
+  for (const [label, ids] of [['DEV', dev], ['HOLDOUT', holdout]]) {
+    for (const id of ids) {
+      if (typeof id !== 'string' || id.length === 0) {
+        errors.push(`split: ${label} contains invalid question id`);
+        continue;
+      }
+      if (seen.has(id)) errors.push(`split: duplicate question id ${id}`);
+      seen.add(id);
+    }
+  }
+  if (seen.size !== V2_TOTAL) errors.push(`split: unique ids ${seen.size} != ${V2_TOTAL}`);
+  return errors;
+}
+
+function canonicalizeSplitIds(ids) {
+  return [...ids].sort((left, right) => String(left).localeCompare(String(right)));
+}
+
+export function buildV2SplitManifest({ goldVersion, snapshotId, sampleSha256, split }) {
+  const rawPayload = {
+    goldVersion,
+    snapshotId,
+    sampleSha256,
+    split: {
+      dev: [...(split?.dev ?? [])],
+      holdout: [...(split?.holdout ?? [])],
+    },
+  };
+  const errors = validateV2SplitPayload(rawPayload);
+  if (errors.length > 0) throw new Error(errors.sort().join('\n'));
+  const payload = {
+    ...rawPayload,
+    split: {
+      dev: canonicalizeSplitIds(rawPayload.split.dev),
+      holdout: canonicalizeSplitIds(rawPayload.split.holdout),
+    },
+  };
+  return { ...payload, sha256: canonicalJsonHash(payload) };
+}
+
+export function validateV2SplitManifest(manifest) {
+  if (!manifest || typeof manifest !== 'object') {
+    return { ok: false, errors: ['split manifest missing'] };
+  }
+  const errors = validateV2SplitPayload(manifest);
+  const payload = {
+    goldVersion: manifest.goldVersion,
+    snapshotId: manifest.snapshotId,
+    sampleSha256: manifest.sampleSha256,
+    split: {
+      dev: canonicalizeSplitIds(manifest.split?.dev ?? []),
+      holdout: canonicalizeSplitIds(manifest.split?.holdout ?? []),
+    },
+  };
+  if (manifest.sha256 !== canonicalJsonHash(payload)) errors.push('split: sha256 mismatch');
+  return { ok: errors.length === 0, errors: [...new Set(errors)].sort() };
 }
 
 /**
