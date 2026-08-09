@@ -6,9 +6,10 @@ interface Props {
   onResume: (session: SessionView) => void;
   allowedTypes?: SessionView['type'][];
   enabled?: boolean;
+  actionClassName?: 'primary-action' | 'secondary-action';
 }
 
-export function ResumeSessionBanner({ onResume, allowedTypes, enabled = true }: Props) {
+export function ResumeSessionBanner({ onResume, allowedTypes, enabled = true, actionClassName = 'primary-action' }: Props) {
   const [activeSessions, setActiveSessions] = useState<SessionView[]>([]);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,7 @@ export function ResumeSessionBanner({ onResume, allowedTypes, enabled = true }: 
             </span>
           </div>
           <div className="resume-actions">
-            <button type="button" className="primary-action" onClick={() => onResume(session)}>
+            <button type="button" className={actionClassName} onClick={() => onResume(session)}>
               继续
             </button>
             <button

@@ -37,6 +37,7 @@ import { WeaknessReportPanel } from '../report/WeaknessReportPanel';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { SessionView } from '../../api/endpoints/sessions';
+import type { TodayPlanTask, TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
 
 const StudentLaunchpad = lazy(() => import('../onboarding/StudentLaunchpad').then((m) => ({ default: m.StudentLaunchpad })));
 const ReportWorkspace = lazy(() => import('../report/ReportWorkspace').then((m) => ({ default: m.ReportWorkspace })));
@@ -71,6 +72,9 @@ export interface StudentSectionsProps {
   todayPlan: TodayPlanType | null;
   todayPlanLoading: boolean;
   todayPlanError: string;
+  todayTaskLaunchingId: string | null;
+  todayTaskLaunchError: string;
+  todayTaskLaunchContext: TodayTaskLaunchContext | null;
   latestPaper: GeneratedPaper | null;
   examResult: PaperSubmitResult | null;
   examQuestionCount: number;
@@ -92,7 +96,8 @@ export interface StudentSectionsProps {
   tutorStatus: string;
   tutorFailed: boolean;
   onNavigate: (section: RoleSection) => void;
-  onContinueToday: () => void;
+  onLaunchTodayTask: (task: TodayPlanTask) => void;
+  onRetryTodayPlan: () => void;
   onOnboardingComplete: (result: Awaited<ReturnType<typeof import('../../api/endpoints/onboarding').completeOnboarding>>) => void;
   onOpenReview: (questionId: string) => void;
   onResumeSession: (session: SessionView) => void;
@@ -138,6 +143,8 @@ export function StudentSections(props: StudentSectionsProps) {
               todayPlan={props.todayPlan}
               todayPlanLoading={props.todayPlanLoading}
               todayPlanError={props.todayPlanError}
+              todayTaskLaunchingId={props.todayTaskLaunchingId}
+              todayTaskLaunchError={props.todayTaskLaunchError}
               latestPaper={props.latestPaper}
               examResult={props.examResult}
               examQuestionCount={props.examQuestionCount}
@@ -147,7 +154,8 @@ export function StudentSections(props: StudentSectionsProps) {
               learningCalendar={props.learningCalendar}
               wrongQuestionSummary={props.wrongQuestionSummary.data}
               onNavigate={props.onNavigate}
-              onContinueToday={props.onContinueToday}
+              onLaunchTodayTask={props.onLaunchTodayTask}
+              onRetryTodayPlan={props.onRetryTodayPlan}
               onOnboardingComplete={props.onOnboardingComplete}
               onOpenReview={props.onOpenReview}
               onResumeSession={props.onResumeSession}
@@ -255,6 +263,9 @@ export function StudentSections(props: StudentSectionsProps) {
           <Suspense fallback={sectionFallback('错题复盘')}>
             <MistakeWorkspace
               wrongQuestions={props.wrongQuestions}
+              initialKnowledgePointId={props.todayTaskLaunchContext?.destination === 'wrong-book'
+                ? props.todayTaskLaunchContext.knowledgePointId
+                : undefined}
               summary={props.wrongQuestionSummary}
               status={props.wrongStatus}
               detailQuestionId={props.detailQuestionId}

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('P2-01: TodayPlan renders only in the plan section; the homepage keeps progress + one main action', async () => {
+test('P2-01: TodayPlan renders only in the plan section; the homepage uses the route summary', async () => {
   const app = await source('apps/web/src/App.tsx');
   const usages = [...app.matchAll(/<TodayPlan\b/g)];
   assert.equal(usages.length, 1, 'TodayPlan should render exactly once');
@@ -17,6 +17,7 @@ test('P2-01: TodayPlan renders only in the plan section; the homepage keeps prog
   assert.match(usageRegion, /focusTaskId=\{planFocusTaskId\}/, 'TodayPlan receives the focused task');
 
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
+  assert.match(launchpad, /<TodayLearningRoute/);
   assert.doesNotMatch(launchpad, /<TodayPlan\b/, 'homepage must not render the full task-card list');
   assert.doesNotMatch(launchpad, /完成并调整计划/, 'homepage must not include the manual completion form');
 });

@@ -15,7 +15,11 @@ test('frontend tracking: trackEvent posts best-effort to /events', async () => {
 test('frontend tracking: App fires representative student actions', async () => {
   const app = await source('apps/web/src/App.tsx');
   assert.match(app, /import \{ trackEvent \} from '\.\/api\/events';/, 'App should import trackEvent');
-  assert.match(app, /void trackEvent\('nav\.continue_today'\)/, 'continue-today should be tracked');
+  assert.match(
+    app,
+    /void trackEvent\('task\.start', \{ taskId: task\.id, mode: task\.mode \}\)/,
+    'one-click today-task launch should be tracked with task context',
+  );
   assert.match(app, /void trackEvent\('practice\.set_start'\)/, 'practice-set start should be tracked');
   assert.match(app, /void trackEvent\('practice\.learning_mode_start'\)/, 'learning mode should be tracked');
   assert.match(app, /void trackEvent\('wrong\.open_review', \{ questionId \}\)/, 'wrong-question review should be tracked');

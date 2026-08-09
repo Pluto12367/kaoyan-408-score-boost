@@ -38,7 +38,14 @@ import type { SessionView } from './api/endpoints/sessions';
 import type { PracticeAnswerResult } from './api/endpoints/practice';
 import { isMockAllowed } from './api/env';
 import { trackEvent } from './api/events';
-import { fetchOnboardingStatus, fetchTodayPlan, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
+import { fetchOnboardingStatus, fetchTodayPlan, startTask, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
+import {
+  preflightTodayTaskLaunch,
+  shouldClearTodayTaskLaunch,
+  startTodayTaskIfCurrent,
+  type TodayPlanTask,
+  type TodayTaskLaunchContext,
+} from './features/onboarding/todayLearningRoute';
 import {
   createKnowledgePoint,
   createTeacherQuestion,
@@ -130,6 +137,11 @@ export function App() {
   const [todayPlan, setTodayPlan] = useState<TodayPlanType | null>(null);
   const [todayPlanLoading, setTodayPlanLoading] = useState(false);
   const [todayPlanError, setTodayPlanError] = useState('');
+  const [todayTaskLaunchContext, setTodayTaskLaunchContext] = useState<TodayTaskLaunchContext | null>(null);
+  const [todayTaskLaunchingId, setTodayTaskLaunchingId] = useState<string | null>(null);
+  const [todayTaskLaunchError, setTodayTaskLaunchError] = useState('');
+  const todayTaskLaunchOwnerRef = useRef<string | undefined>(sessionUser?.id);
+  const todayTaskLaunchGenerationRef = useRef(0);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
@@ -215,6 +227,30 @@ export function App() {
     updateAssessmentHistory,
   } = studentLearning;
   const { activeSection, setActiveSection, visibleSection, resetSectionForRole } = useRoleSectionNavigation(sessionUser?.role);
+
+  useEffect(() => {
+    if (todayTaskLaunchContext && activeSection !== todayTaskLaunchContext.destination) {
+      setTodayTaskLaunchContext(null);
+    }
+  }, [activeSection, todayTaskLaunchContext]);
+
+  useEffect(() => {
+    const nextUserId = sessionUser?.id;
+    if (shouldClearTodayTaskLaunch(todayTaskLaunchOwnerRef.current, nextUserId)) {
+      todayTaskLaunchGenerationRef.current += 1;
+      invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+      setTodayTaskLaunchContext(null);
+      setTodayTaskLaunchingId(null);
+      setTodayTaskLaunchError('');
+      setPracticeIndex(0);
+      setPracticeSubmitting(false);
+      setPracticeAnswerResult(null);
+      setReasonQueue([]);
+      setRedoQuestionId(null);
+      setVariantOfQuestionId(null);
+    }
+    todayTaskLaunchOwnerRef.current = nextUserId;
+  }, [sessionUser?.id]);
 
   useEffect(() => {
     const resource = dashboardOverview.overview;
@@ -343,7 +379,13 @@ export function App() {
     : learningSessionType === 'stage_assessment'
       ? stageAssessment.estimatedMinutes
       : 180;
-  const currentQuestion = (redoQuestionId ? questions.find((question) => question.id === redoQuestionId) : undefined) ?? questions[Math.min(practiceIndex, Math.max(0, questions.length - 1))];
+  const activePracticeQuestions = todayTaskLaunchContext?.destination === 'question'
+    ? questions.filter((question) => question.knowledgePointIds.includes(todayTaskLaunchContext.knowledgePointId))
+    : questions;
+  const currentQuestion = (redoQuestionId
+    ? activePracticeQuestions.find((question) => question.id === redoQuestionId)
+    : undefined)
+    ?? activePracticeQuestions[Math.min(practiceIndex, Math.max(0, activePracticeQuestions.length - 1))];
 
   useEffect(() => {
     practiceTimerRef.current = {
@@ -548,9 +590,9 @@ export function App() {
   }
 
   function handleNextQuestion() {
-    if (questions.length === 0) return;
+    if (activePracticeQuestions.length === 0) return;
     invalidatePracticeAttempt(practiceSubmissionGateRef.current);
-    if (practiceIndex >= questions.length - 1) {
+    if (practiceIndex >= activePracticeQuestions.length - 1) {
       applyPracticeAttemptState(advanceQuestion(readPracticeAttemptState()));
       setPracticeStatus('已到当前题库末尾，可开始专项练习或前往错题本复习。');
       return;
@@ -590,6 +632,7 @@ export function App() {
 
   function handleRestartQuestionBank() {
     if (questions.length === 0) return;
+    setTodayTaskLaunchContext(null);
     invalidatePracticeAttempt(practiceSubmissionGateRef.current);
     applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
     restartPracticeTimer();
@@ -631,11 +674,45 @@ export function App() {
     });
   }
 
-  function handleContinueToday() {
-    const incomplete = todayPlan?.priorityTasks.find((task) => task.status !== 'completed' && !task.completed);
-    setPlanFocusTaskId(incomplete?.id ?? null);
-    setActiveSection('plan');
-    void trackEvent('nav.continue_today');
+  async function handleLaunchTodayTask(task: TodayPlanTask) {
+    const preflight = preflightTodayTaskLaunch(task, questions, wrongQuestions);
+    setTodayTaskLaunchError('');
+    if (preflight.kind === 'error') {
+      setTodayTaskLaunchError(preflight.message);
+      return;
+    }
+    if (preflight.kind === 'navigate-plan') {
+      setPlanFocusTaskId(preflight.taskId);
+      setActiveSection('plan');
+      return;
+    }
+    const launchGeneration = todayTaskLaunchGenerationRef.current + 1;
+    const launchOwnerId = todayTaskLaunchOwnerRef.current;
+    todayTaskLaunchGenerationRef.current = launchGeneration;
+    const isCurrentLaunch = () =>
+      todayTaskLaunchGenerationRef.current === launchGeneration
+      && todayTaskLaunchOwnerRef.current === launchOwnerId;
+    setTodayTaskLaunchingId(task.id);
+    try {
+      const canCommit = await startTodayTaskIfCurrent(task.id, startTask, isCurrentLaunch);
+      if (!canCommit) return;
+      invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+      applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
+      setRedoQuestionId(null);
+      setVariantOfQuestionId(null);
+      setTodayTaskLaunchContext(preflight.context);
+      setPracticeStatus(preflight.context.destination === 'question'
+        ? `已开始 ${task.title}，本轮只练习对应知识点。`
+        : `已打开 ${task.title} 的待复盘错题。`);
+      void refreshTodayPlan();
+      void trackEvent('task.start', { taskId: task.id, mode: task.mode });
+      setActiveSection(preflight.context.destination);
+    } catch (error) {
+      if (!isCurrentLaunch()) return;
+      setTodayTaskLaunchError(error instanceof Error ? error.message : '任务启动失败，请重试。');
+    } finally {
+      if (isCurrentLaunch()) setTodayTaskLaunchingId(null);
+    }
   }
 
   async function handleReviewWrongQuestion(questionId: string) {
@@ -1196,6 +1273,9 @@ paperId: paper.id,
             todayPlan={todayPlan}
             todayPlanLoading={todayPlanLoading}
             todayPlanError={todayPlanError}
+            todayTaskLaunchingId={todayTaskLaunchingId}
+            todayTaskLaunchError={todayTaskLaunchError}
+            todayTaskLaunchContext={todayTaskLaunchContext}
             latestPaper={latestPaper}
             examResult={paperResult}
             examQuestionCount={examQuestions.length}
@@ -1205,7 +1285,7 @@ paperId: paper.id,
             practiceSubmitting={practiceSubmitting}
             practiceAnswerResult={practiceAnswerResult}
             currentQuestion={currentQuestion}
-            hasNextQuestion={practiceIndex < questions.length - 1}
+            hasNextQuestion={practiceIndex < activePracticeQuestions.length - 1}
             detailQuestionId={detailQuestionId}
             wrongStatus={wrongStatus}
             stageResult={stageResult}
@@ -1217,7 +1297,8 @@ paperId: paper.id,
             tutorStatus={tutorStatus}
             tutorFailed={tutorFailed}
             onNavigate={setActiveSection}
-            onContinueToday={handleContinueToday}
+            onLaunchTodayTask={handleLaunchTodayTask}
+            onRetryTodayPlan={refreshTodayPlan}
             onOnboardingComplete={handleOnboardingComplete}
             onOpenReview={(questionId) => {
               setDetailQuestionId(questionId);

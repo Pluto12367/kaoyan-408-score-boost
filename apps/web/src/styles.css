@@ -3717,80 +3717,138 @@ textarea:focus-visible,
   margin-top: 10px;
 }
 
-.student-dashboard-hero {
+.today-route {
+  overflow: hidden;
+}
+
+.today-route-header {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 190px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 16px;
-  align-items: center;
-  padding: 8px 18px;
-  border: 0;
-  background:
-    radial-gradient(circle at 88% 20%, rgb(245 158 11 / 20%), transparent 24%),
-    linear-gradient(135deg, #0f172a, #1e3a8a 58%, #0f766e);
-  color: #ffffff;
+  align-items: end;
 }
 
-.student-dashboard-hero .eyebrow,
-.student-dashboard-hero p,
-.student-dashboard-hero span {
-  color: #dbeafe;
+.today-route-header h2 {
+  margin: 6px 0 0;
 }
 
-.student-dashboard-hero h3 {
-  margin: 8px 0;
-  color: #ffffff;
-  font-size: clamp(22px, 2.6vw, 28px);
-  line-height: 1.15;
+.today-route-summary,
+.today-route-meta,
+.today-route-progress {
+  color: var(--text-muted);
 }
 
-.student-hero-copy {
+.today-route-live {
+  min-height: 1.5em;
+  margin-top: 12px;
+  color: var(--red);
+}
+
+.today-route-list {
   display: grid;
-  gap: 8px;
+  gap: 12px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: today-route;
 }
 
-.student-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
+.today-route-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
   gap: 12px;
-  align-items: center;
+  min-width: 0;
+  padding: 8px 0;
+}
+
+.today-route-item::before {
+  counter-increment: today-route;
+  content: counter(today-route);
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-soft-2);
+  color: var(--text-secondary);
+  font-weight: 800;
+}
+
+.today-route-item.is-current {
+  padding: 20px;
+  border: 1px solid var(--primary-line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.today-route-item.is-current::before {
+  background: var(--primary);
+  color: var(--surface);
+}
+
+.today-route-content,
+.today-route-task-heading {
+  min-width: 0;
+}
+
+.today-route-task-heading {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  justify-content: space-between;
+}
+
+.today-route-task-heading h3,
+.today-route-reason,
+.today-route-progress {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.today-route-meta,
+.today-route-reason,
+.today-route-progress {
   margin-top: 8px;
 }
 
-.student-plan-ring {
-  display: grid;
-  width: 132px;
-  height: 132px;
-  place-items: center;
-  justify-self: end;
-  border: 12px solid rgb(251 191 36 / 78%);
-  border-radius: 50%;
-  background: rgb(255 255 255 / 12%);
-  box-shadow: inset 0 0 0 8px rgb(255 255 255 / 10%);
-}
-
-.student-plan-ring strong {
-  font-size: 30px;
-  line-height: 1;
-}
-
-.student-plan-ring span {
+.today-route-status {
+  flex: 0 0 auto;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
+.today-route-primary {
+  justify-self: start;
+  margin-top: 14px;
+}
+
+.today-route-primary,
+.today-route button:focus-visible {
+  border-radius: var(--radius);
+}
+
+.today-route-skeleton {
+  min-height: 220px;
+}
+
+.today-route-terminal {
+  margin-top: 12px;
+  padding: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.today-route-secondary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
 .student-subject-grid,
-.student-kpi-strip,
-.student-action-grid,
 .student-focus-grid {
   display: grid;
   gap: 14px;
-}
-
-.student-kpi-strip {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.student-action-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .student-subject-grid {
@@ -3802,7 +3860,6 @@ textarea:focus-visible,
 }
 
 .student-insight-card,
-.student-action-card,
 .student-schedule-card {
   position: relative;
   overflow: hidden;
@@ -3836,42 +3893,6 @@ textarea:focus-visible,
 .student-insight-card > small {
   color: #64748b;
   line-height: 1.4;
-}
-
-.student-action-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 90px;
-  padding: 12px;
-  border: 1px solid #dbeafe;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 16px 40px rgb(15 23 42 / 6%);
-}
-
-.student-action-card.tone-primary {
-  border-color: rgb(37 99 235 / 28%);
-  background:
-    radial-gradient(circle at 100% 0%, rgb(37 99 235 / 18%), transparent 34%),
-    #ffffff;
-}
-
-.student-action-card strong,
-.student-action-card span {
-  display: block;
-}
-
-.student-action-card strong {
-  color: #0f172a;
-  font-size: 18px;
-}
-
-.student-action-card span {
-  margin-top: 6px;
-  color: #64748b;
-  line-height: 1.55;
 }
 
 .student-schedule-card {
@@ -4110,8 +4131,6 @@ textarea:focus-visible,
     padding: 20px;
   }
 
-  .student-kpi-strip,
-  .student-action-grid,
   .student-subject-grid,
   .student-focus-grid,
   .question-import-stepper,
@@ -4119,26 +4138,21 @@ textarea:focus-visible,
     grid-template-columns: 1fr;
   }
 
-  .student-dashboard-hero {
-    grid-template-columns: 1fr;
-  }
-
-  .student-plan-ring {
-    justify-self: start;
-  }
-
-  .student-kpi-strip {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .student-subject-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .student-plan-ring {
-    width: 116px;
-    height: 116px;
-    border-width: 10px;
+  .today-route-header {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .today-route-item.is-current {
+    padding: 16px;
+  }
+
+  .today-route-primary {
+    width: 100%;
   }
 
   .student-focus-grid {
@@ -4668,8 +4682,7 @@ textarea:focus-visible,
 }
 
 /* ---- Desktop clickable dashboard cards (stage 4-5 fix) ---- */
-button.student-insight-card,
-button.student-plan-ring {
+button.student-insight-card {
   cursor: pointer;
   font: inherit;
 }
@@ -4677,11 +4690,18 @@ button.student-insight-card {
   width: 100%;
 }
 button.student-insight-card:hover,
-button.student-plan-ring:hover,
 .focus-point-list button:hover,
 .recent-mistake-list button:hover {
   border-color: #93c5fd;
   box-shadow: 0 14px 34px rgb(15 23 42 / 10%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .today-route * {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
 }
 .focus-point-list button,
 .recent-mistake-list button {

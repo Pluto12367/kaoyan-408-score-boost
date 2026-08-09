@@ -46,3 +46,10 @@ test('onboarding and today-task actions refresh every student progress resource'
   assert.match(source, /refreshAll: refreshStudentProgress/);
   assert.ok(refreshCalls.length >= 2, 'onboarding and today-plan refresh should both update student progress');
 });
+
+test('homepage route delegates plan editing to the dedicated plan section', async () => {
+  const launchpad = await readFile(new URL('../apps/web/src/features/onboarding/StudentLaunchpad.tsx', import.meta.url), 'utf8');
+  assert.match(launchpad, /<TodayLearningRoute/);
+  assert.match(launchpad, /onOpenPlan=\{\(\) => onNavigate\('plan'\)\}/);
+  assert.doesNotMatch(launchpad, /<TodayPlan\b/);
+});
