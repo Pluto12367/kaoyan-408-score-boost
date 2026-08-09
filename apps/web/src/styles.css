@@ -4505,11 +4505,13 @@ textarea:focus-visible,
   .sidebar {
     align-self: start;
     gap: 0;
-    max-width: 100vw;
+    max-width: 100%;
+    min-width: 0;
     overflow: visible;
     padding: 8px 12px;
     position: sticky;
     top: 0;
+    width: 100%;
     z-index: 30;
   }
 
