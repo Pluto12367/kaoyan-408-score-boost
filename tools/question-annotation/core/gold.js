@@ -198,6 +198,7 @@ export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
       contentFingerprint: entry.contentFingerprint,
       primaryNodeId: null,
       secondaryNodeIds: [],
+      split: entry.split,
     })),
   });
   if (recomputedFrozenManifest.sha256 !== goldSet.frozenManifestSha256) {

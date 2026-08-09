@@ -85,6 +85,7 @@ function buildSyntheticFixture() {
       contentFingerprint: entry.contentFingerprint,
       primaryNodeId: null,
       secondaryNodeIds: [],
+      split: entry.split,
     })),
   });
   return { snapshot, frozen: { entries: frozenEntries, sha256: frozenManifest.sha256 } };
@@ -413,6 +414,48 @@ test('T: authoring cannot change frozen question ids or splits', () => {
   tampered.frozen[0] = { ...tampered.frozen[0], split: 'HOLDOUT' };
   const tamperedResult = freezeGoldManifest({ goldVersion: 'gold-truth-v1', goldSet: tampered, snapshot });
   assert.equal(tamperedResult.ok, false);
+});
+
+test('TEST 1 — unchanged frozen sample (canonical Task 4 contract) validates on freeze', () => {
+  const { snapshot, frozen } = buildSyntheticFixture();
+  const goldSet = makeGoldSet(snapshot, frozen, { confirmedCount: 40 });
+  const result = freezeGoldManifest({ goldVersion: 'gold-truth-v1', goldSet, snapshot });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.ok(result.manifest);
+  assert.equal(result.manifest.entries.length, 40);
+});
+
+test('TEST 2 — split drift fails closed on frozen sample identity', () => {
+  const { snapshot, frozen } = buildSyntheticFixture();
+  const goldSet = makeGoldSet(snapshot, frozen, { confirmedCount: 40 });
+  goldSet.frozen[0] = { ...goldSet.frozen[0], split: goldSet.frozen[0].split === 'DEV' ? 'HOLDOUT' : 'DEV' };
+  const result = freezeGoldManifest({ goldVersion: 'gold-truth-v1', goldSet, snapshot });
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some((error) => error.includes('frozen sample drifted') || error.includes('frozenManifestSha256')),
+    `expected frozen identity/split drift, got ${result.errors.join('; ')}`,
+  );
+});
+
+test('TEST 3 — fingerprint drift fails closed on frozen sample identity', () => {
+  const { snapshot, frozen } = buildSyntheticFixture();
+  const goldSet = makeGoldSet(snapshot, frozen, { confirmedCount: 40 });
+  goldSet.frozen[0] = { ...goldSet.frozen[0], contentFingerprint: 'drifted-fingerprint' };
+  const result = freezeGoldManifest({ goldVersion: 'gold-truth-v1', goldSet, snapshot });
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some((error) => error.includes('frozen sample drifted') || error.includes('frozenManifestSha256')),
+    `expected frozen fingerprint drift, got ${result.errors.join('; ')}`,
+  );
+});
+
+test('TEST 4 — authoring truth changes never trigger frozen sample sha drift', () => {
+  const { snapshot, frozen } = buildSyntheticFixture();
+  const goldSet = makeGoldSet(snapshot, frozen, { confirmedCount: 40 });
+  goldSet.authoring['DS-g-01'] = { status: 'confirmed', primaryNodeId: 'DS-point-1-2', secondaryNodeIds: ['DS-point-1-3'] };
+  const result = freezeGoldManifest({ goldVersion: 'gold-truth-v1', goldSet, snapshot });
+  assert.equal(result.ok, true, JSON.stringify(result.errors));
+  assert.ok(!result.errors.some((error) => error.includes('frozen sample drifted')));
 });
 
 test('synthetic full workflow: author, confirm, close, reopen, 40/40, freeze, validate', () => {
