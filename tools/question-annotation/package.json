@@ -9,7 +9,7 @@
     "benchmark": "node scripts/run-benchmark.mjs",
     "embedding-smoke": "node scripts/embedding-smoke.mjs",
     "embedding-benchmark": "node scripts/embedding-benchmark.mjs",
-    "test": "node --test test/snapshot.test.mjs test/export-snapshot.test.mjs test/workspace.test.mjs test/sample.test.mjs test/gold.test.mjs test/lexical.test.mjs test/embedding.test.mjs test/fusion.test.mjs test/retriever.test.mjs"
+    "test": "node --test test/snapshot.test.mjs test/export-snapshot.test.mjs test/workspace.test.mjs test/sample.test.mjs test/gold.test.mjs test/lexical.test.mjs test/embedding.test.mjs test/fusion.test.mjs test/retriever.test.mjs test/benchmark.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.4.0"

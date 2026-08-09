@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildLexicalIndex } from '../core/lexical.js';
 import { FakeEmbeddingProvider } from '../core/embedding.js';
-import { retrieveTop12 } from '../core/retriever.js';
+import { retrieveSemanticTop12, retrieveTop12 } from '../core/retriever.js';
 
 function fakeSpec() {
   return {
@@ -100,4 +100,29 @@ test('retrieveTop12 kp/chapter soft signals never leak into candidates from outs
   const kpMatched = candidates.filter((candidate) => candidate.kpMatched);
   assert.ok(kpMatched.every((candidate) => candidate.nodeId.startsWith('DS-')));
   assert.ok(kpMatched.some((candidate) => candidate.nodeId === 'DS-point-1-1'));
+});
+
+test('retrieveSemanticTop12 reproduces the Task 7 semantic benchmark ranking contract', async () => {
+  const { snapshot, question } = buildSnapshotFixture();
+  const cacheDir = mkdtempSync(join(tmpdir(), 'semantic-parity-'));
+  const provider = new FakeEmbeddingProvider(fakeSpec());
+  // Task 7 benchmark replica: stem query view vs node passage view, dot product,
+  // score desc + nodeId asc, Top12 — byte-level same contract.
+  const pool = snapshot.nodes.filter((node) => node.subject === question.subject && node.isActive && node.nodeType === 'atomicPoint');
+  const queryVector = await provider.embed('query', question.stem);
+  const scored = [];
+  for (const node of pool) {
+    const text = [node.name, node.chapterName, node.sectionName].filter((value) => value != null && value !== '').join(' ');
+    const passage = await provider.embed('passage', text);
+    scored.push({ nodeId: node.id, score: queryVector.reduce((sum, value, index) => sum + value * passage[index], 0) });
+  }
+  scored.sort((a, b) => b.score - a.score || a.nodeId.localeCompare(b.nodeId));
+  const task7 = scored.slice(0, 12).map((entry, index) => ({ nodeId: entry.nodeId, rank: index + 1 }));
+
+  const final = await retrieveSemanticTop12(question, snapshot, provider, cacheDir);
+  assert.deepEqual(
+    final.map((candidate) => ({ nodeId: candidate.nodeId, rank: candidate.finalRank })),
+    task7,
+  );
+  assert.ok(final.every((candidate) => candidate.retrievalReasons.includes('stemEmbedding')));
 });

@@ -1,0 +1,18 @@
+{
+  "version": "final-retriever-v1",
+  "retriever": "semantic-e5-v1",
+  "selectedOn": "DEV",
+  "holdoutEvaluatedBeforeFreeze": 0,
+  "goldSha256": "6ca5fa53e8b0db415c7d7132445a72bf10297550d110df0b92f8ce301fabd99d",
+  "snapshotId": "snap-399242fb3d7f",
+  "modelId": "Xenova/multilingual-e5-small",
+  "resolvedRevision": "761b726dd34fb83930e26aab4e9ac3899aa1fa78",
+  "transformersVersion": "3.8.1",
+  "queryPrefix": "query: ",
+  "passagePrefix": "passage: ",
+  "pooling": "mean",
+  "normalize": true,
+  "dimension": 384,
+  "topKInitial": 8,
+  "topKExpanded": 12
+}

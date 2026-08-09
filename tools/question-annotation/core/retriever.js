@@ -1,5 +1,5 @@
 import { normalizeText, searchLexical } from './lexical.js';
-import { embedWithCache } from './embedding.js';
+import { embedWithCache, retrieveSemanticCandidates } from './embedding.js';
 import { fuseCandidates } from './fusion.js';
 
 export const HYBRID_RETRIEVER_VERSION = 'hybrid-retrieval-v1';
@@ -75,4 +75,33 @@ export async function retrieveTop12(question, snapshot, providers, cacheDir) {
 
   const { kpMatched, chapterMatched } = computeStructuralMatches(question, snapshot, pool);
   return fuseCandidates({ lexical, stemEmbedding, analysisEmbedding, kpMatched, chapterMatched, subjectFilter }, 12);
+}
+
+/**
+ * Final Retrieval V1: semantic-e5-v1. This reproduces the Task 7 semantic
+ * benchmark contract exactly (stem query view vs node passage view, L2 cosine,
+ * score desc + nodeId asc, Top12, subject hard filter, active atomic pool) and
+ * is the only retriever evaluated by the final HOLDOUT gate.
+ */
+export async function retrieveSemanticTop12(question, snapshot, provider, cacheDir) {
+  const pool = (snapshot.nodes ?? []).filter(
+    (node) =>
+      node.subject === question.subject &&
+      node.isActive !== false &&
+      (node.nodeType === undefined || node.nodeType === null || node.nodeType === 'atomicPoint'),
+  );
+  const embedder = { embed: (view, text) => embedWithCache(provider, view, text, cacheDir) };
+  const candidates = await retrieveSemanticCandidates(embedder, pool, question.subject, question.stem ?? '', 12, 'query');
+  return candidates.map((candidate, index) => ({
+    nodeId: candidate.nodeId,
+    finalRank: index + 1,
+    rank: index + 1,
+    score: candidate.score,
+    lexicalRank: null,
+    stemEmbeddingRank: index + 1,
+    analysisEmbeddingRank: null,
+    kpMatched: false,
+    chapterMatched: false,
+    retrievalReasons: ['stemEmbedding'],
+  }));
 }
