@@ -884,6 +884,41 @@ git add tools/question-annotation/core/benchmark.js tools/question-annotation/sc
 git commit -m "feat: add retrieval benchmark and gates"
 ```
 
+## Amendment — Final Retrieval V1 Selection
+
+Date: 2026-08-09
+
+Status: APPROVED BEFORE HOLDOUT EVALUATION
+
+Original contract:
+Final retrieval gate used Task 8 hybrid RRF (`retrieveTop12`).
+
+Amended contract:
+Final Retrieval V1 uses `semantic-e5-v1`.
+
+Reason:
+Frozen DEV evaluation showed:
+
+- semantic-e5-v1 PRIMARY Recall@8 = 23/24
+- semantic-e5-v1 PRIMARY Recall@12 = 24/24
+- semantic-e5-v1 Macro AllRelevantRecall@12 = 1.0000
+
+versus:
+
+- hybrid-rrf-v1 PRIMARY Recall@8 = 22/24
+- hybrid-rrf-v1 PRIMARY Recall@12 = 22/24
+- hybrid-rrf-v1 Macro AllRelevantRecall@12 = 0.9167
+
+The amendment was approved while HOLDOUT evaluation count was still zero.
+
+Retrieval V1 final gate therefore evaluates only `semantic-e5-v1`.
+
+Hybrid RRF remains implemented and tested but is deferred as a Retrieval V2 candidate.
+
+No parameters, tokenizer rules, embedding model settings, aliases, query composition, or Gold labels were changed based on HOLDOUT data.
+
+Once the 16-question HOLDOUT is evaluated, Retrieval V1 is frozen and may not be retuned against that HOLDOUT.
+
 ## Plan Self-Review（writing-plans）
 
 1. **Spec coverage（Phase 0–2）**：snapshot（T1/T2）、workspace（T3）、Gold sampling + Dev/Holdout（T4）、Gold authoring（T5）、lexical（T6）、embedding（T7）、fusion/Top12（T8）、benchmark+gate（T9）逐项对应 Design Spec §5–§21 与 §40；§40 的 Gate 算术与 abstain/denominator 语义在 Plan B 阶段实现（本 Plan 明确不实现 AI provider，属 Plan B 范围）。

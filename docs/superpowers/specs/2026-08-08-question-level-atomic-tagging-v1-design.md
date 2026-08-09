@@ -506,6 +506,21 @@ Cross-subject candidates = 0
 
 （精确离散算术与 All Relevant 口径见 §40 Benchmark Precision。）
 
+## 21a. Amendment — Final Retrieval V1 Selection
+
+Date: 2026-08-09
+
+Status: APPROVED BEFORE HOLDOUT EVALUATION
+
+The locked Hybrid Retrieval architecture (RRF + structural bonus, §12/§16) remains the system architecture, but the Final Retrieval V1 for the Task 9 gate is `semantic-e5-v1` (E5 stem/analysis semantic retrieval, Task 7 winner config) instead of the hybrid `retrieveTop12` pipeline.
+
+DEV evidence at freeze time (HOLDOUT evaluated = 0):
+
+- semantic-e5-v1: PRIMARY Recall@8 = 23/24, PRIMARY Recall@12 = 24/24, Macro AllRelevantRecall@12 = 1.0000
+- hybrid-rrf-v1:  PRIMARY Recall@8 = 22/24, PRIMARY Recall@12 = 22/24, Macro AllRelevantRecall@12 = 0.9167
+
+Hybrid RRF is retained, tested, and deferred as a Retrieval V2 candidate. No retriever parameters, tokenizer rules, embedding model settings, aliases, query composition, or Gold labels were changed based on HOLDOUT data. After the 16-question HOLDOUT is evaluated, Retrieval V1 is frozen and may not be retuned against it.
+
 ## 22. Gold Persistence
 
 完整 Gold：
