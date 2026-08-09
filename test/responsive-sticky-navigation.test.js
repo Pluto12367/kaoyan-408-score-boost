@@ -23,12 +23,17 @@ test('desktop sidebar stays visible while the document keeps native scrolling', 
 test('tablet uses one sticky horizontally scrollable role navigation row', async () => {
   const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
   const styles = await source('apps/web/src/styles.css');
+  const tabletRule = styles.match(/@media \(min-width:\s*721px\) and \(max-width:\s*900px\) \{\s*\.sidebar\s*\{([^}]*)\}/)?.[1] ?? '';
   const roleNavigationRule = styles.match(/\.sidebar \.role-navigation\s*\{([^}]*)\}/)?.[1] ?? '';
   const roleButtonRule = styles.match(/\.sidebar \.role-navigation button\s*\{([^}]*)\}/)?.[1] ?? '';
 
   assert.match(navigation, /<nav className="role-navigation" aria-label=/);
   assert.match(styles, /@media \(min-width:\s*721px\) and \(max-width:\s*900px\)/);
   assert.match(styles, /@media \(min-width:\s*721px\) and \(max-width:\s*900px\) \{[\s\S]*?\.sidebar \{[\s\S]*?position:\s*sticky;[\s\S]*?top:\s*0;[\s\S]*?z-index:\s*30;/);
+  assert.match(tabletRule, /min-width:\s*0;/);
+  assert.match(tabletRule, /width:\s*100%;/);
+  assert.match(tabletRule, /max-width:\s*100%;/);
+  assert.doesNotMatch(tabletRule, /max-width:\s*100vw;/);
   assert.match(styles, /\.sidebar-brand \{[\s\S]*?display:\s*none;/);
   assert.match(roleNavigationRule, /display:\s*flex;/);
   assert.match(roleNavigationRule, /overflow-x:\s*auto;/);
