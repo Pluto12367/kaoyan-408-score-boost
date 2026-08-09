@@ -84,7 +84,7 @@ export function RoleNavigation({ role = 'student', activeSection, onNavigate }: 
   const items = navigationItemsForRole(resolvedRole);
 
   return (
-    <nav aria-label={`${resolvedRole}功能`}>
+    <nav className="role-navigation" aria-label={`${resolvedRole}功能`}>
       {items.map((item) => {
         const Icon = item.icon;
         const active = item.id === activeSection;

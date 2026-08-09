@@ -1207,7 +1207,7 @@ paperId: paper.id,
   return (
     <main className="app-shell">
       <aside className={(sessionUser?.role ?? 'student') === 'student' ? 'sidebar sidebar-student' : 'sidebar'}>
-        <div>
+        <div className="sidebar-brand">
           <p className="eyebrow">408 Score Boost</p>
           <h1>计算机考研 408 提分系统</h1>
         </div>
