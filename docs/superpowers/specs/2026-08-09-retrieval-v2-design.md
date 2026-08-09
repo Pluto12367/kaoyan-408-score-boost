@@ -2,7 +2,7 @@
 
 Date: 2026-08-09
 
-Status: DESIGN AMENDED — Difficulty Spread amendment approved before V2-2; V2-2 remains blocked pending V2-1R2 and human sample acceptance.
+Status: DESIGN AMENDED — V2-1R2 sample accepted; V2-2 and V2-3 complete; PRE-GOLD V2-4–V2-6 execution approved while the Human Gold Gate remains deferred, not passed.
 
 Approved direction: **Option 1 — Multi-view Semantic Retrieval + Deterministic KnowledgeNode Passage Enrichment**, keeping the existing E5 embedding model unchanged.
 
@@ -707,3 +707,38 @@ gold-sample-v2r2
 ```
 
 V2-1R2 must preserve both rejected files byte-for-byte and reject both historical manifest SHAs. It creates no split and no Gold truth. V2-2 remains blocked until the new manifest passes its hard constraints and receives explicit human acceptance.
+
+## 57. PRE-GOLD Execution Amendment (2026-08-09)
+
+Status: **APPROVED** by explicit human decision after V2-3. This amendment changes execution order only; it does not weaken or pass the Human Gold Gate.
+
+Current gate state:
+
+```text
+HUMAN GOLD GATE = DEFERRED
+confirmed = 0
+draft = 0
+unstarted = 100
+gold-truth-v2 = not created
+```
+
+The following implementation-only range may execute before human Gold authoring:
+
+```text
+V2-4 Query View Builder
+→ V2-5 Passage Builder
+→ V2-6 Semantic RRF
+→ STOP AT DEFERRED HUMAN GOLD GATE
+```
+
+PRE-GOLD execution is constrained as follows:
+
+- Tests and verification use synthetic fixtures only. Production snapshot questions, accepted DEV/HOLDOUT question text, split membership, Gold truth, retrieval rankings, candidate output, and metrics are forbidden inputs.
+- V2-4 remains a pure text-normalization/view-construction unit. V2-5 remains a pure node-passage formatting unit. V2-6 is verified only through synthetic snapshot nodes/questions and deterministic fake embeddings.
+- The frozen model, prefixes, pooling, normalization, dimension, RRF `k=60`, full same-subject ranking, active-atomic filter, and final tie-break remain unchanged.
+- No experiment variant, threshold, heuristic, representation field, or tuning decision may be added from PRE-GOLD results.
+- V2-7, V2-8, and V2-9 remain blocked. No real DEV run, winner selection, final retriever freeze, HOLDOUT inspection, or one-shot gate is authorized.
+- Completing V2-4–V2-6 means their code and synthetic tests pass; it does not mean Retrieval V2 has passed DEV or HOLDOUT evaluation.
+- After V2-6, execution stops until humans complete 100/100 Gold, `freezeGoldManifestV2` succeeds, and a later explicit controller decision resumes V2-7.
+
+This section supersedes only the former requirement that V2-4 code cannot begin before Gold completion. All Gold independence, split isolation, V1 safety, data-role, and evaluation-gate requirements remain authoritative.

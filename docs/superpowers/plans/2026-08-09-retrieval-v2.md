@@ -777,6 +777,19 @@ Required state before V2-4:
 
 After the human confirms 100/100 and freeze succeeds, V2-4 may begin. The split is hidden in the authoring UX; the frozen manifest stores it.
 
+## PRE-GOLD V2-4–V2-6 Execution Amendment (APPROVED 2026-08-09)
+
+The Human Gold Gate is **DEFERRED, not passed**. By explicit human approval, Tasks V2-4, V2-5, and V2-6 may be implemented and verified before Gold completion under these additional hard constraints:
+
+```text
+allowed:   V2-4 → V2-5 → V2-6 → STOP
+fixtures:  synthetic only
+forbidden: real DEV/HOLDOUT questions, split identity, Gold, rankings, candidates, metrics
+blocked:   V2-7, V2-8, V2-9
+```
+
+Each PRE-GOLD task still follows RED → GREEN → review → regression → explicit commit. No task may load `gold-sample-v2r2.json`, `gold-split-v2.json`, `gold-set-v2.json`, `gold-truth-manifest-v2.json`, or the production annotation workspace. V2-6 may use deterministic fake embeddings with a fully synthetic snapshot. Completion of V2-6 returns control to the deferred Human Gold Gate; it does not authorize DEV execution.
+
 ---
 
 # Task V2-4 — Query View Builder
@@ -793,7 +806,7 @@ const QUERY_VIEW_VERSION = 'query-views-v2';
 function buildQueryViews(question: { stem: string; analysis: string | null | undefined }): { views: Array<{ type: 'stem' | 'analysis'; content: string }>; availability: 'stem' | 'stem+analysis' };
 ```
 
-**Preconditions:** HUMAN GATE passed (100/100 V2 Gold frozen).
+**Preconditions:** either HUMAN GATE passed, or the approved PRE-GOLD amendment is active. Under PRE-GOLD, all tests use synthetic question text only and no real Gold/split/workspace artifact may be loaded.
 
 **RED test:**
 
@@ -848,7 +861,7 @@ function buildPassageV1(node: { name: string; chapterName: string | null; sectio
 function buildPassageV2(node: { name: string; chapterName: string | null; sectionName: string | null }): string;
 ```
 
-**Preconditions:** V2-4 committed.
+**Preconditions:** V2-4 committed. Under PRE-GOLD, passage tests use synthetic node fields only and no production snapshot is loaded.
 
 **RED test:**
 
@@ -901,7 +914,7 @@ function fuseSemanticViews(input: { stem: Array<{ nodeId: string; rank: number }
 async function retrieveSemanticV2(question: SnapshotQuestion, snapshot: AnnotationSnapshot, provider: EmbeddingProvider, cacheDir: string, options: { queryMode: 'Q1' | 'Q2'; passageFormat: 'P1' | 'P2' }): Promise<Array<{ nodeId: string; finalRank: number; rrfScore: number; stemRank: number | null; analysisRank: number | null }>>;
 ```
 
-**Preconditions:** V2-4 and V2-5 committed.
+**Preconditions:** V2-4 and V2-5 committed. Under PRE-GOLD, retrieval integration tests use a fully synthetic snapshot and deterministic fake embeddings only.
 
 **RED test:**
 
@@ -935,7 +948,7 @@ async function retrieveSemanticV2(question: SnapshotQuestion, snapshot: Annotati
 
 **Commit message:** `feat: add v2 semantic rrf aggregation`
 
-**Stop condition:** V2-7 begins after commit.
+**Stop condition:** when PRE-GOLD amendment is active, stop at the deferred Human Gold Gate after this commit. V2-7 begins only after 100/100 human Gold is frozen and execution is explicitly resumed.
 
 ---
 
