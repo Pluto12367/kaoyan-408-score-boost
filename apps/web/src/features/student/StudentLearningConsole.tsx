@@ -1,7 +1,7 @@
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
-import type { TodayPlanTask } from '../onboarding/todayLearningRoute';
+import { deriveTodayTaskNextStep, type TodayPlanTask } from '../onboarding/todayLearningRoute';
 
 export interface StudentLearningConsoleProps {
   todayPlan: TodayPlanType | null;
@@ -28,6 +28,12 @@ function completedTaskTitles(plan: TodayPlanType | null) {
     .map((task) => task.title) ?? [];
 }
 
+function latestCompletedTaskId(plan: TodayPlanType | null) {
+  return plan?.priorityTasks
+    .filter((task) => task.status === 'completed' || task.completed)
+    .at(-1)?.id ?? null;
+}
+
 export function StudentLearningConsole({
   todayPlan,
   todayPlanLoading,
@@ -42,6 +48,9 @@ export function StudentLearningConsole({
   const dueWrongCount = wrongQuestionSummary?.pendingCount ?? null;
   const weakPoint = weakestPointTitle(masteryMap);
   const completedTitles = completedTaskTitles(todayPlan);
+  const completedNextStep = completedTitles.length
+    ? deriveTodayTaskNextStep(todayPlan, latestCompletedTaskId(todayPlan), dueWrongCount ?? 0)
+    : null;
   const completionText = todayPlan
     ? `${todayPlan.summary.completedTasks}/${todayPlan.summary.totalTasks}`
     : todayPlanLoading
@@ -112,7 +121,10 @@ export function StudentLearningConsole({
       {completedSummary ? (
         <div className="learning-console-next-step" role="status">
           <strong>{completedSummary}</strong>
-          <span>{dueWrongCount && dueWrongCount > 0 ? '下一步：继续复盘错题' : weakPoint ? '下一步：继续薄弱点练习' : '下一步：查看学习报告'}</span>
+          <span>{completedNextStep ? completedNextStep.message : '下一步：查看学习报告'}</span>
+          {completedNextStep ? (
+            <button type="button" className="secondary-action" onClick={() => onNavigate(completedNextStep.targetSection)}>{completedNextStep.actionLabel}</button>
+          ) : null}
         </div>
       ) : null}
 

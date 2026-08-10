@@ -52,9 +52,24 @@ test('today-task question launches show task context inside practice training', 
   const practice = readFileSync('apps/web/src/features/practice/PracticePanel.tsx', 'utf8');
   assert.match(sections, /taskContext=\{props\.todayTaskLaunchContext\?\.destination === 'question'/);
   assert.match(sections, /props\.todayPlan\?\.priorityTasks\.find/);
+  assert.match(sections, /deriveTodayTaskNextStep/);
+  assert.match(sections, /taskNextStep=\{todayTaskNextStep\}/);
+  assert.match(sections, /onTaskNextStep=\{todayTaskNextStep \? \(\) => props\.onNavigate\(todayTaskNextStep\.targetSection\) : undefined\}/);
   assert.match(practice, /taskContext\?:/);
+  assert.match(practice, /taskNextStep\?:/);
   assert.match(practice, /当前任务/);
   assert.match(practice, /完成后会更新今日进度/);
+  assert.match(practice, /任务完成后的下一步/);
+  assert.match(practice, /taskNextStep\.actionLabel/);
+});
+
+test('student learning console reuses today-task next-step recommendations after completed work', () => {
+  const source = readFileSync(consolePath, 'utf8');
+  assert.match(source, /deriveTodayTaskNextStep/);
+  assert.match(source, /completedNextStep/);
+  assert.match(source, /completedNextStep\.message/);
+  assert.match(source, /completedNextStep\.actionLabel/);
+  assert.match(source, /onNavigate\(completedNextStep\.targetSection\)/);
 });
 
 test('today plan task cards expose explicit status labels', () => {

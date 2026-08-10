@@ -139,6 +139,51 @@ test('does not fallback to completed or future postponed tasks', async () => {
   assert.equal(result.message, '今日任务暂无可用题目或错题，请调整今日计划。');
 });
 
+test('recommends the next unfinished task after a today task is completed', async () => {
+  const { deriveTodayTaskNextStep } = await loadPolicy();
+  const step = deriveTodayTaskNextStep({
+    priorityTasks: [
+      task({ id: 'done-now', title: '图专项训练', status: 'pending' }),
+      task({ id: 'next-task', title: '树复盘', status: 'pending', priority: '低' }),
+    ],
+  }, 'done-now', 0);
+
+  assert.equal(step.kind, 'next-task');
+  assert.equal(step.nextTaskId, 'next-task');
+  assert.equal(step.actionLabel, '继续下一项');
+  assert.equal(step.targetSection, 'dashboard');
+  assert.match(step.message, /已完成今日任务：图专项训练/);
+  assert.match(step.message, /下一步建议：回到学习中控台开始「树复盘」/);
+});
+
+test('recommends wrong-book review when all today tasks are done and wrong questions are pending', async () => {
+  const { deriveTodayTaskNextStep } = await loadPolicy();
+  const step = deriveTodayTaskNextStep({
+    priorityTasks: [
+      task({ id: 'done-now', title: 'Cache 训练', status: 'completed', completed: true }),
+    ],
+  }, 'done-now', 3);
+
+  assert.equal(step.kind, 'wrong-book');
+  assert.equal(step.actionLabel, '去复盘错题');
+  assert.equal(step.targetSection, 'wrong-book');
+  assert.match(step.message, /还有 3 道错题待复盘/);
+});
+
+test('recommends report review when no today task or wrong-book action remains', async () => {
+  const { deriveTodayTaskNextStep } = await loadPolicy();
+  const step = deriveTodayTaskNextStep({
+    priorityTasks: [
+      task({ id: 'done-now', title: '操作系统同步', status: 'completed', completed: true }),
+    ],
+  }, 'done-now', 0);
+
+  assert.equal(step.kind, 'report');
+  assert.equal(step.actionLabel, '查看学习报告');
+  assert.equal(step.targetSection, 'report');
+  assert.match(step.message, /今日任务已完成/);
+});
+
 test('keeps postponed tasks without a valid availability time non-actionable', async () => {
   const { resolveTodayRoute } = await loadPolicy();
   for (const nextAvailableAt of [undefined, 'not-a-date']) {

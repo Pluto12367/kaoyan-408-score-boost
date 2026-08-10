@@ -3,6 +3,7 @@ import type { PracticeSet, PracticeSetResult } from '../../api';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
+import type { TodayTaskNextStep } from '../onboarding/todayLearningRoute';
 
 interface PracticePanelProps {
   question: Question;
@@ -16,6 +17,7 @@ interface PracticePanelProps {
     questionCount: number;
     minutes: number;
   } | null;
+  taskNextStep?: TodayTaskNextStep | null;
   redoQuestionId: string | null;
   status: string;
   submitting?: boolean;
@@ -23,6 +25,7 @@ interface PracticePanelProps {
   hasNextQuestion?: boolean;
   onSubmitAnswer: (answer: string) => void;
   onNextQuestion?: () => void;
+  onTaskNextStep?: () => void;
   onSubmitPracticeSet: () => void;
   onStartLearningMode?: () => void;
   onRestartPracticeSet?: () => void;
@@ -42,6 +45,7 @@ export function PracticePanel({
   practiceSet,
   practiceSetResult,
   taskContext = null,
+  taskNextStep = null,
   redoQuestionId,
   status,
   submitting = false,
@@ -49,6 +53,7 @@ export function PracticePanel({
   hasNextQuestion = false,
   onSubmitAnswer,
   onNextQuestion,
+  onTaskNextStep,
   onSubmitPracticeSet,
   onStartLearningMode,
   onRestartPracticeSet,
@@ -57,6 +62,7 @@ export function PracticePanel({
 }: PracticePanelProps) {
   const set = practiceSet.data;
   const answered = Boolean(answerResult);
+  const showTaskNextStep = Boolean(answerResult && taskContext && taskNextStep && !hasNextQuestion);
   return (
     <article id="question" className="panel">
       <p className="eyebrow">题库训练</p>
@@ -116,6 +122,15 @@ export function PracticePanel({
               <button type="button" className="secondary-action" onClick={onRestartQuestionBank}>重新练习本组</button>
             ) : null}
           </div>
+          {showTaskNextStep && taskNextStep ? (
+            <div className="today-task-next-step" role="status" aria-label="任务完成后的下一步">
+              <strong>任务完成后的下一步</strong>
+              <span>{taskNextStep.message}</span>
+              {onTaskNextStep ? (
+                <button type="button" className="primary-action" onClick={onTaskNextStep}>{taskNextStep.actionLabel}</button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
       {!answerResult ? <p className="practice-status">{status}</p> : null}

@@ -3067,6 +3067,26 @@ textarea:focus-visible,
   justify-content: flex-end;
 }
 
+.today-task-next-step {
+  align-items: center;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 12px 14px;
+}
+
+.today-task-next-step strong {
+  color: #166534;
+}
+
+.today-task-next-step span {
+  color: #166534;
+  line-height: 1.5;
+}
+
 .empty-state {
   color: #64748b;
   font-size: 14px;

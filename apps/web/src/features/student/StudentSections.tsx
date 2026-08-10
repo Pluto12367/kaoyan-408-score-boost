@@ -38,7 +38,7 @@ import { StudentLearningConsole } from './StudentLearningConsole';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { SessionView } from '../../api/endpoints/sessions';
-import type { TodayPlanTask, TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
+import { deriveTodayTaskNextStep, type TodayPlanTask, type TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
 
 const StudentLaunchpad = lazy(() => import('../onboarding/StudentLaunchpad').then((m) => ({ default: m.StudentLaunchpad })));
 const ReportWorkspace = lazy(() => import('../report/ReportWorkspace').then((m) => ({ default: m.ReportWorkspace })));
@@ -136,6 +136,13 @@ export function StudentSections(props: StudentSectionsProps) {
   const launchedQuestionTask = props.todayTaskLaunchContext?.destination === 'question'
     ? props.todayPlan?.priorityTasks.find((task) => task.id === props.todayTaskLaunchContext?.taskId) ?? null
     : null;
+  const todayTaskNextStep = launchedQuestionTask
+    ? deriveTodayTaskNextStep(
+      props.todayPlan,
+      launchedQuestionTask.id,
+      props.wrongQuestionSummary.data?.pendingCount ?? 0,
+    )
+    : null;
 
   return (
     <>
@@ -229,6 +236,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   practiceSet={props.practiceSet}
                   practiceSetResult={props.practiceSetResult}
                   taskContext={props.todayTaskLaunchContext?.destination === 'question' ? launchedQuestionTask : null}
+                  taskNextStep={todayTaskNextStep}
                   redoQuestionId={props.redoQuestionId}
                   status={props.practiceStatus}
                   submitting={props.practiceSubmitting}
@@ -236,6 +244,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   hasNextQuestion={props.hasNextQuestion}
                   onSubmitAnswer={props.onSubmitAnswer}
                   onNextQuestion={props.onNextQuestion}
+                  onTaskNextStep={todayTaskNextStep ? () => props.onNavigate(todayTaskNextStep.targetSection) : undefined}
                   onSubmitPracticeSet={props.onSubmitPracticeSet}
                   onStartLearningMode={props.onStartLearningMode}
                   onRestartPracticeSet={props.onRestartPracticeSet}

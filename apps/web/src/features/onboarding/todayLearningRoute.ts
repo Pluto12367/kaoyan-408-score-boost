@@ -36,6 +36,34 @@ export type TodayTaskLaunchResolution =
   | { kind: 'navigate-plan'; task: TodayPlanTask; taskId: string; skippedTaskIds: string[] }
   | { kind: 'error'; message: string; skippedTaskIds: string[] };
 
+export type TodayTaskNextStepTarget = 'dashboard' | 'wrong-book' | 'report';
+
+export type TodayTaskNextStep =
+  | {
+    kind: 'next-task';
+    message: string;
+    actionLabel: '继续下一项';
+    targetSection: 'dashboard';
+    completedTaskTitle: string;
+    nextTaskId: string;
+  }
+  | {
+    kind: 'wrong-book';
+    message: string;
+    actionLabel: '去复盘错题';
+    targetSection: 'wrong-book';
+    completedTaskTitle: string;
+    nextTaskId: null;
+  }
+  | {
+    kind: 'report';
+    message: string;
+    actionLabel: '查看学习报告';
+    targetSection: 'report';
+    completedTaskTitle: string;
+    nextTaskId: null;
+  };
+
 const PRIORITY_WEIGHT = { 高: 0, 中: 1, 低: 2 } as const;
 const QUESTION_MODES = new Set(['基础例题', '专项训练', '阶段巩固']);
 const REVIEW_MODES = new Set(['诊断复盘', '考后复盘']);
@@ -43,6 +71,15 @@ const MAX_TIMER_DELAY_MS = 2_147_483_647;
 
 function isCompleted(task: TodayPlanTask) {
   return task.status === 'completed' || task.completed === true;
+}
+
+function titleForCompletedTask(tasks: TodayPlanTask[], completedTaskId: string | null) {
+  if (!completedTaskId) return '今日任务';
+  return tasks.find((task) => task.id === completedTaskId)?.title ?? '今日任务';
+}
+
+function isCompletedForNextStep(task: TodayPlanTask, completedTaskId: string | null) {
+  return isCompleted(task) || task.id === completedTaskId;
 }
 
 function isActionable(task: TodayPlanTask, nowMs: number) {
@@ -161,5 +198,48 @@ export function resolveLaunchableTodayTask(
     kind: 'error',
     message: '今日任务暂无可用题目或错题，请调整今日计划。',
     skippedTaskIds,
+  };
+}
+
+export function deriveTodayTaskNextStep(
+  plan: Pick<TodayPlan, 'priorityTasks'> | null,
+  completedTaskId: string | null,
+  dueWrongCount = 0,
+): TodayTaskNextStep {
+  const tasks = plan?.priorityTasks ?? [];
+  const completedTaskTitle = titleForCompletedTask(tasks, completedTaskId);
+  const nextTask = resolveTodayRoute(tasks)
+    .orderedTasks
+    .find((task) => !isCompletedForNextStep(task, completedTaskId) && task.status !== 'postponed');
+
+  if (nextTask) {
+    return {
+      kind: 'next-task',
+      message: `已完成今日任务：${completedTaskTitle}。下一步建议：回到学习中控台开始「${nextTask.title}」。`,
+      actionLabel: '继续下一项',
+      targetSection: 'dashboard',
+      completedTaskTitle,
+      nextTaskId: nextTask.id,
+    };
+  }
+
+  if (dueWrongCount > 0) {
+    return {
+      kind: 'wrong-book',
+      message: `已完成今日任务：${completedTaskTitle}。还有 ${dueWrongCount} 道错题待复盘，先把漏洞补上。`,
+      actionLabel: '去复盘错题',
+      targetSection: 'wrong-book',
+      completedTaskTitle,
+      nextTaskId: null,
+    };
+  }
+
+  return {
+    kind: 'report',
+    message: `已完成今日任务：${completedTaskTitle}。今日任务已完成，可以查看学习报告或自主加练。`,
+    actionLabel: '查看学习报告',
+    targetSection: 'report',
+    completedTaskTitle,
+    nextTaskId: null,
   };
 }
