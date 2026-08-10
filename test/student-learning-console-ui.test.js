@@ -28,3 +28,18 @@ test('student learning console renders daily path, autonomous study, status, and
   assert.match(source, /学习报告|report/i);
   assert.match(source, /知识|catalog/i);
 });
+
+test('student dashboard wires the learning console above existing launchpad content', () => {
+  const source = readFileSync('apps/web/src/features/student/StudentSections.tsx', 'utf8');
+  assert.match(source, /StudentLearningConsole/);
+  assert.match(source, /todayPlan=\{props\.todayPlan\}/);
+  assert.match(source, /wrongQuestionSummary=\{props\.wrongQuestionSummary\.data\}/);
+  assert.match(source, /masteryMap=\{props\.masteryMap\}/);
+  assert.match(source, /learningCalendar=\{props\.learningCalendar\}/);
+  assert.match(source, /onContinueToday=\{props\.onContinueToday\}/);
+});
+
+test('student launchpad no longer owns the primary daily-learning-path copy', () => {
+  const source = readFileSync('apps/web/src/features/onboarding/StudentLaunchpad.tsx', 'utf8');
+  assert.equal(source.includes('今天先做什么，一眼看清'), false);
+});
