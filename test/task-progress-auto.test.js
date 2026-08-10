@@ -45,6 +45,20 @@ test('study service wires practice records into today task progress and auto-com
   assert.match(source, /await this\.completeStudyTask\(task\.id, \{/, 'reaching the target should auto-complete the task');
 });
 
+test('scheduled task completion is scoped to the primary onboarding plan', async () => {
+  const repositorySource = await readFile(new URL('../apps/api/src/study/onboarding-plan.repository.ts', import.meta.url), 'utf8');
+  const completeTaskSection = repositorySource.slice(
+    repositorySource.indexOf('async completeTask('),
+    repositorySource.indexOf('private mapTask('),
+  );
+
+  assert.match(
+    completeTaskSection,
+    /where:\s*\{\s*userId,\s*source:\s*null,\s*status:\s*'ACTIVE'\s*\}/,
+    'completing an onboarding task must ignore other ACTIVE plans such as score-center plans',
+  );
+});
+
 test('today plan UI shows live practice progress and App refreshes the plan after practice', async () => {
   const todayPlanSource = await readFile(new URL('../apps/web/src/components/TodayPlan.tsx', import.meta.url), 'utf8');
   assert.match(todayPlanSource, /task\.progress/, 'task card should read progress');
@@ -57,4 +71,37 @@ test('today plan UI shows live practice progress and App refreshes the plan afte
   const appSource = await readFile(new URL('../apps/web/src/App.tsx', import.meta.url), 'utf8');
   assert.match(appSource, /refreshTodayPlan\(\),\s*refreshStudyReminders\(\)/, 'single-question submit should refresh the today plan');
   assert.match(appSource, /refreshOverview\(\),\s*refreshTodayPlan\(\)/, 'session submit should refresh the today plan');
+});
+
+test('practice panel shows the task next step when today task target is reached', async () => {
+  const practicePanelSource = await readFile(new URL('../apps/web/src/features/practice/PracticePanel.tsx', import.meta.url), 'utf8');
+
+  assert.match(practicePanelSource, /taskReachedTarget\?: boolean;/, 'practice panel should receive the today-task target state');
+  assert.match(
+    practicePanelSource,
+    /const showTaskNextStep = Boolean\(answerResult && taskContext && taskNextStep && taskReachedTarget\);/,
+    'next-step recommendation should depend on task target completion, not exhausting the question bank',
+  );
+  assert.doesNotMatch(
+    practicePanelSource,
+    /const showTaskNextStep = Boolean\(answerResult && taskContext && taskNextStep && !hasNextQuestion\);/,
+    'question-bank availability must not suppress the task-complete recommendation',
+  );
+
+  const studentSectionsSource = await readFile(new URL('../apps/web/src/features/student/StudentSections.tsx', import.meta.url), 'utf8');
+  assert.match(
+    studentSectionsSource,
+    /const launchedQuestionTaskReachedTarget = Boolean\(/,
+    'student sections should derive a today-task target state',
+  );
+  assert.match(
+    studentSectionsSource,
+    /launchedQuestionTask\?\.progress\?\.reachedTarget/,
+    'student sections should use refreshed today-plan progress to detect target completion',
+  );
+  assert.match(
+    studentSectionsSource,
+    /taskReachedTarget=\{launchedQuestionTaskReachedTarget\}/,
+    'student sections should pass the refreshed today-plan completion state into PracticePanel',
+  );
 });

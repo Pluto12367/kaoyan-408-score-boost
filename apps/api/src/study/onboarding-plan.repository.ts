@@ -331,7 +331,7 @@ export class OnboardingPlanRepository {
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
       const plan = await tx.studyPlan.findFirst({
-        where: { userId, status: 'ACTIVE' },
+        where: { userId, source: null, status: 'ACTIVE' },
         include: { tasks: { orderBy: [{ scheduledDate: 'asc' }, { id: 'asc' }] } },
         orderBy: { createdAt: 'desc' },
       });

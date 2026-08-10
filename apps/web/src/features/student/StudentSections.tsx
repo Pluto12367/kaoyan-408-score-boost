@@ -143,6 +143,11 @@ export function StudentSections(props: StudentSectionsProps) {
       props.wrongQuestionSummary.data?.pendingCount ?? 0,
     )
     : null;
+  const launchedQuestionTaskReachedTarget = Boolean(
+    launchedQuestionTask?.completed
+    || launchedQuestionTask?.status === 'completed'
+    || launchedQuestionTask?.progress?.reachedTarget,
+  );
 
   return (
     <>
@@ -242,6 +247,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   submitting={props.practiceSubmitting}
                   answerResult={props.practiceAnswerResult}
                   hasNextQuestion={props.hasNextQuestion}
+                  taskReachedTarget={launchedQuestionTaskReachedTarget}
                   onSubmitAnswer={props.onSubmitAnswer}
                   onNextQuestion={props.onNextQuestion}
                   onTaskNextStep={todayTaskNextStep ? () => props.onNavigate(todayTaskNextStep.targetSection) : undefined}

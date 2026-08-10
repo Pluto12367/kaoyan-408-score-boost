@@ -23,6 +23,7 @@ interface PracticePanelProps {
   submitting?: boolean;
   answerResult?: PracticeAnswerResult | null;
   hasNextQuestion?: boolean;
+  taskReachedTarget?: boolean;
   onSubmitAnswer: (answer: string) => void;
   onNextQuestion?: () => void;
   onTaskNextStep?: () => void;
@@ -51,6 +52,7 @@ export function PracticePanel({
   submitting = false,
   answerResult = null,
   hasNextQuestion = false,
+  taskReachedTarget = false,
   onSubmitAnswer,
   onNextQuestion,
   onTaskNextStep,
@@ -62,7 +64,7 @@ export function PracticePanel({
 }: PracticePanelProps) {
   const set = practiceSet.data;
   const answered = Boolean(answerResult);
-  const showTaskNextStep = Boolean(answerResult && taskContext && taskNextStep && !hasNextQuestion);
+  const showTaskNextStep = Boolean(answerResult && taskContext && taskNextStep && taskReachedTarget);
   return (
     <article id="question" className="panel">
       <p className="eyebrow">题库训练</p>
