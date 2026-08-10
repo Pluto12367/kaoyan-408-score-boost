@@ -8,6 +8,14 @@ interface PracticePanelProps {
   question: Question;
   practiceSet: ModuleResource<PracticeSet>;
   practiceSetResult: PracticeSetResult | null;
+  taskContext?: {
+    title: string;
+    subject: string;
+    chapter: string;
+    mode: string;
+    questionCount: number;
+    minutes: number;
+  } | null;
   redoQuestionId: string | null;
   status: string;
   submitting?: boolean;
@@ -33,6 +41,7 @@ export function PracticePanel({
   question,
   practiceSet,
   practiceSetResult,
+  taskContext = null,
   redoQuestionId,
   status,
   submitting = false,
@@ -51,6 +60,13 @@ export function PracticePanel({
   return (
     <article id="question" className="panel">
       <p className="eyebrow">题库训练</p>
+      {taskContext ? (
+        <div className="today-task-context" role="status">
+          <strong>当前任务：{taskContext.title}</strong>
+          <span>{taskContext.subject} · {taskContext.chapter} · {taskContext.mode} · {taskContext.questionCount} 题 / {taskContext.minutes} 分钟</span>
+          <small>完成后会更新今日进度，并同步错题本和提分报告。</small>
+        </div>
+      ) : null}
       <h3>{question.stem}</h3>
       <div className="options">
         {question.options.map((option, index) => (

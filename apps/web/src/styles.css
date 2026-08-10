@@ -2915,6 +2915,27 @@ textarea:focus-visible,
   padding: 10px 12px;
 }
 
+.today-task-context {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+}
+
+.today-task-context strong {
+  color: #1e3a8a;
+}
+
+.today-task-context span,
+.today-task-context small {
+  color: #475569;
+  line-height: 1.5;
+}
+
 .practice-set {
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -3498,7 +3519,7 @@ textarea:focus-visible,
 }
 
 .task-header {
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr);
   align-items: center;
 }
 
@@ -3517,6 +3538,15 @@ textarea:focus-visible,
 .priority-high { background: #fee2e2; color: #991b1b; }
 .priority-medium { background: #fef3c7; color: #92400e; }
 .priority-low { background: #e0f2fe; color: #075985; }
+
+.task-status-label {
+  background: #f1f5f9;
+  border-radius: 999px;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 8px;
+}
 
 .task-completion-fields {
   display: grid;
@@ -5193,6 +5223,27 @@ button.student-insight-card:hover,
   display: block;
   color: var(--text-muted);
   font-size: 0.9rem;
+}
+
+.learning-console-next-step {
+  align-items: center;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  justify-content: space-between;
+  padding: 12px 14px;
+}
+
+.learning-console-next-step strong {
+  color: #166534;
+}
+
+.learning-console-next-step span {
+  color: #15803d;
+  font-weight: 700;
 }
 
 .learning-console-grid {

@@ -22,6 +22,12 @@ function weakestPointTitle(masteryMap: MasteryMap | null) {
   return masteryMap?.weakestPoints?.[0]?.title ?? null;
 }
 
+function completedTaskTitles(plan: TodayPlanType | null) {
+  return plan?.priorityTasks
+    .filter((task) => task.status === 'completed' || task.completed)
+    .map((task) => task.title) ?? [];
+}
+
 export function StudentLearningConsole({
   todayPlan,
   todayPlanLoading,
@@ -35,6 +41,7 @@ export function StudentLearningConsole({
   const task = firstUnfinishedTask(todayPlan);
   const dueWrongCount = wrongQuestionSummary?.pendingCount ?? null;
   const weakPoint = weakestPointTitle(masteryMap);
+  const completedTitles = completedTaskTitles(todayPlan);
   const completionText = todayPlan
     ? `${todayPlan.summary.completedTasks}/${todayPlan.summary.totalTasks}`
     : todayPlanLoading
@@ -43,8 +50,11 @@ export function StudentLearningConsole({
   const nextSuggestion = task
     ? `先完成最高优先级任务：${task.title}`
     : dueWrongCount && dueWrongCount > 0
-      ? `先复盘 ${dueWrongCount} 道待处理错题，再做新练习`
+      ? `下一步：继续复盘错题（${dueWrongCount} 道待处理）`
       : '今日任务完成后，可以继续薄弱点练习或查看学习报告';
+  const completedSummary = completedTitles.length
+    ? `已完成：${completedTitles.slice(0, 2).join('、')}${completedTitles.length > 2 ? ' 等' : ''}`
+    : null;
 
   const pathItems = [
     {
@@ -98,6 +108,13 @@ export function StudentLearningConsole({
         <article><span>连续学习</span><strong>{todayPlan?.summary.streakDays ?? learningCalendar?.streakDays ?? '--'} 天</strong></article>
         <article><span>待复盘错题</span><strong>{dueWrongCount ?? '--'} 道</strong></article>
       </div>
+
+      {completedSummary ? (
+        <div className="learning-console-next-step" role="status">
+          <strong>{completedSummary}</strong>
+          <span>{dueWrongCount && dueWrongCount > 0 ? '下一步：继续复盘错题' : weakPoint ? '下一步：继续薄弱点练习' : '下一步：查看学习报告'}</span>
+        </div>
+      ) : null}
 
       <div className="learning-console-grid">
         <div className="learning-path-card">

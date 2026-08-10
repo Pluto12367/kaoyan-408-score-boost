@@ -19,6 +19,13 @@ interface Props {
   onOpenReview?: (questionId: string) => void;
 }
 
+function getTaskStatusLabel(task: TodayPlanType['priorityTasks'][number]) {
+  if (task.completed || task.status === 'completed') return '已完成';
+  if (task.status === 'in_progress') return '进行中';
+  if (task.status === 'postponed') return '已延后';
+  return '待开始';
+}
+
 export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props) {
   const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
   const [dueReviewError, setDueReviewError] = useState('');
@@ -190,6 +197,7 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
                   <span className={`priority-badge priority-${task.priority === '高' ? 'high' : task.priority === '中' ? 'medium' : 'low'}`}>
                     {task.priority}
                   </span>
+                  <span className="task-status-label">{getTaskStatusLabel(task)}</span>
                   <strong>{task.title}</strong>
                 </div>
                 <p>{task.subject} · {task.chapter} · {task.mode}</p>

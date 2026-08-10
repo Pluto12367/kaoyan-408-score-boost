@@ -133,6 +133,9 @@ export interface StudentSectionsProps {
 export function StudentSections(props: StudentSectionsProps) {
   const { visibleSection, studentOverviewReady, overviewResource, onRetryOverview, report, questions } = props;
   const hasQuestions = questions.length > 0;
+  const launchedQuestionTask = props.todayTaskLaunchContext?.destination === 'question'
+    ? props.todayPlan?.priorityTasks.find((task) => task.id === props.todayTaskLaunchContext?.taskId) ?? null
+    : null;
 
   return (
     <>
@@ -225,6 +228,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   question={props.currentQuestion}
                   practiceSet={props.practiceSet}
                   practiceSetResult={props.practiceSetResult}
+                  taskContext={props.todayTaskLaunchContext?.destination === 'question' ? launchedQuestionTask : null}
                   redoQuestionId={props.redoQuestionId}
                   status={props.practiceStatus}
                   submitting={props.practiceSubmitting}

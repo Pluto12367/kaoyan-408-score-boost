@@ -29,6 +29,14 @@ test('student learning console renders daily path, autonomous study, status, and
   assert.match(source, /知识|catalog/i);
 });
 
+test('student learning console surfaces completed-task feedback and the next visible action', () => {
+  const source = readFileSync(consolePath, 'utf8');
+  assert.match(source, /completedTaskTitles/);
+  assert.match(source, /已完成：/);
+  assert.match(source, /下一步/);
+  assert.match(source, /继续复盘错题|继续薄弱点练习|查看学习报告/);
+});
+
 test('student dashboard wires the learning console above existing launchpad content', () => {
   const source = readFileSync('apps/web/src/features/student/StudentSections.tsx', 'utf8');
   assert.match(source, /StudentLearningConsole/);
@@ -37,6 +45,24 @@ test('student dashboard wires the learning console above existing launchpad cont
   assert.match(source, /masteryMap=\{props\.masteryMap\}/);
   assert.match(source, /learningCalendar=\{props\.learningCalendar\}/);
   assert.match(source, /onLaunchTodayTask=\{props\.onLaunchTodayTask\}/);
+});
+
+test('today-task question launches show task context inside practice training', () => {
+  const sections = readFileSync('apps/web/src/features/student/StudentSections.tsx', 'utf8');
+  const practice = readFileSync('apps/web/src/features/practice/PracticePanel.tsx', 'utf8');
+  assert.match(sections, /taskContext=\{props\.todayTaskLaunchContext\?\.destination === 'question'/);
+  assert.match(sections, /props\.todayPlan\?\.priorityTasks\.find/);
+  assert.match(practice, /taskContext\?:/);
+  assert.match(practice, /当前任务/);
+  assert.match(practice, /完成后会更新今日进度/);
+});
+
+test('today plan task cards expose explicit status labels', () => {
+  const source = readFileSync('apps/web/src/components/TodayPlan.tsx', 'utf8');
+  assert.match(source, /getTaskStatusLabel/);
+  assert.match(source, /待开始/);
+  assert.match(source, /进行中/);
+  assert.match(source, /已完成/);
 });
 
 test('student launchpad no longer owns the primary daily-learning-path copy', () => {
