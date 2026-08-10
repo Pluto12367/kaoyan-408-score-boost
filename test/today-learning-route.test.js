@@ -105,6 +105,40 @@ test('preflight returns launch context only when matching content exists', async
   });
 });
 
+test('finds the next launchable today task when the current task has no content', async () => {
+  const { resolveLaunchableTodayTask } = await loadPolicy();
+  const result = resolveLaunchableTodayTask([
+    task({ id: 'missing-review', priority: '高', mode: '诊断复盘', knowledgePointId: 'kp-review' }),
+    task({ id: 'ready-practice', priority: '低', mode: '专项训练', knowledgePointId: 'kp-practice' }),
+  ], task({ id: 'missing-review', priority: '高', mode: '诊断复盘', knowledgePointId: 'kp-review' }), [
+    { id: 'q-1', knowledgePointIds: ['kp-practice'] },
+  ], [], Date.parse('2026-08-09T10:00:00+08:00'));
+
+  assert.equal(result.kind, 'ready');
+  assert.equal(result.task.id, 'ready-practice');
+  assert.deepEqual(result.preflight.context, {
+    taskId: 'ready-practice',
+    knowledgePointId: 'kp-practice',
+    destination: 'question',
+  });
+  assert.equal(result.skippedTaskIds.includes('missing-review'), true);
+});
+
+test('does not fallback to completed or future postponed tasks', async () => {
+  const { resolveLaunchableTodayTask } = await loadPolicy();
+  const now = Date.parse('2026-08-09T10:00:00+08:00');
+  const result = resolveLaunchableTodayTask([
+    task({ id: 'missing-review', priority: '高', mode: '诊断复盘', knowledgePointId: 'kp-review' }),
+    task({ id: 'done', priority: '中', status: 'completed', completed: true, knowledgePointId: 'kp-ready' }),
+    task({ id: 'future', priority: '低', status: 'postponed', nextAvailableAt: '2026-08-10T10:00:00+08:00', knowledgePointId: 'kp-ready' }),
+  ], task({ id: 'missing-review', priority: '高', mode: '诊断复盘', knowledgePointId: 'kp-review' }), [
+    { id: 'q-1', knowledgePointIds: ['kp-ready'] },
+  ], [], now);
+
+  assert.equal(result.kind, 'error');
+  assert.equal(result.message, '今日任务暂无可用题目或错题，请调整今日计划。');
+});
+
 test('keeps postponed tasks without a valid availability time non-actionable', async () => {
   const { resolveTodayRoute } = await loadPolicy();
   for (const nextAvailableAt of [undefined, 'not-a-date']) {

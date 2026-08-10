@@ -40,12 +40,13 @@ test('today route renders loading, fetch error, complete, and postponed-only sta
 
 test('App preflights content before starting and navigating a today task', async () => {
   const app = await source('apps/web/src/App.tsx');
-  assert.match(app, /preflightTodayTaskLaunch\(task, questions, wrongQuestions\)/);
-  assert.match(app, /if \(preflight\.kind === 'error'\)/);
-  assert.match(app, /if \(preflight\.kind === 'navigate-plan'\)/);
-  assert.match(app, /await startTodayTaskIfCurrent\(task\.id, startTask, isCurrentLaunch\)/);
-  assert.match(app, /setTodayTaskLaunchContext\(preflight\.context\)/);
-  assert.match(app, /setActiveSection\(preflight\.context\.destination\)/);
+  assert.match(app, /resolveLaunchableTodayTask\(/);
+  assert.match(app, /launch\.kind === 'error'/);
+  assert.match(app, /launch\.kind === 'navigate-plan'/);
+  assert.match(app, /await startTodayTaskIfCurrent\(launch\.task\.id, startTask, isCurrentLaunch\)/);
+  assert.match(app, /setTodayTaskLaunchContext\(launch\.preflight\.context\)/);
+  assert.match(app, /setActiveSection\(launch\.preflight\.context\.destination\)/);
+  assert.match(app, /已跳过暂无内容的任务/);
 });
 
 test('App clears task launch state when the owning student changes or logs out', async () => {

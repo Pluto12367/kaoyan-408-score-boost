@@ -31,6 +31,11 @@ export type TodayTaskPreflight =
   | { kind: 'navigate-plan'; taskId: string }
   | { kind: 'error'; message: string };
 
+export type TodayTaskLaunchResolution =
+  | { kind: 'ready'; task: TodayPlanTask; preflight: Extract<TodayTaskPreflight, { kind: 'ready' }>; skippedTaskIds: string[] }
+  | { kind: 'navigate-plan'; task: TodayPlanTask; taskId: string; skippedTaskIds: string[] }
+  | { kind: 'error'; message: string; skippedTaskIds: string[] };
+
 const PRIORITY_WEIGHT = { 高: 0, 中: 1, 低: 2 } as const;
 const QUESTION_MODES = new Set(['基础例题', '专项训练', '阶段巩固']);
 const REVIEW_MODES = new Set(['诊断复盘', '考后复盘']);
@@ -125,5 +130,36 @@ export function preflightTodayTaskLaunch(
   return {
     kind: 'ready',
     context: { taskId: task.id, knowledgePointId: task.knowledgePointId, destination },
+  };
+}
+
+export function resolveLaunchableTodayTask(
+  orderedTasks: TodayPlanTask[],
+  requestedTask: TodayPlanTask,
+  questions: LaunchableQuestion[],
+  wrongQuestions: LaunchableWrongQuestion[],
+  nowMs = Date.now(),
+): TodayTaskLaunchResolution {
+  const route = resolveTodayRoute(orderedTasks, nowMs);
+  const requestedIndex = route.orderedTasks.findIndex((task) => task.id === requestedTask.id);
+  const candidates = route.orderedTasks.slice(Math.max(0, requestedIndex));
+  const skippedTaskIds: string[] = [];
+
+  for (const candidate of candidates) {
+    if (!isActionable(candidate, nowMs)) continue;
+    const preflight = preflightTodayTaskLaunch(candidate, questions, wrongQuestions);
+    if (preflight.kind === 'ready') {
+      return { kind: 'ready', task: candidate, preflight, skippedTaskIds };
+    }
+    if (preflight.kind === 'navigate-plan') {
+      return { kind: 'navigate-plan', task: candidate, taskId: preflight.taskId, skippedTaskIds };
+    }
+    skippedTaskIds.push(candidate.id);
+  }
+
+  return {
+    kind: 'error',
+    message: '今日任务暂无可用题目或错题，请调整今日计划。',
+    skippedTaskIds,
   };
 }

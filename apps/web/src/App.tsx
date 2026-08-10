@@ -40,7 +40,7 @@ import { isMockAllowed } from './api/env';
 import { trackEvent } from './api/events';
 import { fetchOnboardingStatus, fetchTodayPlan, startTask, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
-  preflightTodayTaskLaunch,
+  resolveLaunchableTodayTask,
   shouldClearTodayTaskLaunch,
   startTodayTaskIfCurrent,
   type TodayPlanTask,
@@ -675,16 +675,19 @@ export function App() {
   }
 
   async function handleLaunchTodayTask(task: TodayPlanTask) {
-    const preflight = preflightTodayTaskLaunch(task, questions, wrongQuestions);
+    const launch = resolveLaunchableTodayTask(todayPlan?.priorityTasks ?? [task], task, questions, wrongQuestions);
     setTodayTaskLaunchError('');
-    if (preflight.kind === 'error') {
-      setTodayTaskLaunchError(preflight.message);
+    if (launch.kind === 'error') {
+      setTodayTaskLaunchError(launch.message);
       return;
     }
-    if (preflight.kind === 'navigate-plan') {
-      setPlanFocusTaskId(preflight.taskId);
+    if (launch.kind === 'navigate-plan') {
+      setPlanFocusTaskId(launch.taskId);
       setActiveSection('plan');
       return;
+    }
+    if (launch.skippedTaskIds.length > 0) {
+      setTodayTaskLaunchError(`已跳过暂无内容的任务，自动开始：${launch.task.title}`);
     }
     const launchGeneration = todayTaskLaunchGenerationRef.current + 1;
     const launchOwnerId = todayTaskLaunchOwnerRef.current;
@@ -692,21 +695,21 @@ export function App() {
     const isCurrentLaunch = () =>
       todayTaskLaunchGenerationRef.current === launchGeneration
       && todayTaskLaunchOwnerRef.current === launchOwnerId;
-    setTodayTaskLaunchingId(task.id);
+    setTodayTaskLaunchingId(launch.task.id);
     try {
-      const canCommit = await startTodayTaskIfCurrent(task.id, startTask, isCurrentLaunch);
+      const canCommit = await startTodayTaskIfCurrent(launch.task.id, startTask, isCurrentLaunch);
       if (!canCommit) return;
       invalidatePracticeAttempt(practiceSubmissionGateRef.current);
       applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
       setRedoQuestionId(null);
       setVariantOfQuestionId(null);
-      setTodayTaskLaunchContext(preflight.context);
-      setPracticeStatus(preflight.context.destination === 'question'
-        ? `已开始 ${task.title}，本轮只练习对应知识点。`
-        : `已打开 ${task.title} 的待复盘错题。`);
+      setTodayTaskLaunchContext(launch.preflight.context);
+      setPracticeStatus(launch.preflight.context.destination === 'question'
+        ? `已开始 ${launch.task.title}，本轮只练习对应知识点。`
+        : `已打开 ${launch.task.title} 的待复盘错题。`);
       void refreshTodayPlan();
-      void trackEvent('task.start', { taskId: task.id, mode: task.mode });
-      setActiveSection(preflight.context.destination);
+      void trackEvent('task.start', { taskId: launch.task.id, mode: launch.task.mode });
+      setActiveSection(launch.preflight.context.destination);
     } catch (error) {
       if (!isCurrentLaunch()) return;
       setTodayTaskLaunchError(error instanceof Error ? error.message : '任务启动失败，请重试。');

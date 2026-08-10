@@ -17,8 +17,8 @@ test('frontend tracking: App fires representative student actions', async () => 
   assert.match(app, /import \{ trackEvent \} from '\.\/api\/events';/, 'App should import trackEvent');
   assert.match(
     app,
-    /void trackEvent\('task\.start', \{ taskId: task\.id, mode: task\.mode \}\)/,
-    'one-click today-task launch should be tracked with task context',
+    /void trackEvent\('task\.start', \{ taskId: launch\.task\.id, mode: launch\.task\.mode \}\)/,
+    'one-click today-task launch should be tracked with the actually launched task context',
   );
   assert.match(app, /void trackEvent\('practice\.set_start'\)/, 'practice-set start should be tracked');
   assert.match(app, /void trackEvent\('practice\.learning_mode_start'\)/, 'learning mode should be tracked');
