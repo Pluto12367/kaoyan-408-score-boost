@@ -11,7 +11,7 @@ test('student learning console component exposes the approved v1 contract', () =
   assert.match(source, /wrongQuestionSummary: WrongQuestionSummary \| null/);
   assert.match(source, /masteryMap: MasteryMap \| null/);
   assert.match(source, /onNavigate: \(section: RoleSection\) => void/);
-  assert.match(source, /onContinueToday: \(\) => void/);
+  assert.match(source, /onLaunchTodayTask: \(task: TodayPlanTask\) => void/);
   assert.match(source, /export function StudentLearningConsole/);
 });
 
@@ -36,7 +36,7 @@ test('student dashboard wires the learning console above existing launchpad cont
   assert.match(source, /wrongQuestionSummary=\{props\.wrongQuestionSummary\.data\}/);
   assert.match(source, /masteryMap=\{props\.masteryMap\}/);
   assert.match(source, /learningCalendar=\{props\.learningCalendar\}/);
-  assert.match(source, /onContinueToday=\{props\.onContinueToday\}/);
+  assert.match(source, /onLaunchTodayTask=\{props\.onLaunchTodayTask\}/);
 });
 
 test('student launchpad no longer owns the primary daily-learning-path copy', () => {
