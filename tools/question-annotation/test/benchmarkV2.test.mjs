@@ -1,17 +1,27 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import {
   V2_BENCHMARK_VERSION,
   buildV2DevBenchmarkReport,
   resolveV2ExperimentSplit,
   runV2Cell,
 } from '../scripts/run-benchmark-v2.mjs';
+import {
+  buildFinalV2Config,
+  finalV2ConfigHash,
+  selectV2Winner,
+  validateFrozenV2Config,
+} from '../core/benchmarkV2.js';
 
 const SUBJECTS = ['DS', 'CO', 'OS', 'CN'];
 const GOLD_SHA = '38cb67dbf0f0bdbfbe3101e70d7ec31d404db81e836592620b77c397a2a13c35';
+const TEST_DIR = dirname(fileURLToPath(import.meta.url));
+const TOOL_ROOT = join(TEST_DIR, '..');
 
 function withCache(t) {
   const cacheDir = mkdtempSync(join(tmpdir(), 'benchmark-v2-'));
@@ -198,4 +208,141 @@ test('V2-7: report is deterministic and git-safe', async (t) => {
   assert.equal(serialized.includes('Alpha signal'), false);
   assert.equal(serialized.includes('Beta reasoning'), false);
   assert.equal(serialized.includes('HOLDOUT'), false);
+});
+
+function metricCell(experimentId, metrics = {}, overrides = {}) {
+  const defaults = {
+    primaryRecallAt8: 0.5,
+    primaryRecallAt12: 0.5,
+    macroAllRelevantAt12: 0.5,
+    primaryMrr: 0.5,
+  };
+  return {
+    experimentId,
+    questionCount: 32,
+    queryMode: experimentId.slice(0, 2),
+    passageFormat: experimentId.slice(2),
+    metrics: { ...defaults, ...metrics },
+    ...overrides,
+  };
+}
+
+function fullMetricSet(overrides = {}) {
+  const { experiments: experimentOverrides = {}, ...rest } = overrides;
+  return {
+    benchmarkVersion: V2_BENCHMARK_VERSION,
+    goldVersion: 'gold-truth-v2r2-40',
+    goldSha256: GOLD_SHA,
+    snapshotId: 'snap-v2-40-benchmark-fixture',
+    selectionSplit: 'DEV',
+    selectionQuestionCount: 32,
+    evaluatedHoldout: 0,
+    experiments: {
+      Q1P1: metricCell('Q1P1'),
+      Q1P2: metricCell('Q1P2'),
+      Q2P1: metricCell('Q2P1'),
+      Q2P2: metricCell('Q2P2'),
+      ...experimentOverrides,
+    },
+    ...rest,
+  };
+}
+
+test('V2-8: selection order is Recall@12, Recall@8, Macro, PRIMARY MRR, complexity, experimentId', () => {
+  assert.equal(selectV2Winner(fullMetricSet({
+    experiments: {
+      Q1P1: metricCell('Q1P1', { primaryRecallAt12: 0.80 }),
+      Q1P2: metricCell('Q1P2', { primaryRecallAt12: 0.90, primaryRecallAt8: 0.10 }),
+      Q2P1: metricCell('Q2P1', { primaryRecallAt12: 0.80, primaryRecallAt8: 1.00 }),
+      Q2P2: metricCell('Q2P2', { primaryRecallAt12: 0.80, macroAllRelevantAt12: 1.00 }),
+    },
+  })).experimentId, 'Q1P2');
+
+  assert.equal(selectV2Winner(fullMetricSet({
+    experiments: {
+      Q1P1: metricCell('Q1P1', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 0.50 }),
+      Q2P1: metricCell('Q2P1', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 0.75 }),
+    },
+  })).experimentId, 'Q2P1');
+
+  assert.equal(selectV2Winner(fullMetricSet({
+    experiments: {
+      Q1P2: metricCell('Q1P2', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 1 }),
+      Q2P1: metricCell('Q2P1', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 1 }),
+      Q2P2: metricCell('Q2P2', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 1 }),
+    },
+  })).experimentId, 'Q1P2');
+});
+
+test('V2-8: accepts only the exact V2-40 DEV32 metric input', () => {
+  assert.throws(() => selectV2Winner(fullMetricSet({ selectionQuestionCount: 72 })), /DEV32|32/);
+  assert.throws(() => selectV2Winner(fullMetricSet({ selectionQuestionCount: 112 })), /DEV32|32/);
+  assert.throws(() => selectV2Winner(fullMetricSet({ selectionSplit: 'HOLDOUT' })), /DEV/);
+  assert.throws(() => selectV2Winner(fullMetricSet({ evaluatedHoldout: 1 })), /HOLDOUT/);
+  assert.throws(() => selectV2Winner(fullMetricSet({ goldVersion: 'gold-truth-v2' })), /gold-truth-v2r2-40/);
+});
+
+test('V2-8: final config is canonical, field-sensitive, and frozen before HOLDOUT', () => {
+  const winner = selectV2Winner(fullMetricSet({
+    experiments: {
+      Q1P1: metricCell('Q1P1', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 0.798 }),
+      Q2P1: metricCell('Q2P1', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 0.738 }),
+    },
+  }));
+  const config = buildFinalV2Config({
+    winner,
+    goldSha256: GOLD_SHA,
+    snapshotId: 'snap-v2-40-benchmark-fixture',
+  });
+  assert.equal(config.version, 'final-retriever-v2');
+  assert.equal(config.selectedOn, 'DEV-V2');
+  assert.equal(config.holdoutEvaluatedBeforeFreeze, 0);
+  assert.equal(config.experimentId, 'Q1P1');
+  assert.equal(config.queryMode, 'Q1');
+  assert.equal(config.passageFormat, 'P1');
+  assert.equal(config.goldVersion, 'gold-truth-v2r2-40');
+  assert.equal(config.devQuestionCount, 32);
+
+  const hash = finalV2ConfigHash(config);
+  assert.equal(finalV2ConfigHash({ ...config }), hash);
+  assert.notEqual(finalV2ConfigHash({ ...config, experimentId: 'Q2P1' }), hash);
+  assert.deepEqual(validateFrozenV2Config(config, hash), { ok: true, errors: [] });
+  assert.equal(validateFrozenV2Config(config, '0'.repeat(64)).ok, false);
+  assert.equal(validateFrozenV2Config({ ...config, holdoutEvaluatedBeforeFreeze: 1 }, hash).ok, false);
+});
+
+test('V2-8: freeze CLI writes config plus hash from a DEV32 report', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'freeze-v2-'));
+  try {
+    const reportPath = join(dir, 'benchmark-v2-dev.json');
+    const configPath = join(dir, 'final-retriever-v2.json');
+    const hashPath = join(dir, 'final-retriever-v2.sha256');
+    const report = fullMetricSet({
+      experiments: {
+        Q1P1: metricCell('Q1P1', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 0.8 }),
+        Q2P1: metricCell('Q2P1', { primaryRecallAt12: 1, primaryRecallAt8: 1, macroAllRelevantAt12: 1, primaryMrr: 0.7 }),
+      },
+    });
+    writeFileSync(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    const result = spawnSync(process.execPath, [
+      join(TOOL_ROOT, 'scripts', 'freeze-retriever-v2.mjs'),
+      '--report',
+      reportPath,
+      '--config-out',
+      configPath,
+      '--hash-out',
+      hashPath,
+    ], { cwd: process.cwd(), encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(existsSync(configPath), true);
+    assert.equal(existsSync(hashPath), true);
+    const config = JSON.parse(readFileSync(configPath, 'utf8'));
+    const hash = readFileSync(hashPath, 'utf8').trim();
+    assert.equal(config.experimentId, 'Q1P1');
+    assert.equal(validateFrozenV2Config(config, hash).ok, true);
+    assert.match(result.stdout, /WINNER: Q1P1/);
+    assert.match(result.stdout, /HOLDOUT evaluated before freeze: 0/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
