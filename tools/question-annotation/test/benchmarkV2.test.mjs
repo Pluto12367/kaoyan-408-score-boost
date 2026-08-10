@@ -7,12 +7,15 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   V2_BENCHMARK_VERSION,
+  buildV2HoldoutGateReport,
   buildV2DevBenchmarkReport,
+  resolveV2HoldoutSplit,
   resolveV2ExperimentSplit,
   runV2Cell,
 } from '../scripts/run-benchmark-v2.mjs';
 import {
   buildFinalV2Config,
+  evaluateV2Gate,
   finalV2ConfigHash,
   selectV2Winner,
   validateFrozenV2Config,
@@ -345,4 +348,88 @@ test('V2-8: freeze CLI writes config plus hash from a DEV32 report', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+function gateMetrics(overrides = {}) {
+  return {
+    primaryRecallAt8: 1,
+    primaryRecallAt12: 1,
+    macroAllRelevantAt12: 0.9,
+    crossSubjectCount: 0,
+    activeAtomicViolations: 0,
+    invalidNodes: 0,
+    duplicates: 0,
+    nonFiniteScores: 0,
+    ...overrides,
+  };
+}
+
+function frozenConfig(overrides = {}) {
+  const config = buildFinalV2Config({
+    winner: { experimentId: 'Q1P1' },
+    goldSha256: GOLD_SHA,
+    snapshotId: 'snap-v2-40-benchmark-fixture',
+  });
+  return { ...config, ...overrides };
+}
+
+test('V2-9: locked V2-40 gate requires 8/8 PRIMARY Recall@8 and 8/8 PRIMARY Recall@12', () => {
+  assert.deepEqual(evaluateV2Gate(gateMetrics(), 8), { pass: true, reasons: [] });
+  assert.equal(evaluateV2Gate(gateMetrics({ primaryRecallAt8: 7 / 8 }), 8).pass, false);
+  assert.match(evaluateV2Gate(gateMetrics({ primaryRecallAt8: 7 / 8 }), 8).reasons.join('\n'), /Recall@8 7\/8 < 8\/8/);
+  assert.equal(evaluateV2Gate(gateMetrics({ primaryRecallAt12: 7 / 8 }), 8).pass, false);
+  assert.match(evaluateV2Gate(gateMetrics({ primaryRecallAt12: 7 / 8 }), 8).reasons.join('\n'), /Recall@12 7\/8 < 8\/8/);
+  assert.throws(() => evaluateV2Gate(gateMetrics(), 28), /V2-40 HOLDOUT8/);
+});
+
+test('V2-9: macro threshold is 0.90 and every safety counter must be zero', () => {
+  assert.equal(evaluateV2Gate(gateMetrics({ macroAllRelevantAt12: 0.9 }), 8).pass, true);
+  assert.equal(evaluateV2Gate(gateMetrics({ macroAllRelevantAt12: 0.89 }), 8).pass, false);
+  for (const key of ['crossSubjectCount', 'activeAtomicViolations', 'invalidNodes', 'duplicates', 'nonFiniteScores']) {
+    const result = evaluateV2Gate(gateMetrics({ [key]: 1 }), 8);
+    assert.equal(result.pass, false, key);
+    assert.match(result.reasons.join('\n'), new RegExp(key));
+  }
+});
+
+test('V2-9: HOLDOUT mode is separate from DEV selection mode and selects exactly 8', async (t) => {
+  assert.equal(resolveV2HoldoutSplit('HOLDOUT'), 'HOLDOUT');
+  assert.throws(() => resolveV2HoldoutSplit('DEV'), /HOLDOUT/);
+
+  const { snapshot, truth } = syntheticBenchmarkFixture();
+  const config = frozenConfig();
+  const report = await buildV2HoldoutGateReport({
+    snapshot,
+    truth,
+    config,
+    configHash: finalV2ConfigHash(config),
+    provider: provider(),
+    cacheDir: withCache(t),
+  });
+  assert.equal(report.evaluationSplit, 'HOLDOUT');
+  assert.equal(report.holdoutQuestionCount, 8);
+  assert.equal(report.configHoldoutEvaluatedBeforeFreeze, 0);
+  assert.equal(report.experiment.experimentId, 'Q1P1');
+  assert.equal(report.experiment.perQuestion.length, 8);
+  assert.equal(report.gate.pass, true);
+  assert.equal(JSON.stringify(report).includes('Alpha signal'), false);
+  assert.equal(JSON.stringify(report).includes('Beta reasoning'), false);
+});
+
+test('V2-9: runner requires frozen config, valid hash, DEV-V2 selection, and zero prior HOLDOUT', async (t) => {
+  const { snapshot, truth } = syntheticBenchmarkFixture();
+  const base = frozenConfig();
+  const common = { snapshot, truth, provider: provider(), cacheDir: withCache(t) };
+  await assert.rejects(
+    buildV2HoldoutGateReport({ ...common, config: { ...base, selectedOn: 'HOLDOUT' }, configHash: finalV2ConfigHash({ ...base, selectedOn: 'HOLDOUT' }) }),
+    /selectedOn/,
+  );
+  await assert.rejects(
+    buildV2HoldoutGateReport({ ...common, config: { ...base, holdoutEvaluatedBeforeFreeze: 1 }, configHash: finalV2ConfigHash({ ...base, holdoutEvaluatedBeforeFreeze: 1 }) }),
+    /holdoutEvaluatedBeforeFreeze/,
+  );
+  await assert.rejects(
+    buildV2HoldoutGateReport({ ...common, config: base, configHash: '0'.repeat(64) }),
+    /hash mismatch/,
+  );
 });

@@ -8,6 +8,7 @@ export const SEMANTIC_RETRIEVER_V2_VERSION = 'semantic-retriever-v2';
 export const V2_FINAL_GOLD_VERSION = 'gold-truth-v2r2-40';
 export const V2_FINAL_DEV_COUNT = 32;
 export const V2_FINAL_HOLDOUT_COUNT = 8;
+export const V2_FINAL_GATE_MACRO_MIN = 0.9;
 export const V2_FINAL_MODEL = Object.freeze({
   modelId: 'Xenova/multilingual-e5-small',
   resolvedRevision: '761b726dd34fb83930e26aab4e9ac3899aa1fa78',
@@ -148,4 +149,28 @@ export function validateFrozenV2Config(config, expectedHash) {
     errors.push('final V2 retriever config hash mismatch');
   }
   return { ok: errors.length === 0, errors: errors.sort() };
+}
+
+export function evaluateV2Gate(metrics, holdoutCount) {
+  if (holdoutCount !== V2_FINAL_HOLDOUT_COUNT) {
+    throw new Error(`V2-40 HOLDOUT8 gate requires ${V2_FINAL_HOLDOUT_COUNT} questions, got ${holdoutCount}`);
+  }
+  const reasons = [];
+  const hit8 = Math.round((metrics?.primaryRecallAt8 ?? 0) * holdoutCount);
+  const hit12 = Math.round((metrics?.primaryRecallAt12 ?? 0) * holdoutCount);
+  if (hit8 < holdoutCount) reasons.push(`primaryRecallAt8 Recall@8 ${hit8}/${holdoutCount} < ${holdoutCount}/${holdoutCount}`);
+  if (hit12 < holdoutCount) reasons.push(`primaryRecallAt12 Recall@12 ${hit12}/${holdoutCount} < ${holdoutCount}/${holdoutCount}`);
+  if (!Number.isFinite(metrics?.macroAllRelevantAt12) || metrics.macroAllRelevantAt12 < V2_FINAL_GATE_MACRO_MIN) {
+    reasons.push(`macroAllRelevantAt12 ${metrics?.macroAllRelevantAt12 ?? 'missing'} < ${V2_FINAL_GATE_MACRO_MIN}`);
+  }
+  for (const key of [
+    'crossSubjectCount',
+    'activeAtomicViolations',
+    'invalidNodes',
+    'duplicates',
+    'nonFiniteScores',
+  ]) {
+    if ((metrics?.[key] ?? 0) !== 0) reasons.push(`${key} ${metrics?.[key] ?? 0} != 0`);
+  }
+  return { pass: reasons.length === 0, reasons };
 }

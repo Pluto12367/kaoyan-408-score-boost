@@ -2,6 +2,12 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computeBenchmarkMetrics } from '../core/benchmark.js';
+import {
+  evaluateV2Gate,
+  finalV2ConfigHash,
+  validateFrozenV2Config,
+  V2_FINAL_HOLDOUT_COUNT,
+} from '../core/benchmarkV2.js';
 import { LocalTransformersProvider } from '../core/embedding.js';
 import { retrieveSemanticV2 } from '../core/semanticAggregation.js';
 
@@ -10,15 +16,19 @@ const DEFAULTS = {
   snapshot: join(TOOL_ROOT, 'local-data', 'snapshot-snap-399242fb3d7f.json'),
   truth: join(TOOL_ROOT, 'local-data', 'gold-truth-manifest-v2r2-40.json'),
   legacyTruth: join(TOOL_ROOT, 'local-data', 'gold-truth-manifest-v1.json'),
+  config: join(TOOL_ROOT, 'config', 'final-retriever-v2.json'),
+  configHash: join(TOOL_ROOT, 'config', 'final-retriever-v2.sha256'),
   cacheDir: join(TOOL_ROOT, 'local-data', 'embedding-cache', 'v2'),
   metaDir: join(TOOL_ROOT, 'local-data', 'embedding-meta'),
   reportOut: join(TOOL_ROOT, 'local-data', 'benchmark-v2-dev.json'),
+  holdoutReportOut: join(TOOL_ROOT, 'local-data', 'benchmark-v2-holdout.json'),
 };
 
 export const V2_BENCHMARK_VERSION = 'retrieval-benchmark-v2';
 export const V2_GOLD_TRUTH_VERSION = 'gold-truth-v2r2-40';
 export const V2_GOLD_TRUTH_SHA256 = '38cb67dbf0f0bdbfbe3101e70d7ec31d404db81e836592620b77c397a2a13c35';
 export const V2_DEV_QUESTION_COUNT = 32;
+export const V2_HOLDOUT_QUESTION_COUNT = 8;
 export const V2_EXPERIMENTS = Object.freeze({
   Q1P1: Object.freeze({ queryMode: 'Q1', passageFormat: 'P1', complexityCost: 0 }),
   Q1P2: Object.freeze({ queryMode: 'Q1', passageFormat: 'P2', complexityCost: 1 }),
@@ -45,6 +55,11 @@ export function resolveV2ExperimentSplit(split) {
   throw new Error(`unsupported V2 benchmark split ${split}; only DEV is allowed in V2-7`);
 }
 
+export function resolveV2HoldoutSplit(split) {
+  if (split === 'HOLDOUT') return 'HOLDOUT';
+  throw new Error(`unsupported V2 one-shot split ${split}; expected HOLDOUT`);
+}
+
 function parseArgs(argv) {
   const args = { split: 'DEV', legacy: false };
   for (let index = 0; index < argv.length; index += 1) {
@@ -52,6 +67,8 @@ function parseArgs(argv) {
     if (token === '--snapshot') args.snapshot = argv[++index];
     else if (token === '--truth') args.truth = argv[++index];
     else if (token === '--legacy-truth') args.legacyTruth = argv[++index];
+    else if (token === '--config') args.config = argv[++index];
+    else if (token === '--config-hash') args.configHash = argv[++index];
     else if (token === '--cache-dir') args.cacheDir = argv[++index];
     else if (token === '--meta-dir') args.metaDir = argv[++index];
     else if (token === '--report-out') args.reportOut = argv[++index];
@@ -59,6 +76,11 @@ function parseArgs(argv) {
     else if (token === '--legacy') args.legacy = true;
   }
   return args;
+}
+
+function readConfigHash(input) {
+  if (typeof input !== 'string' || input.length === 0) throw new Error('V2 HOLDOUT gate requires a config hash');
+  return existsSync(input) ? readFileSync(input, 'utf8').trim() : input;
 }
 
 function questionMaps(snapshot) {
@@ -89,6 +111,17 @@ function selectDevEntries(truth, { expectedCount = null } = {}) {
     .sort((left, right) => left.questionId.localeCompare(right.questionId));
   if (expectedCount !== null && entries.length !== expectedCount) {
     throw new Error(`DEV questions ${entries.length} != ${expectedCount}`);
+  }
+  return entries;
+}
+
+function selectHoldoutEntries(truth, { expectedCount = null } = {}) {
+  const entries = (truth.entries ?? [])
+    .filter((entry) => entry.split === 'HOLDOUT')
+    .slice()
+    .sort((left, right) => left.questionId.localeCompare(right.questionId));
+  if (expectedCount !== null && entries.length !== expectedCount) {
+    throw new Error(`HOLDOUT questions ${entries.length} != ${expectedCount}`);
   }
   return entries;
 }
@@ -151,7 +184,7 @@ async function runExperiment({ experimentId, entries, snapshot, provider, cacheD
 
   for (const entry of entries) {
     const question = questionById.get(entry.questionId);
-    if (!question) throw new Error(`DEV question ${entry.questionId} missing from snapshot`);
+    if (!question) throw new Error(`benchmark question ${entry.questionId} missing from snapshot`);
     const candidates = await runV2Cell(question, snapshot, provider, cacheDir, experimentId);
     safety = addSafety(safety, summarizeSafety(candidates, nodeById));
     const relevant = new Set([entry.primaryNodeId, ...(entry.secondaryNodeIds ?? [])].filter(Boolean));
@@ -242,13 +275,106 @@ export async function buildV2DevBenchmarkReport({ snapshot, truth, provider, cac
   };
 }
 
+export async function buildV2HoldoutGateReport({ snapshot, truth, config, configHash, provider, cacheDir }) {
+  resolveV2HoldoutSplit('HOLDOUT');
+  assertV2Truth(truth, snapshot);
+  const frozen = validateFrozenV2Config(config, configHash);
+  if (!frozen.ok) throw new Error(`V2 HOLDOUT gate blocked: ${frozen.errors.join('; ')}`);
+  if (configHash !== finalV2ConfigHash(config)) {
+    throw new Error('V2 HOLDOUT gate blocked: final V2 retriever config hash mismatch');
+  }
+  const entries = selectHoldoutEntries(truth, { expectedCount: V2_FINAL_HOLDOUT_COUNT });
+  const experiment = await runExperiment({
+    experimentId: config.experimentId,
+    entries,
+    snapshot,
+    provider,
+    cacheDir,
+  });
+  const gate = evaluateV2Gate({ ...experiment.metrics, ...experiment.safety }, entries.length);
+  return {
+    benchmarkVersion: V2_BENCHMARK_VERSION,
+    goldVersion: truth.goldVersion,
+    goldSha256: truth.sha256,
+    snapshotId: truth.snapshotId,
+    evaluationSplit: 'HOLDOUT',
+    holdoutQuestionCount: entries.length,
+    configHash,
+    configSelectedOn: config.selectedOn,
+    configHoldoutEvaluatedBeforeFreeze: config.holdoutEvaluatedBeforeFreeze,
+    retriever: {
+      id: config.retriever,
+      modelId: config.modelId,
+      resolvedRevision: config.resolvedRevision,
+      transformersVersion: config.transformersVersion,
+      queryPrefix: config.queryPrefix,
+      passagePrefix: config.passagePrefix,
+      pooling: config.pooling,
+      normalize: config.normalize,
+      dimension: config.dimension,
+      topKInitial: config.topKInitial,
+      topKExpanded: config.topKExpanded,
+      queryViewVersion: config.queryViewVersion,
+      passageVersion: config.passageVersion,
+      passageFormatVersion: config.passageFormatVersion,
+      semanticAggregationVersion: config.semanticAggregationVersion,
+    },
+    experiment,
+    gate,
+    holdoutConsumed: true,
+  };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  resolveV2ExperimentSplit(args.split);
   const snapshot = JSON.parse(readFileSync(args.snapshot ?? DEFAULTS.snapshot, 'utf8'));
   const truth = JSON.parse(readFileSync(args.truth ?? DEFAULTS.truth, 'utf8'));
+  const cacheDir = args.cacheDir ?? DEFAULTS.cacheDir;
+  if (args.split === 'HOLDOUT') {
+    resolveV2HoldoutSplit(args.split);
+    const config = JSON.parse(readFileSync(args.config ?? DEFAULTS.config, 'utf8'));
+    const configHash = readConfigHash(args.configHash ?? DEFAULTS.configHash);
+    const provider = new LocalTransformersProvider(
+      {
+        id: config.modelId,
+        revision: config.resolvedRevision,
+        queryPrefix: config.queryPrefix,
+        passagePrefix: config.passagePrefix,
+        pooling: config.pooling,
+        normalize: config.normalize,
+        dimension: config.dimension,
+        transformersVersion: config.transformersVersion,
+      },
+      { modelCacheDir: cacheDir, metaDir: args.metaDir ?? DEFAULTS.metaDir },
+    );
+    const report = await buildV2HoldoutGateReport({
+      snapshot,
+      truth,
+      config,
+      configHash,
+      provider,
+      cacheDir: join(cacheDir, 'vectors'),
+    });
+    const reportOut = args.reportOut ?? DEFAULTS.holdoutReportOut;
+    writeFileSync(reportOut, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
+    const count = report.holdoutQuestionCount;
+    const hit8 = Math.round(report.experiment.metrics.primaryRecallAt8 * count);
+    const hit12 = Math.round(report.experiment.metrics.primaryRecallAt12 * count);
+    console.log(`HOLDOUT evaluated: ${count}`);
+    console.log(`experiment: ${report.experiment.experimentId}`);
+    console.log(`PRIMARY Recall@8=${hit8}/${count} (${report.experiment.metrics.primaryRecallAt8.toFixed(4)})`);
+    console.log(`PRIMARY Recall@12=${hit12}/${count} (${report.experiment.metrics.primaryRecallAt12.toFixed(4)})`);
+    console.log(`Macro AllRelevant@12=${report.experiment.metrics.macroAllRelevantAt12.toFixed(4)}`);
+    console.log(`safety: crossSubject=${report.experiment.metrics.crossSubjectCount} activeAtomicViolations=${report.experiment.safety.activeAtomicViolations} invalidNodes=${report.experiment.safety.invalidNodes} duplicates=${report.experiment.safety.duplicates} nonFiniteScores=${report.experiment.safety.nonFiniteScores}`);
+    console.log(`report: ${reportOut}`);
+    console.log(report.gate.pass ? 'RETRIEVAL_V2_GATE_PASS' : 'RETRIEVAL_V2_GATE_FAIL');
+    if (!report.gate.pass) console.log(`gate reasons: ${report.gate.reasons.join('; ')}`);
+    return;
+  }
+
+  resolveV2ExperimentSplit(args.split);
   const provider = new LocalTransformersProvider(V2_MODEL_SPEC, {
-    modelCacheDir: args.cacheDir ?? DEFAULTS.cacheDir,
+    modelCacheDir: cacheDir,
     metaDir: args.metaDir ?? DEFAULTS.metaDir,
   });
   const legacyPath = args.legacyTruth ?? DEFAULTS.legacyTruth;
@@ -259,7 +385,7 @@ async function main() {
     snapshot,
     truth,
     provider,
-    cacheDir: join(args.cacheDir ?? DEFAULTS.cacheDir, 'vectors'),
+    cacheDir: join(cacheDir, 'vectors'),
     legacyTruth,
   });
   writeFileSync(args.reportOut ?? DEFAULTS.reportOut, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
