@@ -1,6 +1,7 @@
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import type { TodayPlanTask } from '../onboarding/todayLearningRoute';
 
 export interface StudentLearningConsoleProps {
   todayPlan: TodayPlanType | null;
@@ -10,7 +11,7 @@ export interface StudentLearningConsoleProps {
   masteryMap: MasteryMap | null;
   learningCalendar: LearningCalendar | null;
   onNavigate: (section: RoleSection) => void;
-  onContinueToday: () => void;
+  onLaunchTodayTask: (task: TodayPlanTask) => void;
 }
 
 function firstUnfinishedTask(plan: TodayPlanType | null) {
@@ -29,7 +30,7 @@ export function StudentLearningConsole({
   masteryMap,
   learningCalendar,
   onNavigate,
-  onContinueToday,
+  onLaunchTodayTask,
 }: StudentLearningConsoleProps) {
   const task = firstUnfinishedTask(todayPlan);
   const dueWrongCount = wrongQuestionSummary?.pendingCount ?? null;
@@ -50,7 +51,13 @@ export function StudentLearningConsole({
       title: task ? '第 1 步：开始今日优先任务' : '第 1 步：确认今日计划',
       description: task ? `${task.subject} · ${task.chapter} · ${task.minutes} 分钟` : (todayPlanError || '今日计划准备好后会显示优先任务'),
       action: '开始今日任务',
-      onClick: onContinueToday,
+      onClick: () => {
+        if (task) {
+          onLaunchTodayTask(task);
+        } else {
+          onNavigate('plan');
+        }
+      },
     },
     {
       title: '第 2 步：复盘错题',
