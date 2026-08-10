@@ -16,12 +16,12 @@ test('wrong-book header uses the same pending-review metric as the stats grid', 
   );
 });
 
-test('homepage KPI and report panels derive pending review from the same summary field', async () => {
+test('report panels share pending review while the homepage omits the duplicate KPI', async () => {
   const launchpad = await readFile(new URL('../apps/web/src/features/onboarding/StudentLaunchpad.tsx', import.meta.url), 'utf8');
-  assert.match(
+  assert.doesNotMatch(
     launchpad,
-    /value: wrongQuestionSummary \? `\$\{wrongQuestionSummary\.pendingCount\} 题`/,
-    'homepage KPI should use summary.pendingCount',
+    /student-kpi-strip|label: '待复盘'[\s\S]{0,200}wrongQuestionSummary\.pendingCount/,
+    'homepage should not duplicate the pending-review KPI below the today route',
   );
 
   const report = await readFile(new URL('../apps/web/src/features/report/ReportSummaryPanel.tsx', import.meta.url), 'utf8');
