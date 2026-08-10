@@ -6,10 +6,11 @@
   "scripts": {
     "export-snapshot": "node scripts/export-snapshot.mjs",
     "gold": "node scripts/gold-author.mjs",
+    "prepare-v2-40": "node scripts/prepare-v2-40.mjs",
     "benchmark": "node scripts/run-benchmark.mjs",
     "embedding-smoke": "node scripts/embedding-smoke.mjs",
     "embedding-benchmark": "node scripts/embedding-benchmark.mjs",
-    "test": "node --test test/snapshot.test.mjs test/export-snapshot.test.mjs test/workspace.test.mjs test/sample.test.mjs test/gold.test.mjs test/lexical.test.mjs test/embedding.test.mjs test/fusion.test.mjs test/retriever.test.mjs test/benchmark.test.mjs test/sampleV2.test.mjs"
+    "test": "node --test test/snapshot.test.mjs test/export-snapshot.test.mjs test/workspace.test.mjs test/sample.test.mjs test/gold.test.mjs test/lexical.test.mjs test/embedding.test.mjs test/fusion.test.mjs test/retriever.test.mjs test/benchmark.test.mjs test/sampleV2.test.mjs test/sampleV2Forty.test.mjs test/goldV2.test.mjs test/prepareV2Forty.test.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.4.0"

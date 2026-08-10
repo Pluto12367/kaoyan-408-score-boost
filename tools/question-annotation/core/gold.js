@@ -5,6 +5,8 @@ export const GOLD_SET_VERSION = 'gold-set-v1';
 export const GOLD_SAMPLE_MANIFEST_VERSION = 'gold-sample-v1';
 export const GOLD_SET_VERSION_V2 = 'gold-set-v2';
 export const GOLD_SAMPLE_MANIFEST_VERSION_V2 = 'gold-sample-v2r2';
+export const GOLD_SET_VERSION_V2_FORTY = 'gold-set-v2r2-40';
+export const GOLD_SAMPLE_MANIFEST_VERSION_V2_FORTY = 'gold-sample-v2r2-40';
 export const GOLD_CONTRACT_V2 = Object.freeze({
   total: 100,
   dev: 72,
@@ -12,6 +14,14 @@ export const GOLD_CONTRACT_V2 = Object.freeze({
   perSubject: 25,
   devPerSubject: 18,
   holdoutPerSubject: 7,
+});
+export const GOLD_CONTRACT_V2_FORTY = Object.freeze({
+  total: 40,
+  dev: 32,
+  holdout: 8,
+  perSubject: 10,
+  devPerSubject: 8,
+  holdoutPerSubject: 2,
 });
 
 const GOLD_CONTRACT_V1 = Object.freeze({
@@ -31,6 +41,11 @@ const GOLD_RUNTIME_V2 = Object.freeze({
   contract: GOLD_CONTRACT_V2,
   goldSetVersion: GOLD_SET_VERSION_V2,
   sampleManifestVersion: GOLD_SAMPLE_MANIFEST_VERSION_V2,
+});
+const GOLD_RUNTIME_V2_FORTY = Object.freeze({
+  contract: GOLD_CONTRACT_V2_FORTY,
+  goldSetVersion: GOLD_SET_VERSION_V2_FORTY,
+  sampleManifestVersion: GOLD_SAMPLE_MANIFEST_VERSION_V2_FORTY,
 });
 
 /**
@@ -158,6 +173,10 @@ export function createGoldSetV2({ snapshotId, frozen, frozenManifestSha256 }) {
   return createGoldSetWithRuntime({ snapshotId, frozen, frozenManifestSha256 }, GOLD_RUNTIME_V2);
 }
 
+export function createGoldSetV2Forty({ snapshotId, frozen, frozenManifestSha256 }) {
+  return createGoldSetWithRuntime({ snapshotId, frozen, frozenManifestSha256 }, GOLD_RUNTIME_V2_FORTY);
+}
+
 export function saveGoldSet(path, goldSet) {
   writeFileSync(path, `${JSON.stringify(goldSet, null, 2)}\n`, 'utf8');
 }
@@ -193,6 +212,10 @@ export function loadGoldSet(path) {
 
 export function loadGoldSetV2(path) {
   return loadGoldSetWithRuntime(path, GOLD_RUNTIME_V2);
+}
+
+export function loadGoldSetV2Forty(path) {
+  return loadGoldSetWithRuntime(path, GOLD_RUNTIME_V2_FORTY);
 }
 
 function buildSnapshotMaps(snapshot) {
@@ -344,4 +367,92 @@ export function freezeGoldManifest({ goldVersion, goldSet, snapshot }) {
 
 export function freezeGoldManifestV2({ goldVersion, goldSet, snapshot }) {
   return freezeGoldManifestWithRuntime({ goldVersion, goldSet, snapshot }, GOLD_RUNTIME_V2);
+}
+
+export function freezeGoldManifestV2Forty({ goldVersion, goldSet, snapshot }) {
+  return freezeGoldManifestWithRuntime({ goldVersion, goldSet, snapshot }, GOLD_RUNTIME_V2_FORTY);
+}
+
+/**
+ * Mechanically copy only already-confirmed human V2R2-100 labels selected by
+ * the isolated V2-40 frozen target. The source and target inputs are never
+ * mutated; every copied label is revalidated against the target fingerprint,
+ * target split, and current active atomic node set.
+ */
+export function migrateConfirmedGoldV2Forty({ sourceGoldSet, targetGoldSet, snapshot }) {
+  if (sourceGoldSet?.goldVersion !== GOLD_SET_VERSION_V2) {
+    throw new Error(`V2-40 source Gold version ${sourceGoldSet?.goldVersion ?? 'missing'} != ${GOLD_SET_VERSION_V2}`);
+  }
+  if (targetGoldSet?.goldVersion !== GOLD_SET_VERSION_V2_FORTY) {
+    throw new Error(`V2-40 target Gold version ${targetGoldSet?.goldVersion ?? 'missing'} != ${GOLD_SET_VERSION_V2_FORTY}`);
+  }
+  if (sourceGoldSet.snapshotId !== targetGoldSet.snapshotId || targetGoldSet.snapshotId !== snapshot?.snapshotId) {
+    throw new Error('V2-40 migration snapshot mismatch');
+  }
+  if (!Array.isArray(sourceGoldSet.frozen) || sourceGoldSet.frozen.length !== GOLD_CONTRACT_V2.total) {
+    throw new Error('V2-40 source Gold frozen set must contain 100 entries');
+  }
+  if (!Array.isArray(targetGoldSet.frozen) || targetGoldSet.frozen.length !== GOLD_CONTRACT_V2_FORTY.total) {
+    throw new Error('V2-40 target Gold frozen set must contain 40 entries');
+  }
+
+  const maps = buildSnapshotMaps(snapshot);
+  const sourceFrozenById = new Map(sourceGoldSet.frozen.map((entry) => [entry.questionId, entry]));
+  const targetFrozenById = new Map(targetGoldSet.frozen.map((entry) => [entry.questionId, entry]));
+  if (sourceFrozenById.size !== GOLD_CONTRACT_V2.total || targetFrozenById.size !== GOLD_CONTRACT_V2_FORTY.total) {
+    throw new Error('V2-40 migration frozen question ids must be unique');
+  }
+  const migrated = structuredClone(targetGoldSet);
+  const targetSplitByQuestion = new Map(targetGoldSet.frozen.map((entry) => [entry.questionId, entry.split]));
+  const targetFingerprintByQuestion = new Map(targetGoldSet.frozen.map((entry) => [entry.questionId, entry.contentFingerprint]));
+  const targetQuestionIds = new Set(targetFrozenById.keys());
+  let migratedCount = 0;
+
+  for (const targetFrozen of [...targetGoldSet.frozen].sort((a, b) => a.questionId.localeCompare(b.questionId))) {
+    const sourceFrozen = sourceFrozenById.get(targetFrozen.questionId);
+    if (!sourceFrozen) throw new Error(`V2-40 source missing selected question ${targetFrozen.questionId}`);
+    const snapshotFingerprint = maps.fingerprintByQuestion.get(targetFrozen.questionId);
+    if (sourceFrozen.contentFingerprint !== targetFrozen.contentFingerprint
+      || targetFrozen.contentFingerprint !== snapshotFingerprint) {
+      throw new Error(`V2-40 migration fingerprint drift for ${targetFrozen.questionId}`);
+    }
+    if (sourceFrozen.subject !== targetFrozen.subject
+      || maps.byQuestion.get(targetFrozen.questionId)?.subject !== targetFrozen.subject) {
+      throw new Error(`V2-40 migration subject drift for ${targetFrozen.questionId}`);
+    }
+    const authored = sourceGoldSet.authoring?.[targetFrozen.questionId];
+    if (authored?.status !== 'confirmed') continue;
+    const candidate = {
+      questionId: targetFrozen.questionId,
+      contentFingerprint: targetFrozen.contentFingerprint,
+      split: targetFrozen.split,
+      primaryNodeId: authored.primaryNodeId,
+      secondaryNodeIds: [...(authored.secondaryNodeIds ?? [])],
+    };
+    const validation = validateGoldEntry(candidate, maps.nodeIds, maps.byQuestion, maps.nodeSubject, {
+      nodeActive: maps.nodeActive,
+      nodeAtomic: maps.nodeAtomic,
+      frozenQuestionIds: targetQuestionIds,
+      contentFingerprintByQuestion: targetFingerprintByQuestion,
+      splitByQuestion: targetSplitByQuestion,
+    });
+    if (!validation.ok) {
+      throw new Error(`V2-40 migration invalid confirmed label ${targetFrozen.questionId}: ${validation.errors.join('; ')}`);
+    }
+    migrated.authoring[targetFrozen.questionId] = {
+      status: 'confirmed',
+      primaryNodeId: candidate.primaryNodeId,
+      secondaryNodeIds: [...candidate.secondaryNodeIds],
+    };
+    migratedCount += 1;
+  }
+
+  const sourceConfirmedIds = Object.entries(sourceGoldSet.authoring ?? {})
+    .filter(([, authored]) => authored?.status === 'confirmed')
+    .map(([questionId]) => questionId);
+  return {
+    goldSet: migrated,
+    migratedCount,
+    supplementalConfirmedCount: sourceConfirmedIds.filter((questionId) => !targetQuestionIds.has(questionId)).length,
+  };
 }

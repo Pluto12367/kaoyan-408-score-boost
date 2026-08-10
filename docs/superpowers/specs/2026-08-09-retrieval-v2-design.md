@@ -2,7 +2,7 @@
 
 Date: 2026-08-09
 
-Status: DESIGN AMENDED — V2-1R2 sample accepted; V2-2 and V2-3 complete; PRE-GOLD V2-4–V2-6 execution approved while the Human Gold Gate remains deferred, not passed.
+Status: DESIGN AMENDED — V2-1R2 sample accepted; V2-2 and V2-3 complete; PRE-GOLD V2-4–V2-6 complete; the approved V2-40 Gold Workload Amendment below supersedes the 100-question authoring/evaluation workload while preserving its artifacts as immutable history.
 
 Approved direction: **Option 1 — Multi-view Semantic Retrieval + Deterministic KnowledgeNode Passage Enrichment**, keeping the existing E5 embedding model unchanged.
 
@@ -742,3 +742,142 @@ PRE-GOLD execution is constrained as follows:
 - After V2-6, execution stops until humans complete 100/100 Gold, `freezeGoldManifestV2` succeeds, and a later explicit controller decision resumes V2-7.
 
 This section supersedes only the former requirement that V2-4 code cannot begin before Gold completion. All Gold independence, split isolation, V1 safety, data-role, and evaluation-gate requirements remain authoritative.
+
+## 58. V2-40 Gold Workload Amendment (2026-08-10)
+
+Status: **APPROVED** by explicit human decision after 29/100 V2 Gold questions had been confirmed. This amendment reduces the primary V2 benchmark to 40 questions. It does not authorize AI-authored Gold, reuse rejected samples, inspect retrieval output while labeling, or cross the one-shot HOLDOUT gate.
+
+### 58.1 Immutable history and new lineage
+
+The following artifacts remain byte-for-byte historical evidence and are never overwritten or deleted:
+
+```text
+gold-sample-v2r2.json   SHA be4485afd48a9107be3cfc63e896047911b642f95d013a649b7e17d8638109d4
+gold-split-v2.json
+gold-set-v2.json        29 confirmed / 0 draft / 71 unstarted at amendment approval
+```
+
+The new primary benchmark is an isolated descendant of the accepted V2R2 sample:
+
+```text
+sample version:    gold-sample-v2r2-40
+sample file:       local-data/gold-sample-v2r2-40.json
+split file:        local-data/gold-split-v2r2-40.json
+Gold set version:  gold-set-v2r2-40
+Gold set file:     local-data/gold-set-v2r2-40.json
+truth version:     gold-truth-v2r2-40
+truth file:        local-data/gold-truth-manifest-v2r2-40.json
+```
+
+All files remain local and gitignored. V1, rejected V2/V2R, accepted V2R2-100, its 72/28 split, and its partial Gold set remain unchanged.
+
+### 58.2 Status-blind deterministic reduction
+
+The 40 questions are selected only from the exact accepted V2R2-100 manifest. The selector may read question identity plus approved sample metadata (`subject`, `difficulty`, `knowledgePointIds`, and the parent sample identity). It must not read authoring status, PRIMARY/SECONDARY labels, old split membership, question text, retriever output, embeddings, metrics, or failure analysis.
+
+Hard constraints:
+
+```text
+total:                40
+per subject:          10
+per-subject KP rows:  permutation of 3/3/2/2
+per-subject difficulty: BASIC 4 / MEDIUM 4 / HARD 2
+all 16 required KPs represented
+```
+
+The selector is matrix-first. For each subject it enumerates every integer `4 KP x 3 difficulty` allocation compatible with the parent sample availability, then ranks feasible matrices by:
+
+1. `maxHard` ASC;
+2. `hardRange` ASC;
+3. integer `difficultyDeviationCost` ASC, using `(5*B - 2*t)^2 + (5*M - 2*t)^2 + (5*H - t)^2` for each KP row;
+4. the two extra-third-slot owners, each ordered by parent-sample eligible total DESC then `knowledgePointId` ASC;
+5. canonical matrix `[kpId, B, M, H]` lexicographic ASC.
+
+After the matrix is frozen, each cell selects `questionId ASC`. Authoring state is never a selector objective or tie-break. Input order must not change the result.
+
+The approved real-snapshot matrices are:
+
+| Subject | 3-question KPs (`B/M/H = 1/1/1`) | 2-question KPs (`B/M/H = 1/1/0`) |
+|---|---|---|
+| DS | `ds-graph`, `ds-list` | `ds-sort`, `ds-tree` |
+| CO | `co-cache`, `co-cpu` | `co-data`, `co-instruction` |
+| OS | `os-file`, `os-memory` | `os-process`, `os-sync` |
+| CN | `net-app`, `net-ip` | `net-link`, `net-tcp` |
+
+Each subject therefore has `maxHard = 1`, `hardRange = 1`, and `difficultyDeviationCost = 24`.
+
+### 58.3 New 32/8 split
+
+The new sample is split exactly as follows:
+
+```text
+DEV:      32 total / 8 per subject
+HOLDOUT:   8 total / 2 per subject
+```
+
+HOLDOUT hard constraints:
+
+- global difficulty is exactly `BASIC 3 / MEDIUM 3 / HARD 2`;
+- each subject contributes two different difficulties and two different KPs;
+- DEV retains all four subject KPs;
+- DEV and HOLDOUT are disjoint and their union is the exact 40-question manifest.
+
+The real metadata audit found 62,208 feasible splits. The official split is selected without Gold or content by scoring each canonical candidate with `SHA-256("gold-split-v2r2-40\\n" + sampleSha256 + "\\n" + canonicalHoldoutIds)` and choosing the lowest hash, with canonical HOLDOUT ids as the final collision tie-break. The generation command reports counts and artifact hashes only; it never prints HOLDOUT ids. The earlier feasibility example is not an official split.
+
+After generation, ordinary DEV work must not inspect HOLDOUT question text, labels, rankings, metrics, or failure analysis. HOLDOUT is evaluated only after the final retriever is frozen and an explicit human command authorizes the one-shot gate.
+
+### 58.4 Human Gold migration
+
+Only already-`confirmed` human labels whose question ids are selected into the new 40 may be migrated. Migration is mechanical, never inferential:
+
+- source and target snapshot ids must match;
+- question id, content fingerprint, and subject must match the frozen target;
+- PRIMARY and SECONDARY nodes must still be active, atomic, unique, and same-subject;
+- target split is taken only from the new frozen split;
+- source `draft` and `unstarted` records are not migrated;
+- no LLM, retriever, BM25, E5, RRF, or answer key may create or alter a label.
+
+The status-blind real audit retains 12 of the 29 confirmed labels (`DS 10`, `CO 2`, `OS 0`, `CN 0`). The remaining 17 confirmed labels stay only in the immutable V2R2-100 Gold set as supplemental regression evidence. The new primary Gold workload begins at:
+
+```text
+confirmed: 12
+draft:      0
+unstarted: 28
+total:     40
+```
+
+Supplemental labels never enter V2-40 winner selection or the final V2-40 gate.
+
+### 58.5 Evaluation roles and conservative gate
+
+```text
+V2-40 DEV 32:       the only winner-selection data
+V2-40 HOLDOUT 8:    blind one-shot final gate only
+V1 Gold 40:         legacy regression/diagnostic only
+V2R2-100 extras:    supplemental regression only
+```
+
+Merging any regression data with DEV32 for winner selection is forbidden. The four-cell Q1P1/Q1P2/Q2P1/Q2P2 matrix, frozen E5 model, full-ranking RRF, winner comparator, and safety rules remain unchanged except that metric denominators use DEV32.
+
+The locked one-shot V2-40 HOLDOUT gate is:
+
+```text
+PRIMARY Recall@8:             8/8 (100%)
+PRIMARY Recall@12:            8/8 (100%)
+Macro AllRelevantRecall@12:  >= 0.90
+Safety: crossSubject/invalidNodes/activeAtomic/duplicates/nonFinite all 0
+```
+
+This is explicitly a **V2-40 engineering acceptance**. Eight HOLDOUT questions provide materially weaker and coarser statistical evidence than the superseded 28-question design; a PASS must not be described as having equivalent confidence to the original V2R2-100 gate.
+
+### 58.6 Execution boundary
+
+The approved automatic range is:
+
+```text
+V2-40 sample + split implementation
+-> isolated Gold-set creation and mechanical migration
+-> HUMAN GOLD GATE (28 remaining)
+```
+
+V2-7, V2-8, and V2-9 remain blocked until all 40 entries are human-confirmed and `freezeGoldManifestV2Forty` succeeds. The existing V2-4 through V2-6 implementation remains valid and is not reopened by this amendment.
