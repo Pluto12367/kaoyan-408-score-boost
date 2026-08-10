@@ -34,6 +34,7 @@ import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { ReviewResourcesPanel } from '../report/ReviewResourcesPanel';
 import { WeaknessReportPanel } from '../report/WeaknessReportPanel';
+import { StudentLearningConsole } from './StudentLearningConsole';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { SessionView } from '../../api/endpoints/sessions';
@@ -133,26 +134,38 @@ export function StudentSections(props: StudentSectionsProps) {
       {visibleSection === 'dashboard' ? (
         studentOverviewReady ? (
           <Suspense fallback={sectionFallback('学习总览')}>
-            <StudentLaunchpad
-              showOnboarding={props.showOnboarding}
-              todayPlan={props.todayPlan}
-              todayPlanLoading={props.todayPlanLoading}
-              todayPlanError={props.todayPlanError}
-              latestPaper={props.latestPaper}
-              examResult={props.examResult}
-              examQuestionCount={props.examQuestionCount}
-              remoteSessionsEnabled={props.remoteSessionsEnabled}
-              report={report}
-              masteryMap={props.masteryMap}
-              learningCalendar={props.learningCalendar}
-              wrongQuestionSummary={props.wrongQuestionSummary.data}
-              onNavigate={props.onNavigate}
-              onContinueToday={props.onContinueToday}
-              onOnboardingComplete={props.onOnboardingComplete}
-              onOpenReview={props.onOpenReview}
-              onResumeSession={props.onResumeSession}
-              onStartExam={props.onStartExam}
-            />
+            <>
+              <StudentLearningConsole
+                todayPlan={props.todayPlan}
+                todayPlanLoading={props.todayPlanLoading}
+                todayPlanError={props.todayPlanError}
+                wrongQuestionSummary={props.wrongQuestionSummary.data}
+                masteryMap={props.masteryMap}
+                learningCalendar={props.learningCalendar}
+                onNavigate={props.onNavigate}
+                onContinueToday={props.onContinueToday}
+              />
+              <StudentLaunchpad
+                showOnboarding={props.showOnboarding}
+                todayPlan={props.todayPlan}
+                todayPlanLoading={props.todayPlanLoading}
+                todayPlanError={props.todayPlanError}
+                latestPaper={props.latestPaper}
+                examResult={props.examResult}
+                examQuestionCount={props.examQuestionCount}
+                remoteSessionsEnabled={props.remoteSessionsEnabled}
+                report={report}
+                masteryMap={props.masteryMap}
+                learningCalendar={props.learningCalendar}
+                wrongQuestionSummary={props.wrongQuestionSummary.data}
+                onNavigate={props.onNavigate}
+                onContinueToday={props.onContinueToday}
+                onOnboardingComplete={props.onOnboardingComplete}
+                onOpenReview={props.onOpenReview}
+                onResumeSession={props.onResumeSession}
+                onStartExam={props.onStartExam}
+              />
+            </>
           </Suspense>
         ) : (
           <ModuleUnavailable title="学习总览" resource={overviewResource} onRetry={onRetryOverview} />
