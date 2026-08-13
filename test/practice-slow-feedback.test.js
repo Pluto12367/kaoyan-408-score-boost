@@ -24,3 +24,21 @@ test('PracticePanel shows 用时偏慢 only for correct-but-slow answers and 本
   );
   assert.match(source, /用时偏慢/, 'the speed hint copy should be 用时偏慢');
 });
+
+test('PracticePanel turns answer feedback into immediate learning actions', async () => {
+  const source = await readFile(new URL('../apps/web/src/features/practice/PracticePanel.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /answer-impact-card/);
+  assert.match(source, /本题影响/);
+  assert.match(source, /知识点/);
+  assert.match(source, /提升该知识点掌握度/);
+  assert.match(source, /进入错题复盘/);
+  assert.match(source, /暴露该知识点薄弱点/);
+  assert.match(source, /answer-next-action-card/);
+  assert.match(source, /下一步建议/);
+  assert.match(source, /继续下一题/);
+  assert.match(source, /先看解析/);
+  assert.match(source, /task-progress-feedback/);
+  assert.match(source, /本题会计入今日任务进度/);
+  assert.match(source, /达标后系统会推荐下一步/);
+});

@@ -3100,6 +3100,43 @@ textarea:focus-visible,
   white-space: pre-line;
 }
 
+.answer-impact-card,
+.answer-next-action-card,
+.task-progress-feedback {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.answer-impact-card strong,
+.answer-next-action-card strong,
+.task-progress-feedback strong {
+  color: #1e3a8a;
+}
+
+.answer-impact-card p,
+.answer-next-action-card span,
+.task-progress-feedback span {
+  color: #334155;
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.answer-impact-card p {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.answer-impact-card p span {
+  color: #64748b;
+  font-weight: 700;
+}
+
 .answer-result-actions {
   display: flex;
   justify-content: flex-end;

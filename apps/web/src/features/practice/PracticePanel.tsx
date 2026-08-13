@@ -67,6 +67,9 @@ export function PracticePanel({
   const set = practiceSet.data;
   const answered = Boolean(answerResult);
   const showTaskNextStep = Boolean(answerResult && taskContext && taskNextStep && taskReachedTarget);
+  const answerNextAction = answerResult?.correct
+    ? '继续下一题，巩固当前知识点。'
+    : '先看解析，确认错因；本题会进入错题复盘。';
   return (
     <article id="question" className="panel">
       <p className="eyebrow">题库训练</p>
@@ -104,6 +107,16 @@ export function PracticePanel({
           {answerResult.knowledgePointTitle ? (
             <p className="answer-result-kp"><strong>核心考点</strong>{answerResult.knowledgePointTitle}</p>
           ) : null}
+          <div className="answer-impact-card">
+            <strong>本题影响</strong>
+            <p><span>知识点</span>{answerResult.knowledgePointTitle ?? '当前题目关联考点'}</p>
+            <p>
+              <span>学习变化</span>
+              {answerResult.correct
+                ? '本次会帮助提升该知识点掌握度。'
+                : '本题会进入错题复盘，并暴露该知识点薄弱点。'}
+            </p>
+          </div>
           {answerResult.analysis ? (
             <div className="answer-result-analysis"><strong>解析</strong><p>{answerResult.analysis}</p></div>
           ) : (
@@ -117,6 +130,16 @@ export function PracticePanel({
             && isSlowAnswer(answerResult.timeSpentSec, answerResult.expectedTimeSec) ? (
               <p className="answer-result-speed"><strong>用时偏慢</strong>建议控制在 {answerResult.expectedTimeSec} 秒内，避免考场时间压力。</p>
             ) : null}
+          {taskContext ? (
+            <div className="task-progress-feedback">
+              <strong>今日任务反馈</strong>
+              <span>本题会计入今日任务进度，达标后系统会推荐下一步。</span>
+            </div>
+          ) : null}
+          <div className="answer-next-action-card">
+            <strong>下一步建议</strong>
+            <span>{answerNextAction}</span>
+          </div>
           <div className="answer-result-actions">
             {hasNextQuestion ? (
               <button type="button" className="primary-action" onClick={onNextQuestion}>下一题</button>
