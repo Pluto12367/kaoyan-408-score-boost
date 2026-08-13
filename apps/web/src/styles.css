@@ -1418,6 +1418,53 @@ textarea:focus-visible,
   padding-left: 18px;
 }
 
+.assessment-action-panel {
+  background: #ffffff;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  color: var(--text);
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.assessment-action-panel article {
+  display: grid;
+  gap: 4px;
+}
+
+.assessment-action-panel article span {
+  color: #166534;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.assessment-action-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.assessment-action-button {
+  align-items: flex-start;
+  flex-direction: column;
+  white-space: normal;
+}
+
+.assessment-action-button span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .assessment-action-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .secondary-action {
   align-items: center;
   background: var(--primary-soft);

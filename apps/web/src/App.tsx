@@ -1469,6 +1469,7 @@ paperId: paper.id,
             status={assessmentStatus}
             onSubmit={handleSubmitAssessment}
             onGenerate={handleGenerateAssessment}
+            onNavigate={setActiveSection}
           />
         </Suspense>
 
