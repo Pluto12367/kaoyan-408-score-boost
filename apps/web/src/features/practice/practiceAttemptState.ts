@@ -70,6 +70,36 @@ export function advanceQuestion(
   };
 }
 
+export function advanceQuestionByCurrentId(
+  state: PracticeAttemptState,
+  questionIds: string[],
+  currentQuestionId: string,
+): PracticeAttemptState {
+  if (questionIds.length === 0) return advanceQuestion(state);
+
+  const currentPosition = questionIds.indexOf(currentQuestionId);
+  const fallbackPosition = Math.min(Math.max(state.index, 0), questionIds.length - 1);
+  const position = currentPosition === -1 ? fallbackPosition : currentPosition;
+  const nextIndex = Math.min(position + 1, questionIds.length - 1);
+
+  return advanceQuestion(state, nextIndex);
+}
+
+export function hasNextQuestionByCurrentId(
+  questionIds: string[],
+  currentQuestionId: string,
+  fallbackIndex: number,
+): boolean {
+  if (questionIds.length === 0) return false;
+
+  const currentPosition = questionIds.indexOf(currentQuestionId);
+  const position = currentPosition === -1
+    ? Math.min(Math.max(fallbackIndex, 0), questionIds.length - 1)
+    : currentPosition;
+
+  return position < questionIds.length - 1;
+}
+
 /**
  * 重新开始入口：回到题库第一题，清理本次答题尝试的全部状态（P2-08）。
  */

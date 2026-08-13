@@ -166,15 +166,20 @@ test('P0 redo 接线: App.tsx 的重做/变式/下一题入口都走 shared atte
   assert.match(module, /export function beginRedo/);
   assert.match(module, /export function beginVariantRetest/);
   assert.match(module, /export function advanceQuestion/);
+  assert.match(module, /export function advanceQuestionByCurrentId/);
+  assert.match(module, /export function hasNextQuestionByCurrentId/);
 
   assert.match(app, /beginRedo/);
   assert.match(app, /beginVariantRetest/);
   assert.match(app, /advanceQuestion/);
+  assert.match(app, /advanceQuestionByCurrentId/);
+  assert.match(app, /hasNextQuestionByCurrentId/);
   // 重做/变式/切题入口都通过 applyPracticeAttemptState 应用纯转换（不依赖缩进/换行格式）
   assert.match(app, /applyPracticeAttemptState\(beginRedo\(readPracticeAttemptState\(\), questionId\)\)/);
   assert.match(app, /applyPracticeAttemptState\(beginVariantRetest\(readPracticeAttemptState\(\), questionId, variantQuestionId\)\)/);
   assert.match(app, /applyPracticeAttemptState\(advanceQuestion\(readPracticeAttemptState\(\)\)\)/);
-  assert.match(app, /applyPracticeAttemptState\(advanceQuestion\(readPracticeAttemptState\(\), practiceIndex \+ 1\)\)/);
+  assert.match(app, /applyPracticeAttemptState\(advanceQuestionByCurrentId\(readPracticeAttemptState\(\), activePracticeQuestionIds, currentQuestion\.id\)\)/);
+  assert.doesNotMatch(app, /advanceQuestion\(readPracticeAttemptState\(\), practiceIndex \+ 1\)/);
 });
 
 test('P0 redo 接线: PracticePanel 选项禁用仍由 submitting || answered 控制', async () => {

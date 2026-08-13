@@ -16,8 +16,10 @@ import { AccountPanel } from './features/auth/AccountPanel';
 import { StudentSections } from './features/student/StudentSections';
 import {
   advanceQuestion,
+  advanceQuestionByCurrentId,
   beginRedo,
   beginVariantRetest,
+  hasNextQuestionByCurrentId,
   restartAttempt,
   type PracticeAttemptState,
 } from './features/practice/practiceAttemptState';
@@ -382,10 +384,16 @@ export function App() {
   const activePracticeQuestions = todayTaskLaunchContext?.destination === 'question'
     ? questions.filter((question) => question.knowledgePointIds.includes(todayTaskLaunchContext.knowledgePointId))
     : questions;
+  const activePracticeQuestionIds = activePracticeQuestions.map((question) => question.id);
   const currentQuestion = (redoQuestionId
     ? activePracticeQuestions.find((question) => question.id === redoQuestionId)
     : undefined)
     ?? activePracticeQuestions[Math.min(practiceIndex, Math.max(0, activePracticeQuestions.length - 1))];
+  const hasNextActivePracticeQuestion = hasNextQuestionByCurrentId(
+    activePracticeQuestionIds,
+    currentQuestion.id,
+    practiceIndex,
+  );
 
   useEffect(() => {
     practiceTimerRef.current = {
@@ -592,12 +600,12 @@ export function App() {
   function handleNextQuestion() {
     if (activePracticeQuestions.length === 0) return;
     invalidatePracticeAttempt(practiceSubmissionGateRef.current);
-    if (practiceIndex >= activePracticeQuestions.length - 1) {
+    if (!hasNextActivePracticeQuestion) {
       applyPracticeAttemptState(advanceQuestion(readPracticeAttemptState()));
       setPracticeStatus('已到当前题库末尾，可开始专项练习或前往错题本复习。');
       return;
     }
-    applyPracticeAttemptState(advanceQuestion(readPracticeAttemptState(), practiceIndex + 1));
+    applyPracticeAttemptState(advanceQuestionByCurrentId(readPracticeAttemptState(), activePracticeQuestionIds, currentQuestion.id));
     restartPracticeTimer();
     setPracticeStatus('选择选项后，系统会自动判题并更新提分报告。');
   }
@@ -1288,7 +1296,7 @@ paperId: paper.id,
             practiceSubmitting={practiceSubmitting}
             practiceAnswerResult={practiceAnswerResult}
             currentQuestion={currentQuestion}
-            hasNextQuestion={practiceIndex < activePracticeQuestions.length - 1}
+            hasNextQuestion={hasNextActivePracticeQuestion}
             detailQuestionId={detailQuestionId}
             wrongStatus={wrongStatus}
             stageResult={stageResult}

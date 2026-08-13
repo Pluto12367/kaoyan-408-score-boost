@@ -25,6 +25,54 @@ function makeState(overrides = {}) {
   };
 }
 
+test('task practice next uses the displayed question id when the stored index is stale', async () => {
+  const { advanceQuestionByCurrentId } = await loadAttemptState();
+  const next = advanceQuestionByCurrentId(makeState({ index: 0 }), ['q-1', 'q-2', 'q-3'], 'q-2');
+
+  assert.equal(next.answerResult, null);
+  assert.deepEqual(next.reasonQueue, []);
+  assert.equal(next.redoQuestionId, null);
+  assert.equal(next.variantOfQuestionId, null);
+  assert.equal(next.index, 2);
+});
+
+test('task practice next stays on the final question when the displayed question is already last', async () => {
+  const { advanceQuestionByCurrentId } = await loadAttemptState();
+  const next = advanceQuestionByCurrentId(makeState({ index: 1 }), ['q-1', 'q-2'], 'q-2');
+
+  assert.equal(next.answerResult, null);
+  assert.deepEqual(next.reasonQueue, []);
+  assert.equal(next.index, 1);
+});
+
+test('task practice next availability uses the displayed question id when the stored index is stale', async () => {
+  const { hasNextQuestionByCurrentId } = await loadAttemptState();
+
+  assert.equal(hasNextQuestionByCurrentId(['q-1', 'q-2', 'q-3'], 'q-2', 2), true);
+  assert.equal(hasNextQuestionByCurrentId(['q-1', 'q-2', 'q-3'], 'q-3', 0), false);
+});
+
+test('App advances today-task practice by current question identity instead of stale index only', async () => {
+  const app = await source('apps/web/src/App.tsx');
+  assert.match(app, /advanceQuestionByCurrentId,/, 'App should import the identity-based transition');
+  assert.match(app, /hasNextQuestionByCurrentId,/, 'App should import the identity-based availability check');
+  assert.match(
+    app,
+    /const activePracticeQuestionIds = activePracticeQuestions\.map\(\(question\) => question\.id\);/,
+    'App should derive the currently scoped question id order',
+  );
+  assert.match(
+    app,
+    /advanceQuestionByCurrentId\(readPracticeAttemptState\(\), activePracticeQuestionIds, currentQuestion\.id\)/,
+    'next-question should advance from the displayed question id',
+  );
+  assert.match(
+    app,
+    /hasNextQuestion=\{hasNextActivePracticeQuestion\}/,
+    'next button visibility should use the displayed question id instead of stale index only',
+  );
+});
+
 test('P2-08: restartAttempt resets the attempt and returns to the first question', async () => {
   const { restartAttempt } = await loadAttemptState();
   const next = restartAttempt(makeState());

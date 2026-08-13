@@ -65,7 +65,10 @@ test('task-scoped question navigation never advances through the full question b
   const app = await source('apps/web/src/App.tsx');
   assert.match(app, /const activePracticeQuestions = todayTaskLaunchContext\?\.destination === 'question'/);
   assert.match(app, /questions\.filter/);
-  assert.match(app, /practiceIndex >= activePracticeQuestions\.length - 1/);
+  assert.match(app, /const activePracticeQuestionIds = activePracticeQuestions\.map\(\(question\) => question\.id\);/);
+  assert.match(app, /hasNextQuestionByCurrentId\(\s*activePracticeQuestionIds,\s*currentQuestion\.id,\s*practiceIndex,\s*\)/);
+  assert.match(app, /advanceQuestionByCurrentId\(readPracticeAttemptState\(\), activePracticeQuestionIds, currentQuestion\.id\)/);
+  assert.doesNotMatch(app, /practiceIndex >= activePracticeQuestions\.length - 1/);
   assert.match(app, /activePracticeQuestions\[Math\.min\(/);
 });
 
