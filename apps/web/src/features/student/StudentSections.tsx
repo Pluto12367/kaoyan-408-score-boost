@@ -157,6 +157,8 @@ export function StudentSections(props: StudentSectionsProps) {
           <Suspense fallback={sectionFallback('学习总览')}>
             <>
               <StudentLearningConsole
+                student={props.student}
+                report={report}
                 todayPlan={props.todayPlan}
                 todayPlanLoading={props.todayPlanLoading}
                 todayPlanError={props.todayPlanError}
@@ -241,6 +243,8 @@ export function StudentSections(props: StudentSectionsProps) {
                   question={props.currentQuestion}
                   practiceSet={props.practiceSet}
                   practiceSetResult={props.practiceSetResult}
+                  student={props.student}
+                  targetWeakPointTitle={report.weakPoints[0]?.title ?? null}
                   taskContext={props.todayTaskLaunchContext?.destination === 'question' ? launchedQuestionTask : null}
                   taskNextStep={todayTaskNextStep}
                   redoQuestionId={props.redoQuestionId}

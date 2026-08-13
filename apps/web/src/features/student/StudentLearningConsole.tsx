@@ -1,10 +1,14 @@
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../api';
+import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { deriveTodayTaskNextStep, type TodayPlanTask } from '../onboarding/todayLearningRoute';
+import { GoalProgressInsight } from './GoalProgressInsight';
 import { RecommendationEvidence } from './RecommendationEvidence';
 
 export interface StudentLearningConsoleProps {
+  student: UserProfile;
+  report: WeaknessReport;
   todayPlan: TodayPlanType | null;
   todayPlanLoading: boolean;
   todayPlanError: string;
@@ -36,6 +40,8 @@ function latestCompletedTaskId(plan: TodayPlanType | null) {
 }
 
 export function StudentLearningConsole({
+  student,
+  report,
   todayPlan,
   todayPlanLoading,
   todayPlanError,
@@ -163,6 +169,16 @@ export function StudentLearningConsole({
         <article><span>连续学习</span><strong>{todayPlan?.summary.streakDays ?? learningCalendar?.streakDays ?? '--'} 天</strong></article>
         <article><span>待复盘错题</span><strong>{dueWrongCount ?? '--'} 道</strong></article>
       </div>
+
+      <GoalProgressInsight
+        student={student}
+        report={report}
+        todayPlan={todayPlan}
+        taskTitle={task?.title ?? null}
+        taskSubject={task?.subject ?? null}
+        taskChapter={task?.chapter ?? null}
+        actionLabel="首页目标进度"
+      />
 
       {completedSummary ? (
         <div className="learning-console-next-step" role="status">

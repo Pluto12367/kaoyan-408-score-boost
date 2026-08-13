@@ -3,6 +3,7 @@ import { estimatePredictedScore } from '@kaoyan408/shared';
 import type { StageReport, UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { MasteryMap } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
@@ -153,6 +154,12 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
             : <p>暂无薄弱点数据，完成诊断与练习后自动生成</p>}
         </article>
       </div>
+
+      <GoalProgressInsight
+        student={student}
+        report={report}
+        actionLabel="报告目标进度"
+      />
 
       <div className="report-action-plan">
         <div className="report-action-plan-head">

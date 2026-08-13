@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Clock, CheckCircle2, AlertCircle, BookOpen, RotateCcw } from 'lucide-react';
+import type { UserProfile } from '@kaoyan408/shared';
 import { completeStudyTask } from '../api/endpoints/practice';
 import {
   postponeTask,
@@ -10,10 +11,12 @@ import {
 } from '../api/endpoints/onboarding';
 import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
 import { validateTaskCompletionDraft, type TaskCompletionDraft } from '../features/plan/taskCompletionDraft';
+import { GoalProgressInsight } from '../features/student/GoalProgressInsight';
 import { trackEvent } from '../api/events';
 
 interface Props {
   plan: TodayPlanType;
+  student?: UserProfile | null;
   focusTaskId?: string | null;
   onRefresh: () => Promise<void>;
   onOpenReview?: (questionId: string) => void;
@@ -26,7 +29,7 @@ function getTaskStatusLabel(task: TodayPlanType['priorityTasks'][number]) {
   return '待开始';
 }
 
-export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props) {
+export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpenReview }: Props) {
   const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
   const [dueReviewError, setDueReviewError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -183,6 +186,16 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
           ) : null}
         </div>
       </div>
+
+      <GoalProgressInsight
+        student={student}
+        todayPlan={plan}
+        taskTitle={priorityTasks[0]?.title ?? null}
+        taskSubject={priorityTasks[0]?.subject ?? null}
+        taskChapter={priorityTasks[0]?.chapter ?? null}
+        actionLabel="今日计划目标贡献"
+        compact
+      />
 
       {/* Priority tasks */}
       <div className="priority-tasks">

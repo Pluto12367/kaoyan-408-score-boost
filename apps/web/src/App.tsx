@@ -1444,6 +1444,7 @@ paperId: paper.id,
           <Suspense fallback={sectionFallback('今日计划')}>
           <TodayPlan
             plan={todayPlan}
+            student={student}
             focusTaskId={planFocusTaskId}
             onRefresh={refreshTodayPlan}
             onOpenReview={(questionId) => {

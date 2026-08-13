@@ -5724,6 +5724,92 @@ button.student-insight-card:hover,
   background: #f8fafc;
 }
 
+.goal-progress-insight {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 58%, #f0fdfa 100%);
+}
+
+.goal-progress-insight.compact {
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.goal-progress-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.goal-progress-main h4 {
+  margin: 0;
+  color: var(--text-strong);
+}
+
+.goal-progress-main span,
+.goal-progress-insight p,
+.goal-progress-pill span,
+.goal-progress-grid span {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.goal-progress-main > strong {
+  color: var(--primary-strong);
+  font-size: 28px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.goal-progress-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.goal-progress-grid article,
+.goal-progress-pill {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 78%);
+}
+
+.goal-progress-grid strong,
+.goal-progress-pill strong {
+  color: var(--text-strong);
+}
+
+.goal-progress-pill {
+  grid-template-columns: minmax(92px, auto) minmax(0, 1fr);
+  align-items: center;
+}
+
+.goal-progress-insight p {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .goal-progress-main {
+    flex-direction: column;
+  }
+
+  .goal-progress-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .goal-progress-pill {
+    grid-template-columns: 1fr;
+  }
+}
+
 .learning-outcome-grid {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }

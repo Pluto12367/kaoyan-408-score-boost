@@ -1,16 +1,19 @@
-import { isSlowAnswer, type Question } from '@kaoyan408/shared';
+import { isSlowAnswer, type Question, type UserProfile } from '@kaoyan408/shared';
 import type { PracticeSet, PracticeSetResult } from '../../api';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayTaskNextStep } from '../onboarding/todayLearningRoute';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
 
 interface PracticePanelProps {
   question: Question;
   practiceSet: ModuleResource<PracticeSet>;
   practiceSetResult: PracticeSetResult | null;
+  student?: UserProfile | null;
+  targetWeakPointTitle?: string | null;
   taskContext?: {
     title: string;
     subject: string;
@@ -55,6 +58,8 @@ export function PracticePanel({
   question,
   practiceSet,
   practiceSetResult,
+  student = null,
+  targetWeakPointTitle = null,
   taskContext = null,
   taskNextStep = null,
   redoQuestionId,
@@ -135,6 +140,14 @@ export function PracticePanel({
             confidence={answerResult.knowledgePointTitle ? 'medium' : 'low'}
             nextDataHint="继续完成同考点题目，系统会用更多记录校准掌握度。"
           />
+          <GoalProgressInsight
+            student={student}
+            taskTitle={taskContext?.title ?? answerResult.knowledgePointTitle ?? '本次题库训练'}
+            taskSubject={taskContext?.subject ?? null}
+            taskChapter={taskContext?.chapter ?? answerResult.knowledgePointTitle ?? targetWeakPointTitle}
+            actionLabel="本次训练推进目标"
+            compact
+          />
           {answerResult.analysis ? (
             <div className="answer-result-analysis"><strong>解析</strong><p>{answerResult.analysis}</p></div>
           ) : (
@@ -214,6 +227,13 @@ export function PracticePanel({
                   impact="会更新练习记录、错题本、薄弱点报告和后续推荐。"
                   confidence={practiceSetResult.totalQuestions >= 5 ? 'high' : 'medium'}
                   nextDataHint="再完成一组同考点训练，可以判断是否真正稳定。"
+                />
+                <GoalProgressInsight
+                  student={student}
+                  taskTitle={set.title}
+                  taskChapter={set.focus}
+                  actionLabel="本次训练推进目标"
+                  compact
                 />
                 <div className="practice-set-action-grid">
                   {onRestartPracticeSet ? (
