@@ -5228,6 +5228,7 @@ button.student-insight-card:hover,
 .learning-console-grid,
 .learning-outcome-grid,
 .recent-learning-feedback-grid,
+.daily-review-grid,
 .self-study-recommendation-grid {
   display: grid;
   gap: 12px;
@@ -5242,6 +5243,8 @@ button.student-insight-card:hover,
 .learning-outcome-grid article,
 .recent-learning-feedback-card,
 .recent-learning-feedback-grid article,
+.daily-review-card,
+.daily-review-grid article,
 .learning-path-card,
 .self-study-card,
 .self-study-recommendation-grid button {
@@ -5254,6 +5257,8 @@ button.student-insight-card:hover,
 .learning-console-status span,
 .learning-outcome-grid span,
 .recent-learning-feedback-grid span,
+.daily-review-heading span,
+.daily-review-grid span,
 .learning-path-card span,
 .self-study-recommendation-grid span {
   display: block;
@@ -5295,6 +5300,7 @@ button.student-insight-card:hover,
 .learning-path-card h4,
 .learning-outcome-card h4,
 .recent-learning-feedback-card h4,
+.daily-review-card h4,
 .self-study-card h4 {
   margin: 0;
   color: var(--text-strong);
@@ -5332,6 +5338,40 @@ button.student-insight-card:hover,
   color: var(--text-strong);
   display: block;
   margin-top: 4px;
+}
+
+.daily-review-card {
+  display: grid;
+  gap: 14px;
+  background: #fff7ed;
+}
+
+.daily-review-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.daily-review-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.daily-review-grid article {
+  background: #ffffff;
+}
+
+.daily-review-grid strong {
+  color: var(--text-strong);
+  display: block;
+  margin-top: 4px;
+}
+
+.daily-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .learning-path-card article {

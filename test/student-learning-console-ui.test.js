@@ -70,6 +70,24 @@ test('student learning console surfaces a recent learning feedback card', () => 
   assert.match(source, /className="recent-learning-feedback-grid"/);
 });
 
+test('student learning console summarizes today review outcomes and next actions', () => {
+  const source = readFileSync(consolePath, 'utf8');
+  assert.match(source, /dailyReviewSummary/);
+  assert.match(source, /今日学习复盘/);
+  assert.match(source, /今日完成/);
+  assert.match(source, /今日变化/);
+  assert.match(source, /明日建议/);
+  assert.match(source, /completedTitles\.length/);
+  assert.match(source, /todayPlan\.summary\.totalTasks/);
+  assert.match(source, /dueWrongCount != null/);
+  assert.match(source, /weakPoint/);
+  assert.match(source, /className="daily-review-card"/);
+  assert.match(source, /className="daily-review-grid"/);
+  assert.match(source, /继续练习/);
+  assert.match(source, /复盘错题/);
+  assert.match(source, /查看报告/);
+});
+
 test('student learning console surfaces completed-task feedback and the next visible action', () => {
   const source = readFileSync(consolePath, 'utf8');
   assert.match(source, /completedTaskTitles/);

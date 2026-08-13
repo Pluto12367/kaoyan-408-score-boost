@@ -130,6 +130,22 @@ export function StudentLearningConsole({
           next: '建议下一步：开始今日任务或专项训练',
         };
 
+  const dailyReviewSummary = {
+    completed: todayPlan
+      ? `完成 ${todayPlan.summary.completedTasks}/${todayPlan.summary.totalTasks} 项任务，练习正确率 ${todayPlan.summary.todayAccuracyRate}%`
+      : completedTitles.length
+        ? `已完成 ${completedTitles.length} 项任务`
+        : '今日任务数据加载后，会显示完成情况',
+    changed: dueWrongCount != null
+      ? `掌握度已更新，待复盘错题还有 ${dueWrongCount} 道`
+      : '完成练习后，系统会更新掌握度和复盘队列',
+    tomorrow: weakPoint
+      ? `明日优先巩固：${weakPoint}`
+      : task
+        ? `明日继续推进：${task.subject} · ${task.chapter}`
+        : '明日建议：继续练习并查看学习报告',
+  };
+
   return (
     <section className="panel student-learning-console" aria-label="学生学习中控台">
       <div className="panel-heading">
@@ -175,6 +191,23 @@ export function StudentLearningConsole({
           <article><span>最近动作</span><strong>{recentLearningFeedback.action}</strong></article>
           <article><span>系统已记录</span><strong>{recentLearningFeedback.recorded}</strong></article>
           <article><span>建议下一步</span><strong>{recentLearningFeedback.next}</strong></article>
+        </div>
+      </div>
+
+      <div className="daily-review-card">
+        <div className="daily-review-heading">
+          <h4>今日学习复盘</h4>
+          <span>把今天的学习结果收个口</span>
+        </div>
+        <div className="daily-review-grid">
+          <article><span>今日完成</span><strong>{dailyReviewSummary.completed}</strong></article>
+          <article><span>今日变化</span><strong>{dailyReviewSummary.changed}</strong></article>
+          <article><span>明日建议</span><strong>{dailyReviewSummary.tomorrow}</strong></article>
+        </div>
+        <div className="daily-review-actions">
+          <button type="button" className="secondary-action" onClick={() => onNavigate('question')}>继续练习</button>
+          <button type="button" className="secondary-action" onClick={() => onNavigate('wrong-book')}>复盘错题</button>
+          <button type="button" className="secondary-action" onClick={() => onNavigate('report')}>查看报告</button>
         </div>
       </div>
 
