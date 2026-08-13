@@ -217,6 +217,24 @@ export function TodayPlan({ plan, focusTaskId, onRefresh, onOpenReview }: Props)
                   </div>
                 ) : null}
                 <p className="task-reason">{task.reason}</p>
+                <div className="task-action-guide" aria-label="任务行动说明">
+                  <article>
+                    <span>为什么做</span>
+                    <strong>{task.reason}</strong>
+                  </article>
+                  <article>
+                    <span>完成标准</span>
+                    <strong>完成 {task.questionCount} 题 / 计划 {task.minutes} 分钟</strong>
+                  </article>
+                  <article>
+                    <span>完成收益</span>
+                    <strong>更新掌握度，推进 {task.chapter} 薄弱点</strong>
+                  </article>
+                  <article>
+                    <span>做不完怎么办</span>
+                    <strong>延后、重新安排，或降低本周任务量</strong>
+                  </article>
+                </div>
               </div>
               <div className="task-actions">
                 {task.status === 'in_progress' ? (

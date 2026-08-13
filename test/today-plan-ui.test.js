@@ -53,3 +53,30 @@ test('homepage route delegates plan editing to the dedicated plan section', asyn
   assert.match(launchpad, /onOpenPlan=\{\(\) => onNavigate\('plan'\)\}/);
   assert.doesNotMatch(launchpad, /<TodayPlan\b/);
 });
+
+test('today task cards explain why, target, benefit, and fallback actions', async () => {
+  const source = await readFile(new URL('../apps/web/src/components/TodayPlan.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /task-action-guide/);
+  assert.match(source, /为什么做/);
+  assert.match(source, /完成标准/);
+  assert.match(source, /完成收益/);
+  assert.match(source, /做不完怎么办/);
+  assert.match(source, /task\.reason/);
+  assert.match(source, /完成 \{task\.questionCount\} 题/);
+  assert.match(source, /计划 \{task\.minutes\} 分钟/);
+  assert.match(source, /更新掌握度/);
+  assert.match(source, /延后、重新安排，或降低本周任务量/);
+});
+
+test('study plan overview frames today position, weekly goal, and post-completion review action', async () => {
+  const source = await readFile(new URL('../apps/web/src/features/plan/StudyPlanOverview.tsx', import.meta.url), 'utf8');
+
+  assert.match(source, /plan-action-summary/);
+  assert.match(source, /今日定位/);
+  assert.match(source, /本周目标/);
+  assert.match(source, /完成后/);
+  assert.match(source, /优先处理高优先级薄弱点/);
+  assert.match(source, /按计划完成任务并保持复盘节奏/);
+  assert.match(source, /回到报告查看掌握度变化/);
+});

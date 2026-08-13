@@ -11,6 +11,20 @@ export function StudyPlanOverview({ plan }: StudyPlanOverviewProps) {
         <div><p className="eyebrow">{plan.phase}</p><h3>今日任务预览</h3></div>
         <span>演示数据 · 登录后记录真实进度</span>
       </div>
+      <div className="plan-action-summary">
+        <article>
+          <span>今日定位</span>
+          <strong>优先处理高优先级薄弱点</strong>
+        </article>
+        <article>
+          <span>本周目标</span>
+          <strong>按计划完成任务并保持复盘节奏</strong>
+        </article>
+        <article>
+          <span>完成后</span>
+          <strong>回到报告查看掌握度变化</strong>
+        </article>
+      </div>
       <div className="task-list">
         {plan.dailyTasks.map((task) => (
           <article key={task.id} className="task-row">

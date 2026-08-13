@@ -1252,6 +1252,36 @@ textarea:focus-visible,
   margin-top: 18px;
 }
 
+.plan-action-summary {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  margin-top: 16px;
+}
+
+.plan-action-summary article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.plan-action-summary span,
+.task-action-guide span {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plan-action-summary strong,
+.task-action-guide strong {
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .task-row {
   border-top: 1px solid #eef2f7;
   padding-top: 12px;
@@ -3538,6 +3568,22 @@ textarea:focus-visible,
 .task-card.completed {
   border-left-color: #18794e;
   background: #f8fafc;
+}
+
+.task-action-guide {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  margin-top: 4px;
+}
+
+.task-action-guide article {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 10px;
 }
 
 .task-info,
