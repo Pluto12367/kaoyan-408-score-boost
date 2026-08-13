@@ -42,6 +42,20 @@ test('student learning console turns autonomous study into four focused recommen
   assert.doesNotMatch(source, /title: '知识图谱'/);
 });
 
+test('student learning console explains what students gain after finishing today', () => {
+  const source = readFileSync(consolePath, 'utf8');
+  assert.match(source, /todayOutcomeItems/);
+  assert.match(source, /今天完成后，你会得到/);
+  assert.match(source, /更新掌握度/);
+  assert.match(source, /减少待复盘/);
+  assert.match(source, /推进薄弱点/);
+  assert.match(source, /明确下一步/);
+  assert.match(source, /className="learning-outcome-card"/);
+  assert.match(source, /className="learning-outcome-grid"/);
+  assert.match(source, /dueWrongCount != null \? `复盘后待处理错题会减少，当前还有 \$\{dueWrongCount\} 道`/);
+  assert.match(source, /weakPoint \? `当前重点推进：\$\{weakPoint\}`/);
+});
+
 test('student learning console surfaces completed-task feedback and the next visible action', () => {
   const source = readFileSync(consolePath, 'utf8');
   assert.match(source, /completedTaskTitles/);

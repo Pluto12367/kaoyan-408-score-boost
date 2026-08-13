@@ -99,6 +99,13 @@ export function StudentLearningConsole({
     { title: '报告查看', description: '查看掌握度、趋势和下一步建议', action: '查看学习报告', targetSection: 'report' },
   ];
 
+  const todayOutcomeItems = [
+    { title: '更新掌握度', description: task ? `完成今日任务后会同步 ${task.subject} 学习进度` : '完成练习后会更新你的掌握度变化' },
+    { title: '减少待复盘', description: dueWrongCount != null ? `复盘后待处理错题会减少，当前还有 ${dueWrongCount} 道` : '复盘错题会帮助清理待处理队列' },
+    { title: '推进薄弱点', description: weakPoint ? `当前重点推进：${weakPoint}` : '专项训练会帮助你发现并推进薄弱点' },
+    { title: '明确下一步', description: '查看报告后，可以确认下一轮学习方向' },
+  ];
+
   return (
     <section className="panel student-learning-console" aria-label="学生学习中控台">
       <div className="panel-heading">
@@ -125,6 +132,18 @@ export function StudentLearningConsole({
           ) : null}
         </div>
       ) : null}
+
+      <div className="learning-outcome-card">
+        <h4>今天完成后，你会得到</h4>
+        <div className="learning-outcome-grid">
+          {todayOutcomeItems.map((item) => (
+            <article key={item.title}>
+              <strong>{item.title}</strong>
+              <span>{item.description}</span>
+            </article>
+          ))}
+        </div>
+      </div>
 
       <div className="learning-console-grid">
         <div className="learning-path-card">
