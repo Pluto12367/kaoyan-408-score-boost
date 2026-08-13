@@ -3,6 +3,7 @@ import { estimatePredictedScore } from '@kaoyan408/shared';
 import type { StageReport, UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { MasteryMap } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import { RecommendationEvidence } from '../student/RecommendationEvidence';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -158,6 +159,16 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
           <h4>下一步学习建议</h4>
           <span>报告不是终点，下一步要落到练习和复盘。</span>
         </div>
+        <RecommendationEvidence
+          title="报告建议依据"
+          reason={report.weakPoints[0]
+            ? `当前最优先补强 ${report.weakPoints[0].title}`
+            : stageReport?.nextAction ?? '暂未形成稳定薄弱点，先继续完成今日练习。'}
+          evidence={`薄弱点 ${report.weakPoints.length} 个，待复盘错题 ${stageReport?.wrong.pendingCount ?? 0} 道，阶段趋势 ${stageReport ? verdictLabels[stageReport.verdict] : '待生成'}`}
+          impact="完成建议动作后，掌握度、错题复盘数和阶段报告会随练习记录更新。"
+          confidence={hasEnoughData ? (stageReport && stageReport.verdict !== 'insufficient' ? 'high' : 'medium') : 'low'}
+          nextDataHint="多完成几组练习和一次阶段测评，报告建议会更有区分度。"
+        />
         <div className="report-action-grid">
           {reportActionPlan.map((item) => (
             <article key={item.title} className="report-action-card">

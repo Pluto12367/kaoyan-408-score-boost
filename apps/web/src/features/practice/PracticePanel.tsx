@@ -5,6 +5,7 @@ import type { ModuleResource } from '../../hooks/moduleResource';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayTaskNextStep } from '../onboarding/todayLearningRoute';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import { RecommendationEvidence } from '../student/RecommendationEvidence';
 
 interface PracticePanelProps {
   question: Question;
@@ -126,6 +127,14 @@ export function PracticePanel({
                 : '本题会进入错题复盘，并暴露该知识点薄弱点。'}
             </p>
           </div>
+          <RecommendationEvidence
+            title="本题反馈依据"
+            reason={answerResult.correct ? '本题答对，系统会把它作为当前考点的正向练习记录。' : '本题答错，系统会把它作为错题复盘和薄弱点判断依据。'}
+            evidence={`答案结果：${answerResult.correct ? '正确' : '错误'}；考点：${answerResult.knowledgePointTitle ?? '当前题目关联考点'}`}
+            impact={answerResult.correct ? '会提升该考点掌握度，并计入今日练习进度。' : '会进入错题本，并影响薄弱点和后续训练推荐。'}
+            confidence={answerResult.knowledgePointTitle ? 'medium' : 'low'}
+            nextDataHint="继续完成同考点题目，系统会用更多记录校准掌握度。"
+          />
           {answerResult.analysis ? (
             <div className="answer-result-analysis"><strong>解析</strong><p>{answerResult.analysis}</p></div>
           ) : (
@@ -198,6 +207,14 @@ export function PracticePanel({
                   <span>下一步行动</span>
                   <p>按“复盘 → 再练 → 看报告”的顺序，把本组结果接回今日学习闭环。</p>
                 </article>
+                <RecommendationEvidence
+                  title="专项训练结果依据"
+                  reason={practiceSetResult.accuracyRate >= 70 ? '本组正确率接近达标，适合复盘后继续巩固。' : '本组正确率偏低，需要先处理错题再继续推进。'}
+                  evidence={`本组答对 ${practiceSetResult.correctCount}/${practiceSetResult.totalQuestions}，正确率 ${practiceSetResult.accuracyRate}%`}
+                  impact="会更新练习记录、错题本、薄弱点报告和后续推荐。"
+                  confidence={practiceSetResult.totalQuestions >= 5 ? 'high' : 'medium'}
+                  nextDataHint="再完成一组同考点训练，可以判断是否真正稳定。"
+                />
                 <div className="practice-set-action-grid">
                   {onRestartPracticeSet ? (
                     <button type="button" className="primary-action" aria-label="再来一组（同知识点）" onClick={onRestartPracticeSet}>再练一组</button>

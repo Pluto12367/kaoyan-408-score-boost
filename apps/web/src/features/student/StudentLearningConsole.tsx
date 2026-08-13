@@ -2,6 +2,7 @@ import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding'
 import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { deriveTodayTaskNextStep, type TodayPlanTask } from '../onboarding/todayLearningRoute';
+import { RecommendationEvidence } from './RecommendationEvidence';
 
 export interface StudentLearningConsoleProps {
   todayPlan: TodayPlanType | null;
@@ -172,6 +173,21 @@ export function StudentLearningConsole({
           ) : null}
         </div>
       ) : null}
+
+      <RecommendationEvidence
+        title="今日推荐依据"
+        reason={task
+          ? `今日计划中还有优先任务：${task.title}`
+          : dueWrongCount && dueWrongCount > 0
+            ? `今日任务已处理，但还有 ${dueWrongCount} 道错题需要复盘`
+            : '当前任务压力不高，建议用专项训练或报告确认下一步'}
+        evidence={todayPlan
+          ? `今日计划 ${todayPlan.summary.completedTasks}/${todayPlan.summary.totalTasks}，待复盘错题 ${dueWrongCount ?? 0} 道`
+          : '今日计划和错题摘要数据'}
+        impact="完成后会更新今日进度、错题队列和学习报告"
+        confidence={todayPlan ? 'medium' : 'low'}
+        nextDataHint="继续完成今日任务和错题复盘，推荐会更稳。"
+      />
 
       <div className="learning-outcome-card">
         <h4>今天完成后，你会得到</h4>

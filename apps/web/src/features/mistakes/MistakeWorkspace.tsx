@@ -7,6 +7,7 @@ import { WrongQuestionDetailView } from '../../components/WrongQuestionDetail';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import { RecommendationEvidence } from '../student/RecommendationEvidence';
 
 interface MistakeWorkspaceProps {
   wrongQuestions: WrongQuestion[];
@@ -165,6 +166,18 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
         </article>
         <article><strong>闭环建议</strong><ul>{summaryData.nextReviewActions.map((action) => <li key={action}>{action}</li>)}</ul></article>
       </div>
+      <RecommendationEvidence
+        title="错题复盘依据"
+        reason={summaryData.priorityRedoItems[0]
+          ? `优先处理 ${summaryData.priorityRedoItems[0].knowledgePointTitle || '当前高风险错题'}`
+          : summaryData.pendingCount > 0
+            ? `还有 ${summaryData.pendingCount} 道错题待复盘`
+            : '当前错题压力较低，可以进入专项训练巩固。'}
+        evidence={`待复盘 ${summaryData.pendingCount} 道，已复盘 ${summaryData.reviewedCount} 道，重做解决 ${summaryData.resolvedCount} 道`}
+        impact="复盘和重做会减少待处理错题，并影响薄弱点、今日任务和后续训练推荐。"
+        confidence={summaryData.totalWrongCount >= 5 ? 'high' : summaryData.totalWrongCount > 0 ? 'medium' : 'low'}
+        nextDataHint="持续标记错因并完成重做，错题推荐会更贴近真实薄弱点。"
+      />
       </> : <ModuleInlineUnavailable title="错题摘要" resource={summary} onRetry={onRetrySummary} />}
       <div className="wrong-review-loop-card">
         <div className="wrong-review-loop-head">
