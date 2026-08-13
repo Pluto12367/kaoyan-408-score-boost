@@ -5226,7 +5226,7 @@ button.student-insight-card:hover,
 
 .learning-console-status,
 .learning-console-grid,
-.self-study-action-grid {
+.self-study-recommendation-grid {
   display: grid;
   gap: 12px;
 }
@@ -5238,7 +5238,7 @@ button.student-insight-card:hover,
 .learning-console-status article,
 .learning-path-card,
 .self-study-card,
-.self-study-action-grid button {
+.self-study-recommendation-grid button {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -5247,7 +5247,7 @@ button.student-insight-card:hover,
 
 .learning-console-status span,
 .learning-path-card span,
-.self-study-action-grid span {
+.self-study-recommendation-grid span {
   display: block;
   color: var(--text-muted);
   font-size: 0.9rem;
@@ -5297,16 +5297,25 @@ button.student-insight-card:hover,
   align-items: center;
 }
 
-.self-study-action-grid {
+.self-study-recommendation-grid {
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
 }
 
-.self-study-action-grid button {
+.self-study-recommendation-grid button {
+  display: grid;
+  gap: 8px;
   text-align: left;
   cursor: pointer;
 }
 
-.self-study-action-grid button:hover {
+.self-study-recommendation-grid button em {
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.self-study-recommendation-grid button:hover {
   border-color: var(--primary);
   background: var(--primary-soft);
 }

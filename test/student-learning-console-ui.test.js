@@ -18,15 +18,28 @@ test('student learning console component exposes the approved v1 contract', () =
 test('student learning console renders daily path, autonomous study, status, and next-step copy', () => {
   const source = readFileSync(consolePath, 'utf8');
   assert.match(source, /今日学习路径|今日學習路徑|Today/);
-  assert.match(source, /自主学习|自主學習|Self-directed/);
+  assert.match(source, /自主学习推荐区|自主學習推薦區|Self-directed recommendations/);
   assert.match(source, /当前状态|目前状态|Current status/);
   assert.match(source, /下一步建议|下一步建議|Next step/);
   assert.match(source, /最高优先级|优先任务|priority/i);
   assert.match(source, /错题|wrong/i);
   assert.match(source, /薄弱|weak/i);
-  assert.match(source, /阶段测验|测评|assessment/i);
   assert.match(source, /学习报告|report/i);
-  assert.match(source, /知识|catalog/i);
+});
+
+test('student learning console turns autonomous study into four focused recommendation cards', () => {
+  const source = readFileSync(consolePath, 'utf8');
+  assert.match(source, /selfStudyRecommendations/);
+  assert.match(source, /title: '薄弱知识点'/);
+  assert.match(source, /title: '错题复盘'/);
+  assert.match(source, /title: '专项训练'/);
+  assert.match(source, /title: '报告查看'/);
+  assert.match(source, /targetSection: 'question'/);
+  assert.match(source, /targetSection: 'wrong-book'/);
+  assert.match(source, /targetSection: 'report'/);
+  assert.match(source, /className="self-study-recommendation-grid"/);
+  assert.doesNotMatch(source, /title: '阶段测验'/);
+  assert.doesNotMatch(source, /title: '知识图谱'/);
 });
 
 test('student learning console surfaces completed-task feedback and the next visible action', () => {

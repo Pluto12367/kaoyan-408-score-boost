@@ -92,13 +92,11 @@ export function StudentLearningConsole({
     },
   ];
 
-  const selfStudyActions: Array<{ title: string; description: string; section: RoleSection }> = [
-    { title: '按薄弱点练', description: weakPoint ?? '使用推荐题组开始专项练习', section: 'question' },
-    { title: '按科目练', description: '进入题库训练，自主选择练习方向', section: 'question' },
-    { title: '错题复盘', description: dueWrongCount != null ? `${dueWrongCount} 道待处理` : '查看错因和同考点练习', section: 'wrong-book' },
-    { title: '阶段测验', description: '用阶段测评检查最近学习效果', section: 'score-center' },
-    { title: '学习报告', description: '查看掌握度、趋势和下一步建议', section: 'report' },
-    { title: '知识图谱', description: '浏览 408 原子知识点目录', section: 'knowledge-catalog' },
+  const selfStudyRecommendations: Array<{ title: string; description: string; action: string; targetSection: RoleSection }> = [
+    { title: '薄弱知识点', description: weakPoint ? `当前优先巩固：${weakPoint}` : '暂无明确薄弱点时，先用推荐题组热身', action: '去练薄弱点', targetSection: 'question' },
+    { title: '错题复盘', description: dueWrongCount != null ? `${dueWrongCount} 道错题等待复盘` : '查看错因、重做和同考点变式', action: '去错题本', targetSection: 'wrong-book' },
+    { title: '专项训练', description: '进入题库训练，按当前目标继续刷题', action: '开始专项练习', targetSection: 'question' },
+    { title: '报告查看', description: '查看掌握度、趋势和下一步建议', action: '查看学习报告', targetSection: 'report' },
   ];
 
   return (
@@ -139,12 +137,13 @@ export function StudentLearningConsole({
           ))}
         </div>
         <div className="self-study-card">
-          <h4>自主学习</h4>
-          <div className="self-study-action-grid">
-            {selfStudyActions.map((item) => (
-              <button type="button" key={item.title} onClick={() => onNavigate(item.section)}>
+          <h4>自主学习推荐区</h4>
+          <div className="self-study-recommendation-grid">
+            {selfStudyRecommendations.map((item) => (
+              <button type="button" key={item.title} onClick={() => onNavigate(item.targetSection)}>
                 <strong>{item.title}</strong>
                 <span>{item.description}</span>
+                <em>{item.action}</em>
               </button>
             ))}
           </div>
