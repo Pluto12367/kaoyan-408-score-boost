@@ -257,6 +257,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   onStartLearningMode={props.onStartLearningMode}
                   onRestartPracticeSet={props.onRestartPracticeSet}
                   onRestartQuestionBank={props.onRestartQuestionBank}
+                  onNavigate={props.onNavigate}
                   onRetryPracticeSet={props.onRetryPracticeSet}
                 />
               </Suspense>

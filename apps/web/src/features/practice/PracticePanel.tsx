@@ -4,6 +4,7 @@ import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/Mo
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayTaskNextStep } from '../onboarding/todayLearningRoute';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 
 interface PracticePanelProps {
   question: Question;
@@ -32,6 +33,7 @@ interface PracticePanelProps {
   onStartLearningMode?: () => void;
   onRestartPracticeSet?: () => void;
   onRestartQuestionBank?: () => void;
+  onNavigate?: (section: RoleSection) => void;
   onRetryPracticeSet: () => void;
 }
 
@@ -40,6 +42,12 @@ function answerLetter(selectedAnswer: string | undefined, question: Question) {
   const index = selectedAnswer.charCodeAt(0) - 65;
   const option = question.options[index];
   return option ? `${selectedAnswer}. ${option}` : selectedAnswer;
+}
+
+function buildPracticeSetVerdict(result: PracticeSetResult) {
+  if (result.accuracyRate >= 85) return '本组训练基本达标，可以继续加速巩固。';
+  if (result.accuracyRate >= 70) return '本组训练接近达标，建议补齐错题后再练一组。';
+  return '本组训练还不稳，先复盘错题，再回到同知识点训练。';
 }
 
 export function PracticePanel({
@@ -62,6 +70,7 @@ export function PracticePanel({
   onStartLearningMode,
   onRestartPracticeSet,
   onRestartQuestionBank,
+  onNavigate,
   onRetryPracticeSet,
 }: PracticePanelProps) {
   const set = practiceSet.data;
@@ -176,9 +185,28 @@ export function PracticePanel({
           {practiceSetResult ? (
             <div className="practice-set-result">
               <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p>
-              {onRestartPracticeSet ? (
-                <button type="button" className="secondary-action" onClick={onRestartPracticeSet}>再来一组（同知识点）</button>
-              ) : null}
+              <div className="practice-set-action-panel" role="status" aria-label="专项训练完成后的下一步">
+                <article>
+                  <span>训练结论</span>
+                  <p>{buildPracticeSetVerdict(practiceSetResult)}</p>
+                </article>
+                <article>
+                  <span>本组薄弱点</span>
+                  <p>{set.focus}：本组还有 {practiceSetResult.totalQuestions - practiceSetResult.correctCount} 道需要复盘，先把错误转成下一轮练习。</p>
+                </article>
+                <article>
+                  <span>下一步行动</span>
+                  <p>按“复盘 → 再练 → 看报告”的顺序，把本组结果接回今日学习闭环。</p>
+                </article>
+                <div className="practice-set-action-grid">
+                  {onRestartPracticeSet ? (
+                    <button type="button" className="primary-action" aria-label="再来一组（同知识点）" onClick={onRestartPracticeSet}>再练一组</button>
+                  ) : null}
+                  <button type="button" className="secondary-action" onClick={() => onNavigate?.('wrong-book')} disabled={!onNavigate}>错题复盘</button>
+                  <button type="button" className="secondary-action" onClick={() => onNavigate?.('plan')} disabled={!onNavigate}>回到今日计划</button>
+                  <button type="button" className="secondary-action" onClick={() => onNavigate?.('report')} disabled={!onNavigate}>查看报告</button>
+                </div>
+              </div>
             </div>
           ) : null}
         </div>

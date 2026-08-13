@@ -4422,6 +4422,41 @@ textarea:focus-visible,
   margin-top: 10px;
 }
 
+.practice-set-action-panel {
+  background: #f8fafc;
+  border: 1px solid #dbeafe;
+  border-radius: var(--radius);
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.practice-set-action-panel article {
+  display: grid;
+  gap: 4px;
+}
+
+.practice-set-action-panel article span {
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.practice-set-action-panel article p {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.practice-set-action-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .task-card.focused {
   outline: 2px solid var(--accent, #2563eb);
   outline-offset: 2px;
