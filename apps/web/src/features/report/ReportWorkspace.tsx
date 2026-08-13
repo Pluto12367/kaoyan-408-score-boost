@@ -93,6 +93,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           stageReport={props.stageReport}
           masteryMap={props.masteryMap}
           onRetry={props.onRetryStageReport}
+          onNavigate={props.onNavigate}
         />
         <StudentProgressOverview
           trialProgress={props.trialProgress}

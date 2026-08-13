@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { estimatePredictedScore } from '@kaoyan408/shared';
 import type { StageReport, UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { MasteryMap } from '../../api';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -16,9 +17,10 @@ interface ReportSummaryPanelProps {
   stageReport: StageReport | null;
   masteryMap: MasteryMap | null;
   onRetry: () => void;
+  onNavigate: (section: RoleSection) => void;
 }
 
-export function ReportSummaryPanel({ student, report, stageReport, masteryMap, onRetry }: ReportSummaryPanelProps) {
+export function ReportSummaryPanel({ student, report, stageReport, masteryMap, onRetry, onNavigate }: ReportSummaryPanelProps) {
   const averageMastery = useMemo(() => {
     if (!masteryMap || masteryMap.subjects.length === 0) return null;
     const total = masteryMap.subjects.reduce((sum, subject) => sum + subject.averageMastery, 0);
@@ -84,6 +86,31 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
     return report.weakPoints.slice(0, 3).map((point) => ({ title: point.title, rate: `正确率 ${point.accuracyRate}%` }));
   }, [masteryMap, report.weakPoints]);
 
+  const reportActionPlan = [
+    {
+      title: '优先复盘错题',
+      description: (stageReport?.wrong.pendingCount ?? 0) > 0
+        ? `还有 ${stageReport?.wrong.pendingCount} 道错题待复盘，先把丢分点变成可修复动作。`
+        : '当前待复盘压力不高，保持错题复盘节奏即可。',
+      action: '去错题本',
+      onClick: () => onNavigate('wrong-book'),
+    },
+    {
+      title: '训练薄弱知识点',
+      description: report.weakPoints[0]
+        ? `优先训练：${report.weakPoints[0].title}，对应 ${report.weakPoints[0].chapter}。`
+        : '暂无明确薄弱点时，用推荐题组继续积累数据。',
+      action: '去练习',
+      onClick: () => onNavigate('question'),
+    },
+    {
+      title: '回到今日任务',
+      description: '把报告建议落到今天的任务里，完成后再回来观察掌握度变化。',
+      action: '回到首页',
+      onClick: () => onNavigate('dashboard'),
+    },
+  ];
+
   return (
     <section id="report-summary" className="panel report-summary-panel">
       <div className="panel-heading">
@@ -124,6 +151,22 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
             ? <ul className="report-conclusion-list">{longTermWeakPoints.map((item) => <li key={item.title}>{item.title}（{item.rate}）</li>)}</ul>
             : <p>暂无薄弱点数据，完成诊断与练习后自动生成</p>}
         </article>
+      </div>
+
+      <div className="report-action-plan">
+        <div className="report-action-plan-head">
+          <h4>下一步学习建议</h4>
+          <span>报告不是终点，下一步要落到练习和复盘。</span>
+        </div>
+        <div className="report-action-grid">
+          {reportActionPlan.map((item) => (
+            <article key={item.title} className="report-action-card">
+              <strong>{item.title}</strong>
+              <p>{item.description}</p>
+              <button type="button" className="secondary-action" onClick={item.onClick}>{item.action}</button>
+            </article>
+          ))}
+        </div>
       </div>
 
       <p className="report-summary-footer">

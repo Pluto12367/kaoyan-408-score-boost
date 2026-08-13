@@ -33,6 +33,23 @@ test('desktop fix: report mastery actions navigate to wrong-book / question', as
   assert.match(app, /onNavigate=\{setActiveSection\}/);
 });
 
+test('report summary turns conclusions into concrete learning actions', async () => {
+  const workspace = await source('apps/web/src/features/report/ReportWorkspace.tsx');
+  const summary = await source('apps/web/src/features/report/ReportSummaryPanel.tsx');
+  assert.match(workspace, /<ReportSummaryPanel[\s\S]*?onNavigate=\{props\.onNavigate\}/);
+  assert.match(summary, /onNavigate: \(section: RoleSection\) => void/);
+  assert.match(summary, /reportActionPlan/);
+  assert.match(summary, /下一步学习建议/);
+  assert.match(summary, /优先复盘错题/);
+  assert.match(summary, /训练薄弱知识点/);
+  assert.match(summary, /回到今日任务/);
+  assert.match(summary, /onNavigate\('wrong-book'\)/);
+  assert.match(summary, /onNavigate\('question'\)/);
+  assert.match(summary, /onNavigate\('dashboard'\)/);
+  assert.match(summary, /className="report-action-plan"/);
+  assert.match(summary, /className="report-action-card"/);
+});
+
 test('desktop fix: dashboard route and lower insight cards expose their destinations', async () => {
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
   assert.match(launchpad, /onOpenPlan=\{\(\) => onNavigate\('plan'\)\}/);
