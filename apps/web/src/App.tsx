@@ -14,6 +14,7 @@ import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts
 import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
 import { AccountPanel } from './features/auth/AccountPanel';
 import { StudentSections } from './features/student/StudentSections';
+import { StudentLoopGuide } from './features/student/StudentLoopGuide';
 import {
   advanceQuestion,
   advanceQuestionByCurrentId,
@@ -1255,6 +1256,10 @@ paperId: paper.id,
           <div className="demo-mode-banner" role="status">
             演示模式：数据保存在本地，未连接真实后端；生产环境不会出现此提示。
           </div>
+        ) : null}
+
+        {(sessionUser?.role ?? 'student') === 'student' ? (
+          <StudentLoopGuide activeSection={visibleSection} onNavigate={setActiveSection} />
         ) : null}
 
         <StudentLayout role={sessionUser?.role}>
