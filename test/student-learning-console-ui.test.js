@@ -56,6 +56,20 @@ test('student learning console explains what students gain after finishing today
   assert.match(source, /weakPoint \? `当前重点推进：\$\{weakPoint\}`/);
 });
 
+test('student learning console surfaces a recent learning feedback card', () => {
+  const source = readFileSync(consolePath, 'utf8');
+  assert.match(source, /recentLearningFeedback/);
+  assert.match(source, /最近一次学习反馈/);
+  assert.match(source, /最近动作/);
+  assert.match(source, /系统已记录/);
+  assert.match(source, /建议下一步/);
+  assert.match(source, /completedTitles\.length/);
+  assert.match(source, /task \?/);
+  assert.match(source, /dueWrongCount && dueWrongCount > 0/);
+  assert.match(source, /className="recent-learning-feedback-card"/);
+  assert.match(source, /className="recent-learning-feedback-grid"/);
+});
+
 test('student learning console surfaces completed-task feedback and the next visible action', () => {
   const source = readFileSync(consolePath, 'utf8');
   assert.match(source, /completedTaskTitles/);

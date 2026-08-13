@@ -5227,6 +5227,7 @@ button.student-insight-card:hover,
 .learning-console-status,
 .learning-console-grid,
 .learning-outcome-grid,
+.recent-learning-feedback-grid,
 .self-study-recommendation-grid {
   display: grid;
   gap: 12px;
@@ -5239,6 +5240,8 @@ button.student-insight-card:hover,
 .learning-console-status article,
 .learning-outcome-card,
 .learning-outcome-grid article,
+.recent-learning-feedback-card,
+.recent-learning-feedback-grid article,
 .learning-path-card,
 .self-study-card,
 .self-study-recommendation-grid button {
@@ -5250,6 +5253,7 @@ button.student-insight-card:hover,
 
 .learning-console-status span,
 .learning-outcome-grid span,
+.recent-learning-feedback-grid span,
 .learning-path-card span,
 .self-study-recommendation-grid span {
   display: block;
@@ -5290,6 +5294,7 @@ button.student-insight-card:hover,
 
 .learning-path-card h4,
 .learning-outcome-card h4,
+.recent-learning-feedback-card h4,
 .self-study-card h4 {
   margin: 0;
   color: var(--text-strong);
@@ -5307,6 +5312,26 @@ button.student-insight-card:hover,
 
 .learning-outcome-grid article {
   background: #ffffff;
+}
+
+.recent-learning-feedback-card {
+  display: grid;
+  gap: 12px;
+  background: #f8fafc;
+}
+
+.recent-learning-feedback-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.recent-learning-feedback-grid article {
+  background: #ffffff;
+}
+
+.recent-learning-feedback-grid strong {
+  color: var(--text-strong);
+  display: block;
+  margin-top: 4px;
 }
 
 .learning-path-card article {

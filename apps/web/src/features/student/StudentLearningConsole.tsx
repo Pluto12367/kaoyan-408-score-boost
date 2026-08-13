@@ -106,6 +106,30 @@ export function StudentLearningConsole({
     { title: '明确下一步', description: '查看报告后，可以确认下一轮学习方向' },
   ];
 
+  const recentLearningFeedback = completedTitles.length
+    ? {
+      action: `已完成：${completedTitles.at(-1)}`,
+      recorded: '系统已记录本次任务进度，并用于更新今日完成情况',
+      next: completedNextStep ? completedNextStep.message : '建议下一步：查看学习报告',
+    }
+    : task
+      ? {
+        action: `待完成：${task.title}`,
+        recorded: '系统会在你完成练习后同步掌握度和今日任务进度',
+        next: `建议下一步：先完成 ${task.subject} · ${task.chapter}`,
+      }
+      : dueWrongCount && dueWrongCount > 0
+        ? {
+          action: `错题复盘：还有 ${dueWrongCount} 道`,
+          recorded: '系统会记录复盘结果，并减少待处理错题数',
+          next: '建议下一步：去错题本完成复盘',
+        }
+        : {
+          action: '暂无新的学习反馈',
+          recorded: '开始练习或复盘后，系统会在这里显示记录结果',
+          next: '建议下一步：开始今日任务或专项训练',
+        };
+
   return (
     <section className="panel student-learning-console" aria-label="学生学习中控台">
       <div className="panel-heading">
@@ -142,6 +166,15 @@ export function StudentLearningConsole({
               <span>{item.description}</span>
             </article>
           ))}
+        </div>
+      </div>
+
+      <div className="recent-learning-feedback-card">
+        <h4>最近一次学习反馈</h4>
+        <div className="recent-learning-feedback-grid">
+          <article><span>最近动作</span><strong>{recentLearningFeedback.action}</strong></article>
+          <article><span>系统已记录</span><strong>{recentLearningFeedback.recorded}</strong></article>
+          <article><span>建议下一步</span><strong>{recentLearningFeedback.next}</strong></article>
         </div>
       </div>
 
