@@ -6,6 +6,7 @@ import { isMockAllowed } from '../../api/env';
 import { WrongQuestionDetailView } from '../../components/WrongQuestionDetail';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 
 interface MistakeWorkspaceProps {
   wrongQuestions: WrongQuestion[];
@@ -18,6 +19,7 @@ interface MistakeWorkspaceProps {
   onReview: (questionId: string) => void;
   onRedo: (questionId: string, knowledgePointTitle?: string) => void;
   onPracticeVariant?: (questionId: string, variantOfQuestionId: string) => void;
+  onNavigate: (section: RoleSection) => void;
   onRetrySummary: () => void;
 }
 
@@ -39,7 +41,12 @@ const FALLBACK_REASONS = [
   '审题错误', '推理过程错误', '时间不足', '蒙题',
 ];
 
-export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onRetrySummary }: MistakeWorkspaceProps) {
+function reviewReasonFor(item: WrongQuestion) {
+  const reason = item.latestMistakeReason ?? '待诊断';
+  return `为什么要复盘：这题暴露了「${reason}」，关联 ${item.knowledgePointTitle}，已错 ${item.wrongCount} 次。`;
+}
+
+export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onNavigate, onRetrySummary }: MistakeWorkspaceProps) {
   const summaryData = summary.data;
   const [subject, setSubject] = useState('');
   const [chapter, setChapter] = useState('');
@@ -116,6 +123,11 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
   const displayQuestions = listError && isMockAllowed()
     ? clientFiltered
     : (serverQuestions ?? wrongQuestions);
+  const wrongReviewLoop = [
+    { title: '先看错因', description: '先判断是知识点没学过、概念混淆、审题错误，还是时间问题。' },
+    { title: '再做修复', description: '针对错因补一个最小动作：看解析、写笔记、重做原题。' },
+    { title: '最后复测', description: '用同考点变式或下一次复习验证，避免只记住原题答案。' },
+  ];
 
   function resetFilters() {
     setSubject('');
@@ -154,6 +166,20 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
         <article><strong>闭环建议</strong><ul>{summaryData.nextReviewActions.map((action) => <li key={action}>{action}</li>)}</ul></article>
       </div>
       </> : <ModuleInlineUnavailable title="错题摘要" resource={summary} onRetry={onRetrySummary} />}
+      <div className="wrong-review-loop-card">
+        <div className="wrong-review-loop-head">
+          <strong>复盘闭环</strong>
+          <span>错题不是再看一遍，而是把错误变成下一次会做的动作。</span>
+        </div>
+        <div className="wrong-review-loop-steps">
+          {wrongReviewLoop.map((step) => (
+            <article key={step.title}>
+              <strong>{step.title}</strong>
+              <span>{step.description}</span>
+            </article>
+          ))}
+        </div>
+      </div>
       <div className="wrong-filter-bar" role="group" aria-label="错题筛选">
         <label>
           <span>科目</span>
@@ -240,11 +266,18 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
               </div>
               <p>{item.subject} / {item.chapter} / 错 {item.wrongCount} 次 / {item.latestMistakeReason ?? '待诊断'}{item.importance ? ` / 重要度 ${item.importance}` : ''}</p>
               <small>{item.reviewStatus === 'reviewed' ? '已复盘' : '待复盘'}{item.reviewedAt ? ` · ${item.reviewedAt.slice(0, 10)}` : ''}{item.masteryCriteria ? ` · 连续正确 ${item.masteryCriteria.consecutiveCorrect} 次 · 变式答对 ${item.masteryCriteria.variantCorrectCount}/3 次` : ''}</small>
+              <p className="wrong-row-reason">{reviewReasonFor(item)}</p>
               <span>{item.stem}</span>
             </div>
             <button type="button" onClick={() => onOpenDetail(item.questionId)}>详情与笔记</button>
             <button type="button" disabled={item.reviewStatus === 'reviewed'} onClick={() => onReview(item.questionId)}>{item.reviewStatus === 'reviewed' ? '已复盘' : '标记复盘'}</button>
             <button type="button" onClick={() => onRedo(item.questionId, item.knowledgePointTitle)}>重做</button>
+            <div className="wrong-row-next-actions" aria-label="复盘后下一步">
+              <span>复盘后下一步</span>
+              <button type="button" disabled={item.reviewStatus === 'reviewed'} onClick={() => onReview(item.questionId)}>继续复盘</button>
+              <button type="button" onClick={() => onOpenDetail(item.questionId)}>做同考点变式</button>
+              <button type="button" onClick={() => onNavigate('dashboard')}>回到首页</button>
+            </div>
           </article>
         ))}
       </div>

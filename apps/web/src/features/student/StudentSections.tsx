@@ -309,6 +309,7 @@ export function StudentSections(props: StudentSectionsProps) {
               onRetrySummary={props.onRetryWrongQuestionSummary}
               onRedo={props.onRedo}
               onPracticeVariant={props.onPracticeVariant}
+              onNavigate={props.onNavigate}
             />
           </Suspense>
         ) : (

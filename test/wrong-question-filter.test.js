@@ -90,6 +90,23 @@ test('stage 4: wrong-question workspace renders a filter bar and mastery badges'
   assert.match(workspace, /onPracticeVariant/);
 });
 
+test('wrong-question workspace explains the review loop and next actions', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+  assert.match(workspace, /wrongReviewLoop/);
+  assert.match(workspace, /复盘闭环/);
+  assert.match(workspace, /为什么要复盘/);
+  assert.match(workspace, /复盘后下一步/);
+  assert.match(workspace, /先看错因/);
+  assert.match(workspace, /再做修复/);
+  assert.match(workspace, /最后复测/);
+  assert.match(workspace, /继续复盘/);
+  assert.match(workspace, /做同考点变式/);
+  assert.match(workspace, /回到首页/);
+  assert.match(workspace, /className="wrong-review-loop-card"/);
+  assert.match(workspace, /className="wrong-row-reason"/);
+  assert.match(workspace, /className="wrong-row-next-actions"/);
+});
+
 test('stage 4: wrong-question detail offers the four-layer review path', async () => {
   const detail = await source('apps/web/src/components/WrongQuestionDetail.tsx');
   assert.match(detail, /reviewLayers/);
