@@ -2936,6 +2936,14 @@ textarea:focus-visible,
   line-height: 1.5;
 }
 
+.practice-question-progress {
+  color: #2563eb;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
 .practice-set {
   background: #f8fafc;
   border: 1px solid #e2e8f0;

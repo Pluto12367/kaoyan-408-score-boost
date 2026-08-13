@@ -389,6 +389,7 @@ export function App() {
     ? activePracticeQuestions.find((question) => question.id === redoQuestionId)
     : undefined)
     ?? activePracticeQuestions[Math.min(practiceIndex, Math.max(0, activePracticeQuestions.length - 1))];
+  const activePracticeQuestionPosition = activePracticeQuestionIds.indexOf(currentQuestion.id);
   const hasNextActivePracticeQuestion = hasNextQuestionByCurrentId(
     activePracticeQuestionIds,
     currentQuestion.id,
@@ -1296,6 +1297,10 @@ paperId: paper.id,
             practiceSubmitting={practiceSubmitting}
             practiceAnswerResult={practiceAnswerResult}
             currentQuestion={currentQuestion}
+            currentQuestionProgress={{
+              current: activePracticeQuestionPosition + 1,
+              total: activePracticeQuestions.length,
+            }}
             hasNextQuestion={hasNextActivePracticeQuestion}
             detailQuestionId={detailQuestionId}
             wrongStatus={wrongStatus}

@@ -22,6 +22,7 @@ interface PracticePanelProps {
   status: string;
   submitting?: boolean;
   answerResult?: PracticeAnswerResult | null;
+  questionProgress: { current: number; total: number };
   hasNextQuestion?: boolean;
   taskReachedTarget?: boolean;
   onSubmitAnswer: (answer: string) => void;
@@ -51,6 +52,7 @@ export function PracticePanel({
   status,
   submitting = false,
   answerResult = null,
+  questionProgress,
   hasNextQuestion = false,
   taskReachedTarget = false,
   onSubmitAnswer,
@@ -75,6 +77,7 @@ export function PracticePanel({
           <small>完成后会更新今日进度，并同步错题本和提分报告。</small>
         </div>
       ) : null}
+      <p className="practice-question-progress">第 {questionProgress.current} / {questionProgress.total} 题</p>
       <h3>{question.stem}</h3>
       <div className="options">
         {question.options.map((option, index) => (

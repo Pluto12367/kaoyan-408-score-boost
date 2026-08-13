@@ -85,6 +85,7 @@ export interface StudentSectionsProps {
   practiceSubmitting: boolean;
   practiceAnswerResult: PracticeAnswerResult | null;
   currentQuestion: Question;
+  currentQuestionProgress: { current: number; total: number };
   hasNextQuestion: boolean;
   detailQuestionId: string | null;
   wrongStatus: string;
@@ -246,6 +247,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   status={props.practiceStatus}
                   submitting={props.practiceSubmitting}
                   answerResult={props.practiceAnswerResult}
+                  questionProgress={props.currentQuestionProgress}
                   hasNextQuestion={props.hasNextQuestion}
                   taskReachedTarget={launchedQuestionTaskReachedTarget}
                   onSubmitAnswer={props.onSubmitAnswer}

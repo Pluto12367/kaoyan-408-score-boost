@@ -73,6 +73,20 @@ test('App advances today-task practice by current question identity instead of s
   );
 });
 
+test('App passes visible question progress into the practice panel', async () => {
+  const app = await source('apps/web/src/App.tsx');
+  const studentSections = await source('apps/web/src/features/student/StudentSections.tsx');
+  const panel = await source('apps/web/src/features/practice/PracticePanel.tsx');
+
+  assert.match(app, /const activePracticeQuestionPosition = activePracticeQuestionIds\.indexOf\(currentQuestion\.id\);/);
+  assert.match(app, /currentQuestionProgress=\{\{\s*current: activePracticeQuestionPosition \+ 1,\s*total: activePracticeQuestions\.length,\s*\}\}/);
+  assert.match(studentSections, /currentQuestionProgress: \{ current: number; total: number \};/);
+  assert.match(studentSections, /questionProgress=\{props\.currentQuestionProgress\}/);
+  assert.match(panel, /questionProgress: \{ current: number; total: number \};/);
+  assert.match(panel, /第 \{questionProgress\.current\} \/ \{questionProgress\.total\} 题/);
+  assert.match(panel, /className="practice-question-progress"/);
+});
+
 test('P2-08: restartAttempt resets the attempt and returns to the first question', async () => {
   const { restartAttempt } = await loadAttemptState();
   const next = restartAttempt(makeState());
