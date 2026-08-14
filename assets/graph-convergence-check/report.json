@@ -1,0 +1,130 @@
+{
+  "appUrl": "http://43.128.30.191/",
+  "checks": [
+    {
+      "name": "login-form-submit",
+      "ok": true,
+      "detail": "login form found and submitted"
+    },
+    {
+      "name": "dashboard-loaded",
+      "ok": true,
+      "detail": "dashboard overview rendered after login"
+    },
+    {
+      "name": "catalog-mastery-badges",
+      "ok": true,
+      "detail": "{\"mechanism\":true,\"distribution\":{\"untouched\":16},\"practiced\":0}"
+    },
+    {
+      "name": "catalog-drawer-opens",
+      "ok": true,
+      "detail": "clicked a point row"
+    },
+    {
+      "name": "drawer-mastery-section",
+      "ok": true,
+      "detail": "[\"考频证据\",\"我的掌握度\",\"考点题库\",\"真题命中\",\"前置知识\",\"相关知识\"]"
+    },
+    {
+      "name": "drawer-question-bank",
+      "ok": true,
+      "detail": "count=null"
+    },
+    {
+      "name": "drawer-exam-hits",
+      "ok": true,
+      "detail": "items=null"
+    },
+    {
+      "name": "drawer-go-practice",
+      "ok": true,
+      "detail": "去练习 button present"
+    },
+    {
+      "name": "mapped-node-drawer-opens",
+      "ok": true,
+      "detail": "信号量 row clicked"
+    },
+    {
+      "name": "mapped-drawer-question-bank-data",
+      "ok": true,
+      "detail": "\"考点题库（20 题）\\n临界区是指?\\nSINGLE_CHOICE · BASIC · 2026 年 · 自编基础题\\n练习本题\\n信号量 wait 操作的核心语义是?\\nSINGLE_CHOICE · BASIC · 2026 年 · 自编基础题\\n练习本题\\n互斥信号量初值通常设为?\\nSINGLE_CHOICE · BASIC · 2026 年 · 自编基础题\\n练习本题\\n死锁产生的必要条件不包括?\\nSINGLE_CHOICE · BASIC · 2026 年 · 自编基础题\\n练习本题\\n银行家算法用于?\\nSINGLE_CHOI\""
+    },
+    {
+      "name": "mapped-drawer-practice-this",
+      "ok": true,
+      "detail": "练习本题 buttons rendered for linked questions"
+    },
+    {
+      "name": "mapped-drawer-exam-hits-data",
+      "ok": true,
+      "detail": "\"真题命中\\n2026 年 26 题 · 选择题 · 2 分\\n由信号量当前负值推断资源占用和阻塞进程数\\n查看真题来源\\n2025 年 45 题 · 综合题 · 7 分\\n植树流水作业中使用尽可能少的信号量设计同步与互斥PV操作\\n查看真题来源\\n2024 年 46 题 · 综合题 · 8 分\\n单缓冲区读写/修改任务中设计最少信号量完成同步与互斥\\n查看真题来源\\n2023 年 27 题 · 选择题 · 2 分\\n判断线程由运行态转为就绪态的可能事件\\n查看真题来源\\n2022 年 28 题 · 选择题 · 2 分\\n判断读文件、时间片用完\""
+    },
+    {
+      "name": "practiced-node-badge",
+      "ok": true,
+      "detail": "{\"status\":\"weak\",\"text\":\"Cache基本原理薄弱重要度 ★★★★★·难度 ★★★★★近3年：2近5年：2长期考频证据：4趋势：稳定\"}"
+    },
+    {
+      "name": "practiced-node-mastery-data",
+      "ok": true,
+      "detail": "\"我的掌握度\\n掌握度\\n33%\\n练习次数\\n94\\n正确 / 错误\\n54 / 40\\n状态\\n薄弱\\n去练习\""
+    },
+    {
+      "name": "practice-launched-from-catalog",
+      "ok": true,
+      "detail": "练习本题 clicked"
+    },
+    {
+      "name": "practice-launch-status",
+      "ok": true,
+      "detail": "{\"hasQuestion\":true,\"statusSnippet\":\"正在练习：Cache基本原理。请选择答案。\"}"
+    },
+    {
+      "name": "question-panel-opens",
+      "ok": true,
+      "detail": "{\"hasPanel\":true,\"hasOptions\":true}"
+    },
+    {
+      "name": "trend-panel-present",
+      "ok": true,
+      "detail": "报告图谱化\n\n掌握度趋势\n近 14 天 · 每日快照\n整体掌握度\n08-06\n08-07\n08-08\n08-10\n08-13\n08-14\n数据结构\n平均掌握度 80%\n08-06\n08-07\n08-08\n08-10\n08-13\n08-14\n计算机组成原理\n平均掌握度 33%\n08-06\n08-07\n08-08\n08-10\n08-13\n08-14\nCache基"
+    },
+    {
+      "name": "trend-data-present",
+      "ok": true,
+      "detail": "{\"bars\":30,\"weak\":1,\"empty\":false}"
+    },
+    {
+      "name": "trend-deltas",
+      "ok": true,
+      "detail": "improving=true, declining=true"
+    },
+    {
+      "name": "api-mastery-items",
+      "ok": true,
+      "detail": "items=3"
+    },
+    {
+      "name": "api-trend-overall",
+      "ok": true,
+      "detail": "points=6"
+    },
+    {
+      "name": "api-related-questions",
+      "ok": true,
+      "detail": "questions=20"
+    },
+    {
+      "name": "api-exam-questions",
+      "ok": true,
+      "detail": "questions=6"
+    },
+    {
+      "name": "api-mastery-map",
+      "ok": true,
+      "detail": "weakest=3"
+    }
+  ]
+}
