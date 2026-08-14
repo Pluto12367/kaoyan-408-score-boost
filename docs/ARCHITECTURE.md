@@ -57,7 +57,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 | FeedbackRepository | `FeedbackSubmission` 表 |
 | TeacherStudentAuthorizationRepository | `TeacherStudentAuthorization` 表 |
 | AdminUserRepository | 只读聚合 `User` + `OperationLog` + `PracticeRecord` |
-| KnowledgePointRepository | 已实现 list/save，但**未接入 StudyService**（P0-1） |
+| KnowledgePointRepository | 已接入 StudyService（P0-1 完成）：启动时从 DB 加载知识点目录，替换内置兜底数组；`POST /knowledge-points` 持久化 |
 
 ## 4. 数据库实体关系
 
@@ -111,7 +111,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 2. 判题：`buildPracticeRecord`（`study.service.ts`）用 `packages/shared/src/learning.ts` 的 `classifyMistake` 判定正误并归类错因（概念不清/知识点混淆/审题问题/计算失误/速度偏慢）。
 3. 落库：`PracticeRecordRepository.save`（DB 存在时写 `PracticeRecord` 表），同时 push 进内存 `this.records`。
 4. 错题联动：`ensureReviewSchedule` 对错题创建次日 `ReviewSchedule`；`listWrongQuestions` 由 `this.records` 实时推导错题本。
-5. 掌握度/薄弱：`getMasteryMap` 与 `computeWeaknessReport` 基于内存 records + **内置 4 个知识点** 实时计算（P0-1：导入知识点未参与）。
+5. 掌握度/薄弱：`getMasteryMap` 与 `computeWeaknessReport` 基于内存 records + 知识点目录实时计算；DB 存在时目录来自 `KnowledgePoint` 表（P0-1 完成，导入的 16 个粗粒度点参与闭环），无库时回退内置 4 个兜底点。
 6. 推荐与计划：`getRecommendedPracticeSet`、`getRecommendedReviewResources`、`generatePlan` 消费薄弱报告；`completeStudyTask`/`generatePostExamReviewTasks` 调整 `StudyTask`。
 7. 报告：`getExamReport` 由会话快照 + records 计算；`getAssessmentHistory` 读内存/`AssessmentHistoryItem` 表（P1-1 已修复会话提交写历史；P2-1 已转正式表）。
 
@@ -144,7 +144,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 
 ## 10. 已知架构风险（详见 docs/ROADMAP.md）
 
-- 知识点目录内存化且不读取 DB（P0-1）。
+- 经典闭环（`KnowledgePoint`，粗粒度 16 点）与“今日提分”引擎（`KnowledgeNode` 全量目录 + `UserKnowledgeMastery`）两套掌握度口径并存（P2-2），目录接入经典闭环的方案见 `docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md`。
 - 评估历史双路径不一致（P1-1 已修复）；评估历史/试卷/系统配置已转正式表（P2-1 完成）。
 - 内存缓存 + 多实例一致性（当前部署为单实例，多实例方案待确认）。
 - StudyService / App.tsx 巨型单文件（P2-3）。

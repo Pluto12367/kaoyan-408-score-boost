@@ -24,6 +24,16 @@
 - 风险：内存与 DB 一致性；既有 `PracticeRecord` 对缺失知识点的兜底显示。
 - 当前状态：已完成（2026-08-05，`KnowledgePointRepository` 接入 StudyService，导入知识点参与掌握度/薄弱/推荐/计划；`POST /knowledge-points` 持久化；空库/已导入库两种启动顺序均已覆盖）。
 
+### P0-2 知识目录全量接入经典学习闭环
+
+- 闭环环节：掌握度 / 薄弱 / 推荐 / 计划 / 错题命名
+- 问题：经典闭环以 16 个粗粒度 `KnowledgePoint` 计算，而 408 知识目录（`KnowledgeNode`，1149 原子点）只被知识图谱与“今日提分”引擎使用；两套掌握度口径并存，图谱与闭环数据割裂。
+- 目标：让经典闭环以全量目录为准（或与今日提分引擎统一口径）。
+- 涉及模块：`apps/api/src/study/study.service.ts`、`knowledge-point.repository.ts`、`KnowledgePointNodeMap`/`KnowledgeNode` 表、`packages/shared`（命名解析纯函数）、前端掌握度地图/报告。
+- 验收标准：见 `docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md` 第 5 节。
+- 风险：16 粗粒度点 → 1149 原子点映射需教研确认；历史 `PracticeRecord` 归因兜底；统一口径（方案 C）影响面大。
+- 当前状态：待确认（方案 A/B/C 见设计文档，推荐先做方案 B；实现计划见 `docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md`）。
+
 ## P1
 
 ### P1-1 会话模式考试写入评估历史

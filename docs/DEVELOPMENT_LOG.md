@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，2026-08-14“学习路径下一步入口统一强化”已提交并推送（`2de4abe`，与 origin 同步），线上部署站点已通过浏览器实测（五个学习面卡片全部出现、按钮跳转正确、移动端竖排正常）；浏览器实测发现的 aria-label 重复缺陷已修复（未提交）；新增 `verify:deployed` 部署冒烟脚本（未提交）；正在实施 P0 知识点目录接入学习引擎。
 - 分支/提交：`codex/deployment-ready`，第三轮（2026-08-07）待确认项实现**尚未提交**：前端细粒度埋点、AI 变式题入库、P2-3 安全拆分（导航/日期/摘要抽取）已完成；`npm test` 321 项 320 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
 - 分支/提交：`codex/deployment-ready`，第二轮 UX/工程收尾改动（2026-08-06）**尚未提交**；P2-01~P2-08 全部关闭，阶段2（动态计划 + 历史成绩导入）、P2-4 多知识点、P2-5 演示标识、P3-1 教师端分页、错题筛选服务端化、行为埋点已完成；全量 `npm test` 311 项 310 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
 - 分支/提交：`codex/deployment-ready`，本轮（2026-08-06）UX 收尾改动**尚未提交**；工作区含 P1-01/P1-02/P1-03(seed)/P1-04/P1-05/P1-06/P1-07/P1-08/P2-02/P2-04/P2-07 修复与 8 个新测试文件；`npm test` 285/286 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
@@ -46,6 +47,34 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-14 学习路径“下一步入口”统一强化 + 部署验证 + 冒烟脚本
+
+- 日期：2026-08-14
+- 任务：在首页学习中控台、今日任务、题目训练反馈、错题本、学习报告五处统一接入“下一步”卡片；线上实测；固化部署冒烟脚本。
+- 修改原因：学生完成一个动作后不知道下一步去哪；设计文档 `docs/superpowers/specs/2026-08-14-next-learning-step-design.md` 与计划 `docs/superpowers/plans/2026-08-14-next-learning-step.md` 定义统一前端卡片与可解释优先级（未完成任务 > 待复盘错题 > 薄弱点 > 报告/继续训练）。
+- 修改文件：
+  - 新增：`apps/web/src/features/student/NextLearningStepCard.tsx`（卡片组件 + 5 个纯函数 resolver）、`test/next-learning-step-ui.test.js`（17 项，含 resolver 行为测试）、`scripts/verify-deployed.mjs`（部署冒烟脚本，CDP 无头 Chrome）、`test/deployed-smoke-script.test.js`
+  - 接线：`StudentLearningConsole.tsx`、`TodayPlan.tsx`（新增必填 `onNavigate`）、`PracticePanel.tsx`、`MistakeWorkspace.tsx`、`ReportSummaryPanel.tsx`、`App.tsx`、`styles.css`、`package.json`（`verify:deployed`）
+- 数据库变化：无
+- API 变化：无（纯前端 + 脚本；按钮只跳转既有 section）
+- 测试结果：`node test/next-learning-step-ui.test.js` 17/17；聚焦回归 37/37；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm run build:web` 通过；`npm test` 502 项 501 通过 / 1 跳过（PDF 渲染依赖）/ 0 失败；`npm run verify:deployed` 对线上 `43.128.30.191` 13 项通过 / 1 项失败（`dashboard-card-aria`，因线上仍是旧构建，修复部署后转绿）
+- 截图或验证证据：线上实测截图 `C:\Users\Lenovo\.codex\visualizations\2026\08\14\019ffe2e-cc7a-7f31-b249-0667c51084dc\next-step-browser-test\` 与 `deployed-check\`；提交 `2de4abe`
+- 遗留问题：aria-label 重复修复与 `verify:deployed` 脚本尚未提交/部署；线上确认旧构建需重新部署后 `dashboard-card-aria` 转绿
+- 下一步：提交本轮改动（需用户批准）并部署；随后实施 P0 知识点目录接入学习引擎
+
+### 2026-08-14 文档事实核对 + P0-2 设计/计划
+
+- 日期：2026-08-14
+- 任务：核对 P0-1 实际完成状态并纠偏过时文档；新增 P0-2（知识目录全量接入经典闭环）设计文档与实现计划。
+- 修改原因：`docs/PROJECT_CONTEXT.md`/`docs/ARCHITECTURE.md` 仍称“知识点目录未接入学习引擎/只覆盖内置 4 点”，与代码、ROADMAP、DEVELOPMENT_LOG（P0-1 于 2026-08-05 完成）矛盾；按“文档与代码冲突以代码为准”约定纠偏。
+- 修改文件：`docs/PROJECT_CONTEXT.md`、`docs/ARCHITECTURE.md`、`docs/ROADMAP.md`（新增 P0-2）、`docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md`（新增）、`docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md`（新增）、`CODEX_HANDOFF_NEXT.md`
+- 数据库变化：无
+- API 变化：无
+- 测试结果：未运行（纯文档改动）
+- 截图或验证证据：代码核对——`StudyService.onModuleInit` 用 `knowledgePointRepository.list()` 替换内置数组；`getMasteryMap` 基于 `this.knowledgePoints` 计算；`seed-408-v2.mjs` 种入 1149 个 `KnowledgeNode`；`KnowledgePointNodeMap`/`QuestionKnowledgeNodeTag` 表已存在
+- 遗留问题：P0-2 方案 A/B/C 待用户确认（推荐 B）；P2-2 两套掌握度口径在计算层面仍未合并
+- 下一步：用户确认 P0-2 方案后按计划 TDD 实施；同时申请批准提交本轮全部改动
 
 ### 2026-08-07 待确认项实现：前端埋点、AI 变式题入库、P2-3 安全拆分
 
