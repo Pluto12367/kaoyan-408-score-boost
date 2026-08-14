@@ -749,6 +749,14 @@ export function App() {
     }
   }
 
+  function handlePracticeQuestionFromCatalog(questionId: string, title: string) {
+    invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+    applyPracticeAttemptState(beginRedo(readPracticeAttemptState(), questionId));
+    setDetailQuestionId(null);
+    setPracticeStatus(`正在练习：${title}。请选择答案。`);
+    setActiveSection('question');
+  }
+
   async function handleGenerateAssessment() {
     setAssessmentStatus('正在生成阶段测评...');
     void trackEvent('assessment.generate');
@@ -1495,7 +1503,10 @@ paperId: paper.id,
         ) : null}
         {visibleSection === 'knowledge-catalog' ? (
           <Suspense fallback={sectionFallback('408知识图谱')}>
-            <KnowledgeCatalog onNavigate={setActiveSection} />
+            <KnowledgeCatalog
+              onNavigate={setActiveSection}
+              onPracticeQuestion={handlePracticeQuestionFromCatalog}
+            />
           </Suspense>
         ) : null}
         </StudentLayout>

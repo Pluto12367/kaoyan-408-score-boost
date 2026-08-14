@@ -23,11 +23,13 @@ import {
   createScoreCenterPlan,
   loadActiveKnowledgeNodes,
   loadEvidenceNodes,
+  loadExamQuestionsForNode,
   loadKnowledgeDetail,
   loadKnowledgeRelations,
   loadLatestFrequencySnapshots,
   loadMasteries,
   loadMasteryRow,
+  loadRelatedQuestionsForNode,
   loadTodayScoreCenterPlan,
   neutralMastery,
   resolveKnowledgeNodesForQuestion,
@@ -165,7 +167,11 @@ export class ScoreCenterService {
   async getKnowledgeDetail(userId: string, knowledgePointId: string) {
     const node = await loadKnowledgeDetail(this.prisma, knowledgePointId);
     if (!node) return null;
-    const mastery = await loadMasteryRow(this.prisma, userId, knowledgePointId);
+    const [mastery, relatedQuestions, examQuestions] = await Promise.all([
+      loadMasteryRow(this.prisma, userId, knowledgePointId),
+      loadRelatedQuestionsForNode(this.prisma, knowledgePointId),
+      loadExamQuestionsForNode(this.prisma, knowledgePointId),
+    ]);
     return {
       knowledgePoint: {
         id: node.id,
@@ -201,6 +207,26 @@ export class ScoreCenterService {
           .filter((relation) => relation.type === 'PREREQUISITE')
           .map((relation) => ({ knowledgeNodeId: relation.fromId })),
       },
+      relatedQuestions: relatedQuestions.map((question) => ({
+        id: question.id,
+        stem: question.stem,
+        type: question.type,
+        difficulty: question.difficulty,
+        source: question.source,
+        year: question.year ?? null,
+        expectedTimeSec: question.expectedTimeSec,
+      })),
+      examQuestions: examQuestions.map((tag) => ({
+        id: tag.question.id,
+        exam: tag.question.paper.exam,
+        year: tag.question.paper.year,
+        questionNo: tag.question.questionNo,
+        subject: tag.question.subject,
+        questionType: tag.question.questionType,
+        score: tag.question.score ?? null,
+        summary: tag.question.summary ?? null,
+        sourceUrl: tag.question.sourceRef ?? tag.question.paper.source ?? null,
+      })),
       userState: mastery
         ? {
             mastery: mastery.mastery,

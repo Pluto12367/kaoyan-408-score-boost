@@ -65,3 +65,12 @@
 - [x] 行为级断言：`scripts/integration-postgres.mjs` 灰度重启后断言 `/mastery-map` 含弱节点（weak/review 状态）、`/dashboard/overview` 薄弱点由节点掌握度推导、`/practice-sets/recommended` 按节点归因返回题目。
 - [x] 验证：`npm test` 544 项 543 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。
 - 说明：计划语义迁移（Onboarding 七天计划/StudyTask 统一 `knowledgeNodeId`）属 Phase 2b，按设计单独评审，不在本阶段。
+
+## Task 7（阶段 3）：题库图谱化 + 真题接入
+
+- [x] RED：`test/question-node-linker.test.js`（linker 纯函数行为）、`test/knowledge-detail-graph-links.test.js`（知识详情/抽屉/App 接线契约）。
+- [x] GREEN：`scripts/link-question-bank-to-nodes.mjs`——按确定性链（直连标签优先 → `QuestionKnowledgePoint → KnowledgePointNodeMap PRIMARY`）为全部 live 题目物化 `QuestionKnowledgeNodeTag`（`source='bridge:knowledge-point-map'`），`--dry-run` 审计覆盖率，<70% 阻断写入（Bridge Rollout Gate），幂等。
+- [x] GREEN：`GET /knowledge/:id` 扩展 `relatedQuestions`（该节点关联题库题，最多 20 条）与 `examQuestions`（真题命中，含年份/题号/题型/分值/摘要/来源链接，最多 10 条），响应向后兼容。
+- [x] GREEN：图谱详情抽屉新增“考点题库（N 题）”列表（每题可“练习本题”）与“真题命中”列表（真题来源新窗口打开）；App 经 `onPracticeQuestion` 复用既有重做流程启动练习。
+- [x] 行为级断言：`integration-postgres`（知识详情返回关联题 + 真题命中）、`integration-content-import`（seed 原子目录+映射后 linker 覆盖率=1、320 条标签、幂等、详情含关联题与真题）。
+- [x] 验证：`npm test` 551 项 550 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。

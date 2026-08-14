@@ -57,6 +57,26 @@ export interface KnowledgeDetail {
     related: Array<{ knowledgeNodeId: string }>;
     prerequisiteOf: Array<{ knowledgeNodeId: string }>;
   };
+  relatedQuestions: Array<{
+    id: string;
+    stem: string;
+    type: string;
+    difficulty: string;
+    source: string;
+    year: number | null;
+    expectedTimeSec: number;
+  }>;
+  examQuestions: Array<{
+    id: string;
+    exam: string;
+    year: number;
+    questionNo: number;
+    subject: string;
+    questionType: string;
+    score: number | null;
+    summary: string | null;
+    sourceUrl: string | null;
+  }>;
   userState: {
     mastery: number;
     accuracy: number;

@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，阶段 0-2 已提交推送（`a900a93`、`4197b0a`）；阶段 3（题库图谱化 + 真题接入）已完成并**尚未提交**；`npm test` 551 项 550 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 与 `test:integration:content-import`（含 linker 覆盖率=1 与幂等）通过。下一步：提交推送 → 部署后执行 `link-question-bank-to-nodes.mjs`（生产题库全部物化节点标签）→ 浏览器验证图谱抽屉“考点题库/真题命中”与“练习本题”；随后进入阶段 4（报告图谱化：掌握度趋势）。
 - 分支/提交：`codex/deployment-ready`，阶段 0、1 已提交推送（`a900a93`）；阶段 2（图谱掌握度驱动掌握度地图/薄弱报告/推荐，`USE_KNODE_MASTERY` 只读开关）已完成并**尚未提交**；`npm test` 544 项 543 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含灰度重启断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 服务器部署后以 `USE_KNODE_MASTERY=true` 灰度开启 → 浏览器验证；随后进入阶段 3（题库图谱化 + 真题接入）。
 - 分支/提交：`codex/deployment-ready`，阶段 0（题库清重 + 掌握度回填）与阶段 1（知识图谱掌握度着色）已完成并**尚未提交**；`npm test` 537 项 536 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含 `GET /knowledge/mastery` 断言）与 `test:integration:content-import` 通过。下一步：申请提交/推送 → 服务器部署 → 执行 `question-bank-dedupe.mjs` 与 `backfill-user-mastery.mjs` → 浏览器验证图谱着色 → 进入阶段 2（图谱驱动推荐/计划 + 方案 C 只读切换）。
 - 分支/提交：`codex/deployment-ready`，2026-08-14“学习路径下一步入口统一强化”已提交并推送（`2de4abe`，与 origin 同步），线上部署站点已通过浏览器实测（五个学习面卡片全部出现、按钮跳转正确、移动端竖排正常）；浏览器实测发现的 aria-label 重复缺陷已修复（未提交）；新增 `verify:deployed` 部署冒烟脚本（未提交）；正在实施 P0 知识点目录接入学习引擎。
@@ -49,6 +50,24 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-14 阶段 3：题库图谱化 + 真题接入
+
+- 日期：2026-08-14
+- 任务：把全部 live 题库物化为题目级图谱标签（`QuestionKnowledgeNodeTag`），并让知识图谱详情展示“考点题库（关联题可一键练习）”与“真题命中（年份/题号/题型/分值/摘要/来源链接）”。
+- 修改原因：题库题此前仅经 `QuestionKnowledgePoint → KnowledgePointNodeMap` 运行时兜底归因，题目级图谱链接为空；真题数据（2022-2026，235 题）只沉淀为频率证据，未在图谱中可见，学生无法从“知识点 → 真题/题库题 → 练习”闭环。
+- 修改文件：
+  - 新增 `scripts/link-question-bank-to-nodes.mjs`（确定性链物化题目级节点标签，`--dry-run` 审计 + <70% 阻断 + 幂等，`source='bridge:knowledge-point-map'`）
+  - `apps/api/src/score-center/repository.ts`（新增 `loadRelatedQuestionsForNode`/`loadExamQuestionsForNode`）、`service.ts`（`getKnowledgeDetail` 增加 `relatedQuestions`/`examQuestions`，向后兼容）
+  - `apps/web/src/api/endpoints/score-center.ts`（类型扩展）、`KnowledgeCatalog.tsx`（选中节点拉取详情）、`KnowledgePointDetailDrawer.tsx`（“考点题库”+“练习本题”+“真题命中”区块）、`App.tsx`（`onPracticeQuestion` 复用既有重做流程）
+  - 新增 `test/question-node-linker.test.js`（4 项）、`test/knowledge-detail-graph-links.test.js`（3 项契约）
+  - `scripts/integration-postgres.mjs`（知识详情返回关联题与真题命中）、`scripts/integration-content-import.mjs`（seed 目录+映射 → linker 覆盖率=1、320 条标签、幂等、详情断言）
+- 数据库变化：无迁移；生产执行 `node scripts/link-question-bank-to-nodes.mjs` 后 `QuestionKnowledgeNodeTag` 增加题库标签行（幂等，可重跑；回滚=删除 `source='bridge:knowledge-point-map'` 行）
+- API 变化：`GET /knowledge/:id` 新增 `relatedQuestions`/`examQuestions` 字段（仅新增，向后兼容）
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 551 项 550 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `ok:true`（含阶段 3 断言）；`npm run test:integration:content-import` `ok:true (questions=320)`（含 linker 覆盖率 1、320 标签、幂等）
+- 截图或验证证据：集成日志显示 linker `coverage: 1`、`created 320 tags`；`GET /knowledge/OS-C02-S04-P20` 返回关联题库题与真题命中
+- 遗留问题：真题仅含摘要与题号/分值（无完整题干，版权约束），故“真题接入”为证据可视化 + 来源链接，不提供真题直接作答；关联题列表取前 20 条，未分页
+- 下一步：申请提交/推送并部署；生产执行 linker；浏览器验证抽屉两区块与“练习本题”跳转；随后进入阶段 4（报告图谱化：掌握度趋势）
 
 ### 2026-08-14 阶段 2：图谱掌握度驱动掌握度地图/薄弱报告/推荐（方案 C 只读切换）
 

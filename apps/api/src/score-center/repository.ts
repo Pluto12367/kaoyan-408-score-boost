@@ -154,6 +154,59 @@ export async function loadKnowledgeDetail(db: DbClient, knowledgePointId: string
   });
 }
 
+export async function loadRelatedQuestionsForNode(db: DbClient, knowledgeNodeId: string) {
+  const direct = await db.questionKnowledgeNodeTag.findMany({
+    where: { knowledgeNodeId },
+    select: { questionId: true },
+  });
+  let questionIds = direct.map((tag) => tag.questionId);
+  if (questionIds.length === 0) {
+    const fallback = await db.questionKnowledgePoint.findMany({
+      where: { knowledgePoint: { nodeMaps: { some: { knowledgeNodeId } } } },
+      select: { questionId: true },
+    });
+    questionIds = [...new Set(fallback.map((link) => link.questionId))];
+  }
+  if (questionIds.length === 0) return [];
+  return db.question.findMany({
+    where: { id: { in: questionIds }, isCurrent: true },
+    select: {
+      id: true,
+      stem: true,
+      type: true,
+      difficulty: true,
+      source: true,
+      year: true,
+      expectedTimeSec: true,
+    },
+    orderBy: { createdAt: 'asc' },
+    take: 20,
+  });
+}
+
+export async function loadExamQuestionsForNode(db: DbClient, knowledgeNodeId: string) {
+  return db.examQuestionKnowledgeTag.findMany({
+    where: { knowledgeNodeId },
+    select: {
+      role: true,
+      question: {
+        select: {
+          id: true,
+          questionNo: true,
+          subject: true,
+          questionType: true,
+          score: true,
+          summary: true,
+          sourceRef: true,
+          paper: { select: { exam: true, year: true, source: true } },
+        },
+      },
+    },
+    orderBy: { question: { paper: { year: 'desc' } } },
+    take: 10,
+  });
+}
+
 export async function loadEvidenceNodes(db: DbClient) {
   return db.knowledgeNode.findMany({
     where: { isActive: true, nodeType: 'atomicPoint' },

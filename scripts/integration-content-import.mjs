@@ -65,6 +65,46 @@ async function main() {
   );
   await bankClient.$disconnect();
 
+  // Phase 3: seed the atomic catalog + bridge maps, then materialize
+  // question->node tags so the whole bank is graph-linked and resolvable.
+  const seed408 = spawnSync(process.execPath, ['scripts/seed-408-v2.mjs'], {
+    cwd: root,
+    env: { ...process.env, DATABASE_URL: contentDatabaseUrl },
+    encoding: 'utf8',
+  });
+  assert(seed408.status === 0, `seed-408-v2 failed: ${(seed408.stdout ?? '') + (seed408.stderr ?? '')}`);
+  const seedMaps = spawnSync(process.execPath, ['scripts/seed-knowledge-point-map.mjs'], {
+    cwd: root,
+    env: { ...process.env, DATABASE_URL: contentDatabaseUrl },
+    encoding: 'utf8',
+  });
+  assert(seedMaps.status === 0, `seed-knowledge-point-map failed: ${(seedMaps.stdout ?? '') + (seedMaps.stderr ?? '')}`);
+  const runLinker = (args) => spawnSync(process.execPath, ['scripts/link-question-bank-to-nodes.mjs', ...args], {
+    cwd: root,
+    env: { ...process.env, DATABASE_URL: contentDatabaseUrl },
+    encoding: 'utf8',
+  });
+  const dryRunFirst = JSON.parse(runLinker(['--dry-run']).stdout);
+  assert(
+    dryRunFirst.coverage === 1,
+    `all starter questions should resolve to atomic nodes, got coverage ${dryRunFirst.coverage}`,
+  );
+  assert(
+    dryRunFirst.toCreate === 320,
+    `all 320 starter questions should need a bridge tag, got ${dryRunFirst.toCreate}`,
+  );
+  const linkerApply = runLinker([]);
+  assert(
+    linkerApply.status === 0,
+    `question->node linker apply failed: ${(linkerApply.stdout ?? '') + (linkerApply.stderr ?? '')}`,
+  );
+  const dryRunSecond = JSON.parse(runLinker(['--dry-run']).stdout);
+  assert(dryRunSecond.toCreate === 0, `question->node linker should be idempotent, got ${dryRunSecond.toCreate}`);
+  const graphClient = new PrismaClient({ datasourceUrl: contentDatabaseUrl });
+  const tagCount = await graphClient.questionKnowledgeNodeTag.count();
+  assert(tagCount === 320, `bank should carry exactly 320 question->node tags, got ${tagCount}`);
+  await graphClient.$disconnect();
+
   const demoLogin = await postJson(`${apiUrl}/auth/demo-login`, { role: 'student' });
   const demoHeaders = { Authorization: `Bearer ${demoLogin.token}` };
   const knowledgePointCatalog = await getJson(`${apiUrl}/knowledge-points`, demoHeaders);
@@ -75,6 +115,9 @@ async function main() {
   assert(recommendedSet.questionCount > 0, 'recommended practice set should be non-empty after content import');
   const stageAssessment = await getJson(`${apiUrl}/assessments/stage`, demoHeaders);
   assert(stageAssessment.questions.length > 0, 'stage assessment should be non-empty after content import');
+  const graphDetail = await getJson(`${apiUrl}/knowledge/OS-C02-S04-P20`, demoHeaders);
+  assert(graphDetail.relatedQuestions.length > 0, 'knowledge detail should expose node-linked bank questions');
+  assert(graphDetail.examQuestions.length > 0, 'knowledge detail should expose seeded real exam hits');
 
   console.log(JSON.stringify({ ok: true, source: 'postgresql', scenario: 'content-import', questions: questionCatalog.length, knowledgePoints: knowledgePointCatalog.length, apiPort }));
 }

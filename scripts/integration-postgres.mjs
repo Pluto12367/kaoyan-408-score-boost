@@ -2619,6 +2619,52 @@ async function main() {
   activeApi = startApi();
   await waitForHealth(activeApi);
 
+  // ---- Phase 3: knowledge detail exposes node-linked bank questions and real exam hits ----
+  await scoreCenterPrisma.examPaper.create({
+    data: {
+      id: 'paper-408-2099',
+      exam: '408',
+      year: 2099,
+      totalScore: 150,
+      source: 'https://example.invalid/408',
+    },
+  });
+  await scoreCenterPrisma.examQuestion.create({
+    data: {
+      id: '408-2099-Q01',
+      paperId: 'paper-408-2099',
+      questionNo: 1,
+      subject: 'DS',
+      questionType: '选择题',
+      score: 2,
+      summary: '集成测试真题摘要',
+      sourceRef: 'https://example.invalid/408/2099',
+    },
+  });
+  await scoreCenterPrisma.examQuestionKnowledgeTag.create({
+    data: {
+      questionId: '408-2099-Q01',
+      knowledgeNodeId: weakNodeId,
+      role: 'PRIMARY',
+      confidence: 1.0,
+      precision: 'EXACT_ATOMIC',
+      taggedBy: 'HYBRID',
+    },
+  });
+  const graphDetail = await getJson(`${apiUrl}/knowledge/${weakNodeId}`, scoreCenterHeaders);
+  assert(
+    graphDetail.relatedQuestions.some((question) => question.id === weakQuestionId),
+    'knowledge detail should expose node-linked bank questions',
+  );
+  assert(
+    graphDetail.examQuestions.some((question) => question.id === '408-2099-Q01'),
+    'knowledge detail should expose real exam hits with source metadata',
+  );
+  assert(
+    graphDetail.examQuestions[0].year === 2099 && Boolean(graphDetail.examQuestions[0].sourceUrl),
+    'exam hits should carry year and source url',
+  );
+
   await scoreCenterPrisma.$disconnect();
 
   // F7 regression: an expired or empty seven-day plan must roll over so the

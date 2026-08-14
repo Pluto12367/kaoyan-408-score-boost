@@ -13,7 +13,12 @@ import {
   type SubjectCode,
 } from '@kaoyan408/shared';
 import { isStaticDemoMode } from '../../api/env';
-import { fetchMyMastery, type NodeMasterySummary } from '../../api/endpoints/score-center';
+import {
+  fetchKnowledgeDetail,
+  fetchMyMastery,
+  type KnowledgeDetail,
+  type NodeMasterySummary,
+} from '../../api/endpoints/score-center';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { getKnowledgeCatalog } from './catalogData';
 import { SUBJECT_NAMES, SUBJECT_ORDER } from './constants';
@@ -22,8 +27,10 @@ import { KnowledgeTree, type ExpansionCommand } from './KnowledgeTree';
 
 export function KnowledgeCatalog({
   onNavigate,
+  onPracticeQuestion,
 }: {
   onNavigate?: (section: RoleSection) => void;
+  onPracticeQuestion?: (questionId: string, title: string) => void;
 }) {
   const catalog = useMemo(() => getKnowledgeCatalog(), []);
   const [active, setActive] = useState<SubjectCode>('DS');
@@ -34,6 +41,8 @@ export function KnowledgeCatalog({
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [masteryById, setMasteryById] = useState<Record<string, NodeMasterySummary>>({});
   const [masteryError, setMasteryError] = useState('');
+  const [detail, setDetail] = useState<KnowledgeDetail | null>(null);
+  const [detailError, setDetailError] = useState('');
 
   useEffect(() => {
     if (isStaticDemoMode()) return;
@@ -54,6 +63,29 @@ export function KnowledgeCatalog({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedPointId || isStaticDemoMode()) {
+      setDetail(null);
+      setDetailError('');
+      return;
+    }
+    let cancelled = false;
+    fetchKnowledgeDetail(selectedPointId)
+      .then((result) => {
+        if (cancelled) return;
+        setDetail(result);
+        setDetailError('');
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setDetail(null);
+        setDetailError(error instanceof Error ? error.message : '知识点详情加载失败，请重试。');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPointId]);
 
   useEffect(() => {
     if (query.trim()) {
@@ -197,6 +229,10 @@ export function KnowledgeCatalog({
         prerequisiteContexts={prerequisiteContexts}
         relatedContexts={relatedContexts}
         mastery={selectedPointId ? masteryById[selectedPointId] ?? null : null}
+        relatedQuestions={detail?.relatedQuestions}
+        examQuestions={detail?.examQuestions}
+        detailError={detailError}
+        onPracticeQuestion={onPracticeQuestion}
         onNavigate={() => onNavigate?.('question')}
       />
     </section>

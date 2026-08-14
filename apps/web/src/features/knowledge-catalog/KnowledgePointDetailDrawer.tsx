@@ -1,6 +1,6 @@
 import type { CatalogPointContext } from '@kaoyan408/shared';
 import { OverlayDialog } from '../../components/OverlayDialog';
-import type { NodeMasterySummary } from '../../api/endpoints/score-center';
+import type { KnowledgeDetail, NodeMasterySummary } from '../../api/endpoints/score-center';
 import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, TREND_LABELS } from './constants';
 
 interface KnowledgePointDetailDrawerProps {
@@ -10,6 +10,10 @@ interface KnowledgePointDetailDrawerProps {
   prerequisiteContexts: CatalogPointContext[];
   relatedContexts: CatalogPointContext[];
   mastery?: NodeMasterySummary | null;
+  relatedQuestions?: KnowledgeDetail['relatedQuestions'];
+  examQuestions?: KnowledgeDetail['examQuestions'];
+  detailError?: string;
+  onPracticeQuestion?: (questionId: string, title: string) => void;
   onNavigate?: () => void;
 }
 
@@ -20,6 +24,10 @@ export function KnowledgePointDetailDrawer({
   prerequisiteContexts,
   relatedContexts,
   mastery,
+  relatedQuestions,
+  examQuestions,
+  detailError,
+  onPracticeQuestion,
   onNavigate,
 }: KnowledgePointDetailDrawerProps) {
   if (!open || !context) return null;
@@ -105,6 +113,58 @@ export function KnowledgePointDetailDrawer({
           <button type="button" className="catalog-cta" onClick={onNavigate}>
             去练习
           </button>
+        </section>
+
+        <section className="catalog-drawer-section">
+          <h4>考点题库{relatedQuestions?.length ? `（${relatedQuestions.length} 题）` : ''}</h4>
+          {detailError ? (
+            <p className="catalog-drawer-empty">题库加载失败：{detailError}</p>
+          ) : relatedQuestions?.length ? (
+            <ul className="catalog-ref-list">
+              {relatedQuestions.map((question) => (
+                <li key={question.id} className="catalog-ref-item">
+                  <strong>{question.stem}</strong>
+                  <small>
+                    {question.type} · {question.difficulty}
+                    {question.year ? ` · ${question.year} 年` : ''} · {question.source}
+                  </small>
+                  <button
+                    type="button"
+                    className="catalog-cta"
+                    onClick={() => onPracticeQuestion?.(question.id, point.name)}
+                  >
+                    练习本题
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="catalog-drawer-empty">暂无关联题库题目</p>
+          )}
+        </section>
+
+        <section className="catalog-drawer-section">
+          <h4>真题命中</h4>
+          {examQuestions?.length ? (
+            <ul className="catalog-ref-list">
+              {examQuestions.map((item) => (
+                <li key={item.id} className="catalog-ref-item">
+                  <strong>
+                    {item.year} 年 {item.questionNo} 题 · {item.questionType}
+                    {item.score != null ? ` · ${item.score} 分` : ''}
+                  </strong>
+                  {item.summary ? <small>{item.summary}</small> : null}
+                  {item.sourceUrl ? (
+                    <a href={item.sourceUrl} target="_blank" rel="noreferrer">
+                      查看真题来源
+                    </a>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="catalog-drawer-empty">暂无真题命中记录</p>
+          )}
         </section>
 
         <section className="catalog-drawer-section">
