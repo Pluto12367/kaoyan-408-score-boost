@@ -47,6 +47,23 @@ async function main() {
   const questionCatalog = await getJson(`${apiUrl}/questions`);
   assert(questionCatalog.length === 320, `question catalog should contain 320 imported questions, got ${questionCatalog.length}`);
   assert(questionCatalog.every((question) => question.answer === '' && (question.type === '综合题' || question.analysis === '')), 'imported catalog must stay redacted for students');
+  const bankClient = new PrismaClient({ datasourceUrl: contentDatabaseUrl });
+  const bankRows = await bankClient.question.findMany({
+    select: {
+      id: true,
+      stem: true,
+      createdAt: true,
+      isCurrent: true,
+      _count: { select: { knowledgePoints: true } },
+    },
+  });
+  const { summarizeBank } = await import('./question-bank-dedupe.mjs');
+  const bankSummary = summarizeBank(bankRows);
+  assert(
+    bankSummary.total === 320 && bankSummary.duplicateRows === 0,
+    `fresh import should leave a deduplicated bank: ${JSON.stringify(bankSummary)}`,
+  );
+  await bankClient.$disconnect();
 
   const demoLogin = await postJson(`${apiUrl}/auth/demo-login`, { role: 'student' });
   const demoHeaders = { Authorization: `Bearer ${demoLogin.token}` };

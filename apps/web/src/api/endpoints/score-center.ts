@@ -74,6 +74,27 @@ export interface KnowledgeDetail {
   } | null;
 }
 
+export type NodeMasteryStatus = 'untouched' | 'weak' | 'review' | 'mastered';
+
+export interface NodeMasterySummary {
+  knowledgeNodeId: string;
+  mastery: number;
+  accuracy: number;
+  recentAccuracy: number;
+  attempts: number;
+  correctCount: number;
+  wrongCount: number;
+  status: NodeMasteryStatus;
+  lastLearnedAt: string | null;
+  lastReviewedAt: string | null;
+  nextReviewAt: string | null;
+}
+
+export interface MyNodeMastery {
+  generatedAt: string;
+  items: NodeMasterySummary[];
+}
+
 export async function generateScoreCenterPlan(input: {
   targetExamDate: string;
   availableMinutes: 30 | 60 | 120 | 180;
@@ -91,4 +112,10 @@ export async function fetchKnowledgeDetail(knowledgeNodeId: string): Promise<Kno
   const response = await fetchWithAuth(`${API_BASE_URL}/knowledge/${encodeURIComponent(knowledgeNodeId)}`);
   if (!response.ok) throw new Error(`Knowledge detail failed with ${response.status}`);
   return response.json() as Promise<KnowledgeDetail>;
+}
+
+export async function fetchMyMastery(): Promise<MyNodeMastery> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/knowledge/mastery`);
+  if (!response.ok) throw new Error(`Knowledge mastery failed with ${response.status}`);
+  return response.json() as Promise<MyNodeMastery>;
 }

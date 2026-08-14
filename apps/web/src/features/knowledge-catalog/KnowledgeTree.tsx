@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { CatalogAtomicPoint, CatalogSubject } from '@kaoyan408/shared';
-import { ALL_TIME_EVIDENCE_LABEL, NO_FREQUENCY_LABEL, TREND_LABELS } from './constants';
+import { deriveNodeMasteryStatus } from '@kaoyan408/shared';
+import type { NodeMasterySummary, NodeMasteryStatus } from '../../api/endpoints/score-center';
+import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, TREND_LABELS } from './constants';
 
 export interface ExpansionCommand {
   version: number;
@@ -22,21 +24,29 @@ function Stars({ value }: { value: number }) {
 function AtomicPointRow({
   point,
   onSelectPoint = noop,
+  masteryStatus,
 }: {
   point: CatalogAtomicPoint;
   onSelectPoint?: (point: CatalogAtomicPoint) => void;
+  masteryStatus?: NodeMasteryStatus;
 }) {
   const evidence = point.evidence;
   return (
     <button
       type="button"
-      className="catalog-point-row"
+      className={`catalog-point-row${masteryStatus ? ` mastery-${masteryStatus}` : ''}`}
+      data-mastery-status={masteryStatus ?? 'untouched'}
       data-testid="catalog-point"
       onClick={() => onSelectPoint(point)}
     >
       <div className="catalog-point-head">
         <strong>{point.name}</strong>
         <span className="catalog-point-stats">
+          {masteryStatus ? (
+            <span className="catalog-mastery-badge" data-status={masteryStatus}>
+              {MASTERY_STATUS_LABELS[masteryStatus]}
+            </span>
+          ) : null}
           重要度 <Stars value={point.importance} />
           <span className="catalog-stat-sep">·</span>
           难度 <Stars value={point.difficulty} />
@@ -60,10 +70,12 @@ export function KnowledgeTree({
   subject,
   expansionCommand,
   onSelectPoint,
+  masteryById,
 }: {
   subject: CatalogSubject;
   expansionCommand?: ExpansionCommand;
   onSelectPoint?: (point: CatalogAtomicPoint) => void;
+  masteryById?: Record<string, NodeMasterySummary>;
 }) {
   const [expandedChapters, setExpandedChapters] = useState<Set<string>>(
     () => new Set(subject.chapters.map((chapter) => chapter.id)),
@@ -101,6 +113,12 @@ export function KnowledgeTree({
       else next.add(sectionId);
       return next;
     });
+  };
+
+  const masteryStatus = (pointId: string): NodeMasteryStatus => {
+    const item = masteryById?.[pointId];
+    if (!item) return 'untouched';
+    return deriveNodeMasteryStatus({ mastery: item.mastery, attempts: item.attempts });
   };
 
   return (
@@ -149,7 +167,12 @@ export function KnowledgeTree({
                       {sectionOpen ? (
                         <div className="catalog-section-body">
                           {section.points.map((point) => (
-                            <AtomicPointRow key={point.id} point={point} onSelectPoint={onSelectPoint} />
+                            <AtomicPointRow
+                              key={point.id}
+                              point={point}
+                              onSelectPoint={onSelectPoint}
+                              masteryStatus={masteryStatus(point.id)}
+                            />
                           ))}
                         </div>
                       ) : null}

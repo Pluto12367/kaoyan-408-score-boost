@@ -93,6 +93,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 | GET /dashboard/overview | student/teacher/admin | 学生总览聚合 |
 | GET /knowledge-points、/mastery-map、/sprint-plan、/study-reminders、/trial-progress | student/teacher/admin | 诊断与进度 |
 | POST /practice-records | student/teacher/admin | 单题提交 |
+| GET /knowledge/mastery（`GET /knowledge/:id` 详情） | student/teacher/admin | 图谱节点掌握度聚合（阶段 1） |
 | GET /practice-sets/recommended、POST /practice-sets/:id/submit | student/teacher/admin | 推荐题组 |
 | POST /sessions/practice/start、/:id/save、/:id/submit | student/teacher/admin | 会话答题 |
 | GET/POST /wrong-questions/...、/review/due、/wrong-questions/:id/reason | student/teacher/admin | 错题与复习 |

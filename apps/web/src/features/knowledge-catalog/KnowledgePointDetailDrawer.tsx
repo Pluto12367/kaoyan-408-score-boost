@@ -1,6 +1,7 @@
 import type { CatalogPointContext } from '@kaoyan408/shared';
 import { OverlayDialog } from '../../components/OverlayDialog';
-import { ALL_TIME_EVIDENCE_LABEL, NO_FREQUENCY_LABEL, TREND_LABELS } from './constants';
+import type { NodeMasterySummary } from '../../api/endpoints/score-center';
+import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, TREND_LABELS } from './constants';
 
 interface KnowledgePointDetailDrawerProps {
   open: boolean;
@@ -8,6 +9,8 @@ interface KnowledgePointDetailDrawerProps {
   context: CatalogPointContext | null;
   prerequisiteContexts: CatalogPointContext[];
   relatedContexts: CatalogPointContext[];
+  mastery?: NodeMasterySummary | null;
+  onNavigate?: () => void;
 }
 
 export function KnowledgePointDetailDrawer({
@@ -16,6 +19,8 @@ export function KnowledgePointDetailDrawer({
   context,
   prerequisiteContexts,
   relatedContexts,
+  mastery,
+  onNavigate,
 }: KnowledgePointDetailDrawerProps) {
   if (!open || !context) return null;
 
@@ -71,6 +76,35 @@ export function KnowledgePointDetailDrawer({
           ) : (
             <p className="catalog-drawer-empty">{NO_FREQUENCY_LABEL}</p>
           )}
+        </section>
+
+        <section className="catalog-drawer-section">
+          <h4>我的掌握度</h4>
+          {mastery ? (
+            <dl className="catalog-detail-grid">
+              <div>
+                <dt>掌握度</dt>
+                <dd>{Math.round(mastery.mastery * 100)}%</dd>
+              </div>
+              <div>
+                <dt>练习次数</dt>
+                <dd>{mastery.attempts}</dd>
+              </div>
+              <div>
+                <dt>正确 / 错误</dt>
+                <dd>{mastery.correctCount} / {mastery.wrongCount}</dd>
+              </div>
+              <div>
+                <dt>状态</dt>
+                <dd>{MASTERY_STATUS_LABELS[mastery.status]}</dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="catalog-drawer-empty">尚未练习该知识点</p>
+          )}
+          <button type="button" className="catalog-cta" onClick={onNavigate}>
+            去练习
+          </button>
         </section>
 
         <section className="catalog-drawer-section">

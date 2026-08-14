@@ -5469,6 +5469,57 @@ button.student-insight-card:hover,
 .catalog-point-row:hover {
   border-color: var(--accent);
 }
+.catalog-point-row.mastery-weak {
+  border-left: 4px solid var(--red);
+}
+.catalog-point-row.mastery-review {
+  border-left: 4px solid var(--amber);
+}
+.catalog-point-row.mastery-mastered {
+  border-left: 4px solid var(--green);
+}
+.catalog-mastery-badge {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.catalog-mastery-badge[data-status='untouched'] {
+  color: var(--text-muted);
+  background: var(--surface-alt, #f1f5f9);
+}
+.catalog-mastery-badge[data-status='weak'] {
+  color: var(--red);
+  background: var(--red-soft);
+}
+.catalog-mastery-badge[data-status='review'] {
+  color: var(--amber-strong);
+  background: var(--amber-soft);
+}
+.catalog-mastery-badge[data-status='mastered'] {
+  color: var(--green-strong);
+  background: var(--green-pill);
+}
+.catalog-mastery-error {
+  color: var(--red);
+  font-size: 13px;
+}
+.catalog-cta {
+  margin-top: 12px;
+  padding: 8px 18px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+.catalog-cta:hover {
+  filter: brightness(1.05);
+}
 .catalog-point-head {
   display: flex;
   align-items: baseline;

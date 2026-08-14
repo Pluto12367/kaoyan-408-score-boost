@@ -37,10 +37,21 @@
 
 ## Task 3：验证与文档
 
-- [ ] `npm test` 全量；`npm run build:web`；`test:integration:postgres`（含映射断言）。
-- [ ] 更新 `docs/PROJECT_CONTEXT.md`/`docs/ARCHITECTURE.md`/`docs/ROADMAP.md`（P0-2 状态、P2-2 收敛情况）。
-- [ ] 汇报并申请提交/推送批准。
+- [x] `npm test` 全量；`npm run build:web`；`test:integration:postgres`（含映射断言）。
+- [x] 更新 `docs/PROJECT_CONTEXT.md`/`docs/ARCHITECTURE.md`/`docs/ROADMAP.md`（P0-2 状态、P2-2 收敛情况）。
+- [x] 汇报并申请提交/推送批准。
 
 ## Task 4（可选，方案 C 前置调研）
 
-- [ ] 评估 `UserKnowledgeMastery` 作为唯一口径的迁移方案与回填脚本，单独设计文档。
+- [x] 评估 `UserKnowledgeMastery` 作为唯一口径的迁移方案与回填脚本，单独设计文档（`docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-option-c.md`，2026-08-14）。
+- [x] Phase 1 数据层：归因 dry-run + 回填脚本 + 集成测试（`scripts/backfill-user-mastery.mjs` + 集成回归，已随阶段 0 完成）。
+
+## Task 5（阶段 1）：知识图谱掌握度着色
+
+- [x] RED：`test/node-mastery-status.test.js`（`deriveNodeMasteryStatus` 状态映射）、`test/knowledge-graph-mastery.test.js`（后端端点/服务、共享导出、前端接线契约）。
+- [x] GREEN：`packages/shared/src/score-center/mastery.ts` 新增 `deriveNodeMasteryStatus`（untouched/weak/review/mastered）。
+- [x] GREEN：`apps/api/src/score-center/service.ts` 新增 `getMyMastery`；`routes.ts` 新增 `GET /knowledge/mastery`（student/teacher/admin，置于 `knowledge/:id` 之前）。
+- [x] GREEN：`apps/web/src/api/endpoints/score-center.ts` 新增 `fetchMyMastery` + `NodeMasterySummary`。
+- [x] GREEN：`KnowledgeCatalog.tsx` 加载掌握度 → `masteryById` → 传树与抽屉；`KnowledgeTree.tsx` 行着色 + 状态徽章；`KnowledgePointDetailDrawer.tsx` “我的掌握度” + “去练习”；`App.tsx` 传 `onNavigate`。
+- [x] 行为级断言：`scripts/integration-postgres.mjs` 增加 `GET /knowledge/mastery` 返回练习节点统计与派生状态。
+- [x] 验证：`npm test` 537 项 536 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。

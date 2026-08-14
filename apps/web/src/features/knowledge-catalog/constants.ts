@@ -1,4 +1,5 @@
 import type { CatalogTrendDirection, SubjectCode } from '@kaoyan408/shared';
+import type { NodeMasteryStatus } from '../../api/endpoints/score-center';
 
 export const SUBJECT_NAMES: Record<SubjectCode, string> = {
   DS: '数据结构',
@@ -18,3 +19,10 @@ export const TREND_LABELS: Record<CatalogTrendDirection, string> = {
 
 export const ALL_TIME_EVIDENCE_LABEL = '长期考频证据';
 export const NO_FREQUENCY_LABEL = '暂无考频数据';
+
+export const MASTERY_STATUS_LABELS: Record<NodeMasteryStatus, string> = {
+  untouched: '未学习',
+  weak: '薄弱',
+  review: '复习中',
+  mastered: '已掌握',
+};

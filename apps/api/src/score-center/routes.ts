@@ -25,6 +25,13 @@ export class ScoreCenterController {
 
   constructor(private readonly scoreCenterService: ScoreCenterService) {}
 
+  @Get('knowledge/mastery')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getMyMastery(@CurrentUser() user: UserProfile) {
+    return this.scoreCenterService.getMyMastery(user.id);
+  }
+
   @Get('knowledge/:id')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')

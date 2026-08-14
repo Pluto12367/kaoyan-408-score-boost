@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，阶段 0（题库清重 + 掌握度回填）与阶段 1（知识图谱掌握度着色）已完成并**尚未提交**；`npm test` 537 项 536 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含 `GET /knowledge/mastery` 断言）与 `test:integration:content-import` 通过。下一步：申请提交/推送 → 服务器部署 → 执行 `question-bank-dedupe.mjs` 与 `backfill-user-mastery.mjs` → 浏览器验证图谱着色 → 进入阶段 2（图谱驱动推荐/计划 + 方案 C 只读切换）。
 - 分支/提交：`codex/deployment-ready`，2026-08-14“学习路径下一步入口统一强化”已提交并推送（`2de4abe`，与 origin 同步），线上部署站点已通过浏览器实测（五个学习面卡片全部出现、按钮跳转正确、移动端竖排正常）；浏览器实测发现的 aria-label 重复缺陷已修复（未提交）；新增 `verify:deployed` 部署冒烟脚本（未提交）；正在实施 P0 知识点目录接入学习引擎。
 - 分支/提交：`codex/deployment-ready`，第三轮（2026-08-07）待确认项实现**尚未提交**：前端细粒度埋点、AI 变式题入库、P2-3 安全拆分（导航/日期/摘要抽取）已完成；`npm test` 321 项 320 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
 - 分支/提交：`codex/deployment-ready`，第二轮 UX/工程收尾改动（2026-08-06）**尚未提交**；P2-01~P2-08 全部关闭，阶段2（动态计划 + 历史成绩导入）、P2-4 多知识点、P2-5 演示标识、P3-1 教师端分页、错题筛选服务端化、行为埋点已完成；全量 `npm test` 311 项 310 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
@@ -47,6 +48,25 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-14 阶段 1：知识图谱掌握度着色
+
+- 日期：2026-08-14
+- 任务：把 `UserKnowledgeMastery` 回填结果叠加到 408 知识图谱页——节点按掌握度状态着色/加徽章，详情抽屉展示“我的掌握度”并可一键“去练习”。
+- 修改原因：阶段 0b 完成掌握度回填后，图谱页仍是纯静态目录，学生看不到“我掌握了哪些节点、哪些薄弱”，无法形成“图谱 → 练习 → 图谱”的闭环。
+- 修改文件：
+  - `packages/shared/src/score-center/mastery.ts`（新增 `deriveNodeMasteryStatus`：untouched/weak/review/mastered）+ `index.ts` 导出
+  - `apps/api/src/score-center/service.ts`（新增 `getMyMastery`，返回节点掌握度统计与派生状态）、`routes.ts`（新增 `GET /knowledge/mastery`，置于 `knowledge/:id` 之前，student/teacher/admin）
+  - `apps/web/src/api/endpoints/score-center.ts`（`fetchMyMastery` + `NodeMasterySummary`/`MyNodeMastery` 类型）
+  - `apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx`（加载掌握度 → `masteryById` → 传树与抽屉；静态演示模式跳过 API）、`KnowledgeTree.tsx`（`mastery-weak/review/mastered` 行着色 + 状态徽章）、`KnowledgePointDetailDrawer.tsx`（“我的掌握度”区块 + “去练习”按钮）、`constants.ts`（状态文案）、`App.tsx`（`<KnowledgeCatalog onNavigate={setActiveSection} />`）、`styles.css`
+  - 新增 `test/node-mastery-status.test.js`（2 项）、`test/knowledge-graph-mastery.test.js`（3 项契约测试）
+  - `scripts/integration-postgres.mjs`（行为级断言：`GET /knowledge/mastery` 返回练习节点 attempts/wrongCount/status）
+- 数据库变化：无
+- API 变化：新增 `GET /knowledge/mastery`（仅新增端点，向后兼容）
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 537 项 536 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` 通过（含新端点断言）；`npm run test:integration:content-import` `ok:true (questions=320)`
+- 截图或验证证据：契约测试 GREEN 输出；集成测试日志显示 `GET /knowledge/mastery 200`
+- 遗留问题：`fetchMyMastery` 在 API 失败时显示错误文案（不静默回退）；掌握度颜色在旧版浏览器需人工确认；阶段 2 将把同一口径接入推荐与计划
+- 下一步：申请提交/推送并部署；部署后浏览器验证图谱着色与“去练习”跳转；随后进入阶段 2
 
 ### 2026-08-14 学习路径“下一步入口”统一强化 + 部署验证 + 冒烟脚本
 
@@ -128,6 +148,34 @@
 - 下一步：申请提交/推送并部署，随后线上验证 F7/F8
 
 跟进（同日）：部署后 F8 线上验证通过；F7 复测发现滚动后周条与今日任务为空——根因：滚动时 `buildSevenDayPlan` 内部调用 `generatePlan`，而过期旧计划仍在内存 Map，导致 `generatePlan` 按“今天过滤旧任务”返回空，新计划被建成 0 任务。已修复：滚动前先从内存移除旧计划再构建新计划，并把滚动条件从“过期”放宽为“过期或空任务”（兼容已损坏的空计划）；新增集成回归断言（`integration-postgres.mjs`，把活动计划任务日期改为 2020-01-01 后断言 `/today/plan` 返回 7 天周条与今日任务）。待部署复测。
+
+### 2026-08-14 方案 C 调研：以 UserKnowledgeMastery 为唯一掌握度源
+
+- 日期：2026-08-14
+- 任务：产出方案 C 调研与设计文档（只读分析，未改代码）。
+- 修改原因：P2-2 两套掌握度口径并存；方案 B 已统一显示命名，方案 C 旨在统一计算口径。
+- 修改文件：`docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-option-c.md`（新增）、`docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md`（Task 4 勾选）
+- 数据库变化：无
+- API 变化：无
+- 测试结果：未运行（纯文档改动）
+- 核心结论：`UserKnowledgeMastery` 写入路径与归因链已具备（真题标签直连 + `KnowledgePointNodeMap` 兜底，starter-320 题可归因）；前置缺口是历史记录回填；建议按 Phase 1 数据回填 → Phase 2 灰度只读切换（mastery map/薄弱/推荐/计划）→ Phase 2b 计划语义迁移 → Phase 3 收敛 推进，并在灰度期提供对比模式与开关回滚。
+- 下一步：用户确认后启动 Phase 1（归因 dry-run + 回填脚本 + 集成测试）
+
+### 2026-08-14 阶段 0：题库清重 + 掌握度回填（方案 C Phase 1）
+
+- 日期：2026-08-14
+- 任务：启动“阶段 0→5 统一提分系统”路线：0a 题库重复题干体检/去重；0b 历史 `PracticeRecord` 回填 `UserKnowledgeMastery`。
+- 修改原因：生产题库行数（326~328）多于源 CSV 唯一题干（320），存在历史重复行；`UserKnowledgeMastery` 缺历史数据，无法支撑图谱掌握度着色。
+- 修改文件：
+  - 新增 `scripts/question-bank-dedupe.mjs`（`planDedupe`/`summarizeBank` 纯逻辑 + CLI `--dry-run/--apply`，按 `isCurrent=false` 归档重复行，幂等）
+  - 新增 `scripts/backfill-user-mastery.mjs`（按时间顺序重放 `PracticeRecord` 到节点掌握度，归因链：真题标签直连 → `QuestionKnowledgePoint → KnowledgePointNodeMap`；`--dry-run/--user`，确定性重建、幂等）
+  - 新增 `test/question-bank-dedupe.test.js`（3 项）、`test/backfill-mastery.test.js`（2 项）
+  - `scripts/integration-content-import.mjs`（导入后断言无重复题干）、`scripts/integration-postgres.mjs`（掌握度回填幂等与 attempts=correct+wrong 回归）
+- 数据库变化：无迁移；生产需执行 `question-bank-dedupe.mjs`（归档重复行，可回滚=恢复 isCurrent）与 `backfill-user-mastery.mjs`
+- API 变化：无
+- 测试结果：`node test/question-bank-dedupe.test.js`、`test/backfill-mastery.test.js` 全绿；`npm run test:integration:content-import` `ok:true (questions=320)`；`npm run test:integration:postgres` `ok:true`（含回填回归）；`npm test` 532 项 531 通过 / 1 跳过 / 0 失败
+- 遗留问题：生产库实际重复行数需在服务器跑 `question-bank-dedupe.mjs --dry-run` 确认后归档；无法归因的历史记录（无标签且无映射）由 dry-run 列出，后续补标
+- 下一步：申请提交/推送并部署；生产执行去重与回填；随后进入阶段 1（图谱掌握度着色）
 
 ### 2026-08-14 部署固化：镜像内置桥接 seed + deploy.sh 自动种映射并重启
 

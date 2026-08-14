@@ -11,6 +11,7 @@ import type {
 import {
   calculatePriority,
   composeDailyPlan,
+  deriveNodeMasteryStatus,
   estimateRetention,
   updateMasteryAfterAttempt,
   updateStabilityAfterReview,
@@ -217,6 +218,29 @@ export class ScoreCenterService {
             pinned: mastery.pinned,
           }
         : null,
+    };
+  }
+
+  async getMyMastery(userId: string) {
+    const rows = await loadMasteries(this.prisma, userId);
+    return {
+      generatedAt: new Date().toISOString(),
+      items: rows.map((row) => ({
+        knowledgeNodeId: row.knowledgeNodeId,
+        mastery: row.mastery,
+        accuracy: row.accuracy,
+        recentAccuracy: row.recentAccuracy,
+        attempts: row.attempts,
+        correctCount: row.correctCount,
+        wrongCount: row.wrongCount,
+        status: deriveNodeMasteryStatus({
+          mastery: row.mastery,
+          attempts: row.attempts,
+        }),
+        lastLearnedAt: row.lastLearnedAt?.toISOString() ?? null,
+        lastReviewedAt: row.lastReviewedAt?.toISOString() ?? null,
+        nextReviewAt: row.nextReviewAt?.toISOString() ?? null,
+      })),
     };
   }
 

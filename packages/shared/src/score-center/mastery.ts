@@ -62,3 +62,12 @@ export function updateStabilityAfterReview(
   const base = previousStabilityDays ?? 1;
   return Math.max(0.5, base * STABILITY_MULTIPLIERS[quality]);
 }
+
+export type NodeMasteryStatus = 'untouched' | 'weak' | 'review' | 'mastered';
+
+export function deriveNodeMasteryStatus(input: { mastery: number; attempts: number }): NodeMasteryStatus {
+  if (input.attempts <= 0) return 'untouched';
+  if (input.mastery >= 0.7) return 'mastered';
+  if (input.mastery >= 0.45) return 'review';
+  return 'weak';
+}

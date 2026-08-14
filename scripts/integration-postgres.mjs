@@ -2391,6 +2391,13 @@ async function main() {
   const knowledgeDetail = await getJson(`${apiUrl}/knowledge/${scoreCenterNodeId}`, scoreCenterHeaders);
   assert(knowledgeDetail.knowledgePoint?.id === scoreCenterNodeId, 'knowledge detail should resolve the atomic point');
   assert(knowledgeDetail.userState?.attempts === 3, 'knowledge detail should expose updated user state');
+  const myMastery = await getJson(`${apiUrl}/knowledge/mastery`, scoreCenterHeaders);
+  const nodeMastery = myMastery.items.find((item) => item.knowledgeNodeId === scoreCenterNodeId);
+  assert(
+    nodeMastery?.attempts === 3 && nodeMastery.wrongCount === 2,
+    'GET /knowledge/mastery should include the practiced node with accumulated stats',
+  );
+  assert(nodeMastery?.status === 'review', 'GET /knowledge/mastery should derive the graph mastery status');
   await expectGetStatus(`${apiUrl}/knowledge/unknown-score-center-node`, scoreCenterHeaders, 404);
 
   await expectPostStatus(`${apiUrl}/score-center/generate`, {
@@ -2534,6 +2541,37 @@ async function main() {
     'rolled week should include the current period',
   );
   assert(rolledTodayPlan.priorityTasks.length > 0, 'expired plan should regenerate today tasks');
+
+  // 0b regression: backfill replays practice records into node mastery and is idempotent.
+  const runBackfill = () => spawnSync(process.execPath, [
+    'scripts/backfill-user-mastery.mjs',
+    `--user=${scoreCenterUser.user.id}`,
+  ], {
+    cwd: root,
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+    encoding: 'utf8',
+  });
+  const backfillResult = runBackfill();
+  assert(
+    backfillResult.status === 0,
+    `mastery backfill failed: ${(backfillResult.stdout ?? '') + (backfillResult.stderr ?? '')}`,
+  );
+  const masteryRows = await migrationPrisma.userKnowledgeMastery.findMany({
+    where: { userId: scoreCenterUser.user.id },
+  });
+  assert(masteryRows.length > 0, 'backfill should create node mastery rows');
+  for (const row of masteryRows) {
+    assert(
+      row.attempts === row.correctCount + row.wrongCount,
+      `backfill attempts should equal correct+wrong for ${row.knowledgeNodeId}`,
+    );
+  }
+  const secondBackfill = runBackfill();
+  assert(secondBackfill.status === 0, `second backfill failed: ${(secondBackfill.stdout ?? '') + (secondBackfill.stderr ?? '')}`);
+  const masteryRowsAfter = await migrationPrisma.userKnowledgeMastery.findMany({
+    where: { userId: scoreCenterUser.user.id },
+  });
+  assert(masteryRowsAfter.length === masteryRows.length, 'backfill should be idempotent');
 
   console.log(JSON.stringify({
     ok: true,

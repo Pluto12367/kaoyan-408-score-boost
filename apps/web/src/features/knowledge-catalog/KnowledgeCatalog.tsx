@@ -12,12 +12,19 @@ import {
   type CatalogSubject,
   type SubjectCode,
 } from '@kaoyan408/shared';
+import { isStaticDemoMode } from '../../api/env';
+import { fetchMyMastery, type NodeMasterySummary } from '../../api/endpoints/score-center';
+import type { RoleSection } from '../../layouts/RoleNavigation';
 import { getKnowledgeCatalog } from './catalogData';
 import { SUBJECT_NAMES, SUBJECT_ORDER } from './constants';
 import { KnowledgePointDetailDrawer } from './KnowledgePointDetailDrawer';
 import { KnowledgeTree, type ExpansionCommand } from './KnowledgeTree';
 
-export function KnowledgeCatalog() {
+export function KnowledgeCatalog({
+  onNavigate,
+}: {
+  onNavigate?: (section: RoleSection) => void;
+}) {
   const catalog = useMemo(() => getKnowledgeCatalog(), []);
   const [active, setActive] = useState<SubjectCode>('DS');
   const [query, setQuery] = useState('');
@@ -25,6 +32,28 @@ export function KnowledgeCatalog() {
   const [onlyHighImportance, setOnlyHighImportance] = useState(false);
   const [expansion, setExpansion] = useState<ExpansionCommand>({ version: 0, mode: 'collapse' });
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+  const [masteryById, setMasteryById] = useState<Record<string, NodeMasterySummary>>({});
+  const [masteryError, setMasteryError] = useState('');
+
+  useEffect(() => {
+    if (isStaticDemoMode()) return;
+    let cancelled = false;
+    fetchMyMastery()
+      .then((result) => {
+        if (cancelled) return;
+        const byId: Record<string, NodeMasterySummary> = {};
+        for (const item of result.items) byId[item.knowledgeNodeId] = item;
+        setMasteryById(byId);
+        setMasteryError('');
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setMasteryError(error instanceof Error ? error.message : '掌握度加载失败，请重试。');
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (query.trim()) {
@@ -130,6 +159,11 @@ export function KnowledgeCatalog() {
         <span>章节数：{summary.chapterCount}</span>
         <span>小节数：{summary.sectionCount}</span>
         <span>原子知识点数：{summary.atomicPointCount}</span>
+        {masteryError ? (
+          <span className="catalog-mastery-error" role="status">
+            掌握度加载失败：{masteryError}
+          </span>
+        ) : null}
       </div>
       {hasResults ? (
         <KnowledgeTree
@@ -137,6 +171,7 @@ export function KnowledgeCatalog() {
           subject={visibleSubject}
           expansionCommand={expansion}
           onSelectPoint={(point) => setSelectedPointId(point.id)}
+          masteryById={masteryById}
         />
       ) : searchHits.otherSubjects.length > 0 ? (
         <div className="catalog-search-hint" role="status">
@@ -161,6 +196,8 @@ export function KnowledgeCatalog() {
         context={selectedContext}
         prerequisiteContexts={prerequisiteContexts}
         relatedContexts={relatedContexts}
+        mastery={selectedPointId ? masteryById[selectedPointId] ?? null : null}
+        onNavigate={() => onNavigate?.('question')}
       />
     </section>
   );

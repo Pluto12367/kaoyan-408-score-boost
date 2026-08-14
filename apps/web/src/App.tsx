@@ -1495,7 +1495,7 @@ paperId: paper.id,
         ) : null}
         {visibleSection === 'knowledge-catalog' ? (
           <Suspense fallback={sectionFallback('408知识图谱')}>
-            <KnowledgeCatalog />
+            <KnowledgeCatalog onNavigate={setActiveSection} />
           </Suspense>
         ) : null}
         </StudentLayout>
