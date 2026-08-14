@@ -7,6 +7,7 @@ import type { TodayTaskNextStep } from '../onboarding/todayLearningRoute';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
+import { buildPracticeNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
 
 interface PracticePanelProps {
   question: Question;
@@ -85,6 +86,20 @@ export function PracticePanel({
   const answerNextAction = answerResult?.correct
     ? '继续下一题，巩固当前知识点。'
     : '先看解析，确认错因；本题会进入错题复盘。';
+  const answerNextLearningStep = answerResult
+    ? buildPracticeNextLearningStep({
+        correct: answerResult.correct,
+        hasNextQuestion,
+        knowledgePointTitle: answerResult.knowledgePointTitle ?? targetWeakPointTitle,
+      })
+    : null;
+  const setNextLearningStep = practiceSetResult
+    ? buildPracticeNextLearningStep({
+        correct: practiceSetResult.accuracyRate >= 70,
+        hasNextQuestion: false,
+        knowledgePointTitle: set?.focus ?? targetWeakPointTitle,
+      })
+    : null;
   return (
     <article id="question" className="panel">
       <p className="eyebrow">题库训练</p>
@@ -148,6 +163,9 @@ export function PracticePanel({
             actionLabel="本次训练推进目标"
             compact
           />
+          {answerNextLearningStep && onNavigate ? (
+            <NextLearningStepCard step={answerNextLearningStep} onNavigate={onNavigate} compact />
+          ) : null}
           {answerResult.analysis ? (
             <div className="answer-result-analysis"><strong>解析</strong><p>{answerResult.analysis}</p></div>
           ) : (
@@ -235,6 +253,9 @@ export function PracticePanel({
                   actionLabel="本次训练推进目标"
                   compact
                 />
+                {setNextLearningStep && onNavigate ? (
+                  <NextLearningStepCard step={setNextLearningStep} onNavigate={onNavigate} compact />
+                ) : null}
                 <div className="practice-set-action-grid">
                   {onRestartPracticeSet ? (
                     <button type="button" className="primary-action" aria-label="再来一组（同知识点）" onClick={onRestartPracticeSet}>再练一组</button>

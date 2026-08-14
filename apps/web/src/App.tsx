@@ -1447,6 +1447,7 @@ paperId: paper.id,
             student={student}
             focusTaskId={planFocusTaskId}
             onRefresh={refreshTodayPlan}
+            onNavigate={setActiveSection}
             onOpenReview={(questionId) => {
               setDetailQuestionId(questionId);
               setActiveSection('wrong-book');

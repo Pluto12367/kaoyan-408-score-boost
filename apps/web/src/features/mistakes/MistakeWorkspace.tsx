@@ -8,6 +8,7 @@ import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/Mo
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
+import { buildWrongBookNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
 
 interface MistakeWorkspaceProps {
   wrongQuestions: WrongQuestion[];
@@ -124,6 +125,13 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
   const displayQuestions = listError && isMockAllowed()
     ? clientFiltered
     : (serverQuestions ?? wrongQuestions);
+  const selectedKnowledgePointTitle = knowledgePointId
+    ? knowledgePointOptions.find(([value]) => value === knowledgePointId)?.[1] ?? knowledgePointId
+    : null;
+  const wrongBookNextLearningStep = buildWrongBookNextLearningStep({
+    pendingCount: summaryData?.pendingCount ?? wrongQuestions.length,
+    filteredKnowledgePointTitle: selectedKnowledgePointTitle,
+  });
   const wrongReviewLoop = [
     { title: '先看错因', description: '先判断是知识点没学过、概念混淆、审题错误，还是时间问题。' },
     { title: '再做修复', description: '针对错因补一个最小动作：看解析、写笔记、重做原题。' },
@@ -178,6 +186,7 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
         confidence={summaryData.totalWrongCount >= 5 ? 'high' : summaryData.totalWrongCount > 0 ? 'medium' : 'low'}
         nextDataHint="持续标记错因并完成重做，错题推荐会更贴近真实薄弱点。"
       />
+      <NextLearningStepCard step={wrongBookNextLearningStep} onNavigate={onNavigate} />
       </> : <ModuleInlineUnavailable title="错题摘要" resource={summary} onRetry={onRetrySummary} />}
       <div className="wrong-review-loop-card">
         <div className="wrong-review-loop-head">

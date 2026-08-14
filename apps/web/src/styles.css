@@ -5699,6 +5699,67 @@ button.student-insight-card:hover,
   font-weight: 700;
 }
 
+.next-learning-step-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 70%);
+}
+
+.next-learning-step-card.compact {
+  margin: 12px 0;
+  padding: 12px;
+}
+
+.next-learning-step-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.next-learning-step-copy h4,
+.next-learning-step-copy p {
+  margin: 0;
+}
+
+.next-learning-step-copy p {
+  color: var(--text-muted);
+  line-height: 1.55;
+}
+
+.next-learning-step-copy p span {
+  color: var(--green-strong);
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.next-learning-step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .next-learning-step-card {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .next-learning-step-actions {
+    justify-content: stretch;
+  }
+
+  .next-learning-step-actions button {
+    justify-content: center;
+    width: 100%;
+  }
+}
+
 .learning-console-grid {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
 }

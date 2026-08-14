@@ -5,6 +5,7 @@ import type { MasteryMap } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
+import { buildReportNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -77,6 +78,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
     : stageReport?.nextAction
       ? stageReport.nextAction
       : '先完成今日推荐练习，积累数据后再生成建议';
+  const reportNextLearningStep = buildReportNextLearningStep(report);
 
   const longTermWeakPoints = useMemo(() => {
     const weak = (masteryMap?.subjects ?? []).flatMap((subject) =>
@@ -160,6 +162,8 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
         report={report}
         actionLabel="报告目标进度"
       />
+
+      <NextLearningStepCard step={reportNextLearningStep} onNavigate={onNavigate} />
 
       <div className="report-action-plan">
         <div className="report-action-plan-head">

@@ -5,6 +5,7 @@ import type { RoleSection } from '../../layouts/RoleNavigation';
 import { deriveTodayTaskNextStep, type TodayPlanTask } from '../onboarding/todayLearningRoute';
 import { GoalProgressInsight } from './GoalProgressInsight';
 import { RecommendationEvidence } from './RecommendationEvidence';
+import { buildDashboardNextLearningStep, NextLearningStepCard } from './NextLearningStepCard';
 
 export interface StudentLearningConsoleProps {
   student: UserProfile;
@@ -71,6 +72,11 @@ export function StudentLearningConsole({
   const completedSummary = completedTitles.length
     ? `已完成：${completedTitles.slice(0, 2).join('、')}${completedTitles.length > 2 ? ' 等' : ''}`
     : null;
+  const nextLearningStep = buildDashboardNextLearningStep({
+    todayPlan,
+    wrongQuestionSummary,
+    report,
+  });
 
   const pathItems = [
     {
@@ -179,6 +185,8 @@ export function StudentLearningConsole({
         taskChapter={task?.chapter ?? null}
         actionLabel="首页目标进度"
       />
+
+      <NextLearningStepCard step={nextLearningStep} onNavigate={onNavigate} />
 
       {completedSummary ? (
         <div className="learning-console-next-step" role="status">

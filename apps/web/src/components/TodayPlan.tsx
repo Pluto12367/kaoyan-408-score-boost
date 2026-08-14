@@ -12,6 +12,8 @@ import {
 import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
 import { validateTaskCompletionDraft, type TaskCompletionDraft } from '../features/plan/taskCompletionDraft';
 import { GoalProgressInsight } from '../features/student/GoalProgressInsight';
+import { buildPlanNextLearningStep, NextLearningStepCard } from '../features/student/NextLearningStepCard';
+import type { RoleSection } from '../layouts/RoleNavigation';
 import { trackEvent } from '../api/events';
 
 interface Props {
@@ -20,6 +22,7 @@ interface Props {
   focusTaskId?: string | null;
   onRefresh: () => Promise<void>;
   onOpenReview?: (questionId: string) => void;
+  onNavigate: (section: RoleSection) => void;
 }
 
 function getTaskStatusLabel(task: TodayPlanType['priorityTasks'][number]) {
@@ -29,7 +32,7 @@ function getTaskStatusLabel(task: TodayPlanType['priorityTasks'][number]) {
   return '待开始';
 }
 
-export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpenReview }: Props) {
+export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpenReview, onNavigate }: Props) {
   const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
   const [dueReviewError, setDueReviewError] = useState('');
   const [actionError, setActionError] = useState('');
@@ -149,6 +152,7 @@ export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpen
   const progressPercent = summary.totalTasks > 0
     ? Math.round((summary.completedTasks / summary.totalTasks) * 100)
     : 0;
+  const nextLearningStep = buildPlanNextLearningStep(plan);
 
   return (
     <section id="plan" className="panel">
@@ -196,6 +200,8 @@ export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpen
         actionLabel="今日计划目标贡献"
         compact
       />
+
+      <NextLearningStepCard step={nextLearningStep} onNavigate={onNavigate} compact />
 
       {/* Priority tasks */}
       <div className="priority-tasks">
