@@ -122,7 +122,7 @@ export function KnowledgeTree({
   };
 
   return (
-    <div className="catalog-tree" data-testid="knowledge-tree">
+    <div id="knowledge-catalog-panel" className="catalog-tree" data-testid="knowledge-tree">
       {subject.chapters.map((chapter) => {
         const chapterOpen = expandedChapters.has(chapter.id);
         return (

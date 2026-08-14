@@ -184,19 +184,20 @@ curl -fsS http://127.0.0.1/health
 
 未来的 HTTPS 变更必须作为一次单独的、可回滚的配置发布，同时完成以下项目：
 
-1. 新建并测试 Nginx 配置：443 使用 `ssl` 和证书，80 端口只做重定向到 HTTPS；不得把应用或 PostgreSQL 端口直接暴露到公网。
+1. 新建并测试 Nginx 配置：443 使用 `ssl` 和证书，80 端口只做重定向到 HTTPS；不得把应用或 PostgreSQL 端口直接暴露到公网。仓库已提供可直接改域名后使用的 `deploy/tencent-ip/nginx-https.conf.example`（证书路径默认 `/etc/letsencrypt/live/<域名>/`，用 `deploy.sh` 的构建步骤将其替换到镜像内）。
 
    ```nginx
    listen 443 ssl;
    ```
-2. 将证书和私钥以只读挂载方式提供给网关容器，例如：
+2. 用 Certbot 申请证书（域名 A 记录指向本机、防火墙开放 80/443 后）：`sudo apt install certbot`，然后 `sudo certbot certonly --standalone -d exam.example.com`（或用 DNS 插件）；证书会写入 `/etc/letsencrypt/live/exam.example.com/`。自动续期建议 `sudo certbot renew --dry-run` 验证一次并配置 systemd timer。
+3. 将证书和私钥以只读挂载方式提供给网关容器，例如：
 
    ```yaml
    volumes:
      - /etc/letsencrypt/live/exam.example.com:/etc/nginx/certs:ro
    ```
 
-3. 新建专用的 `compose.https.yml` 覆盖配置，为网关发布 443（当前 `compose.production.yml` 不应直接照抄为 TLS）：
+4. 新建专用的 `compose.https.yml` 覆盖配置，为网关发布 443（当前 `compose.production.yml` 不应直接照抄为 TLS）：
 
    ```yaml
    services:
@@ -211,15 +212,15 @@ curl -fsS http://127.0.0.1/health
 
    这里的 `app.environment.VITE_API_BASE_URL` 是 API 启动安全校验所需的 HTTPS 绝对地址；前端仍由网关以同源 `/api` 路径转发。将这段完整配置保存为 `compose.https.yml`。
 
-4. 在腾讯云防火墙中开放 TCP 443，并保留 TCP 80 用于 HTTPS 重定向；SSH 22 仍只允许管理员 IP/CIDR。完成验收后，再关闭旧 IP 入口。
-5. 在 `.env.production` 设置下面两项：
+5. 在腾讯云防火墙中开放 TCP 443，并保留 TCP 80 用于 HTTPS 重定向；SSH 22 仍只允许管理员 IP/CIDR。完成验收后，再关闭旧 IP 入口。
+6. 在 `.env.production` 设置下面两项：
 
    ```dotenv
    WEB_ORIGIN=https://exam.example.com
    ALLOW_INSECURE_HTTP_IP=false
    ```
 
-6. 从配置检查开始，所有 HTTPS Compose 操作都必须同时带基础文件和覆盖文件。下面给出配置、启动、备份，以及切换到已验证 commit 后重建回滚版本的完整命令；不要在 HTTPS 部署中改回只传一个 `-f`：
+7. 从配置检查开始，所有 HTTPS Compose 操作都必须同时带基础文件和覆盖文件。下面给出配置、启动、备份，以及切换到已验证 commit 后重建回滚版本的完整命令；不要在 HTTPS 部署中改回只传一个 `-f`：
 
    ```sh
    docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml config
@@ -232,6 +233,6 @@ curl -fsS http://127.0.0.1/health
 
    正式实施 TLS 前，还要把现有自动部署、定时备份和安全回滚脚本改造成始终传入同一个 override 的版本并单独测试；在完成前，不要把当前 HTTP 专用的 `deploy.sh`、cron 或 `rollback.sh` 直接用于 HTTPS。
 
-7. 验收证书链、HTTP→HTTPS 重定向、`https://域名/health`、管理员和学生登录、邀请码注册、重启后的服务状态及回滚路径；通过后再将正式域名交给更大范围用户。
+8. 验收证书链、HTTP→HTTPS 重定向、`https://域名/health`、管理员和学生登录、邀请码注册、重启后的服务状态及回滚路径；通过后再将正式域名交给更大范围用户。
 
 不要在 HTTP 与 HTTPS 之间混用同一组账户密码；临时公网 IP 体验结束后，应撤销体验邀请码、关闭旧 IP 入口，并保留可验证的备份。

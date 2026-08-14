@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，阶段 0-4 已提交推送（`a900a93`/`4197b0a`/`3d26900`/`8b0f6e6`）；阶段 5（收敛工程化：旧口径冻结日志、60s TTL 多实例缓存、图谱无障碍、HTTPS nginx 示例+Certbot 文档、阶段 0→5 上线运行手册）已完成并**尚未提交**；`npm test` 560 项 559 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 通过。下一步：提交推送 → 按运行手册部署并执行数据脚本 → 浏览器端到端验收；阶段 0→5 全部完成后可对目标做最终验收。
 - 分支/提交：`codex/deployment-ready`，阶段 0-3 已提交推送（`a900a93`/`4197b0a`/`3d26900`）；阶段 4（报告图谱化：掌握度趋势，`UserMasterySnapshot` 每日快照 + `GET /mastery-trend` + 报告趋势面板）已完成并**尚未提交**；`npm test` 556 项 555 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含快照/趋势断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署（新迁移随容器启动自动应用）→ 生产执行回填（重建历史快照）→ 浏览器验证报告“掌握度趋势”；随后进入阶段 5（收敛工程化：旧口径冻结/多实例/性能/无障碍/HTTPS）。
 - 分支/提交：`codex/deployment-ready`，阶段 0-2 已提交推送（`a900a93`、`4197b0a`）；阶段 3（题库图谱化 + 真题接入）已完成并**尚未提交**；`npm test` 551 项 550 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 与 `test:integration:content-import`（含 linker 覆盖率=1 与幂等）通过。下一步：提交推送 → 部署后执行 `link-question-bank-to-nodes.mjs`（生产题库全部物化节点标签）→ 浏览器验证图谱抽屉“考点题库/真题命中”与“练习本题”；随后进入阶段 4（报告图谱化：掌握度趋势）。
 - 分支/提交：`codex/deployment-ready`，阶段 0、1 已提交推送（`a900a93`）；阶段 2（图谱掌握度驱动掌握度地图/薄弱报告/推荐，`USE_KNODE_MASTERY` 只读开关）已完成并**尚未提交**；`npm test` 544 项 543 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含灰度重启断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 服务器部署后以 `USE_KNODE_MASTERY=true` 灰度开启 → 浏览器验证；随后进入阶段 3（题库图谱化 + 真题接入）。
@@ -51,6 +52,24 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-14 阶段 5：收敛工程化（旧口径冻结 / 多实例 / 性能 / 无障碍 / HTTPS）
+
+- 日期：2026-08-14
+- 任务：把阶段 0-4 的统一闭环做工程收敛：旧掌握度口径冻结、多实例缓存一致性、性能缓存、图谱无障碍、HTTPS 部署路径，并产出阶段 0→5 生产上线运行手册。
+- 修改原因：阶段 0-4 完成后需要可运维、可回滚、多实例安全的收敛形态；浏览器审计遗留无障碍细节；线上仍为 HTTP 临时 IP。
+- 修改文件：
+  - `apps/api/src/study/study.service.ts`（缓存拆分 `reloadNodeMasteries` + 60s TTL `ensureNodeMasteryFresh` 多实例最终一致；开关开启时启动日志 `legacy mastery read path frozen`）
+  - `apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx`/`KnowledgeTree.tsx`（科目标签 `aria-controls`、树容器 `id`、行 `aria-expanded`）
+  - `deploy/tencent-ip/nginx-https.conf.example`（新增 TLS nginx 示例：443 ssl + 80→HTTPS 重定向 + 证书路径 + `X-Forwarded-Proto https`）
+  - `docs/deploy-to-tencent-ip.md`（第 9 节补 Certbot 签发/自动续期步骤，编号顺延）
+  - 新增 `docs/operations/mastery-graph-convergence-runbook.md`（部署→清重→回填→linker→灰度开关→验收→边界）、`test/convergence-phase5.test.js`（4 项契约）
+- 数据库变化：无（阶段 4 迁移已含）
+- API 变化：无
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 560 项 559 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `ok:true`
+- 截图或验证证据：阶段 5 契约测试全绿；集成测试 `ok:true`
+- 遗留问题：HTTPS 需正式域名/备案后启用（配置与文档已就绪）；Onboarding 计划语义（Phase 2b）仍单独评审；多实例 TTL 为最终一致（单实例写后即时）
+- 下一步：提交推送 → 按运行手册生产上线（部署+数据脚本+灰度开关）→ 浏览器端到端验收 → 阶段 0→5 目标收尾
 
 ### 2026-08-14 阶段 4：报告图谱化（掌握度趋势）
 

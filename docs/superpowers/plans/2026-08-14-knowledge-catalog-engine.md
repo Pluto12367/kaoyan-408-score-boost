@@ -83,3 +83,12 @@
 - [x] GREEN：前端报告“四科掌握度”页新增“掌握度趋势”面板（柱状趋势、最弱节点、提升/下滑列表；静态演示模式提示不展示）。
 - [x] 行为级断言：`integration-postgres`（练习写快照、趋势端点含整体序列与最弱节点、回填重建快照且幂等）。
 - [x] 验证：`npm test` 556 项 555 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。
+
+## Task 9（阶段 5）：收敛工程化
+
+- [x] 旧口径冻结：`USE_KNODE_MASTERY=true` 时启动日志明确 `legacy mastery read path frozen`，掌握度地图/薄弱/推荐不再走内存旧口径。
+- [x] 多实例/性能：节点掌握度只读缓存 60s TTL 自动刷新（`ensureNodeMasteryFresh`/`reloadNodeMasteries`），多实例最终一致；快照表带唯一/索引。
+- [x] 无障碍：图谱科目标签 `aria-controls`、章节/小节行 `aria-expanded`、趋势柱状图 `role=img + aria-label`。
+- [x] HTTPS：新增 `deploy/tencent-ip/nginx-https.conf.example`（443 ssl + 80 重定向 + 证书挂载说明），部署文档第 9 节补 Certbot 签发/续期步骤。
+- [x] 运行手册：新增 `docs/operations/mastery-graph-convergence-runbook.md`（阶段 0→5 生产上线顺序：部署→清重→回填→linker→灰度开关→验收→边界）。
+- [x] 验证：`npm test` 560 项 559 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres` 通过。

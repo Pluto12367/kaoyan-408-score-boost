@@ -152,6 +152,7 @@ export function KnowledgeCatalog({
             role="tab"
             id={`knowledge-subject-${code}`}
             aria-selected={active === code}
+            aria-controls="knowledge-catalog-panel"
             className={`report-tab ${active === code ? 'active' : ''}`}
             onClick={() => setActive(code)}
           >

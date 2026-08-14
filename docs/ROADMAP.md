@@ -32,7 +32,7 @@
 - 涉及模块：`apps/api/src/study/study.service.ts`、`knowledge-point.repository.ts`、`KnowledgePointNodeMap`/`KnowledgeNode` 表、`packages/shared`（命名解析纯函数）、前端掌握度地图/报告。
 - 验收标准：见 `docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md` 第 5 节。
 - 风险：16 粗粒度点 → 1149 原子点映射需教研确认；历史 `PracticeRecord` 归因兜底；统一口径（方案 C）影响面大。
-- 当前状态：进行中（2026-08-14 方案 B 映射/命名/接线已部署；方案 C：阶段 0-3 已提交推送 `a900a93`/`4197b0a`/`3d26900`；阶段 4（报告图谱化：`UserMasterySnapshot` 每日快照 + `GET /mastery-trend` + 报告趋势面板）已完成待提交；Phase 2b 计划语义迁移与阶段 5（收敛工程化：旧口径冻结/多实例/性能/无障碍/HTTPS）为后续项）。
+- 当前状态：进行中（2026-08-14 方案 B 映射/命名/接线已部署；方案 C：阶段 0-4 已提交推送 `a900a93`/`4197b0a`/`3d26900`/`8b0f6e6`；阶段 5（收敛工程化：旧口径冻结日志、60s TTL 多实例缓存、图谱无障碍、HTTPS nginx 示例+Certbot 文档、阶段 0→5 上线运行手册）已完成待提交；剩余 Phase 2b（Onboarding 计划语义迁移）按设计单独评审）。
 
 ## P1
 

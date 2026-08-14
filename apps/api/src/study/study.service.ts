@@ -183,6 +183,11 @@ export class StudyService implements OnModuleInit {
     }
     this.knowledgePointDisplay = await this.knowledgePointRepository.listNodeMaps();
     await this.loadNodeMasteryReadCache();
+    if (this.useNodeMastery) {
+      this.logger.warn(
+        '[score-center] USE_KNODE_MASTERY=true: legacy mastery read path frozen; mastery map, weak report and recommendations read UserKnowledgeMastery.',
+      );
+    }
     await this.teacherStudentAuthorizations.initialize();
     const progress = await this.learningProgressRepository.load();
     replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
@@ -245,6 +250,8 @@ export class StudyService implements OnModuleInit {
   private readonly nodeCatalogById = new Map<string, NodeCatalogEntry>();
   private readonly nodeQuestionIdsByNode = new Map<string, string[]>();
   private nodeMasteryCacheLoaded = false;
+  private nodeMasteryCacheRefreshedAt = 0;
+  private nodeMasteryRefreshPromise: Promise<void> | null = null;
 
   private async loadNodeMasteryReadCache() {
     if (!this.prisma || !process.env.DATABASE_URL) return;
@@ -311,6 +318,13 @@ export class StudyService implements OnModuleInit {
       this.nodeQuestionIdsByNode.set(nodeId, questionIds);
     }
 
+    await this.reloadNodeMasteries();
+    this.nodeMasteryCacheLoaded = true;
+    this.nodeMasteryCacheRefreshedAt = Date.now();
+  }
+
+  private async reloadNodeMasteries() {
+    if (!this.prisma || !process.env.DATABASE_URL) return;
     const masteries = await this.prisma.userKnowledgeMastery.findMany();
     const rowsByUser = new Map<string, NodeMasteryRow[]>();
     for (const mastery of masteries) {
@@ -322,7 +336,23 @@ export class StudyService implements OnModuleInit {
     }
     this.nodeMasteryByUser.clear();
     for (const [userId, rows] of rowsByUser) this.nodeMasteryByUser.set(userId, rows);
-    this.nodeMasteryCacheLoaded = true;
+  }
+
+  private ensureNodeMasteryFresh() {
+    if (!this.prisma || !process.env.DATABASE_URL || !this.nodeMasteryCacheLoaded) return;
+    if (Date.now() - this.nodeMasteryCacheRefreshedAt < 60_000) return;
+    if (this.nodeMasteryRefreshPromise) return;
+    this.nodeMasteryRefreshPromise = this.reloadNodeMasteries()
+      .catch((error) => {
+        this.logger.error(
+          'Node mastery cache refresh failed',
+          error instanceof Error ? error.stack : String(error),
+        );
+      })
+      .finally(() => {
+        this.nodeMasteryRefreshPromise = null;
+        this.nodeMasteryCacheRefreshedAt = Date.now();
+      });
   }
 
   private async refreshNodeMasteryCache(userId: string) {
@@ -470,6 +500,7 @@ export class StudyService implements OnModuleInit {
   getOverviewReport(userId?: string) {
     const uid = userId ?? this.student.id;
     const student = this.getStudent(uid);
+    this.ensureNodeMasteryFresh();
     const report = this.applyCatalogDisplay(computeWeaknessReport({
       knowledgePoints: this.knowledgePoints,
       records: this.records.filter((r) => r.userId === uid),
@@ -715,6 +746,7 @@ export class StudyService implements OnModuleInit {
   }
 
   getMasteryMap(userId = this.student.id) {
+    this.ensureNodeMasteryFresh();
     if (this.useNodeMastery) {
       return buildNodeMasteryMap({
         userId,
@@ -2300,6 +2332,7 @@ export class StudyService implements OnModuleInit {
   }
 
   getRecommendedPracticeSet(userId = this.student.id) {
+    this.ensureNodeMasteryFresh();
     const report = this.getOverviewReport(userId);
     const stage = this.getStudent(userId).stage ?? '强化';
     const weakPointIds = report.weakPoints.map((point) => point.knowledgePointId);
