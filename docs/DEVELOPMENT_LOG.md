@@ -111,6 +111,22 @@
 - 遗留问题：F7（周条日期陈旧）、F8（报告口径并存）与无障碍走查仍待处理
 - 下一步：申请提交/推送并部署，随后线上验证 F3/F5/F6
 
+### 2026-08-14 审计项 F7/F8：七天计划滚动、报告建议口径统一
+
+- 日期：2026-08-14
+- 任务：修复审计报告的 F7（计划周条日期陈旧）与 F8（报告“较上阶段提升”与“暂无测评”并存、总览与阶段报告建议不一致）。
+- 修改原因：七天计划在入学时生成、过期后不滚动，`getTodayPlan` 一直展示旧周条；报告“主要进步/下周最重要任务”用练习记录弱点评分，而阶段报告/长期薄弱点用掌握度评分，两套口径并存且无来源标注。
+- 修改文件：
+  - `apps/api/src/study/study.service.ts`：`getTodayPlan` 检测到计划最后计划日 < 今天时，用 `buildSevenDayPlan` + `saveOnboarding` 滚动重建并持久化（幂等，每天最多一次）
+  - `apps/web/src/features/student/NextLearningStepCard.tsx`：`buildReportNextLearningStep` 新增可选 `masteryWeakestPointTitle`，优先使用掌握度最弱点
+  - `apps/web/src/features/report/ReportSummaryPanel.tsx`：“主要进步”标注“（基于练习记录）”；“下周最重要任务”优先取 `stageReport.mastery.weakestPoints[0]` 并标注“（基于掌握度地图）”；报告下一步卡片同步传入掌握度最弱点
+  - 新增 `test/plan-rollover.test.js`（1 项）、`test/report-action-consistency.test.js`（1 项）；`test/next-learning-step-ui.test.js` 新增 resolver 掌握度优先用例（1 项）
+- 数据库变化：无（计划滚动复用既有 `saveOnboarding`，幂等；旧计划归档）
+- API 变化：`GET /today/plan` 在七天计划过期后返回滚动后的新计划（周条/今日任务随当天对齐）；响应结构不变
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 527 项 526 通过 / 1 跳过 / 0 失败（含 3 项新测试）
+- 遗留问题：无障碍走查（同文本按钮 aria-label、树折叠 aria-expanded、键盘焦点）需人工/读屏复核；P2-2 两套掌握度口径在计算层面仍未合并（方案 C）
+- 下一步：申请提交/推送并部署，随后线上验证 F7/F8
+
 ### 2026-08-14 部署固化：镜像内置桥接 seed + deploy.sh 自动种映射并重启
 
 - 日期：2026-08-14

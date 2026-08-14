@@ -235,6 +235,16 @@ test('report resolver turns weak points into practice and otherwise returns to t
   assert.deepEqual(clear.secondaryAction, { label: '继续训练', targetSection: 'question' });
 });
 
+test('report resolver prefers the mastery weakest point title when provided', async () => {
+  const { buildReportNextLearningStep } = await loadResolvers();
+  const step = buildReportNextLearningStep(
+    { weakPoints: [{ title: '进程调度' }] },
+    '指令的基本组成',
+  );
+  assert.match(step.reason, /指令的基本组成/);
+  assert.doesNotMatch(step.reason, /进程调度/);
+});
+
 test('next learning step card is wired into all approved student loop surfaces', () => {
   const dashboard = readFileSync('apps/web/src/features/student/StudentLearningConsole.tsx', 'utf8');
   const plan = readFileSync('apps/web/src/components/TodayPlan.tsx', 'utf8');

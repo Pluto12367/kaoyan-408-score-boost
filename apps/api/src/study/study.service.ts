@@ -810,12 +810,24 @@ export class StudyService implements OnModuleInit {
   }
 
   async getTodayPlan(userId: string) {
-    const scheduledPlan = this.sevenDayPlansByUser.get(userId);
+    const today = todayKey();
+    let scheduledPlan = this.sevenDayPlansByUser.get(userId);
+    if (scheduledPlan) {
+      const scheduledDates = scheduledPlan.tasks.map((task) => task.scheduledDate).sort();
+      const lastScheduledDate = scheduledDates[scheduledDates.length - 1];
+      if (lastScheduledDate && lastScheduledDate < today) {
+        const profile = this.onboardingProfiles.get(userId);
+        const freshPlan = this.buildSevenDayPlan(userId);
+        scheduledPlan = profile
+          ? await this.onboardingPlanRepository.saveOnboarding(userId, profile, freshPlan)
+          : freshPlan;
+        this.sevenDayPlansByUser.set(userId, scheduledPlan);
+      }
+    }
     const plan = this.generatePlan(userId);
     const report = this.getOverviewReport(userId);
     const calendar = this.getLearningCalendar(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
-    const today = todayKey();
     const scoreCenter = (await this.scoreCenterService?.getTodayScoreCenterPlan(userId)) ?? null;
 
     if (scheduledPlan) {

@@ -48,7 +48,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
 
   const improvements: string[] = [];
   if (stageReport?.verdict === 'improved' && stageReport.accuracyDelta !== null) {
-    improvements.push(`正确率较上一阶段提升 ${stageReport.accuracyDelta} 个百分点`);
+    improvements.push(`答题正确率较上一阶段提升 ${stageReport.accuracyDelta} 个百分点（基于练习记录）`);
   }
   if (stageReport?.assessmentTrend.delta != null && stageReport.assessmentTrend.delta > 0) {
     improvements.push(`最近测评较上次提升 ${stageReport.assessmentTrend.delta} 分`);
@@ -73,12 +73,18 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
   }
   if (risks.length === 0) risks.push('当前无明显风险，保持现有节奏即可');
 
-  const topTask = report.weakPoints[0]
-    ? `优先补强「${report.weakPoints[0].title}」（${report.weakPoints[0].chapter}）：${report.weakPoints[0].suggestion}`
-    : stageReport?.nextAction
-      ? stageReport.nextAction
-      : '先完成今日推荐练习，积累数据后再生成建议';
-  const reportNextLearningStep = buildReportNextLearningStep(report);
+  const topMasteryWeakPoint = stageReport?.mastery.weakestPoints[0] ?? null;
+  const topTask = topMasteryWeakPoint
+    ? `优先补强「${topMasteryWeakPoint.title}」（掌握 ${topMasteryWeakPoint.masteryRate}%，基于掌握度地图）`
+    : report.weakPoints[0]
+      ? `优先补强「${report.weakPoints[0].title}」（${report.weakPoints[0].chapter}）：${report.weakPoints[0].suggestion}`
+      : stageReport?.nextAction
+        ? stageReport.nextAction
+        : '先完成今日推荐练习，积累数据后再生成建议';
+  const reportNextLearningStep = buildReportNextLearningStep(
+    report,
+    stageReport?.mastery.weakestPoints[0]?.title ?? null,
+  );
 
   const longTermWeakPoints = useMemo(() => {
     const weak = (masteryMap?.subjects ?? []).flatMap((subject) =>

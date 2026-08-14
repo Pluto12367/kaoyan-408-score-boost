@@ -180,8 +180,11 @@ export function buildWrongBookNextLearningStep({
   };
 }
 
-export function buildReportNextLearningStep(report: WeaknessReport): NextLearningStep {
-  const weakPoint = firstWeakPoint(report);
+export function buildReportNextLearningStep(
+  report: WeaknessReport,
+  masteryWeakestPointTitle: string | null = null,
+): NextLearningStep {
+  const weakPoint = masteryWeakestPointTitle ?? firstWeakPoint(report);
   if (weakPoint) {
     return {
       contextLabel: '报告下一步',
