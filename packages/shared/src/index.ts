@@ -10,6 +10,7 @@ export * from './assessmentHistorySummary';
 export * from './ai-tutor';
 export * from './score-center/index';
 export * from './knowledgeDisplay';
+export * from './nodeMastery';
 export type {
   SubjectCode,
   CatalogNodeType,

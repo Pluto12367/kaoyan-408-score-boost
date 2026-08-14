@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，阶段 0、1 已提交推送（`a900a93`）；阶段 2（图谱掌握度驱动掌握度地图/薄弱报告/推荐，`USE_KNODE_MASTERY` 只读开关）已完成并**尚未提交**；`npm test` 544 项 543 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含灰度重启断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 服务器部署后以 `USE_KNODE_MASTERY=true` 灰度开启 → 浏览器验证；随后进入阶段 3（题库图谱化 + 真题接入）。
 - 分支/提交：`codex/deployment-ready`，阶段 0（题库清重 + 掌握度回填）与阶段 1（知识图谱掌握度着色）已完成并**尚未提交**；`npm test` 537 项 536 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含 `GET /knowledge/mastery` 断言）与 `test:integration:content-import` 通过。下一步：申请提交/推送 → 服务器部署 → 执行 `question-bank-dedupe.mjs` 与 `backfill-user-mastery.mjs` → 浏览器验证图谱着色 → 进入阶段 2（图谱驱动推荐/计划 + 方案 C 只读切换）。
 - 分支/提交：`codex/deployment-ready`，2026-08-14“学习路径下一步入口统一强化”已提交并推送（`2de4abe`，与 origin 同步），线上部署站点已通过浏览器实测（五个学习面卡片全部出现、按钮跳转正确、移动端竖排正常）；浏览器实测发现的 aria-label 重复缺陷已修复（未提交）；新增 `verify:deployed` 部署冒烟脚本（未提交）；正在实施 P0 知识点目录接入学习引擎。
 - 分支/提交：`codex/deployment-ready`，第三轮（2026-08-07）待确认项实现**尚未提交**：前端细粒度埋点、AI 变式题入库、P2-3 安全拆分（导航/日期/摘要抽取）已完成；`npm test` 321 项 320 通过、`build:api`/`build:web` 通过、`test:integration:postgres` `ok: true`。
@@ -48,6 +49,25 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-14 阶段 2：图谱掌握度驱动掌握度地图/薄弱报告/推荐（方案 C 只读切换）
+
+- 日期：2026-08-14
+- 任务：新增 `USE_KNODE_MASTERY` 灰度开关（DB 模式，默认关闭），把掌握度地图、薄弱报告、推荐题组三条读路径从 16 粗粒度点内存计算切换到 `UserKnowledgeMastery` 节点掌握度。
+- 修改原因：阶段 0b/1 后节点掌握度已回填并上图谱，但经典闭环（掌握度地图/薄弱/推荐）仍用旧口径，P2-2 两套掌握度并存未收敛；方案 C 第 5 节定义只读切换灰度。
+- 修改文件：
+  - `packages/shared/src/nodeMastery.ts`（新增 `deriveNodeWeakPoints`/`buildNodeMasteryMap`，输出与旧 `MasteryMap` 兼容）+ `index.ts` 导出
+  - `apps/api/src/score-center/repository.ts`（新增 `loadActiveAtomicNodeCatalog`，原子点 + 父链章节）
+  - `apps/api/src/study/study.service.ts`：`USE_KNODE_MASTERY` 开关；启动时构建节点目录/题目→节点归因/节点掌握度只读缓存（`loadNodeMasteryReadCache`，无库守卫），单题/会话/复盘写入后刷新；`getMasteryMap`（节点聚合）、`getOverviewReport`（weakPoints 由节点掌握度推导，speedRisks/错因仍来自 records）、`getRecommendedPracticeSet`（按节点归因过滤题目，无匹配回退旧口径）
+  - 新增 `test/node-mastery-map.test.js`（2 项）、`test/node-mastery-read-switch.test.js`（5 项契约）
+  - `test/recommended-set-dedupe.test.js`（窗口改为覆盖整个函数体，意图不变）
+  - `scripts/integration-postgres.mjs`（灰度重启断言：mastery-map 弱/复习状态、overview 薄弱点节点推导、推荐题组节点归因）
+- 数据库变化：无迁移；生产灰度需在 `.env.production` 设 `USE_KNODE_MASTERY=true`（部署后重启生效，回滚=删除该变量）
+- API 变化：响应结构不变；数值在开关开启后改为 EMA 节点掌握度（设计内漂移）
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 544 项 543 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `ok:true`（含阶段 2 灰度断言）；`npm run test:integration:content-import` `ok:true (questions=320)`
+- 截图或验证证据：集成日志显示灰度重启后 `GET /mastery-map`、`GET /dashboard/overview`、`GET /practice-sets/recommended` 断言通过
+- 遗留问题：只读缓存为单实例快照（写入后刷新，重启后与库一致）；多实例一致性列入阶段 5；计划语义迁移（StudyTask→knowledgeNodeId）属 Phase 2b 单独评审
+- 下一步：申请提交/推送并部署；服务器开启灰度开关后浏览器验证；随后进入阶段 3（题库图谱化 + 真题接入）
 
 ### 2026-08-14 阶段 1：知识图谱掌握度着色
 

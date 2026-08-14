@@ -2519,6 +2519,106 @@ async function main() {
     await scoreCenterPrisma.$executeRawUnsafe('DROP TRIGGER IF EXISTS integration_score_center_generate_failure ON "StudyPlan"');
     await scoreCenterPrisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS integration_score_center_generate_failure()');
   }
+
+  // ---- Phase 2 gray switch: node mastery drives mastery map / weak report / recommendations ----
+  const weakNodeId = 'sc-weak-node-001';
+  const weakQuestionId = 'sc-q-weak-001';
+  await scoreCenterPrisma.knowledgeNode.create({
+    data: {
+      id: weakNodeId,
+      subject: 'DS',
+      nodeType: 'atomicPoint',
+      name: '集成测试薄弱原子点',
+      importance: 5,
+      difficulty: 3,
+      syllabusVersion: '2026-baseline',
+      isActive: true,
+    },
+  });
+  const weakFamily = await scoreCenterPrisma.questionFamily.create({ data: {} });
+  await scoreCenterPrisma.question.create({
+    data: {
+      id: weakQuestionId,
+      familyId: weakFamily.id,
+      versionNumber: 1,
+      isCurrent: true,
+      contentFingerprint: `sc-${weakQuestionId}-fingerprint`,
+      stem: 'Score center weak question',
+      options: ['A', 'B', 'C', 'D'],
+      answer: 'B',
+      analysis: 'integration analysis',
+      difficulty: 'MEDIUM',
+      type: 'SINGLE_CHOICE',
+      source: 'integration',
+      expectedTimeSec: 90,
+    },
+  });
+  await scoreCenterPrisma.questionKnowledgeNodeTag.create({
+    data: {
+      questionId: weakQuestionId,
+      knowledgeNodeId: weakNodeId,
+      role: 'PRIMARY',
+      confidence: 1.0,
+      taggedBy: 'HYBRID',
+    },
+  });
+  for (let index = 0; index < 3; index += 1) {
+    await postJson(`${apiUrl}/practice-records`, {
+      questionId: weakQuestionId,
+      knowledgePointId: 'co-cache',
+      selectedAnswer: 'A',
+      timeSpentSec: 60,
+      expectedTimeSec: 90,
+    }, scoreCenterHeaders);
+  }
+  const weakMastery = await scoreCenterPrisma.userKnowledgeMastery.findUnique({
+    where: { userId_knowledgeNodeId: { userId: scoreCenterUser.user.id, knowledgeNodeId: weakNodeId } },
+  });
+  assert(weakMastery?.attempts === 3 && weakMastery.wrongCount === 3, 'weak node should accumulate wrong attempts');
+
+  process.env.USE_KNODE_MASTERY = 'true';
+  await stop(activeApi);
+  activeApi = startApi();
+  await waitForHealth(activeApi);
+
+  const nodeMasteryMap = await getJson(`${apiUrl}/mastery-map`, scoreCenterHeaders);
+  const allNodePoints = nodeMasteryMap.subjects.flatMap((subject) => subject.points);
+  const weakMapPoint = allNodePoints.find((point) => point.knowledgePointId === weakNodeId);
+  const reviewMapPoint = allNodePoints.find((point) => point.knowledgePointId === scoreCenterNodeId);
+  assert(
+    weakMapPoint?.status === 'weak' && weakMapPoint.practiceCount === 3,
+    'mastery map should expose the weak node under the gray switch',
+  );
+  assert(weakMapPoint.masteryRate < 45, 'weak node mastery rate should reflect EMA node mastery');
+  assert(reviewMapPoint?.status === 'review', 'practiced node with mixed accuracy should stay review');
+  assert(
+    nodeMasteryMap.subjects.every((subject) => ['averageMastery', 'weakCount', 'reviewCount', 'masteredCount'].every((key) => key in subject)),
+    'mastery map subjects should stay response-compatible under the gray switch',
+  );
+
+  const nodeOverview = await getJson(`${apiUrl}/dashboard/overview`, scoreCenterHeaders);
+  const weakReportPoint = nodeOverview.report.weakPoints.find((point) => point.knowledgePointId === weakNodeId);
+  assert(weakReportPoint?.attempts === 3, 'overview weak points should be node-mastery derived under the gray switch');
+  assert(
+    !nodeOverview.report.weakPoints.some((point) => point.knowledgePointId === scoreCenterNodeId),
+    'review node should not appear as a weak point',
+  );
+
+  const nodeRecommended = await getJson(`${apiUrl}/practice-sets/recommended`, scoreCenterHeaders);
+  assert(
+    nodeRecommended.knowledgePointIds.includes(weakNodeId),
+    'recommended set should prioritize the node-mastery weak point',
+  );
+  assert(
+    nodeRecommended.questions.some((question) => question.id === weakQuestionId),
+    'recommended set should include questions attributed to the weak node',
+  );
+
+  delete process.env.USE_KNODE_MASTERY;
+  await stop(activeApi);
+  activeApi = startApi();
+  await waitForHealth(activeApi);
+
   await scoreCenterPrisma.$disconnect();
 
   // F7 regression: an expired or empty seven-day plan must roll over so the

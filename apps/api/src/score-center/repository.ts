@@ -161,6 +161,14 @@ export async function loadEvidenceNodes(db: DbClient) {
   });
 }
 
+export async function loadActiveAtomicNodeCatalog(db: DbClient) {
+  return db.knowledgeNode.findMany({
+    where: { isActive: true, nodeType: 'atomicPoint' },
+    include: { parent: { include: { parent: true } } },
+    orderBy: { id: 'asc' },
+  });
+}
+
 export async function loadLatestFrequencySnapshots(db: DbClient) {
   const latest = await db.knowledgeFrequencySnapshot.findFirst({
     orderBy: { snapshotDate: 'desc' },

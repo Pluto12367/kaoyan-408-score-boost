@@ -32,7 +32,7 @@
 - 涉及模块：`apps/api/src/study/study.service.ts`、`knowledge-point.repository.ts`、`KnowledgePointNodeMap`/`KnowledgeNode` 表、`packages/shared`（命名解析纯函数）、前端掌握度地图/报告。
 - 验收标准：见 `docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md` 第 5 节。
 - 风险：16 粗粒度点 → 1149 原子点映射需教研确认；历史 `PracticeRecord` 归因兜底；统一口径（方案 C）影响面大。
-- 当前状态：进行中（2026-08-14 方案 B 的映射/命名/接线已完成并部署；计算层面口径统一走方案 C：Phase 1 历史 `PracticeRecord` 回填 `UserKnowledgeMastery` 脚本与题库清重已完成（阶段 0，未提交），知识图谱页掌握度着色（阶段 1，`GET /knowledge/mastery` + 节点状态徽章 + 详情抽屉“我的掌握度/去练习”）已完成并通过全量测试与集成测试；待提交部署并浏览器验证；后续阶段 2 起将图谱掌握度接入推荐/计划（只读切换，可回滚））。
+- 当前状态：进行中（2026-08-14 方案 B 的映射/命名/接线已完成并部署；计算层面口径统一走方案 C：阶段 0（清重+回填）、阶段 1（图谱着色）已提交推送 `a900a93`；阶段 2 只读切换已完成待提交——`USE_KNODE_MASTERY` 开关开启后，掌握度地图/薄弱报告/推荐题组改由 `UserKnowledgeMastery` 节点掌握度驱动，响应结构不变，可开关回滚；待部署后浏览器验证；Phase 2b 计划语义迁移与阶段 3（题库图谱化+真题接入）为后续项）。
 
 ## P1
 

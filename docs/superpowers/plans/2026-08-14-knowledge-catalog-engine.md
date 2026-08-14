@@ -55,3 +55,13 @@
 - [x] GREEN：`KnowledgeCatalog.tsx` 加载掌握度 → `masteryById` → 传树与抽屉；`KnowledgeTree.tsx` 行着色 + 状态徽章；`KnowledgePointDetailDrawer.tsx` “我的掌握度” + “去练习”；`App.tsx` 传 `onNavigate`。
 - [x] 行为级断言：`scripts/integration-postgres.mjs` 增加 `GET /knowledge/mastery` 返回练习节点统计与派生状态。
 - [x] 验证：`npm test` 537 项 536 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。
+
+## Task 6（阶段 2）：图谱掌握度驱动掌握度地图/薄弱报告/推荐（方案 C 只读切换）
+
+- [x] RED：`test/node-mastery-map.test.js`（`deriveNodeWeakPoints`/`buildNodeMasteryMap` 行为）、`test/node-mastery-read-switch.test.js`（开关与接线契约）。
+- [x] GREEN：`packages/shared/src/nodeMastery.ts` 新增节点掌握度聚合纯函数（掌握度地图形状与旧 `MasteryMap` 兼容、薄弱点推导）。
+- [x] GREEN：`apps/api/src/score-center/repository.ts` 新增 `loadActiveAtomicNodeCatalog`（原子点 + 父链章节）。
+- [x] GREEN：`apps/api/src/study/study.service.ts` 新增 `USE_KNODE_MASTERY` 只读开关（DB 模式生效，默认关闭）：启动时构建节点目录/题目归因/掌握度缓存，写入后刷新；`getMasteryMap`/`getOverviewReport(weakPoints)`/`getRecommendedPracticeSet` 切换到节点口径（推荐按节点归因过滤题目，无匹配回退旧口径）。
+- [x] 行为级断言：`scripts/integration-postgres.mjs` 灰度重启后断言 `/mastery-map` 含弱节点（weak/review 状态）、`/dashboard/overview` 薄弱点由节点掌握度推导、`/practice-sets/recommended` 按节点归因返回题目。
+- [x] 验证：`npm test` 544 项 543 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。
+- 说明：计划语义迁移（Onboarding 七天计划/StudyTask 统一 `knowledgeNodeId`）属 Phase 2b，按设计单独评审，不在本阶段。

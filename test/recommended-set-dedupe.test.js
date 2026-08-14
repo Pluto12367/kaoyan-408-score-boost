@@ -30,6 +30,8 @@ test('dedupeQuestionsByStem handles an empty list', async () => {
 
 test('recommended practice set dedupes questions by stem before slicing', () => {
   const source = readFileSyncSync('apps/api/src/study/study.service.ts', 'utf8');
-  const block = source.slice(source.indexOf('getRecommendedPracticeSet'), source.indexOf('getRecommendedPracticeSet') + 1400);
+  const start = source.indexOf('getRecommendedPracticeSet');
+  const end = source.indexOf('getRecommendedReviewResources', start);
+  const block = source.slice(start, end > start ? end : start + 4000);
   assert.match(block, /dedupeQuestionsByStem/);
 });

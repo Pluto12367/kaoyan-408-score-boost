@@ -4,6 +4,7 @@ import {
   accumulateTaskProgress,
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildAssessmentHistorySummary,
+  buildNodeMasteryMap,
   buildStudyPlan,
   buildTemplateFollowUp,
   buildTemplateTutorReply,
@@ -12,6 +13,8 @@ import {
   computeWeaknessReport,
   dedupeQuestionsByStem,
   deriveMasteryStatus,
+  deriveNodeMasteryStatus,
+  deriveNodeWeakPoints,
   filterWrongQuestions,
   nextReviewIntervalDays,
   postExamTaskId,
@@ -25,6 +28,7 @@ import {
   type DiagnosticProfile,
   type KnowledgePoint,
   type MasteryPointExtras,
+  type NodeMasteryRow,
   type PracticeRecord,
   type Question,
   type StudyStage,
@@ -68,8 +72,21 @@ import { countByDate, lastNDates, nextNDates, studyDateKey, todayKey } from './s
 import { UserEventRepository } from './user-event.repository';
 import { ScoreCenterService } from '../score-center/service';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  loadActiveAtomicNodeCatalog,
+  loadLatestFrequencySnapshots,
+  type DbClient,
+} from '../score-center/repository';
 
 const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
+
+interface NodeCatalogEntry {
+  subject: NodeMasteryRow['subject'];
+  chapter: string;
+  title: string;
+  importance: number;
+  frequency: number;
+}
 
 @Injectable()
 export class StudyService implements OnModuleInit {
@@ -165,6 +182,7 @@ export class StudyService implements OnModuleInit {
       this.knowledgePoints.splice(0, this.knowledgePoints.length, ...persistedKnowledgePoints);
     }
     this.knowledgePointDisplay = await this.knowledgePointRepository.listNodeMaps();
+    await this.loadNodeMasteryReadCache();
     await this.teacherStudentAuthorizations.initialize();
     const progress = await this.learningProgressRepository.load();
     replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
@@ -217,6 +235,130 @@ export class StudyService implements OnModuleInit {
 
   private get dataSource(): 'memory-api' | 'postgresql' {
     return this.practiceRecordRepository.enabled ? 'postgresql' : 'memory-api';
+  }
+
+  private get useNodeMastery(): boolean {
+    return process.env.USE_KNODE_MASTERY === 'true' && this.nodeMasteryCacheLoaded && Boolean(this.prisma);
+  }
+
+  private readonly nodeMasteryByUser = new Map<string, NodeMasteryRow[]>();
+  private readonly nodeCatalogById = new Map<string, NodeCatalogEntry>();
+  private readonly nodeQuestionIdsByNode = new Map<string, string[]>();
+  private nodeMasteryCacheLoaded = false;
+
+  private async loadNodeMasteryReadCache() {
+    if (!this.prisma || !process.env.DATABASE_URL) return;
+    const db: DbClient = this.prisma;
+    const [nodes, snapshots, directTags, fallbackLinks] = await Promise.all([
+      loadActiveAtomicNodeCatalog(db),
+      loadLatestFrequencySnapshots(db),
+      db.questionKnowledgeNodeTag.findMany({
+        select: { questionId: true, knowledgeNodeId: true },
+      }),
+      db.questionKnowledgePoint.findMany({
+        select: {
+          questionId: true,
+          knowledgePoint: {
+            select: {
+              nodeMaps: {
+                where: { mappingType: 'PRIMARY' },
+                select: { knowledgeNodeId: true },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const snapshotByNode = new Map(snapshots.map((snapshot) => [snapshot.knowledgeNodeId, snapshot]));
+    this.nodeCatalogById.clear();
+    for (const node of nodes) {
+      const snapshot = snapshotByNode.get(node.id);
+      this.nodeCatalogById.set(node.id, {
+        subject: subjectNameFromCode(node.subject),
+        chapter: node.parent?.parent?.name ?? node.parent?.name ?? '',
+        title: node.name,
+        importance: node.importance,
+        frequency: snapshot?.recent3Frequency ?? node.importance,
+      });
+    }
+
+    const nodeIdsByQuestion = new Map<string, string[]>();
+    for (const tag of directTags) {
+      const list = nodeIdsByQuestion.get(tag.questionId) ?? [];
+      list.push(tag.knowledgeNodeId);
+      nodeIdsByQuestion.set(tag.questionId, list);
+    }
+    const taggedQuestionIds = new Set(directTags.map((tag) => tag.questionId));
+    for (const link of fallbackLinks) {
+      if (taggedQuestionIds.has(link.questionId)) continue;
+      const nodeId = link.knowledgePoint.nodeMaps[0]?.knowledgeNodeId;
+      if (!nodeId) continue;
+      const list = nodeIdsByQuestion.get(link.questionId) ?? [];
+      list.push(nodeId);
+      nodeIdsByQuestion.set(link.questionId, list);
+    }
+    const questionIdsByNode = new Map<string, string[]>();
+    for (const [questionId, nodeIds] of nodeIdsByQuestion) {
+      for (const nodeId of nodeIds) {
+        const list = questionIdsByNode.get(nodeId) ?? [];
+        list.push(questionId);
+        questionIdsByNode.set(nodeId, list);
+      }
+    }
+    this.nodeQuestionIdsByNode.clear();
+    for (const [nodeId, questionIds] of questionIdsByNode) {
+      this.nodeQuestionIdsByNode.set(nodeId, questionIds);
+    }
+
+    const masteries = await this.prisma.userKnowledgeMastery.findMany();
+    const rowsByUser = new Map<string, NodeMasteryRow[]>();
+    for (const mastery of masteries) {
+      const node = this.nodeCatalogById.get(mastery.knowledgeNodeId);
+      if (!node) continue;
+      const rows = rowsByUser.get(mastery.userId) ?? [];
+      rows.push(this.toNodeMasteryRow(mastery, node));
+      rowsByUser.set(mastery.userId, rows);
+    }
+    this.nodeMasteryByUser.clear();
+    for (const [userId, rows] of rowsByUser) this.nodeMasteryByUser.set(userId, rows);
+    this.nodeMasteryCacheLoaded = true;
+  }
+
+  private async refreshNodeMasteryCache(userId: string) {
+    if (!this.prisma || !process.env.DATABASE_URL || !this.nodeMasteryCacheLoaded) return;
+    const rows = (await this.prisma.userKnowledgeMastery.findMany({ where: { userId } }))
+      .map((mastery) => {
+        const node = this.nodeCatalogById.get(mastery.knowledgeNodeId);
+        return node ? this.toNodeMasteryRow(mastery, node) : null;
+      })
+      .filter((row): row is NodeMasteryRow => row !== null);
+    this.nodeMasteryByUser.set(userId, rows);
+  }
+
+  private toNodeMasteryRow(
+    mastery: {
+      knowledgeNodeId: string;
+      mastery: number;
+      attempts: number;
+      correctCount: number;
+      wrongCount: number;
+    },
+    node: NodeCatalogEntry,
+  ): NodeMasteryRow {
+    return {
+      knowledgeNodeId: mastery.knowledgeNodeId,
+      subject: node.subject,
+      chapter: node.chapter,
+      title: node.title,
+      importance: node.importance,
+      frequency: node.frequency,
+      mastery: mastery.mastery,
+      attempts: mastery.attempts,
+      correctCount: mastery.correctCount,
+      wrongCount: mastery.wrongCount,
+      status: deriveNodeMasteryStatus({ mastery: mastery.mastery, attempts: mastery.attempts }),
+    };
   }
 
   private readonly completedTaskDatesByUser = new Map<string, Map<string, string>>();
@@ -328,11 +470,18 @@ export class StudyService implements OnModuleInit {
   getOverviewReport(userId?: string) {
     const uid = userId ?? this.student.id;
     const student = this.getStudent(uid);
-    return this.applyCatalogDisplay(computeWeaknessReport({
+    const report = this.applyCatalogDisplay(computeWeaknessReport({
       knowledgePoints: this.knowledgePoints,
       records: this.records.filter((r) => r.userId === uid),
       targetScore: student.targetScore ?? 115,
     }));
+    if (this.useNodeMastery) {
+      return {
+        ...report,
+        weakPoints: deriveNodeWeakPoints(this.nodeMasteryByUser.get(uid) ?? []),
+      };
+    }
+    return report;
   }
 
   getDashboardOverview(userId?: string) {
@@ -566,6 +715,14 @@ export class StudyService implements OnModuleInit {
   }
 
   getMasteryMap(userId = this.student.id) {
+    if (this.useNodeMastery) {
+      return buildNodeMasteryMap({
+        userId,
+        rows: this.nodeMasteryByUser.get(userId) ?? [],
+        subjects: ['数据结构', '计算机组成原理', '操作系统', '计算机网络'],
+        generatedAt: new Date().toISOString(),
+      });
+    }
     const subjects: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
     const wrongQuestions = this.listWrongQuestions(userId);
     const wrongByPoint = new Map<string, number>();
@@ -1913,6 +2070,7 @@ export class StudyService implements OnModuleInit {
           error instanceof Error ? error.stack : String(error),
         );
       }
+      await this.refreshNodeMasteryCache(userId);
     }
 
     return {
@@ -2146,10 +2304,21 @@ export class StudyService implements OnModuleInit {
     const stage = this.getStudent(userId).stage ?? '强化';
     const weakPointIds = report.weakPoints.map((point) => point.knowledgePointId);
     const fallbackPointIds = this.generatePlan(userId).dailyTasks.map((task) => task.knowledgePointId);
-    const knowledgePointIds = [...new Set([...(weakPointIds.length ? weakPointIds : fallbackPointIds)])].slice(0, 4);
-    let matchingQuestions = this.questions.filter((question) =>
-      question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
-    );
+    const knowledgePointIds = [...new Set(weakPointIds)].slice(0, 4);
+    let matchingQuestions: Question[] = [];
+    if (this.useNodeMastery && weakPointIds.length > 0) {
+      const nodeQuestionIds = new Set(
+        weakPointIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []),
+      );
+      matchingQuestions = this.questions.filter((question) => nodeQuestionIds.has(question.id));
+    }
+    if (matchingQuestions.length === 0) {
+      const sourceIds = weakPointIds.length ? weakPointIds : fallbackPointIds;
+      knowledgePointIds.splice(0, knowledgePointIds.length, ...sourceIds.slice(0, 4));
+      matchingQuestions = this.questions.filter((question) =>
+        question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
+      );
+    }
     if (matchingQuestions.length === 0) {
       knowledgePointIds.push(...this.questions.flatMap((question) => question.knowledgePointIds).slice(0, 2));
       matchingQuestions = this.questions.filter((question) =>
@@ -2341,6 +2510,7 @@ export class StudyService implements OnModuleInit {
           return saved;
         })
       : await this.practiceRecordRepository.save(record);
+    if (this.prisma) await this.refreshNodeMasteryCache(input.userId);
     this.records.push(savedRecord);
     if (!savedRecord.correct) {
       await this.ensureReviewSchedule(savedRecord);
@@ -3506,6 +3676,7 @@ export class StudyService implements OnModuleInit {
       Object.assign(session, submittedSession);
       this.practiceSessions.set(sessionId, session);
       this.records.push(...records);
+      await this.refreshNodeMasteryCache(userId);
       for (const record of records) {
         await this.applyPracticeProgressToTasks(userId, record);
       }
@@ -4269,4 +4440,15 @@ function toFeedbackItem(record: FeedbackRecord): FeedbackItem {
 
 function replaceFeedbackItems(target: FeedbackItem[], records: FeedbackRecord[]) {
   target.splice(0, target.length, ...records.map(toFeedbackItem));
+}
+
+const SUBJECT_NAME_BY_CODE: Record<string, Subject> = {
+  DS: '数据结构',
+  CO: '计算机组成原理',
+  OS: '操作系统',
+  CN: '计算机网络',
+};
+
+function subjectNameFromCode(code: string): Subject {
+  return SUBJECT_NAME_BY_CODE[code] ?? '未分类';
 }
