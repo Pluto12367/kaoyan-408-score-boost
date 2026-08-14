@@ -76,6 +76,12 @@ test('next learning step card styling is visually distinct and responsive', () =
   assert.match(styles, /@media \(max-width: 720px\)[\s\S]*next-learning-step-actions/);
 });
 
+test('next learning step card aria label uses the context label without duplicating the suffix', () => {
+  const source = readFileSync(cardPath, 'utf8');
+  assert.match(source, /aria-label=\{step\.contextLabel\}/);
+  assert.doesNotMatch(source, /aria-label=\{`\$\{step\.contextLabel\}下一步`\}/);
+});
+
 test('next learning step resolvers cover dashboard plan practice wrong-book and report contexts', () => {
   const source = readFileSync(cardPath, 'utf8');
   assert.match(source, /export function buildDashboardNextLearningStep/);

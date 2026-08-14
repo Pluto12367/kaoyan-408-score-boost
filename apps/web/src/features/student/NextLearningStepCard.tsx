@@ -24,7 +24,7 @@ export interface NextLearningStepCardProps {
 
 export function NextLearningStepCard({ step, onNavigate, compact = false }: NextLearningStepCardProps) {
   return (
-    <section className={`next-learning-step-card ${compact ? 'compact' : ''}`} aria-label={`${step.contextLabel}下一步`}>
+    <section className={`next-learning-step-card ${compact ? 'compact' : ''}`} aria-label={step.contextLabel}>
       <div className="next-learning-step-copy">
         <p className="eyebrow">{step.contextLabel}</p>
         <h4>{step.title}</h4>
