@@ -95,6 +95,22 @@
 
 跟进（同日）：线上验证 F1 通过（搜索 “Cache” 出现“切换到计算机组成原理（8 个匹配）”，点击后正常展示）、F4 通过（答题反馈显示“Cache基本原理”）；F2 复测发现错题详情仍偶发“未知考点”——根因是详情用题目第 1 个绑定 id 解析，而列表用答题记录 id，二者可能不一致。已修复：`getWrongQuestionDetail` 优先用最新答题记录的知识点 id 解析（与列表同源），新增回归断言（`catalog-naming-wiring.test.js` 第 2 条）。待提交部署后复测 F2。
 
+### 2026-08-14 审计项 F3/F5/F6：reviewDue 口径、今日提分空态、推荐题组去重
+
+- 日期：2026-08-14
+- 任务：修复审计报告的 F3（今日计划 reviewDue 与到期复习不一致）、F5（今日提分空态无生成入口）、F6（推荐题组同题干重复）。
+- 修改原因：`plan.reviewDue` 原为“待复盘错题数”，与 `/review/due` 的到期复习数不是同一口径；今日提分在“计划存在但 0 项”时不显示生成按钮；推荐题组未按题干去重。
+- 修改文件：
+  - `apps/api/src/study/study.service.ts`：两条 `getTodayPlan` 路径的 `reviewDue` 改为 `this.getDueReviews(userId).dueCount`（与到期复习组件同源）；`getRecommendedPracticeSet` 用 `dedupeQuestionsByStem` 去重后再切片
+  - `packages/shared/src/learning.ts`：新增 `dedupeQuestionsByStem` 纯函数（按 `stem.trim()` 去重，保留首个）
+  - `apps/web/src/features/today-score-center/TodaysScoreCenter.tsx`：`isEmptyPlan = !plan || plan.items.length === 0`，空态显示“生成今日计划”主按钮
+  - 新增 `test/review-due-consistency.test.js`（1 项）、`test/today-score-center-empty.test.js`（1 项）、`test/recommended-set-dedupe.test.js`（3 项）
+- 数据库变化：无
+- API 变化：`GET /today/plan` 的 `reviewDue` 语义修正为到期复习数（前端徽标与下一步卡片随之正确）；响应结构不变
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 524 项 523 通过 / 1 跳过 / 0 失败（含 5 项新测试）
+- 遗留问题：F7（周条日期陈旧）、F8（报告口径并存）与无障碍走查仍待处理
+- 下一步：申请提交/推送并部署，随后线上验证 F3/F5/F6
+
 ### 2026-08-14 部署固化：镜像内置桥接 seed + deploy.sh 自动种映射并重启
 
 - 日期：2026-08-14

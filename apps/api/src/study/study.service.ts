@@ -10,6 +10,7 @@ import {
   classifyMistake,
   computeMasteryReport,
   computeWeaknessReport,
+  dedupeQuestionsByStem,
   deriveMasteryStatus,
   filterWrongQuestions,
   nextReviewIntervalDays,
@@ -839,7 +840,7 @@ export class StudyService implements OnModuleInit {
         },
         priorityTasks,
         weekProgress: this.getSevenDayPlanSummary(scheduledPlan).days,
-        reviewDue: wrongQuestions.filter((q) => q.reviewStatus === 'pending').length,
+        reviewDue: this.getDueReviews(userId).dueCount,
         checkpoint: scheduledPlan.checkpoint,
         scoreCenter,
       };
@@ -883,7 +884,7 @@ export class StudyService implements OnModuleInit {
         reason: task.reason,
         nextAction: task.nextAction,
       })),
-      reviewDue: wrongQuestions.filter((q) => q.reviewStatus === 'pending').length,
+      reviewDue: this.getDueReviews(userId).dueCount,
       checkpoint: plan.checkpoint,
       weekProgress: [],
       scoreCenter,
@@ -2138,7 +2139,7 @@ export class StudyService implements OnModuleInit {
       );
     }
     const questionCount = stage === '冲刺' ? 20 : report.accuracyRate < 55 ? 16 : 12;
-    const questions = matchingQuestions.slice(0, Math.min(questionCount, matchingQuestions.length));
+    const questions = dedupeQuestionsByStem(matchingQuestions).slice(0, Math.min(questionCount, matchingQuestions.length));
 
     return {
       id: `practice-set-${todayKey()}`,

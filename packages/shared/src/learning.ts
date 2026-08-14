@@ -391,6 +391,18 @@ export function recommendPracticeSet(input: {
   };
 }
 
+export function dedupeQuestionsByStem<T extends { id: string; stem: string }>(questions: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const question of questions) {
+    const key = question.stem.trim();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(question);
+  }
+  return result;
+}
+
 export function createTeacherQuestion(input: {
   stem: string;
   options: string[];

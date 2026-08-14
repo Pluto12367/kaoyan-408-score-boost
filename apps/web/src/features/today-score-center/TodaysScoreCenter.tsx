@@ -66,6 +66,7 @@ export function TodaysScoreCenter() {
   }, [plan, subjectFilter]);
 
   const subjects = useMemo(() => [...new Set((plan?.items ?? []).map((item) => item.subject))], [plan]);
+  const isEmptyPlan = !plan || plan.items.length === 0;
 
   const startPractice = useCallback(() => {
     window.location.hash = '#/question';
@@ -113,7 +114,7 @@ export function TodaysScoreCenter() {
           <button type="button" className="secondary-action" onClick={() => void load()}>重新加载</button>
         </div>
       ) : null}
-      {!loading && !error && !plan ? (
+      {!loading && !error && isEmptyPlan ? (
         <div className="empty-state">
           <p>还没有今日提分计划。</p>
           <button type="button" className="primary-action" onClick={() => void generate(120)} disabled={generating}>
@@ -121,7 +122,7 @@ export function TodaysScoreCenter() {
           </button>
         </div>
       ) : null}
-      {plan ? (
+      {!loading && !error && plan && plan.items.length > 0 ? (
         <>
           <p className="task-status">
             共 {plan.summary.totalTasks} 项 · 建议总时长 {plan.summary.totalMinutes} 分钟
