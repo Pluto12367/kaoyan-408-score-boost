@@ -2514,6 +2514,27 @@ async function main() {
   }
   await scoreCenterPrisma.$disconnect();
 
+  // F7 regression: an expired or empty seven-day plan must roll over so the
+  // week strip and today's tasks are regenerated from the current period.
+  const onboardingPlan = await migrationPrisma.studyPlan.findFirst({
+    where: { userId: registered.user.id, status: 'ACTIVE' },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  assert(onboardingPlan, 'onboarding plan should exist for the rollover regression');
+  await migrationPrisma.studyTask.updateMany({
+    where: { planId: onboardingPlan.id },
+    data: { scheduledDate: '2020-01-01' },
+  });
+  const rolledTodayPlan = await getJson(`${apiUrl}/today/plan`, studentHeaders);
+  const rolloverToday = shanghaiStudyDateKey(new Date());
+  assert(rolledTodayPlan.weekProgress.length >= 7, 'expired plan should roll over to a fresh seven-day week');
+  assert(
+    rolledTodayPlan.weekProgress.some((day) => day.date >= rolloverToday),
+    'rolled week should include the current period',
+  );
+  assert(rolledTodayPlan.priorityTasks.length > 0, 'expired plan should regenerate today tasks');
+
   console.log(JSON.stringify({
     ok: true,
     source: restored.source,

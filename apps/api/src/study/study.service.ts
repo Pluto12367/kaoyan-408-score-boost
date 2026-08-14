@@ -815,13 +815,19 @@ export class StudyService implements OnModuleInit {
     if (scheduledPlan) {
       const scheduledDates = scheduledPlan.tasks.map((task) => task.scheduledDate).sort();
       const lastScheduledDate = scheduledDates[scheduledDates.length - 1];
-      if (lastScheduledDate && lastScheduledDate < today) {
+      const hasCurrentWindow = lastScheduledDate ? lastScheduledDate >= today : false;
+      if (!hasCurrentWindow) {
         const profile = this.onboardingProfiles.get(userId);
+        this.sevenDayPlansByUser.delete(userId);
         const freshPlan = this.buildSevenDayPlan(userId);
-        scheduledPlan = profile
-          ? await this.onboardingPlanRepository.saveOnboarding(userId, profile, freshPlan)
-          : freshPlan;
-        this.sevenDayPlansByUser.set(userId, scheduledPlan);
+        if (freshPlan.tasks.length > 0) {
+          scheduledPlan = profile
+            ? await this.onboardingPlanRepository.saveOnboarding(userId, profile, freshPlan)
+            : freshPlan;
+          this.sevenDayPlansByUser.set(userId, scheduledPlan);
+        } else {
+          this.sevenDayPlansByUser.set(userId, scheduledPlan);
+        }
       }
     }
     const plan = this.generatePlan(userId);
