@@ -1,0 +1,25 @@
+{
+  "meta": {
+    "source": "coarse KnowledgePoint ids to catalog atomic KnowledgeNode ids",
+    "generatedAt": "2026-08-14",
+    "note": "初版按名称/章节匹配的 PRIMARY 代表点映射，需教研复核后调整 confidence。"
+  },
+  "mappings": [
+    { "knowledgePointId": "ds-list", "knowledgeNodeId": "DS-C02-S01-P01", "mappingType": "PRIMARY", "confidence": 0.8, "note": "线性表定义" },
+    { "knowledgePointId": "ds-tree", "knowledgeNodeId": "DS-C04-S02-P11", "mappingType": "PRIMARY", "confidence": 0.7, "note": "先序遍历（树的遍历应用代表点）" },
+    { "knowledgePointId": "ds-graph", "knowledgeNodeId": "DS-C05-S01-P01", "mappingType": "PRIMARY", "confidence": 0.8, "note": "图的定义" },
+    { "knowledgePointId": "ds-sort", "knowledgeNodeId": "DS-C07-S01-P01", "mappingType": "PRIMARY", "confidence": 0.8, "note": "内部排序与外部排序" },
+    { "knowledgePointId": "co-data", "knowledgeNodeId": "CO-C02-S01-P07", "mappingType": "PRIMARY", "confidence": 0.8, "note": "补码（数据表示代表点）" },
+    { "knowledgePointId": "co-cache", "knowledgeNodeId": "CO-C03-S05-P01", "mappingType": "PRIMARY", "confidence": 0.9, "note": "Cache基本原理" },
+    { "knowledgePointId": "co-instruction", "knowledgeNodeId": "CO-C04-S01-P02", "mappingType": "PRIMARY", "confidence": 0.8, "note": "指令的基本组成" },
+    { "knowledgePointId": "co-cpu", "knowledgeNodeId": "CO-C05-S01-P01", "mappingType": "PRIMARY", "confidence": 0.8, "note": "CPU功能" },
+    { "knowledgePointId": "os-process", "knowledgeNodeId": "OS-C02-S01-P02", "mappingType": "PRIMARY", "confidence": 0.8, "note": "进程定义" },
+    { "knowledgePointId": "os-sync", "knowledgeNodeId": "OS-C02-S04-P20", "mappingType": "PRIMARY", "confidence": 0.9, "note": "信号量（同步互斥核心机制）" },
+    { "knowledgePointId": "os-memory", "knowledgeNodeId": "OS-C03-S01-P01", "mappingType": "PRIMARY", "confidence": 0.8, "note": "内存管理功能" },
+    { "knowledgePointId": "os-file", "knowledgeNodeId": "OS-C04-S03-P01", "mappingType": "PRIMARY", "confidence": 0.7, "note": "文件系统全局结构" },
+    { "knowledgePointId": "net-link", "knowledgeNodeId": "CN-C03-S01-P01", "mappingType": "PRIMARY", "confidence": 0.8, "note": "数据链路层功能" },
+    { "knowledgePointId": "net-ip", "knowledgeNodeId": "CN-C04-S03-P01", "mappingType": "PRIMARY", "confidence": 0.8, "note": "IPv4数据报格式" },
+    { "knowledgePointId": "net-tcp", "knowledgeNodeId": "CN-C05-S03-P07", "mappingType": "PRIMARY", "confidence": 0.8, "note": "TCP三次握手" },
+    { "knowledgePointId": "net-app", "knowledgeNodeId": "CN-C06-S02-P01", "mappingType": "PRIMARY", "confidence": 0.7, "note": "DNS层次域名空间（应用层代表点）" }
+  ]
+}

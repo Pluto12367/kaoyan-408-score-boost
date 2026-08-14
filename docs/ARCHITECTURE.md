@@ -57,7 +57,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 | FeedbackRepository | `FeedbackSubmission` 表 |
 | TeacherStudentAuthorizationRepository | `TeacherStudentAuthorization` 表 |
 | AdminUserRepository | 只读聚合 `User` + `OperationLog` + `PracticeRecord` |
-| KnowledgePointRepository | 已接入 StudyService（P0-1 完成）：启动时从 DB 加载知识点目录，替换内置兜底数组；`POST /knowledge-points` 持久化 |
+| KnowledgePointRepository | 已接入 StudyService（P0-1 完成）：启动时从 DB 加载知识点目录，替换内置兜底数组；`POST /knowledge-points` 持久化；`listNodeMaps()` 读取 `KnowledgePointNodeMap` → `KnowledgeNode` 目录命名（P0-2 方案 B） |
 
 ## 4. 数据库实体关系
 
@@ -65,6 +65,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 
 - `User` 1-N：`PracticeRecord`、`StudyPlan`、`LearningSession`、`ReviewSchedule`、`WrongQuestionReview`、`StudyTaskCompletion`、`RefreshToken`、`OperationLog`、`FeedbackSubmission`、`ExamReviewPlan`、`InvitationCode`(创建)、`InvitationRedemption`。
 - `Question` N-M `KnowledgePoint` 经 `QuestionKnowledgePoint`（复合主键）。
+- `KnowledgePoint` N-M `KnowledgeNode` 经 `KnowledgePointNodeMap`（P0-2 方案 B：经典闭环命名/章节经目录解析）。
 - `Question` N-1 `QuestionFamily`（版本化：familyId + versionNumber + isCurrent）。
 - `PracticeRecord` N-1 `Question` / `KnowledgePoint`（每题只记第一个知识点）；N-1 `LearningSession`（sessionId 可空）。
 - `LearningSession` 1-1 `ExamReviewPlan`（sessionId 唯一）。

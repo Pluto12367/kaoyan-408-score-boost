@@ -15,6 +15,7 @@ import {
   nextReviewIntervalDays,
   postExamTaskId,
   rebalanceTaskLoad,
+  resolveKnowledgePointDisplay,
   type AiFollowUpDraft,
   type AiTutorContext,
   type AiTutorFollowUpMode,
@@ -32,6 +33,8 @@ import {
   type UserProfile,
   type WrongQuestionFilter,
   type WrongQuestionMasteryStatus,
+  type WeakPoint,
+  type WeaknessReport,
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
@@ -133,6 +136,8 @@ export class StudyService implements OnModuleInit {
     { id: 'net-tcp', subject: '计算机网络', chapter: '传输层', title: 'TCP 可靠传输', importance: 4, frequency: 5, prerequisites: ['滑动窗口'] },
   ];
 
+  private knowledgePointDisplay = new Map<string, { title: string; chapter: string }>();
+
   private get questions(): Question[] {
     return this.questionsService.listQuestions();
   }
@@ -158,6 +163,7 @@ export class StudyService implements OnModuleInit {
     if (persistedKnowledgePoints.length > 0) {
       this.knowledgePoints.splice(0, this.knowledgePoints.length, ...persistedKnowledgePoints);
     }
+    this.knowledgePointDisplay = await this.knowledgePointRepository.listNodeMaps();
     await this.teacherStudentAuthorizations.initialize();
     const progress = await this.learningProgressRepository.load();
     replaceNestedMap(this.completedTaskDatesByUser, progress.completedTasks);
@@ -303,14 +309,29 @@ export class StudyService implements OnModuleInit {
     return point;
   }
 
+  private applyCatalogDisplay(report: WeaknessReport): WeaknessReport {
+    const mapPoint = (point: WeakPoint) => {
+      const display = resolveKnowledgePointDisplay(
+        { id: point.knowledgePointId, title: point.title, chapter: point.chapter },
+        this.knowledgePointDisplay,
+      );
+      return { ...point, title: display.title, chapter: display.chapter };
+    };
+    return {
+      ...report,
+      weakPoints: report.weakPoints.map(mapPoint),
+      speedRisks: report.speedRisks.map(mapPoint),
+    };
+  }
+
   getOverviewReport(userId?: string) {
     const uid = userId ?? this.student.id;
     const student = this.getStudent(uid);
-    return computeWeaknessReport({
+    return this.applyCatalogDisplay(computeWeaknessReport({
       knowledgePoints: this.knowledgePoints,
       records: this.records.filter((r) => r.userId === uid),
       targetScore: student.targetScore ?? 115,
-    });
+    }));
   }
 
   getDashboardOverview(userId?: string) {
@@ -578,10 +599,15 @@ export class StudyService implements OnModuleInit {
     const subjectMaps = subjects.map((subject) => {
       const points = model.points
         .filter((point) => point.subject === subject)
-        .map((point) => ({
+        .map((point) => {
+          const display = resolveKnowledgePointDisplay(
+            { id: point.knowledgePointId, title: point.title, chapter: point.chapter },
+            this.knowledgePointDisplay,
+          );
+          return {
           knowledgePointId: point.knowledgePointId,
-          title: point.title,
-          chapter: point.chapter,
+          title: display.title,
+          chapter: display.chapter,
           importance: point.importance,
           frequency: point.frequency,
           masteryRate: point.masteryRate,
@@ -591,7 +617,8 @@ export class StudyService implements OnModuleInit {
           status: point.status,
           nextAction: point.nextAction,
           actionAnchor: point.status === 'weak' ? '#wrong-book' : '#question',
-        }));
+          };
+        });
       const averageMastery = points.length
         ? Math.round(points.reduce((sum, point) => sum + point.masteryRate, 0) / points.length)
         : 0;
@@ -1694,6 +1721,9 @@ export class StudyService implements OnModuleInit {
 
       const question = this.questions.find((item) => item.id === questionId);
       const knowledgePoint = this.knowledgePoints.find((item) => item.id === latestRecord.knowledgePointId);
+      const knowledgePointDisplay = knowledgePoint
+        ? resolveKnowledgePointDisplay(knowledgePoint, this.knowledgePointDisplay)
+        : null;
       const wrongCount = records.filter((record) => !record.correct).length;
       const mastery = this.getMasteryState(userId, questionId);
 
@@ -1703,9 +1733,9 @@ export class StudyService implements OnModuleInit {
         answer: question?.answer,
         analysis: question?.analysis,
         knowledgePointId: latestRecord.knowledgePointId,
-        knowledgePointTitle: knowledgePoint?.title ?? latestRecord.knowledgePointId,
+        knowledgePointTitle: knowledgePointDisplay?.title ?? latestRecord.knowledgePointId,
         subject: knowledgePoint?.subject ?? '未分类',
-        chapter: knowledgePoint?.chapter ?? '未分类',
+        chapter: knowledgePointDisplay?.chapter ?? '未分类',
         wrongCount,
         latestMistakeReason: latestRecord.mistakeReason,
         latestSubmittedAt: latestRecord.submittedAt,

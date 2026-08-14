@@ -39,6 +39,25 @@ export class KnowledgePointRepository {
       },
     });
   }
+
+  async listNodeMaps(): Promise<Map<string, { title: string; chapter: string }>> {
+    const display = new Map<string, { title: string; chapter: string }>();
+    if (!this.enabled) return display;
+    const rows = await this.prisma.knowledgePointNodeMap.findMany({
+      where: { mappingType: 'PRIMARY' },
+      include: {
+        knowledgeNode: {
+          include: { parent: { include: { parent: true } } },
+        },
+      },
+    });
+    for (const row of rows) {
+      const node = row.knowledgeNode;
+      const chapter = node.parent?.parent?.name ?? node.parent?.name ?? '';
+      display.set(row.knowledgePointId, { title: node.name, chapter });
+    }
+    return display;
+  }
 }
 
 function toPrismaSubject(subject: Subject): PrismaSubject {

@@ -189,6 +189,40 @@ async function main() {
   assert(createdKnowledgePoint.id === 'integration-kp-persist', 'teacher should create a knowledge point through the API');
   const catalogAfterCreate = await getJson(`${apiUrl}/knowledge-points`, teacherHeaders);
   assert(catalogAfterCreate.some((point) => point.id === 'integration-kp-persist'), 'created knowledge point should join the live catalog');
+  await migrationPrisma.knowledgeNode.upsert({
+    where: { id: 'integration-kp-node' },
+    update: {},
+    create: {
+      id: 'integration-kp-node',
+      parentId: null,
+      subject: 'CO',
+      nodeType: 'atomicPoint',
+      name: '集成测试原子点',
+      importance: 3,
+      difficulty: 3,
+      syllabusVersion: 'integration',
+      isActive: true,
+    },
+  });
+  await migrationPrisma.knowledgePointNodeMap.upsert({
+    where: {
+      knowledgePointId_knowledgeNodeId: {
+        knowledgePointId: 'integration-kp-persist',
+        knowledgeNodeId: 'integration-kp-node',
+      },
+    },
+    update: {},
+    create: {
+      knowledgePointId: 'integration-kp-persist',
+      knowledgeNodeId: 'integration-kp-node',
+      mappingType: 'PRIMARY',
+      confidence: 0.8,
+    },
+  });
+  const bridgeRows = await migrationPrisma.knowledgePointNodeMap.count({
+    where: { knowledgePointId: 'integration-kp-persist' },
+  });
+  assert(bridgeRows === 1, 'knowledge point node map should persist a PRIMARY bridge row');
   const teacherQuestionCatalog = await getJson(`${apiUrl}/teacher/questions`, teacherHeaders);
   const teacherQuestionsById = new Map(teacherQuestionCatalog.map((question) => [question.id, question]));
   assert(teacherQuestionCatalog.some((question) => question.answer && question.analysis), 'teacher question catalog should retain answers and explanations');

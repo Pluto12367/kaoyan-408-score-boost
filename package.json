@@ -35,6 +35,7 @@
     "db:backup:verify": "node scripts/verify-postgres-backup.mjs",
     "db:restore": "node scripts/restore-postgres.mjs",
     "seed:408": "node scripts/seed-408-v2.mjs",
+    "seed:knowledge-map": "node scripts/seed-knowledge-point-map.mjs",
     "verify:408-data": "node scripts/verify-408-data.mjs",
     "questions:import": "node scripts/import-questions.mjs",
     "questions:import:dry-run": "node scripts/import-questions.mjs --dry-run",

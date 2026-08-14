@@ -18,22 +18,22 @@
 
 ## Gate 0：方案确认（必须先完成）
 
-- [ ] 向用户呈现方案 A/B/C（设计文档第 3 节），推荐 B，等用户确认后再进入任务 1。
+- [x] 向用户呈现方案 A/B/C（设计文档第 3 节），用户已确认方案 B（2026-08-14）。
 
 ## Task 1：桥接映射数据与脚本（方案 B 前置）
 
-- [ ] 设计 `data/408/knowledge-point-node-map.json`（16 粗粒度点 → PRIMARY 原子点映射，含 confidence）。
-- [ ] 新增 `scripts/seed-knowledge-point-map.mjs`：幂等填充 `KnowledgePointNodeMap`（并验证目标节点存在）。
-- [ ] RED：`test/knowledge-point-node-map.test.js` 契约测试（脚本存在、读映射文件、PRIMARY 目标均为 KnowledgeNode）。
-- [ ] GREEN：实现脚本。
-- [ ] 验证：`node scripts/seed-knowledge-point-map.mjs --dry-run`；集成脚本断言映射行数与目标节点存在。
+- [x] 设计 `data/408/knowledge-point-node-map.json`（16 粗粒度点 → PRIMARY 原子点映射，含 confidence）。
+- [x] 新增 `scripts/seed-knowledge-point-map.mjs`：幂等填充 `KnowledgePointNodeMap`（并验证目标节点存在）。
+- [x] RED：`test/knowledge-point-node-map.test.js` 契约测试（脚本存在、读映射文件、PRIMARY 目标均为 KnowledgeNode）。
+- [x] GREEN：实现脚本。
+- [x] 验证：`node scripts/seed-knowledge-point-map.mjs --dry-run`；集成脚本断言映射行数与目标节点存在。
 
 ## Task 2：经典闭环命名解析到目录（方案 B）
 
-- [ ] RED：`packages/shared` 新增纯函数 `resolveKnowledgePointDisplay`（id → 目录标题/章节，无映射时回退原值）。
-- [ ] GREEN：实现纯函数 + 单测（字面量断言）。
-- [ ] 接线：`StudyService.getMasteryMap`/`computeWeaknessReport`/错题详情/推荐题组的命名经解析函数输出。
-- [ ] 回归：掌握度/薄弱/错题相关测试全绿。
+- [x] RED：`packages/shared` 新增纯函数 `resolveKnowledgePointDisplay`（id → 目录标题/章节，无映射时回退原值）。
+- [x] GREEN：实现纯函数 + 单测（字面量断言）。
+- [x] 接线：`StudyService.getMasteryMap`/`getOverviewReport`（薄弱/速度风险）/`listWrongQuestions` 的命名经解析函数输出。
+- [x] 回归：掌握度/薄弱/错题相关测试全绿。
 
 ## Task 3：验证与文档
 

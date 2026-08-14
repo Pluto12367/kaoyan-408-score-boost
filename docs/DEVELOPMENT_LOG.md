@@ -76,6 +76,25 @@
 - 遗留问题：P0-2 方案 A/B/C 待用户确认（推荐 B）；P2-2 两套掌握度口径在计算层面仍未合并
 - 下一步：用户确认 P0-2 方案后按计划 TDD 实施；同时申请批准提交本轮全部改动
 
+### 2026-08-14 P0-2 方案 B：KnowledgePointNodeMap 桥接 + 经典闭环命名解析
+
+- 日期：2026-08-14
+- 任务：按用户确认的方案 B，把 16 个粗粒度 `KnowledgePoint` 桥接到 408 目录原子点（`KnowledgeNode`），并让经典闭环（掌握度地图/薄弱报告/错题）的命名与章节统一走目录解析。
+- 修改原因：经典闭环仍以 16 粗粒度点命名，与全量目录（1149 原子点）割裂；方案 B 用既有 `KnowledgePointNodeMap` 表桥接，计算口径不变、仅统一对外展示，风险最小。
+- 修改文件：
+  - 新增 `data/408/knowledge-point-node-map.json`（16 条 PRIMARY 映射 + confidence + note，需教研复核）
+  - 新增 `scripts/seed-knowledge-point-map.mjs`（幂等 upsert `KnowledgePointNodeMap`，`--dry-run` 无库校验）+ `package.json` 的 `seed:knowledge-map`
+  - 新增 `packages/shared/src/knowledgeDisplay.ts`（`resolveKnowledgePointDisplay` 纯函数，无映射回退原值）并导出
+  - `apps/api/src/study/knowledge-point.repository.ts`（新增 `listNodeMaps()`，经 `KnowledgePointNodeMap` + `KnowledgeNode` 父子链返回目录标题/章节）
+  - `apps/api/src/study/study.service.ts`（启动加载显示映射；`getMasteryMap` 输出、`getOverviewReport` 薄弱/速度风险、`listWrongQuestions` 标题与章节经解析函数输出）
+  - 新增 `test/knowledge-point-node-map.test.js`（3 项）、`test/knowledge-display.test.js`（3 项）；`scripts/integration-postgres.mjs` 新增桥接行持久化断言
+- 数据库变化：无迁移（复用既有 `KnowledgePointNodeMap` 表；seed 脚本为纯增量 upsert，回滚=删除映射行）
+- API 变化：无路由/响应结构变化；配置映射后掌握度地图、薄弱报告、错题详情使用目录命名（无映射时行为不变）
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 511 项 510 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `{"ok": true}`（含桥接行断言）；`node scripts/seed-knowledge-point-map.mjs --dry-run` 校验 16 条映射全部命中原子点
+- 截图或验证证据：`verify:408-data` 通过（1296 节点 / 1149 原子点 / 1149 频率项 / 611 真题）；dry-run 输出 16 条映射
+- 遗留问题：16 粗粒度点→原子点的 PRIMARY 代表点映射为名称匹配初版，需教研复核并调整 confidence；生产库需执行 `seed:knowledge-map`（含先 `seed:408` 保证 KnowledgeNode 存在）；两套掌握度口径（P2-2）在计算层面仍未合并（方案 C 待后续）
+- 下一步：申请提交/推送；部署后运行 `seed:knowledge-map` 并线上验证掌握度/错题命名
+
 ### 2026-08-07 待确认项实现：前端埋点、AI 变式题入库、P2-3 安全拆分
 
 - 日期：2026-08-07

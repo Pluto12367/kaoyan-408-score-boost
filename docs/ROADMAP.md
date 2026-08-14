@@ -32,7 +32,7 @@
 - 涉及模块：`apps/api/src/study/study.service.ts`、`knowledge-point.repository.ts`、`KnowledgePointNodeMap`/`KnowledgeNode` 表、`packages/shared`（命名解析纯函数）、前端掌握度地图/报告。
 - 验收标准：见 `docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md` 第 5 节。
 - 风险：16 粗粒度点 → 1149 原子点映射需教研确认；历史 `PracticeRecord` 归因兜底；统一口径（方案 C）影响面大。
-- 当前状态：待确认（方案 A/B/C 见设计文档，推荐先做方案 B；实现计划见 `docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md`）。
+- 当前状态：进行中（2026-08-14 按用户确认的方案 B 实施：`KnowledgePointNodeMap` 映射文件与幂等 seed 脚本、共享命名解析纯函数、StudyService 掌握度/薄弱/错题命名接线已完成并通过全量测试与集成测试；待教研复核映射、部署执行 seed 后线上验证；计算层面口径统一（方案 C）为后续项）。
 
 ## P1
 

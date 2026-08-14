@@ -47,11 +47,11 @@ P0 知识点目录接入学习引擎
 
 让学习引擎以 408 知识目录（`408-codex-handoff/data/408/knowledge-tree-408-v2.json` 等权威数据）为准，掌握度、薄弱报告、推荐与计划不再局限于内置 4 个知识点，核心提分闭环对导入题库真实生效。
 
+进展（2026-08-14）：方案 B（`KnowledgePointNodeMap` 桥接）已实现——16 粗粒度点 → 原子点映射文件 + `seed:knowledge-map` 脚本 + 共享命名解析 + StudyService 掌握度/薄弱/错题接线，全量测试与集成测试通过；待提交/推送、生产执行 seed 与教研复核映射。
+
 待提交（等用户批准）：
 
-- aria-label 重复修复（`NextLearningStepCard.tsx` + 测试）
-- `scripts/verify-deployed.mjs` 部署冒烟脚本 + `test/deployed-smoke-script.test.js` + `package.json` 的 `verify:deployed`
-- `docs/DEVELOPMENT_LOG.md` 更新
+- P0-2 方案 B：`data/408/knowledge-point-node-map.json`、`scripts/seed-knowledge-point-map.mjs`、`packages/shared/src/knowledgeDisplay.ts`、`knowledge-point.repository.ts`、`study.service.ts` 接线、`test/knowledge-point-node-map.test.js`、`test/knowledge-display.test.js`、集成断言
 
 已写文档（本地未跟踪，建议随下次提交一并入库）：
 
