@@ -1963,7 +1963,8 @@ export class StudyService implements OnModuleInit {
       .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
 
     const question = this.questions.find((q) => q.id === questionId);
-    const knowledgePointId = question?.knowledgePointIds[0];
+    const latestRecord = records[records.length - 1];
+    const knowledgePointId = latestRecord?.knowledgePointId ?? question?.knowledgePointIds[0];
     const point = knowledgePointId
       ? this.knowledgePoints.find((k) => k.id === knowledgePointId)
       : undefined;

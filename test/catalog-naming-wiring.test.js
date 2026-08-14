@@ -9,6 +9,12 @@ test('wrong-question detail resolves knowledge point titles through the catalog 
   assert.doesNotMatch(source, /getWrongQuestionDetail[\s\S]{0,900}knowledgePointTitle: point\?\.title \?\? '未知考点'/);
 });
 
+test('wrong-question detail resolves from the latest practice record binding to stay consistent with the list', () => {
+  const source = readFileSync('apps/api/src/study/study.service.ts', 'utf8');
+  const block = source.slice(source.indexOf('getWrongQuestionDetail'), source.indexOf('getWrongQuestionDetail') + 900);
+  assert.match(block, /latestRecord\?\.knowledgePointId \?\? question\?\.knowledgePointIds\[0\]/);
+});
+
 test('practice answer feedback resolves knowledge point titles through the catalog display map', () => {
   const source = readFileSync('apps/api/src/study/study.service.ts', 'utf8');
   assert.match(source, /getPracticeFeedback[\s\S]*resolveKnowledgePointDisplay/);
