@@ -380,6 +380,41 @@ export function searchKnowledgeTree(
   return results;
 }
 
+export interface SearchHitSubjectSummary {
+  code: string;
+  name: string;
+  count: number;
+}
+
+export interface SearchHitSummary {
+  total: number;
+  activeCount: number;
+  otherSubjects: SearchHitSubjectSummary[];
+}
+
+export function summarizeSearchHits(
+  matches: Array<{ subjectCode: string; subjectName: string }>,
+  activeCode: string,
+): SearchHitSummary {
+  let activeCount = 0;
+  const byCode = new Map<string, SearchHitSubjectSummary>();
+  for (const match of matches) {
+    if (match.subjectCode === activeCode) {
+      activeCount += 1;
+      continue;
+    }
+    const entry = byCode.get(match.subjectCode)
+      ?? { code: match.subjectCode, name: match.subjectName, count: 0 };
+    entry.count += 1;
+    byCode.set(match.subjectCode, entry);
+  }
+  return {
+    total: matches.length,
+    activeCount,
+    otherSubjects: [...byCode.values()],
+  };
+}
+
 export function buildKnowledgePointIndex(catalog: KnowledgeCatalog): KnowledgePointIndex {
   const index: KnowledgePointIndex = {};
   for (const code of SUBJECT_ORDER) {

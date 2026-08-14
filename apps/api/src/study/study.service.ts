@@ -1963,9 +1963,16 @@ export class StudyService implements OnModuleInit {
       .sort((a, b) => a.submittedAt.localeCompare(b.submittedAt));
 
     const question = this.questions.find((q) => q.id === questionId);
-    const point = question?.knowledgePointIds[0]
-      ? this.knowledgePoints.find((k) => k.id === question.knowledgePointIds[0])
+    const knowledgePointId = question?.knowledgePointIds[0];
+    const point = knowledgePointId
+      ? this.knowledgePoints.find((k) => k.id === knowledgePointId)
       : undefined;
+    const display = knowledgePointId
+      ? resolveKnowledgePointDisplay(
+          { id: knowledgePointId, title: point?.title ?? '', chapter: point?.chapter ?? '' },
+          this.knowledgePointDisplay,
+        )
+      : null;
 
     const key = scheduleKey(userId, questionId);
     const schedule = this.reviewSchedules.get(key);
@@ -1978,9 +1985,9 @@ export class StudyService implements OnModuleInit {
       stem: question?.stem ?? questionId,
       answer: question?.answer,
       analysis: question?.analysis,
-      knowledgePointTitle: point?.title ?? '未知考点',
+      knowledgePointTitle: display?.title || point?.title || '未知考点',
       subject: point?.subject ?? '未分类',
-      chapter: point?.chapter ?? '未分类',
+      chapter: display?.chapter || point?.chapter || '未分类',
       attemptHistory: records.map((r) => ({
         date: r.submittedAt,
         selectedAnswer: r.selectedAnswer,
@@ -2338,10 +2345,16 @@ export class StudyService implements OnModuleInit {
     const knowledgePoint = knowledgePointId
       ? this.knowledgePoints.find((point) => point.id === knowledgePointId)
       : undefined;
+    const display = knowledgePointId
+      ? resolveKnowledgePointDisplay(
+          { id: knowledgePointId, title: knowledgePoint?.title ?? '', chapter: knowledgePoint?.chapter ?? '' },
+          this.knowledgePointDisplay,
+        )
+      : null;
     return {
       analysis: question.analysis,
       correctAnswer: question.answer,
-      knowledgePointTitle: knowledgePoint?.title ?? '',
+      knowledgePointTitle: display?.title || knowledgePoint?.title || '',
     };
   }
 

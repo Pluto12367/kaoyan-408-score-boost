@@ -76,6 +76,23 @@
 - 遗留问题：P0-2 方案 A/B/C 待用户确认（推荐 B）；P2-2 两套掌握度口径在计算层面仍未合并
 - 下一步：用户确认 P0-2 方案后按计划 TDD 实施；同时申请批准提交本轮全部改动
 
+### 2026-08-14 浏览器审计后修复：图谱跨科目搜索引导 + 错题详情/答题反馈命名统一
+
+- 日期：2026-08-14
+- 任务：按全功能浏览器审计结果修复 F1（知识图谱跨科目搜索无引导）、F2（错题详情出现“未知考点”）、F4（答题反馈/目标进度仍用粗粒度命名）。
+- 修改原因：审计发现搜索被限定当前科目但无切换提示；`getWrongQuestionDetail`/`getPracticeFeedback` 未走目录显示映射。
+- 修改文件：
+  - `packages/shared/src/knowledgeCatalog.ts`（新增 `summarizeSearchHits` 纯函数）+ `index.ts` 导出
+  - `apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx`（其他科目有匹配时展示“切换到 XX（N 个匹配）”引导按钮）
+  - `apps/api/src/study/study.service.ts`（`getWrongQuestionDetail`/`getPracticeFeedback` 的知识点标题/章节经 `resolveKnowledgePointDisplay` 解析，回退顺序 display → point.title → 兜底）
+  - 新增 `test/knowledge-catalog-search-hint.test.js`（4 项）、`test/catalog-naming-wiring.test.js`（3 项）
+- 数据库变化：无
+- API 变化：响应结构不变；`GET /wrong-questions/:id/detail` 与答题反馈的 `knowledgePointTitle`/`chapter` 在配置映射后返回目录命名
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 518 项 517 通过 / 1 跳过 / 0 失败（含 7 项新测试）
+- 截图或验证证据：审计报告见 `C:\Users\Lenovo\.codex\visualizations\2026\08\14\019ffe2e-cc7a-7f31-b249-0667c51084dc\audit-deployed\`
+- 遗留问题：F3（计划 reviewDue 与到期复习不一致）、F5（今日提分空态无生成入口）、F6（推荐题组同题干重复）、F7（周条日期陈旧）、F8（报告口径并存）待评估；F1 修复后需部署验证
+- 下一步：申请提交/推送并部署，随后重跑浏览器审计验证 F1/F2/F4
+
 ### 2026-08-14 部署固化：镜像内置桥接 seed + deploy.sh 自动种映射并重启
 
 - 日期：2026-08-14

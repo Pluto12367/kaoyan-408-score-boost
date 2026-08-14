@@ -41,5 +41,6 @@ export {
   searchKnowledgeTree,
   buildKnowledgePointIndex,
   resolveKnowledgePointRefs,
+  summarizeSearchHits,
   summarizeSubject,
 } from './knowledgeCatalog';

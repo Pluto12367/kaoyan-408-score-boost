@@ -4,6 +4,7 @@ import {
   filterKnowledgeTree,
   resolveKnowledgePointRefs,
   searchKnowledgeTree,
+  summarizeSearchHits,
   summarizeSubject,
   type CatalogAtomicPoint,
   type CatalogPointContext,
@@ -56,6 +57,10 @@ export function KnowledgeCatalog() {
   const matches = useMemo(
     () => (query.trim() ? searchKnowledgeTree(catalog, query) : []),
     [catalog, query],
+  );
+  const searchHits = useMemo(
+    () => summarizeSearchHits(matches, active),
+    [matches, active],
   );
   const visibleMatches = useMemo(
     () => matches.filter((match) => match.subjectCode === active),
@@ -133,6 +138,20 @@ export function KnowledgeCatalog() {
           expansionCommand={expansion}
           onSelectPoint={(point) => setSelectedPointId(point.id)}
         />
+      ) : searchHits.otherSubjects.length > 0 ? (
+        <div className="catalog-search-hint" role="status">
+          <p>“{query.trim()}”在当前科目（{SUBJECT_NAMES[active]}）没有匹配，可在以下科目找到：</p>
+          {searchHits.otherSubjects.map((subjectHit) => (
+            <button
+              key={subjectHit.code}
+              type="button"
+              className="catalog-toggle"
+              onClick={() => setActive(subjectHit.code as SubjectCode)}
+            >
+              切换到{subjectHit.name}（{subjectHit.count} 个匹配）
+            </button>
+          ))}
+        </div>
       ) : (
         <p className="empty-state">没有符合条件的知识点</p>
       )}
