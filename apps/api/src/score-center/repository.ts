@@ -107,6 +107,43 @@ export async function saveMastery(
   });
 }
 
+export async function saveMasterySnapshot(
+  db: DbClient,
+  userId: string,
+  knowledgeNodeId: string,
+  state: { mastery: number; attempts: number; correctCount: number; wrongCount: number },
+  snapshotDate: Date,
+) {
+  await db.userMasterySnapshot.upsert({
+    where: {
+      userId_knowledgeNodeId_snapshotDate: { userId, knowledgeNodeId, snapshotDate },
+    },
+    create: {
+      userId,
+      knowledgeNodeId,
+      mastery: state.mastery,
+      attempts: state.attempts,
+      correctCount: state.correctCount,
+      wrongCount: state.wrongCount,
+      snapshotDate,
+    },
+    update: {
+      mastery: state.mastery,
+      attempts: state.attempts,
+      correctCount: state.correctCount,
+      wrongCount: state.wrongCount,
+    },
+  });
+}
+
+export async function loadMasterySnapshots(db: DbClient, userId: string) {
+  return db.userMasterySnapshot.findMany({
+    where: { userId },
+    select: { knowledgeNodeId: true, mastery: true, snapshotDate: true },
+    orderBy: { snapshotDate: 'asc' },
+  });
+}
+
 export async function touchWrongQuestion(db: DbClient, userId: string, questionId: string, now: Date) {
   await db.wrongQuestionReview.upsert({
     where: { userId_questionId: { userId, questionId } },

@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，阶段 0-3 已提交推送（`a900a93`/`4197b0a`/`3d26900`）；阶段 4（报告图谱化：掌握度趋势，`UserMasterySnapshot` 每日快照 + `GET /mastery-trend` + 报告趋势面板）已完成并**尚未提交**；`npm test` 556 项 555 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含快照/趋势断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署（新迁移随容器启动自动应用）→ 生产执行回填（重建历史快照）→ 浏览器验证报告“掌握度趋势”；随后进入阶段 5（收敛工程化：旧口径冻结/多实例/性能/无障碍/HTTPS）。
 - 分支/提交：`codex/deployment-ready`，阶段 0-2 已提交推送（`a900a93`、`4197b0a`）；阶段 3（题库图谱化 + 真题接入）已完成并**尚未提交**；`npm test` 551 项 550 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 与 `test:integration:content-import`（含 linker 覆盖率=1 与幂等）通过。下一步：提交推送 → 部署后执行 `link-question-bank-to-nodes.mjs`（生产题库全部物化节点标签）→ 浏览器验证图谱抽屉“考点题库/真题命中”与“练习本题”；随后进入阶段 4（报告图谱化：掌握度趋势）。
 - 分支/提交：`codex/deployment-ready`，阶段 0、1 已提交推送（`a900a93`）；阶段 2（图谱掌握度驱动掌握度地图/薄弱报告/推荐，`USE_KNODE_MASTERY` 只读开关）已完成并**尚未提交**；`npm test` 544 项 543 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含灰度重启断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 服务器部署后以 `USE_KNODE_MASTERY=true` 灰度开启 → 浏览器验证；随后进入阶段 3（题库图谱化 + 真题接入）。
 - 分支/提交：`codex/deployment-ready`，阶段 0（题库清重 + 掌握度回填）与阶段 1（知识图谱掌握度着色）已完成并**尚未提交**；`npm test` 537 项 536 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含 `GET /knowledge/mastery` 断言）与 `test:integration:content-import` 通过。下一步：申请提交/推送 → 服务器部署 → 执行 `question-bank-dedupe.mjs` 与 `backfill-user-mastery.mjs` → 浏览器验证图谱着色 → 进入阶段 2（图谱驱动推荐/计划 + 方案 C 只读切换）。
@@ -50,6 +51,26 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-14 阶段 4：报告图谱化（掌握度趋势）
+
+- 日期：2026-08-14
+- 任务：新增每日节点掌握度快照（`UserMasterySnapshot`）与 `GET /mastery-trend`，报告“四科掌握度”页展示整体/分科趋势、最弱节点与提升/下滑列表。
+- 修改原因：掌握度只有当前值、无历史，报告无法回答“一段时间是否真正提高”；阶段 2/3 后节点掌握度已统一，需要快照沉淀趋势。
+- 修改文件：
+  - `prisma/schema.prisma` + 迁移 `20260814120000_user_mastery_snapshot`（additive 建表 + 唯一/索引 + 外键）
+  - `packages/shared/src/nodeMastery.ts`（新增 `buildMasteryTrend` 纯函数：整体/分科序列、分科最弱节点、窗口内 delta 排序）
+  - `apps/api/src/score-center/repository.ts`（`saveMasterySnapshot`/`loadMasterySnapshots`）、`service.ts`（作答/复盘写快照；`getMasteryTrend`）、`routes.ts`（`GET /mastery-trend`）
+  - `scripts/backfill-user-mastery.mjs`（重放历史记录时按记录日期重建快照，幂等）
+  - `apps/web/src/api/endpoints/trend.ts`（`fetchMasteryTrend` + 类型）、`features/report/MasteryTrendPanel.tsx`（趋势面板，柱状图/最弱节点/提升下滑）、`ReportWorkspace.tsx`（四科掌握度页挂载）、`styles.css`
+  - 新增 `test/mastery-trend.test.js`（2 项）、`test/mastery-trend-wiring.test.js`（3 项契约）
+  - `scripts/integration-postgres.mjs`（写快照、趋势端点、回填重建快照幂等断言）
+- 数据库变化：新增 `UserMasterySnapshot` 表（additive，可回滚=移除迁移目录后不再应用）
+- API 变化：新增 `GET /mastery-trend?days=N`（仅新增，向后兼容）
+- 测试结果：`npx prisma generate` 通过；`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 556 项 555 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `ok:true`（含快照与趋势断言）；`npm run test:integration:content-import` `ok:true (questions=320)`
+- 截图或验证证据：集成日志显示 `GET /mastery-trend` 返回整体序列与最弱节点；回填后 `userMasterySnapshot` 行数 > 0 且重跑一致
+- 遗留问题：快照按 UTC 日截断（与本地时区展示有一致性但非上海日历日）；趋势面板未做分页/日期范围选择；历史趋势依赖回填脚本在部署后执行
+- 下一步：申请提交/推送并部署；生产执行回填重建历史快照；浏览器验证报告趋势面板；随后进入阶段 5（收敛工程化）
 
 ### 2026-08-14 阶段 3：题库图谱化 + 真题接入
 

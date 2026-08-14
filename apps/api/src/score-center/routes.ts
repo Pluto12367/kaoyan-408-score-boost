@@ -7,6 +7,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -30,6 +31,14 @@ export class ScoreCenterController {
   @Roles('student', 'teacher', 'admin')
   async getMyMastery(@CurrentUser() user: UserProfile) {
     return this.scoreCenterService.getMyMastery(user.id);
+  }
+
+  @Get('mastery-trend')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getMasteryTrend(@CurrentUser() user: UserProfile, @Query('days') days?: string) {
+    const parsed = days ? Number.parseInt(days, 10) : 14;
+    return this.scoreCenterService.getMasteryTrend(user.id, Number.isNaN(parsed) ? 14 : parsed);
   }
 
   @Get('knowledge/:id')

@@ -9,6 +9,7 @@ import type {
   UserKnowledgeState,
 } from '@kaoyan408/shared';
 import {
+  buildMasteryTrend,
   calculatePriority,
   composeDailyPlan,
   deriveNodeMasteryStatus,
@@ -21,6 +22,7 @@ import { todayKey } from '../study/study-date';
 import {
   archiveScoreCenterPlans,
   createScoreCenterPlan,
+  loadActiveAtomicNodeCatalog,
   loadActiveKnowledgeNodes,
   loadEvidenceNodes,
   loadExamQuestionsForNode,
@@ -29,18 +31,26 @@ import {
   loadLatestFrequencySnapshots,
   loadMasteries,
   loadMasteryRow,
+  loadMasterySnapshots,
   loadRelatedQuestionsForNode,
   loadTodayScoreCenterPlan,
   neutralMastery,
   resolveKnowledgeNodesForQuestion,
   resolveWrongQuestion,
   saveMastery,
+  saveMasterySnapshot,
   touchWrongQuestion,
   type AttemptFact,
   type DbClient,
 } from './repository';
 
 const MODEL_VERSION = 'score-center-v1';
+const SCORE_SUBJECT_NAME_BY_CODE: Record<string, string> = {
+  DS: '数据结构',
+  CO: '计算机组成原理',
+  OS: '操作系统',
+  CN: '计算机网络',
+};
 const ACTION_LABELS: Record<RecommendationAction, string> = {
   LEARN: '新学',
   REVIEW: '复习',
@@ -119,6 +129,7 @@ export class ScoreCenterService {
         ...next,
         lastLearnedAt: submittedAt,
       });
+      await saveMasterySnapshot(db, userId, node.id, next, startOfUtcDay(submittedAt));
     }
 
     if (!record.correct) {
@@ -157,6 +168,7 @@ export class ScoreCenterService {
           lastReviewedAt: input.reviewedAt,
           nextReviewAt,
         });
+        await saveMasterySnapshot(tx, userId, node.id, current, startOfUtcDay(input.reviewedAt));
       }
       if (input.redoCorrect) {
         await resolveWrongQuestion(tx, userId, questionId, input.reviewedAt);
@@ -268,6 +280,41 @@ export class ScoreCenterService {
         nextReviewAt: row.nextReviewAt?.toISOString() ?? null,
       })),
     };
+  }
+
+  async getMasteryTrend(userId: string, days = 14) {
+    const windowDays = Math.max(1, Math.min(90, days));
+    if (!this.enabled) {
+      return buildMasteryTrend({
+        userId,
+        snapshots: [],
+        nodeCatalog: [],
+        subjects: ['数据结构', '计算机组成原理', '操作系统', '计算机网络'],
+        days: windowDays,
+        generatedAt: new Date().toISOString(),
+      });
+    }
+    const [snapshots, nodes] = await Promise.all([
+      loadMasterySnapshots(this.prisma, userId),
+      loadActiveAtomicNodeCatalog(this.prisma),
+    ]);
+    return buildMasteryTrend({
+      userId,
+      snapshots: snapshots.map((snapshot) => ({
+        knowledgeNodeId: snapshot.knowledgeNodeId,
+        mastery: snapshot.mastery,
+        snapshotDate: snapshot.snapshotDate.toISOString(),
+      })),
+      nodeCatalog: nodes.map((node) => ({
+        knowledgeNodeId: node.id,
+        subject: SCORE_SUBJECT_NAME_BY_CODE[node.subject] ?? '未分类',
+        title: node.name,
+        chapter: node.parent?.parent?.name ?? node.parent?.name ?? '',
+      })),
+      subjects: ['数据结构', '计算机组成原理', '操作系统', '计算机网络'],
+      days: windowDays,
+      generatedAt: new Date().toISOString(),
+    });
   }
 
   async generateDailyPlan(
@@ -480,5 +527,11 @@ export class ScoreCenterService {
 function startOfDay(date: Date): Date {
   const value = new Date(date);
   value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function startOfUtcDay(date: Date): Date {
+  const value = new Date(date);
+  value.setUTCHours(0, 0, 0, 0);
   return value;
 }

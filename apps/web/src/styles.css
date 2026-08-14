@@ -5520,6 +5520,127 @@ button.student-insight-card:hover,
 .catalog-cta:hover {
   filter: brightness(1.05);
 }
+.mastery-trend-panel .trend-overall,
+.mastery-trend-panel .trend-subjects,
+.mastery-trend-panel .trend-deltas {
+  margin-top: 14px;
+}
+.mastery-trend-panel h4 {
+  margin: 0 0 8px;
+  color: var(--text-strong);
+  font-size: 15px;
+}
+.trend-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 120px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-alt, #f8fafc);
+  overflow-x: auto;
+}
+.trend-bar-col {
+  display: flex;
+  flex: 1 1 28px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 24px;
+  height: 100%;
+}
+.trend-bar {
+  width: 100%;
+  max-width: 28px;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+}
+.trend-bar-col small {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.trend-subjects {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.trend-subject {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.trend-subject header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.trend-subject header strong {
+  color: var(--text-strong);
+}
+.trend-subject header span {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.trend-subject .trend-bars {
+  height: 80px;
+}
+.trend-weak-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.trend-weak-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-left: 3px solid var(--red);
+  background: var(--red-soft);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: 13px;
+}
+.trend-weak-list small {
+  color: var(--text-secondary);
+}
+.trend-deltas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.trend-deltas section {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+.trend-deltas ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.trend-deltas li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+}
+.trend-deltas li span {
+  font-weight: 600;
+  color: var(--text-strong);
+}
 .catalog-point-head {
   display: flex;
   align-items: baseline;

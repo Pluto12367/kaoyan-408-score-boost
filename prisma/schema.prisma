@@ -169,6 +169,7 @@ model User {
   assessmentHistoryItems AssessmentHistoryItem[]
   userEvents             UserEvent[]
   knowledgeMasteries     UserKnowledgeMastery[]
+  masterySnapshots       UserMasterySnapshot[]
 }
 
 model UserEvent {
@@ -770,6 +771,7 @@ model KnowledgeNode {
   knowledgePointMaps KnowledgePointNodeMap[]
   questionTags       QuestionKnowledgeNodeTag[]
   userMasteries      UserKnowledgeMastery[]
+  masterySnapshots   UserMasterySnapshot[]
   StudyTask          StudyTask[]
 
   @@index([parentId])
@@ -920,4 +922,22 @@ model UserKnowledgeMastery {
 
   @@unique([userId, knowledgeNodeId])
   @@index([userId, nextReviewAt])
+}
+
+model UserMasterySnapshot {
+  id              String        @id @default(cuid())
+  userId          String
+  knowledgeNodeId String
+  mastery         Float
+  attempts        Int
+  correctCount    Int
+  wrongCount      Int
+  snapshotDate    DateTime
+  createdAt       DateTime      @default(now())
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgeNode  KnowledgeNode  @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, knowledgeNodeId, snapshotDate])
+  @@index([userId, snapshotDate])
 }

@@ -16,6 +16,7 @@ import { AssessmentHistoryPanel } from '../assessment/AssessmentHistoryPanel';
 import { DiagnosticSummary } from '../diagnostic/DiagnosticSummary';
 import { FeedbackPanel } from '../feedback/FeedbackPanel';
 import { LearningProfilePanel } from './LearningProfilePanel';
+import { MasteryTrendPanel } from './MasteryTrendPanel';
 import { ReportSummaryPanel } from './ReportSummaryPanel';
 import { ReviewResourcesPanel } from './ReviewResourcesPanel';
 import { StageReportPanel } from './StageReportPanel';
@@ -118,6 +119,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
         aria-labelledby="report-tab-mastery"
         hidden={activeTab !== 'mastery'}
       >
+        <MasteryTrendPanel />
         <StudentProgressOverview
           trialProgress={props.trialProgress}
           studyReminders={props.studyReminders}

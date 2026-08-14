@@ -83,6 +83,7 @@ export async function replayUserMastery(db, userId, { dryRun = false } = {}) {
 
   const existing = await db.userKnowledgeMastery.findMany({ where: { userId } });
   const stateByNode = new Map(existing.map((row) => [row.knowledgeNodeId, toState(row)]));
+  const snapshotByKey = new Map();
   const nodeIds = [...stateByNode.keys(), ...[...tagsByQuestion.values()].flat().map((tag) => tag.knowledgeNodeId)];
   const nodeMeta = await db.knowledgeNode.findMany({
     where: { id: { in: [...new Set(nodeIds)] } },
@@ -99,6 +100,17 @@ export async function replayUserMastery(db, userId, { dryRun = false } = {}) {
         role: tag.role,
       });
       stateByNode.set(tag.knowledgeNodeId, next);
+      const date = new Date(record.submittedAt);
+      date.setUTCHours(0, 0, 0, 0);
+      snapshotByKey.set(`${tag.knowledgeNodeId}:${date.toISOString()}`, {
+        userId,
+        knowledgeNodeId: tag.knowledgeNodeId,
+        mastery: next.mastery,
+        attempts: next.attempts,
+        correctCount: next.correctCount,
+        wrongCount: next.wrongCount,
+        snapshotDate: date,
+      });
     }
   }
 
@@ -109,6 +121,7 @@ export async function replayUserMastery(db, userId, { dryRun = false } = {}) {
     records: records.length,
     attributableRecords,
     nodes: stateByNode.size,
+    snapshots: snapshotByKey.size,
   };
   if (dryRun) return summary;
 
@@ -118,6 +131,9 @@ export async function replayUserMastery(db, userId, { dryRun = false } = {}) {
       db.userKnowledgeMastery.create({
         data: { userId, knowledgeNodeId, ...state },
       })),
+    db.userMasterySnapshot.deleteMany({ where: { userId } }),
+    ...[...snapshotByKey.values()].map((snapshot) =>
+      db.userMasterySnapshot.create({ data: snapshot })),
   ]);
   return summary;
 }

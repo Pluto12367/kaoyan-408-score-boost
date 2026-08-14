@@ -74,3 +74,12 @@
 - [x] GREEN：图谱详情抽屉新增“考点题库（N 题）”列表（每题可“练习本题”）与“真题命中”列表（真题来源新窗口打开）；App 经 `onPracticeQuestion` 复用既有重做流程启动练习。
 - [x] 行为级断言：`integration-postgres`（知识详情返回关联题 + 真题命中）、`integration-content-import`（seed 原子目录+映射后 linker 覆盖率=1、320 条标签、幂等、详情含关联题与真题）。
 - [x] 验证：`npm test` 551 项 550 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。
+
+## Task 8（阶段 4）：报告图谱化（掌握度趋势）
+
+- [x] RED：`test/mastery-trend.test.js`（`buildMasteryTrend` 整体/分科/提升/下滑）、`test/mastery-trend-wiring.test.js`（端点/快照写入/schema/前端面板契约）。
+- [x] GREEN：新增 `UserMasterySnapshot` 表（用户×节点×日唯一）+ additive 迁移；`applyAttempts`/`applyReview` 写掌握度时同步 upsert 每日快照；回填脚本重放历史记录时重建历史快照（幂等）。
+- [x] GREEN：`GET /mastery-trend?days=N`（1..90，默认 14）返回整体/分科序列、分科最弱节点、提升最快/需要关注 delta；无库模式返回空结构。
+- [x] GREEN：前端报告“四科掌握度”页新增“掌握度趋势”面板（柱状趋势、最弱节点、提升/下滑列表；静态演示模式提示不展示）。
+- [x] 行为级断言：`integration-postgres`（练习写快照、趋势端点含整体序列与最弱节点、回填重建快照且幂等）。
+- [x] 验证：`npm test` 556 项 555 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。

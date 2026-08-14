@@ -2665,6 +2665,23 @@ async function main() {
     'exam hits should carry year and source url',
   );
 
+  // ---- Phase 4: daily mastery snapshots power the mastery trend report ----
+  const snapshotCount = await scoreCenterPrisma.userMasterySnapshot.count({
+    where: { userId: scoreCenterUser.user.id },
+  });
+  assert(snapshotCount > 0, 'practice writes should persist daily mastery snapshots');
+  const masteryTrend = await getJson(`${apiUrl}/mastery-trend?days=14`, scoreCenterHeaders);
+  assert(masteryTrend.overall.length >= 1, 'mastery trend should expose an overall series');
+  const trendSubject = masteryTrend.subjects.find((subject) => subject.subject === '数据结构');
+  assert(
+    trendSubject?.weakestNodes.some((node) => node.knowledgeNodeId === weakNodeId),
+    'mastery trend should surface weak nodes per subject',
+  );
+  assert(
+    Array.isArray(masteryTrend.improving) && Array.isArray(masteryTrend.declining),
+    'mastery trend should include improving and declining deltas',
+  );
+
   await scoreCenterPrisma.$disconnect();
 
   // F7 regression: an expired or empty seven-day plan must roll over so the
@@ -2718,6 +2735,19 @@ async function main() {
     where: { userId: scoreCenterUser.user.id },
   });
   assert(masteryRowsAfter.length === masteryRows.length, 'backfill should be idempotent');
+  const snapshotRows = await migrationPrisma.userMasterySnapshot.findMany({
+    where: { userId: scoreCenterUser.user.id },
+    select: { knowledgeNodeId: true, snapshotDate: true, attempts: true, correctCount: true, wrongCount: true },
+  });
+  assert(snapshotRows.length > 0, 'backfill should rebuild daily mastery snapshots');
+  const secondBackfillSnapshots = await migrationPrisma.userMasterySnapshot.findMany({
+    where: { userId: scoreCenterUser.user.id },
+    select: { knowledgeNodeId: true, snapshotDate: true },
+  });
+  assert(
+    secondBackfillSnapshots.length === snapshotRows.length,
+    'backfill snapshots should stay idempotent',
+  );
 
   console.log(JSON.stringify({
     ok: true,
