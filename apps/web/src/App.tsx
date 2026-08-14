@@ -383,7 +383,9 @@ export function App() {
       ? stageAssessment.estimatedMinutes
       : 180;
   const activePracticeQuestions = todayTaskLaunchContext?.destination === 'question'
-    ? questions.filter((question) => question.knowledgePointIds.includes(todayTaskLaunchContext.knowledgePointId))
+    ? todayTaskLaunchContext.questionIds?.length
+      ? questions.filter((question) => todayTaskLaunchContext.questionIds!.includes(question.id))
+      : questions.filter((question) => question.knowledgePointIds.includes(todayTaskLaunchContext.knowledgePointId))
     : questions;
   const activePracticeQuestionIds = activePracticeQuestions.map((question) => question.id);
   const currentQuestion = (redoQuestionId

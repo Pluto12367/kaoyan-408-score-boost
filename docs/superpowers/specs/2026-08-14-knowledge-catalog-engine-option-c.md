@@ -1,6 +1,6 @@
 # 方案 C 调研：以 UserKnowledgeMastery 为唯一掌握度源
 
-> 状态：调研/设计 + Phase 1（数据回填）与 Phase 2（只读切换）已实施（2026-08-14）。配套计划见 `docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md` Task 4-6。
+> 状态：调研/设计 + Phase 1（数据回填）、Phase 2（只读切换）、Phase 2b（计划语义迁移到 `knowledgeNodeId`）已实施（2026-08-14）。配套计划见 `docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md` Task 4-10。
 
 ## 1. 背景与目标
 

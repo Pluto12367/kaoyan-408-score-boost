@@ -92,3 +92,12 @@
 - [x] HTTPS：新增 `deploy/tencent-ip/nginx-https.conf.example`（443 ssl + 80 重定向 + 证书挂载说明），部署文档第 9 节补 Certbot 签发/续期步骤。
 - [x] 运行手册：新增 `docs/operations/mastery-graph-convergence-runbook.md`（阶段 0→5 生产上线顺序：部署→清重→回填→linker→灰度开关→验收→边界）。
 - [x] 验证：`npm test` 560 项 559 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres` 通过。
+
+## Task 10（Phase 2b）：计划语义迁移到 knowledgeNodeId
+
+- [x] RED：`test/node-driven-plan.test.js`（`buildNodeDrivenDailyTasks` 行为：弱+高频节点优先、节点 id、可启动模式、时间预算）、`test/plan-node-semantics.test.js`（StudyService 节点计划与 questionIds 接线、前端类型/预检/App 过滤契约 + 预检行为测试）。
+- [x] GREEN：`packages/shared/src/nodePlan.ts` 新增 `buildNodeDrivenDailyTasks`（复用 `calculatePriority`/`composeDailyPlan`：掌握度+考频证据→计划任务，模式映射为可启动题型，中文理由）与 `stagePhase`。
+- [x] GREEN：`StudyService` 缓存扩展（节点难度+快照字段）；`USE_KNODE_MASTERY=true` 时 `generatePlan` 走 `buildNodeDrivenPlan`（节点 id 任务）；`getTodayPlan` 任务携带 `questionIds`（节点归因题目，前端可启动）；推荐回退按节点归因过滤。
+- [x] GREEN：前端 `TodayPlanTask.questionIds`、`preflightTodayTaskLaunch` 优先按 questionIds 校验、launch context 携带 questionIds、App 练习列表按 questionIds 过滤（无 questionIds 回退旧行为）。
+- [x] 行为级断言：`integration-postgres` 灰度下 `/today/plan` 任务全部为原子节点 id 且含 questionIds。
+- [x] 验证：`npm test` 565 项 564 通过 / 1 跳过；`build:api`/`build:web` 通过；`test:integration:postgres`、`test:integration:content-import` 通过。

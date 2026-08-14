@@ -11,6 +11,7 @@ export * from './ai-tutor';
 export * from './score-center/index';
 export * from './knowledgeDisplay';
 export * from './nodeMastery';
+export * from './nodePlan';
 export type {
   SubjectCode,
   CatalogNodeType,

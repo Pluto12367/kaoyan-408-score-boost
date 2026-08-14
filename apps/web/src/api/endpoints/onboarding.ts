@@ -30,6 +30,7 @@ export interface TodayPlan {
   priorityTasks: Array<{
     id: string;
     knowledgePointId: string;
+    questionIds?: string[];
     subject: string;
     chapter: string;
     title: string;

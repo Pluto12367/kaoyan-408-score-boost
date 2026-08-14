@@ -4,6 +4,7 @@ import {
   accumulateTaskProgress,
   applyDiagnosticProfile as buildDiagnosticProfile,
   buildAssessmentHistorySummary,
+  buildNodeDrivenDailyTasks,
   buildNodeMasteryMap,
   buildStudyPlan,
   buildTemplateFollowUp,
@@ -17,6 +18,7 @@ import {
   deriveNodeWeakPoints,
   filterWrongQuestions,
   nextReviewIntervalDays,
+  stagePhase,
   postExamTaskId,
   rebalanceTaskLoad,
   resolveKnowledgePointDisplay,
@@ -28,10 +30,12 @@ import {
   type DiagnosticProfile,
   type KnowledgePoint,
   type MasteryPointExtras,
+  type NodePlanEvidenceNode,
   type NodeMasteryRow,
   type PracticeRecord,
   type Question,
   type StudyStage,
+  type StudyPlan,
   type Subject,
   type TaskProgress,
   type TaskRebalanceMode,
@@ -86,6 +90,14 @@ interface NodeCatalogEntry {
   title: string;
   importance: number;
   frequency: number;
+  difficulty: number;
+  recent3Frequency: number;
+  recent5Frequency: number;
+  allTimeEvidence: number;
+  primaryScore5y: number;
+  trendDirection: 'RISING' | 'STABLE' | 'FALLING' | 'COLD';
+  trendDelta: number;
+  evidenceConfidence: 'HIGH' | 'MEDIUM' | 'LOW';
 }
 
 @Injectable()
@@ -287,6 +299,14 @@ export class StudyService implements OnModuleInit {
         title: node.name,
         importance: node.importance,
         frequency: snapshot?.recent3Frequency ?? node.importance,
+        difficulty: node.difficulty,
+        recent3Frequency: snapshot?.recent3Frequency ?? node.importance,
+        recent5Frequency: snapshot?.recent5Frequency ?? node.importance,
+        allTimeEvidence: snapshot?.allTimeEvidence ?? node.importance,
+        primaryScore5y: snapshot?.primaryScore5y ?? 0,
+        trendDirection: snapshot?.trendDirection ?? 'STABLE',
+        trendDelta: snapshot?.trendDelta ?? 0,
+        evidenceConfidence: snapshot?.evidenceConfidence ?? 'MEDIUM',
       });
     }
 
@@ -1032,6 +1052,7 @@ export class StudyService implements OnModuleInit {
         ...task,
         completed: task.status === 'completed',
         progress: this.getTaskProgressView(userId, task),
+        questionIds: this.nodeQuestionIdsByNode.get(task.knowledgePointId) ?? undefined,
       }));
 
       return {
@@ -1090,6 +1111,7 @@ export class StudyService implements OnModuleInit {
         priority: task.priority as '高' | '中' | '低',
         reason: task.reason,
         nextAction: task.nextAction,
+        questionIds: this.nodeQuestionIdsByNode.get(task.knowledgePointId) ?? undefined,
       })),
       reviewDue: this.getDueReviews(userId).dueCount,
       checkpoint: plan.checkpoint,
@@ -2348,9 +2370,16 @@ export class StudyService implements OnModuleInit {
     if (matchingQuestions.length === 0) {
       const sourceIds = weakPointIds.length ? weakPointIds : fallbackPointIds;
       knowledgePointIds.splice(0, knowledgePointIds.length, ...sourceIds.slice(0, 4));
-      matchingQuestions = this.questions.filter((question) =>
-        question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
-      );
+      if (this.useNodeMastery) {
+        const nodeQuestionIds = new Set(
+          knowledgePointIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []),
+        );
+        matchingQuestions = this.questions.filter((question) => nodeQuestionIds.has(question.id));
+      } else {
+        matchingQuestions = this.questions.filter((question) =>
+          question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
+        );
+      }
     }
     if (matchingQuestions.length === 0) {
       knowledgePointIds.push(...this.questions.flatMap((question) => question.knowledgePointIds).slice(0, 2));
@@ -3419,14 +3448,17 @@ export class StudyService implements OnModuleInit {
 
   generatePlan(userId = this.student.id) {
     const student = this.getStudent(userId);
-    const plan = buildStudyPlan({
-      targetScore: student.targetScore ?? 115,
-      remainingDays: student.remainingDays ?? 96,
-      dailyHours: student.dailyHours ?? 3.5,
-      stage: student.stage ?? '强化',
-      knowledgePoints: this.knowledgePoints,
-      records: this.records.filter((record) => record.userId === userId),
-    });
+    this.ensureNodeMasteryFresh();
+    const plan = this.useNodeMastery
+      ? this.buildNodeDrivenPlan(student)
+      : buildStudyPlan({
+          targetScore: student.targetScore ?? 115,
+          remainingDays: student.remainingDays ?? 96,
+          dailyHours: student.dailyHours ?? 3.5,
+          stage: student.stage ?? '强化',
+          knowledgePoints: this.knowledgePoints,
+          records: this.records.filter((record) => record.userId === userId),
+        });
     const scheduledPlan = this.sevenDayPlansByUser.get(userId);
     if (scheduledPlan) {
       const dailyTasks = scheduledPlan.tasks
@@ -3462,6 +3494,43 @@ export class StudyService implements OnModuleInit {
       completedTaskCount,
       totalTaskCount: dailyTasks.length,
       completionRate: dailyTasks.length ? Math.round((completedTaskCount / dailyTasks.length) * 100) : 0,
+    };
+  }
+
+  private buildNodeDrivenPlan(student: UserProfile): StudyPlan {
+    const nodes: NodePlanEvidenceNode[] = [...this.nodeCatalogById.entries()].map(
+      ([knowledgeNodeId, entry]) => ({
+        knowledgeNodeId,
+        subject: entry.subject,
+        chapter: entry.chapter,
+        title: entry.title,
+        importance: entry.importance,
+        difficulty: entry.difficulty,
+        recent3Frequency: entry.recent3Frequency,
+        recent5Frequency: entry.recent5Frequency,
+        allTimeEvidence: entry.allTimeEvidence,
+        primaryScore5y: entry.primaryScore5y,
+        trendDirection: entry.trendDirection,
+        trendDelta: entry.trendDelta,
+        evidenceConfidence: entry.evidenceConfidence,
+      }),
+    );
+    const tasks = buildNodeDrivenDailyTasks({
+      nodes,
+      masteryRows: this.nodeMasteryByUser.get(student.id) ?? [],
+      targetScore: student.targetScore ?? 115,
+      remainingDays: student.remainingDays ?? 96,
+      dailyHours: student.dailyHours ?? 3.5,
+      stage: student.stage ?? '强化',
+    }).map((task, index) => ({ ...task, id: `task-${index + 1}` }));
+    const remainingDays = student.remainingDays ?? 96;
+    return {
+      phase: stagePhase(student.stage ?? '强化'),
+      targetScore: student.targetScore ?? 115,
+      remainingDays,
+      dailyHours: student.dailyHours ?? 3.5,
+      dailyTasks: tasks,
+      checkpoint: remainingDays <= 45 ? '每 3 天完成一套真题回顾' : '每 7 天完成一次阶段测评',
     };
   }
 

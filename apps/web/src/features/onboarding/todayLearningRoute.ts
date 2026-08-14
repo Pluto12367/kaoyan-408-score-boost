@@ -13,6 +13,7 @@ export interface TodayRouteState {
 export interface TodayTaskLaunchContext {
   taskId: string;
   knowledgePointId: string;
+  questionIds?: string[];
   destination: Exclude<TodayTaskDestination, 'plan'>;
 }
 
@@ -152,7 +153,9 @@ export function preflightTodayTaskLaunch(
   const destination = resolveTodayTaskDestination(task.mode);
   if (destination === 'plan') return { kind: 'navigate-plan', taskId: task.id };
   const hasContent = destination === 'question'
-    ? questions.some((question) => question.knowledgePointIds.includes(task.knowledgePointId))
+    ? task.questionIds?.length
+      ? questions.some((question) => task.questionIds!.includes(question.id))
+      : questions.some((question) => question.knowledgePointIds.includes(task.knowledgePointId))
     : wrongQuestions.some((question) => question.knowledgePointId === task.knowledgePointId);
 
   if (!hasContent) {
@@ -166,7 +169,12 @@ export function preflightTodayTaskLaunch(
 
   return {
     kind: 'ready',
-    context: { taskId: task.id, knowledgePointId: task.knowledgePointId, destination },
+    context: {
+      taskId: task.id,
+      knowledgePointId: task.knowledgePointId,
+      destination,
+      ...(task.questionIds ? { questionIds: task.questionIds } : {}),
+    },
   };
 }
 

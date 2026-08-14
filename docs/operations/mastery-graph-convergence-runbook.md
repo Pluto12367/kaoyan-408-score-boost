@@ -69,8 +69,8 @@ docker compose --env-file .env.production -f compose.production.yml up -d --no-d
 - `GET /api/mastery-map`、`/api/mastery-trend` 返回 200 且含练习节点；
 - 推荐题组按节点归因返回题目。
 
-## 6. 已知边界（Phase 2b 与后续项）
+## 6. 已知边界与后续项
 
-- Onboarding 七天计划与 `StudyTask` 仍以粗粒度 `knowledgePointId` 语义运行（Phase 2b 单独评审，不随本路线自动切换）。
+- 计划语义：`USE_KNODE_MASTERY=true` 后七天计划/今日任务由节点掌握度驱动（节点 id + `questionIds` 启动桥接）；`考后复盘`（`mergePostExamTasks`）仍按粗粒度点挂接，独立于七天计划语义。
 - 真题为版权受限的摘要/题号/分值/来源（无完整题干），“真题接入”= 证据可视化 + 来源链接，不提供真题直接作答。
 - HTTPS 需正式域名：见 `docs/deploy-to-tencent-ip.md` 第 9 节与 `deploy/tencent-ip/nginx-https.conf.example`。

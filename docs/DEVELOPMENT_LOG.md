@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，阶段 0-5 已提交推送；Phase 2b（计划语义迁移到 `knowledgeNodeId`）已完成并**尚未提交**；`npm test` 565 项 564 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含节点计划+questionIds 断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署后浏览器验证“今日计划任务按节点启动练习”；至此方案 C 全部阶段（Phase 1/2/2b）完成，P2-2 口径统一收敛。
 - 分支/提交：`codex/deployment-ready`，阶段 0-4 已提交推送（`a900a93`/`4197b0a`/`3d26900`/`8b0f6e6`）；阶段 5（收敛工程化：旧口径冻结日志、60s TTL 多实例缓存、图谱无障碍、HTTPS nginx 示例+Certbot 文档、阶段 0→5 上线运行手册）已完成并**尚未提交**；`npm test` 560 项 559 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 通过。下一步：提交推送 → 按运行手册部署并执行数据脚本 → 浏览器端到端验收；阶段 0→5 全部完成后可对目标做最终验收。
 - 分支/提交：`codex/deployment-ready`，阶段 0-3 已提交推送（`a900a93`/`4197b0a`/`3d26900`）；阶段 4（报告图谱化：掌握度趋势，`UserMasterySnapshot` 每日快照 + `GET /mastery-trend` + 报告趋势面板）已完成并**尚未提交**；`npm test` 556 项 555 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含快照/趋势断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署（新迁移随容器启动自动应用）→ 生产执行回填（重建历史快照）→ 浏览器验证报告“掌握度趋势”；随后进入阶段 5（收敛工程化：旧口径冻结/多实例/性能/无障碍/HTTPS）。
 - 分支/提交：`codex/deployment-ready`，阶段 0-2 已提交推送（`a900a93`、`4197b0a`）；阶段 3（题库图谱化 + 真题接入）已完成并**尚未提交**；`npm test` 551 项 550 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 与 `test:integration:content-import`（含 linker 覆盖率=1 与幂等）通过。下一步：提交推送 → 部署后执行 `link-question-bank-to-nodes.mjs`（生产题库全部物化节点标签）→ 浏览器验证图谱抽屉“考点题库/真题命中”与“练习本题”；随后进入阶段 4（报告图谱化：掌握度趋势）。
@@ -52,6 +53,24 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-14 Phase 2b：计划语义迁移到 knowledgeNodeId
+
+- 日期：2026-08-14
+- 任务：`USE_KNODE_MASTERY=true` 时，Onboarding 七天计划/今日任务的生成改由节点掌握度+考频证据驱动（复用 score-center 的 `calculatePriority`/`composeDailyPlan`），任务携带原子节点 id，并通过 `questionIds` 桥接让前端能按节点归因题目启动练习。
+- 修改原因：阶段 2 只切换了掌握度地图/薄弱/推荐，经典计划仍按 16 粗粒度点内存计算，`StudyTask` 与图谱掌握度/题目归因不衔接，是方案 C 唯一遗留口径缺口。
+- 修改文件：
+  - `packages/shared/src/nodePlan.ts`（新增 `buildNodeDrivenDailyTasks`/`stagePhase`：弱+高频节点优先、模式映射为基础例题/专项训练/阶段巩固、中文理由）+ `index.ts` 导出
+  - `apps/api/src/study/study.service.ts`（节点目录缓存增加难度+快照字段；`generatePlan` 灰度走 `buildNodeDrivenPlan`；`getTodayPlan` 任务附加 `questionIds`；推荐回退按节点归因过滤）
+  - `apps/web/src/api/endpoints/onboarding.ts`（`TodayPlanTask.questionIds?`）、`features/onboarding/todayLearningRoute.ts`（预检优先按 questionIds、launch context 携带）、`App.tsx`（练习列表按 questionIds 过滤，无则回退旧行为）
+  - 新增 `test/node-driven-plan.test.js`（2 项）、`test/plan-node-semantics.test.js`（3 项，含预检行为测试）
+  - `scripts/integration-postgres.mjs`（灰度下 `/today/plan` 任务全部为节点 id 且含 questionIds 断言）
+- 数据库变化：无迁移（`StudyTask` 复用既有 `knowledgePointId`/`knowledgeNodeId` 字段语义）
+- API 变化：`GET /today/plan` 的 `priorityTasks[]` 新增可选 `questionIds`（向后兼容；开关关闭时行为不变）
+- 测试结果：`npm run build:api` 通过；`npm run build:web` 通过；`npm test` 565 项 564 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `ok:true`（含节点计划断言）；`npm run test:integration:content-import` `ok:true (questions=320)`
+- 截图或验证证据：集成日志 `NODE_PLAN_TASKS` 显示任务均为节点 id 且带 questionIds
+- 遗留问题：`考后复盘`（`mergePostExamTasks`）仍按粗粒度 `knowledgePointId` 挂接（独立于七天计划语义，保持现状）；REVIEW/错题重做动作在当前节点计划中映射为“专项训练”（避免错题库按粗粒度 id 失配），错题闭环仍由错题本/到期复习承载
+- 下一步：申请提交/推送并部署；浏览器验证“今日计划任务 → 练习”按节点题目启动；方案 C 全部完成
 
 ### 2026-08-14 阶段 5：收敛工程化（旧口径冻结 / 多实例 / 性能 / 无障碍 / HTTPS）
 

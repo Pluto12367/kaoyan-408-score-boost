@@ -2613,6 +2613,23 @@ async function main() {
     nodeRecommended.questions.some((question) => question.id === weakQuestionId),
     'recommended set should include questions attributed to the weak node',
   );
+  const nodeTodayPlan = await getJson(`${apiUrl}/today/plan`, scoreCenterHeaders);
+  const nodePlanTasks = nodeTodayPlan.priorityTasks ?? [];
+  console.log('NODE_PLAN_TASKS', JSON.stringify(nodePlanTasks.map((task) => ({
+    knowledgePointId: task.knowledgePointId,
+    questionIds: task.questionIds,
+    mode: task.mode,
+    priority: task.priority,
+  }))));
+  assert(nodePlanTasks.length > 0, 'today plan should generate tasks under the gray switch');
+  assert(
+    nodePlanTasks.every((task) => ['sc-node-integration-001', 'sc-weak-node-001', 'integration-kp-node'].includes(task.knowledgePointId)),
+    'node-driven plan tasks should carry atomic node ids',
+  );
+  assert(
+    nodePlanTasks.some((task) => Array.isArray(task.questionIds) && task.questionIds.length > 0),
+    'node-driven plan tasks should expose attributed question ids for launching',
+  );
 
   delete process.env.USE_KNODE_MASTERY;
   await stop(activeApi);
