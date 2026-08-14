@@ -36,6 +36,7 @@ COPY --from=builder /app/apps/api/package.json apps/api/
 COPY --from=builder /app/prisma prisma/
 COPY scripts/verify-pdf-runtime-tools.mjs scripts/verify-pdf-runtime-tools.mjs
 COPY scripts/seed-408-v2.mjs scripts/seed-408-v2.mjs
+COPY scripts/seed-knowledge-point-map.mjs scripts/seed-knowledge-point-map.mjs
 COPY scripts/verify-408-data.mjs scripts/verify-408-data.mjs
 COPY data/408 data/408/
 

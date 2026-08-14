@@ -172,5 +172,12 @@ fi
 echo 'Seeding 408 evidence data (idempotent, safe on every deploy)...'
 docker compose --env-file .env.production -f compose.production.yml exec -T app node scripts/seed-408-v2.mjs
 
+echo 'Seeding knowledge point -> catalog node bridge (idempotent, safe on every deploy)...'
+docker compose --env-file .env.production -f compose.production.yml exec -T app node scripts/seed-knowledge-point-map.mjs
+
+# The API loads the bridge map at startup; restart so catalog naming is live.
+echo 'Restarting app so catalog display names take effect...'
+docker compose --env-file .env.production -f compose.production.yml restart app
+
 echo "Deployment succeeded. Open: http://$PUBLIC_IP"
 docker compose --env-file .env.production -f compose.production.yml ps

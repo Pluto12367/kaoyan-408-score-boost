@@ -76,6 +76,19 @@
 - 遗留问题：P0-2 方案 A/B/C 待用户确认（推荐 B）；P2-2 两套掌握度口径在计算层面仍未合并
 - 下一步：用户确认 P0-2 方案后按计划 TDD 实施；同时申请批准提交本轮全部改动
 
+### 2026-08-14 部署固化：镜像内置桥接 seed + deploy.sh 自动种映射并重启
+
+- 日期：2026-08-14
+- 任务：把 `seed-knowledge-point-map.mjs` 打入生产镜像，并在 `deploy.sh` 中自动执行桥接 seed 与重启 app，避免手动 `docker cp`/`restart`。
+- 修改原因：线上部署时映射在 API 启动后写入，导致命名解析需手动重启才生效；Dockerfile 未内置新 seed 脚本。
+- 修改文件：`Dockerfile`（生产阶段新增 `COPY scripts/seed-knowledge-point-map.mjs`）、`deploy/tencent-ip/deploy.sh`（seed-408 后追加 seed-knowledge-point-map 与 `restart app`）
+- 数据库变化：无
+- API 变化：无
+- 测试结果：`sh -n deploy/tencent-ip/deploy.sh` 语法校验通过；部署时序为“种目录 → 写映射 → 重启生效”
+- 截图或验证证据：线上实际执行 seed 输出 `KnowledgePointNodeMap rows: 16`；重启后报告卡片显示目录命名“信号量”
+- 遗留问题：无
+- 下一步：提交推送（需用户批准）
+
 ### 2026-08-14 P0-2 方案 B：KnowledgePointNodeMap 桥接 + 经典闭环命名解析
 
 - 日期：2026-08-14
