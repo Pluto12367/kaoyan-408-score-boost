@@ -13,6 +13,7 @@
     "prestart": "npm run build:web",
     "postinstall": "npm run build:shared",
     "verify:ui": "node scripts/verify-ui.mjs",
+    "verify:deployed": "node scripts/verify-deployed.mjs",
     "verify:pdf-runtime-tools": "node scripts/verify-pdf-runtime-tools.mjs",
     "verify:api-build-layout": "npm run build:api && node scripts/verify-api-build-layout.mjs",
     "validate:env": "node scripts/validate-environment.mjs",
