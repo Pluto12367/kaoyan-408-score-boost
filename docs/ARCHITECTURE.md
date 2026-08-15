@@ -63,7 +63,7 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 
 核心关系（`prisma/schema.prisma`）：
 
-- `User` 1-N：`PracticeRecord`、`StudyPlan`、`LearningSession`、`ReviewSchedule`、`WrongQuestionReview`、`StudyTaskCompletion`、`RefreshToken`、`OperationLog`、`FeedbackSubmission`、`ExamReviewPlan`、`InvitationCode`(创建)、`InvitationRedemption`。
+- `User` 1-N：`PracticeRecord`、`StudyPlan`、`LearningSession`、`ReviewSchedule`、`WrongQuestionReview`、`StudyTaskCompletion`、`RefreshToken`、`OperationLog`、`FeedbackSubmission`、`ExamReviewPlan`、`InvitationCode`(创建)、`InvitationRedemption`、`UserKnowledgeMastery`、`UserMasterySnapshot`、`UserNodeQuest`（闯关里程碑：userId+knowledgeNodeId 唯一，attempts/bestAccuracy/passed/passedAt）。
 - `Question` N-M `KnowledgePoint` 经 `QuestionKnowledgePoint`（复合主键）。
 - `KnowledgePoint` N-M `KnowledgeNode` 经 `KnowledgePointNodeMap`（P0-2 方案 B：经典闭环命名/章节经目录解析）。
 - `Question` N-1 `QuestionFamily`（版本化：familyId + versionNumber + isCurrent）。

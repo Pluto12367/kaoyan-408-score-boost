@@ -2400,6 +2400,49 @@ async function main() {
   assert(nodeMastery?.status === 'review', 'GET /knowledge/mastery should derive the graph mastery status');
   await expectGetStatus(`${apiUrl}/knowledge/unknown-score-center-node`, scoreCenterHeaders, 404);
 
+  // ---- Node quest: milestone state, pass threshold and no downgrade after pass ----
+  const questBefore = await getJson(`${apiUrl}/knowledge/${scoreCenterNodeId}/quest`, scoreCenterHeaders);
+  assert(
+    questBefore.status === 'in_progress' && questBefore.attempts === 0,
+    'node quest should be in_progress once the node has mastery attempts but no quest yet',
+  );
+  assert(
+    nodeMastery.questStatus === 'in_progress',
+    'GET /knowledge/mastery should carry the quest status for catalog badges',
+  );
+  const questPassed = await postJson(
+    `${apiUrl}/knowledge/${scoreCenterNodeId}/quest/complete`,
+    { accuracy: 80 },
+    scoreCenterHeaders,
+  );
+  assert(
+    questPassed.status === 'passed' && questPassed.attempts === 1 && questPassed.bestAccuracy === 80,
+    'a quest above the 60 percent threshold should be persisted as passed with best accuracy',
+  );
+  const questAfterPass = await getJson(`${apiUrl}/knowledge/${scoreCenterNodeId}/quest`, scoreCenterHeaders);
+  assert(
+    questAfterPass.status === 'passed' && questAfterPass.passedAt,
+    'node quest GET should return the persisted passed milestone',
+  );
+  const questRetryFailed = await postJson(
+    `${apiUrl}/knowledge/${scoreCenterNodeId}/quest/complete`,
+    { accuracy: 40 },
+    scoreCenterHeaders,
+  );
+  assert(
+    questRetryFailed.status === 'passed' && questRetryFailed.attempts === 2 && questRetryFailed.bestAccuracy === 80,
+    'a later failing quest attempt must not downgrade an already passed node',
+  );
+  const questRow = await scoreCenterPrisma.userNodeQuest.findUnique({
+    where: {
+      userId_knowledgeNodeId: { userId: scoreCenterUser.user.id, knowledgeNodeId: scoreCenterNodeId },
+    },
+  });
+  assert(
+    questRow?.attempts === 2 && questRow.bestAccuracy === 80 && questRow.passed === true,
+    'UserNodeQuest should persist attempts, best accuracy and passed milestone',
+  );
+
   await expectPostStatus(`${apiUrl}/score-center/generate`, {
     targetExamDate: '2027-12-20',
     availableMinutes: 90,

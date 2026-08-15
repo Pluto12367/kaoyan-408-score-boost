@@ -1,7 +1,7 @@
 import type { CatalogPointContext } from '@kaoyan408/shared';
 import { OverlayDialog } from '../../components/OverlayDialog';
-import type { KnowledgeDetail, NodeMasterySummary } from '../../api/endpoints/score-center';
-import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, TREND_LABELS } from './constants';
+import type { KnowledgeDetail, NodeMasterySummary, NodeQuestStatus } from '../../api/endpoints/score-center';
+import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, QUEST_STATUS_LABELS, TREND_LABELS } from './constants';
 
 interface KnowledgePointDetailDrawerProps {
   open: boolean;
@@ -13,7 +13,14 @@ interface KnowledgePointDetailDrawerProps {
   relatedQuestions?: KnowledgeDetail['relatedQuestions'];
   examQuestions?: KnowledgeDetail['examQuestions'];
   detailError?: string;
+  questStatus?: NodeQuestStatus;
+  questAttempts?: number;
+  questBestAccuracy?: number;
+  questContext?: boolean;
+  questError?: string;
   onPracticeQuestion?: (questionId: string, title: string) => void;
+  onStartQuest?: () => void;
+  onCompleteQuest?: () => void;
   onNavigate?: () => void;
 }
 
@@ -27,7 +34,14 @@ export function KnowledgePointDetailDrawer({
   relatedQuestions,
   examQuestions,
   detailError,
+  questStatus,
+  questAttempts,
+  questBestAccuracy,
+  questContext,
+  questError,
   onPracticeQuestion,
+  onStartQuest,
+  onCompleteQuest,
   onNavigate,
 }: KnowledgePointDetailDrawerProps) {
   if (!open || !context) return null;
@@ -113,6 +127,45 @@ export function KnowledgePointDetailDrawer({
           <button type="button" className="catalog-cta" onClick={onNavigate}>
             去练习
           </button>
+        </section>
+
+        <section className="catalog-drawer-section">
+          <h4>节点闯关</h4>
+          <dl className="catalog-detail-grid">
+            <div>
+              <dt>闯关状态</dt>
+              <dd>{questStatus ? QUEST_STATUS_LABELS[questStatus] : '未开始'}</dd>
+            </div>
+            {questAttempts ? (
+              <div>
+                <dt>闯关次数</dt>
+                <dd>{questAttempts}</dd>
+              </div>
+            ) : null}
+            {questBestAccuracy ? (
+              <div>
+                <dt>最佳正确率</dt>
+                <dd>{Math.round(questBestAccuracy)}%</dd>
+              </div>
+            ) : null}
+          </dl>
+          {questStatus === 'passed' ? (
+            <p className="catalog-drawer-empty">本节点已通关，继续保持。</p>
+          ) : questContext ? (
+            <>
+              <button type="button" className="catalog-cta" onClick={onCompleteQuest}>
+                完成闯关并结算
+              </button>
+              {questError ? <p className="catalog-mastery-error">{questError}</p> : null}
+            </>
+          ) : (
+            <>
+              <button type="button" className="catalog-cta" onClick={onStartQuest}>
+                开始闯关
+              </button>
+              {questError ? <p className="catalog-mastery-error">{questError}</p> : null}
+            </>
+          )}
         </section>
 
         <section className="catalog-drawer-section">

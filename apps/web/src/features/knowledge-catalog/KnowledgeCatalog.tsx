@@ -18,6 +18,7 @@ import {
   fetchMyMastery,
   type KnowledgeDetail,
   type NodeMasterySummary,
+  type NodeQuestState,
 } from '../../api/endpoints/score-center';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { getKnowledgeCatalog } from './catalogData';
@@ -28,9 +29,21 @@ import { KnowledgeTree, type ExpansionCommand } from './KnowledgeTree';
 export function KnowledgeCatalog({
   onNavigate,
   onPracticeQuestion,
+  onStartQuest,
+  onCompleteQuest,
+  questContext,
+  questState,
+  questError,
+  questVersion = 0,
 }: {
   onNavigate?: (section: RoleSection) => void;
   onPracticeQuestion?: (questionId: string, title: string) => void;
+  onStartQuest?: (nodeId: string, title: string, questionIds: string[]) => void;
+  onCompleteQuest?: () => void;
+  questContext?: boolean;
+  questState?: NodeQuestState | null;
+  questError?: string;
+  questVersion?: number;
 }) {
   const catalog = useMemo(() => getKnowledgeCatalog(), []);
   const [active, setActive] = useState<SubjectCode>('DS');
@@ -62,7 +75,7 @@ export function KnowledgeCatalog({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [questVersion]);
 
   useEffect(() => {
     if (!selectedPointId || isStaticDemoMode()) {
@@ -233,7 +246,27 @@ export function KnowledgeCatalog({
         relatedQuestions={detail?.relatedQuestions}
         examQuestions={detail?.examQuestions}
         detailError={detailError}
+        questStatus={
+          selectedPointId
+            ? questState?.knowledgeNodeId === selectedPointId
+              ? questState.status
+              : masteryById[selectedPointId]?.questStatus
+            : undefined
+        }
+        questAttempts={questState?.knowledgeNodeId === selectedPointId ? questState.attempts : undefined}
+        questBestAccuracy={questState?.knowledgeNodeId === selectedPointId ? questState.bestAccuracy : undefined}
+        questContext={questContext && questState?.knowledgeNodeId === selectedPointId}
+        questError={questError}
         onPracticeQuestion={onPracticeQuestion}
+        onStartQuest={() => {
+          if (!selectedContext || !detail) return;
+          onStartQuest?.(
+            selectedContext.point.id,
+            selectedContext.point.name,
+            detail.relatedQuestions.map((question) => question.id),
+          );
+        }}
+        onCompleteQuest={onCompleteQuest}
         onNavigate={() => onNavigate?.('question')}
       />
     </section>

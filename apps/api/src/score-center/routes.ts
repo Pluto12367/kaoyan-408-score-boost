@@ -50,6 +50,27 @@ export class ScoreCenterController {
     return detail;
   }
 
+  @Get('knowledge/:id/quest')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getNodeQuest(@CurrentUser() user: UserProfile, @Param('id') id: string) {
+    return this.scoreCenterService.getNodeQuest(user.id, id);
+  }
+
+  @Post('knowledge/:id/quest/complete')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async completeNodeQuest(
+    @CurrentUser() user: UserProfile,
+    @Param('id') id: string,
+    @Body() body: { accuracy?: number },
+  ) {
+    const accuracy = typeof body.accuracy === 'number' ? body.accuracy : 0;
+    const result = await this.scoreCenterService.completeNodeQuest(user.id, id, accuracy);
+    if (!result) throw new NotFoundException(`Knowledge point ${id} was not found`);
+    return result;
+  }
+
   @Post('score-center/generate')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')

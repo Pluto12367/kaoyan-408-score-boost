@@ -2,6 +2,26 @@ import type { Subject } from './domain';
 import type { WeakPoint } from './domain';
 import type { NodeMasteryStatus } from './score-center/mastery';
 
+export type NodeQuestStatus = 'not_started' | 'in_progress' | 'passed';
+
+export const QUEST_PASS_THRESHOLD = 60;
+
+export const QUEST_STATUS_LABELS: Record<NodeQuestStatus, string> = {
+  not_started: '未开始',
+  in_progress: '进行中',
+  passed: '已通关',
+};
+
+export function deriveNodeQuestStatus(input: {
+  masteryAttempts: number;
+  questAttempts: number;
+  questPassed: boolean;
+}): NodeQuestStatus {
+  if (input.questPassed) return 'passed';
+  if (input.masteryAttempts > 0 || input.questAttempts > 0) return 'in_progress';
+  return 'not_started';
+}
+
 export interface NodeMasteryRow {
   knowledgeNodeId: string;
   subject: Subject | '未分类';

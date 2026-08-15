@@ -43,6 +43,11 @@ import { isMockAllowed } from './api/env';
 import { trackEvent } from './api/events';
 import { fetchOnboardingStatus, fetchTodayPlan, startTask, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
 import {
+  completeNodeQuest,
+  fetchNodeQuest,
+  type NodeQuestState,
+} from './api/endpoints/score-center';
+import {
   resolveLaunchableTodayTask,
   shouldClearTodayTaskLaunch,
   startTodayTaskIfCurrent,
@@ -101,6 +106,12 @@ const TodayPlan = lazy(() => import('./components/TodayPlan').then((m) => ({ def
 const TodaysScoreCenter = lazy(() => import('./features/today-score-center/TodaysScoreCenter').then((m) => ({ default: m.TodaysScoreCenter })));
 const KnowledgeCatalog = lazy(() => import('./features/knowledge-catalog/KnowledgeCatalog').then((m) => ({ default: m.KnowledgeCatalog })));
 
+interface QuestContext {
+  nodeId: string;
+  title: string;
+  questionIds: string[];
+}
+
 export function App() {
   const {
     authSession, sessionUser, authMode, authStatus,
@@ -145,6 +156,11 @@ export function App() {
   const [todayTaskLaunchError, setTodayTaskLaunchError] = useState('');
   const todayTaskLaunchOwnerRef = useRef<string | undefined>(sessionUser?.id);
   const todayTaskLaunchGenerationRef = useRef(0);
+  const [questContext, setQuestContext] = useState<QuestContext | null>(null);
+  const [questResults, setQuestResults] = useState<boolean[]>([]);
+  const [questState, setQuestState] = useState<NodeQuestState | null>(null);
+  const [questError, setQuestError] = useState('');
+  const [questVersion, setQuestVersion] = useState(0);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
@@ -236,6 +252,13 @@ export function App() {
       setTodayTaskLaunchContext(null);
     }
   }, [activeSection, todayTaskLaunchContext]);
+
+  useEffect(() => {
+    if (questContext && activeSection !== 'question') {
+      setQuestContext(null);
+      setQuestResults([]);
+    }
+  }, [activeSection, questContext]);
 
   useEffect(() => {
     const nextUserId = sessionUser?.id;
@@ -386,7 +409,9 @@ export function App() {
     ? todayTaskLaunchContext.questionIds?.length
       ? questions.filter((question) => todayTaskLaunchContext.questionIds!.includes(question.id))
       : questions.filter((question) => question.knowledgePointIds.includes(todayTaskLaunchContext.knowledgePointId))
-    : questions;
+    : questContext
+      ? questions.filter((question) => questContext.questionIds.includes(question.id))
+      : questions;
   const activePracticeQuestionIds = activePracticeQuestions.map((question) => question.id);
   const currentQuestion = (redoQuestionId
     ? activePracticeQuestions.find((question) => question.id === redoQuestionId)
@@ -553,6 +578,9 @@ export function App() {
       });
       if (!isCurrentPracticeSubmission(practiceSubmissionGateRef.current, submissionToken)) return;
       setPracticeAnswerResult(record);
+      if (questContext) {
+        setQuestResults((current) => [...current, record.correct]);
+      }
       setApiState('connected');
       void Promise.allSettled([
         fetchDashboardOverview().then((nextOverview) => setOverview(nextOverview)),
@@ -757,6 +785,60 @@ export function App() {
     setDetailQuestionId(null);
     setPracticeStatus(`正在练习：${title}。请选择答案。`);
     setActiveSection('question');
+  }
+
+  async function handleStartQuestFromCatalog(nodeId: string, title: string, questionIds: string[]) {
+    if (questionIds.length === 0) {
+      setQuestError('该节点暂无可闯关题目');
+      return;
+    }
+    setQuestError('');
+    invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+    applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
+    setRedoQuestionId(null);
+    setVariantOfQuestionId(null);
+    setTodayTaskLaunchContext(null);
+    setQuestResults([]);
+    setQuestState(null);
+    setQuestContext({ nodeId, title, questionIds });
+    setDetailQuestionId(null);
+    setPracticeStatus(`已开始闯关：${title}。答完 ${questionIds.length} 题后回到详情页结算正确率。`);
+    setActiveSection('question');
+    void trackEvent('quest.start', { nodeId });
+    try {
+      setQuestState(await fetchNodeQuest(nodeId));
+    } catch {
+      // 状态徽章仍可通过 mastery 摘要展示，闯关流程不因状态加载失败中断。
+    }
+  }
+
+  async function handleCompleteQuest() {
+    const current = questContext;
+    if (!current) return;
+    const answered = questResults.length;
+    if (answered === 0) {
+      setQuestError('尚未作答，无法结算闯关');
+      return;
+    }
+    setQuestError('');
+    const correct = questResults.filter(Boolean).length;
+    const accuracy = Math.round((correct / answered) * 100);
+    try {
+      const next = await completeNodeQuest(current.nodeId, accuracy);
+      setQuestState(next);
+      setQuestVersion((version) => version + 1);
+      setQuestContext(null);
+      setQuestResults([]);
+      setPracticeStatus(
+        next.status === 'passed'
+          ? `闯关成功！${current.title} 已通关（正确率 ${accuracy}%）。`
+          : `闯关完成（正确率 ${accuracy}%），达到 60% 即可通关，可再闯一次。`,
+      );
+      void trackEvent('quest.complete', { nodeId: current.nodeId, accuracy, passed: next.status === 'passed' });
+    } catch (error) {
+      setQuestError(error instanceof Error ? error.message : '闯关结算失败，请重试。');
+      setPracticeStatus('闯关结算失败，请重试。');
+    }
   }
 
   async function handleGenerateAssessment() {
@@ -1508,6 +1590,12 @@ paperId: paper.id,
             <KnowledgeCatalog
               onNavigate={setActiveSection}
               onPracticeQuestion={handlePracticeQuestionFromCatalog}
+              onStartQuest={handleStartQuestFromCatalog}
+              onCompleteQuest={() => void handleCompleteQuest()}
+              questContext={questContext !== null}
+              questState={questState}
+              questError={questError}
+              questVersion={questVersion}
             />
           </Suspense>
         ) : null}

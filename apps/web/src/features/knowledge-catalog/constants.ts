@@ -1,5 +1,5 @@
 import type { CatalogTrendDirection, SubjectCode } from '@kaoyan408/shared';
-import type { NodeMasteryStatus } from '../../api/endpoints/score-center';
+import type { NodeMasteryStatus, NodeQuestStatus } from '../../api/endpoints/score-center';
 
 export const SUBJECT_NAMES: Record<SubjectCode, string> = {
   DS: '数据结构',
@@ -25,4 +25,10 @@ export const MASTERY_STATUS_LABELS: Record<NodeMasteryStatus, string> = {
   weak: '薄弱',
   review: '复习中',
   mastered: '已掌握',
+};
+
+export const QUEST_STATUS_LABELS: Record<NodeQuestStatus, string> = {
+  not_started: '未开始',
+  in_progress: '进行中',
+  passed: '已通关',
 };

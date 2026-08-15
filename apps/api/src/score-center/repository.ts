@@ -274,6 +274,51 @@ export async function loadMasteries(db: DbClient, userId: string) {
   return db.userKnowledgeMastery.findMany({ where: { userId } });
 }
 
+export async function loadNodeQuest(db: DbClient, userId: string, knowledgeNodeId: string) {
+  return db.userNodeQuest.findUnique({
+    where: {
+      userId_knowledgeNodeId: { userId, knowledgeNodeId },
+    },
+  });
+}
+
+export async function loadNodeQuests(db: DbClient, userId: string, knowledgeNodeIds: string[]) {
+  if (knowledgeNodeIds.length === 0) return [];
+  return db.userNodeQuest.findMany({
+    where: { userId, knowledgeNodeId: { in: knowledgeNodeIds } },
+  });
+}
+
+export async function saveNodeQuestAttempt(
+  db: DbClient,
+  userId: string,
+  knowledgeNodeId: string,
+  input: { accuracy: number; passed: boolean },
+) {
+  const previous = await loadNodeQuest(db, userId, knowledgeNodeId);
+  const attempts = (previous?.attempts ?? 0) + 1;
+  const bestAccuracy = Math.max(previous?.bestAccuracy ?? 0, input.accuracy);
+  return db.userNodeQuest.upsert({
+    where: {
+      userId_knowledgeNodeId: { userId, knowledgeNodeId },
+    },
+    create: {
+      userId,
+      knowledgeNodeId,
+      attempts,
+      bestAccuracy,
+      passed: input.passed,
+      passedAt: input.passed ? new Date() : null,
+    },
+    update: {
+      attempts,
+      bestAccuracy,
+      passed: input.passed ? true : previous?.passed ?? false,
+      passedAt: input.passed ? previous?.passedAt ?? new Date() : previous?.passedAt ?? null,
+    },
+  });
+}
+
 export async function loadKnowledgeRelations(db: DbClient) {
   return db.knowledgeRelation.findMany({
     where: { type: 'PREREQUISITE' },

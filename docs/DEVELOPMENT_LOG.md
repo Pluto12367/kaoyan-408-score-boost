@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，节点闯关（图谱原子节点 未开始/进行中/已通关 + 闯关小测 ≥60% 通关 + `UserNodeQuest` 里程碑表）已完成 TDD 与全量验证，**尚未提交**；`npm test` 570 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含闯关断言）通过。下一步：提交推送 → 部署 → 浏览器验证闯关流程 → 错题→真题联动。
 - 分支/提交：`codex/deployment-ready`，阶段 0-5 已提交推送；Phase 2b（计划语义迁移到 `knowledgeNodeId`）已完成并**尚未提交**；`npm test` 565 项 564 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含节点计划+questionIds 断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署后浏览器验证“今日计划任务按节点启动练习”；至此方案 C 全部阶段（Phase 1/2/2b）完成，P2-2 口径统一收敛。
 - 分支/提交：`codex/deployment-ready`，阶段 0-4 已提交推送（`a900a93`/`4197b0a`/`3d26900`/`8b0f6e6`）；阶段 5（收敛工程化：旧口径冻结日志、60s TTL 多实例缓存、图谱无障碍、HTTPS nginx 示例+Certbot 文档、阶段 0→5 上线运行手册）已完成并**尚未提交**；`npm test` 560 项 559 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 通过。下一步：提交推送 → 按运行手册部署并执行数据脚本 → 浏览器端到端验收；阶段 0→5 全部完成后可对目标做最终验收。
 - 分支/提交：`codex/deployment-ready`，阶段 0-3 已提交推送（`a900a93`/`4197b0a`/`3d26900`）；阶段 4（报告图谱化：掌握度趋势，`UserMasterySnapshot` 每日快照 + `GET /mastery-trend` + 报告趋势面板）已完成并**尚未提交**；`npm test` 556 项 555 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含快照/趋势断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署（新迁移随容器启动自动应用）→ 生产执行回填（重建历史快照）→ 浏览器验证报告“掌握度趋势”；随后进入阶段 5（收敛工程化：旧口径冻结/多实例/性能/无障碍/HTTPS）。
@@ -53,6 +54,25 @@
   6. 标题切换逻辑：前端 `apps/web/src/features/tutor/TutorPanel.tsx` 以 `source.startsWith('deepseek')` 判断；模板降级时 `source = standard-analysis-assisted`。
   7. 本地联调注意：`npm run dev:migration` 运行的是 `apps/api/dist/main.js` 编译产物，改后端代码后必须先 `npm run build:api` 再重启服务。
 ## 历史记录
+
+### 2026-08-15 节点闯关：知识图谱从“可查看”升级为“可推进”
+
+- 日期：2026-08-15
+- 任务：为 408 知识图谱原子节点增加“节点闯关”闭环：每个节点显示 未开始/进行中/已通关 状态徽章，详情抽屉可“开始闯关”（仅练该节点关联题），答完回到抽屉“完成闯关并结算”，按正确率 ≥ 60% 判定通关并持久化里程碑。
+- 修改原因：图谱此前只着色掌握度、可查看题量与真题命中，学生缺少“逐节点推进”的目标感与完成反馈；这是“错题→真题联动”落地前的学习闭环强化。
+- 修改文件：
+  - `packages/shared/src/nodeMastery.ts`（新增 `NodeQuestStatus`、`deriveNodeQuestStatus`、`QUEST_PASS_THRESHOLD=60`、`QUEST_STATUS_LABELS`）
+  - `prisma/schema.prisma` + 迁移 `20260815120000_user_node_quest`（新增 `UserNodeQuest` 表：userId+knowledgeNodeId 唯一、attempts/bestAccuracy/passed/passedAt，additive 可回滚）
+  - `apps/api/src/score-center/repository.ts`（`loadNodeQuest`/`loadNodeQuests`/`saveNodeQuestAttempt`）、`service.ts`（`getNodeQuest`/`completeNodeQuest`，`getMyMastery` 增 `questStatus`）、`routes.ts`（`GET /knowledge/:id/quest`、`POST /knowledge/:id/quest/complete`）
+  - `apps/web/src/api/endpoints/score-center.ts`（`fetchNodeQuest`/`completeNodeQuest` + 类型）、`KnowledgePointDetailDrawer.tsx`（节点闯关区块）、`KnowledgeTree.tsx`（闯关徽章）、`KnowledgeCatalog.tsx`（`onStartQuest`/`onCompleteQuest`/`questState` 接线）、`App.tsx`（`questContext` 状态 + 闯关题过滤 + 完成结算 + 结算后刷新徽章）
+  - `scripts/integration-postgres.mjs`（闯关状态/阈值/通过不降级端到端断言）
+  - 新增 `test/node-quest-status.test.js`、`test/node-quest-wiring.test.js`（TDD：先 RED 后 GREEN）
+- 数据库变更：新增 `UserNodeQuest` 表（additive；回滚=移除迁移目录后不再应用，原表不受影响）
+- API 变更：新增 2 个端点；`GET /knowledge/mastery` 响应 items 增加可选 `questStatus` 字段（向后兼容）
+- 测试结果：`node test/node-quest-status.test.js`、`node test/node-quest-wiring.test.js` 先 RED（模块缺失）后 GREEN；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 chunk 体积警告）；`npm test` 570 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `ok:true`（含闯关断言）
+- 截图或验证证据：集成日志显示 `questBefore.status === 'in_progress'`、`questPassed.status === 'passed'`、`questRetryFailed` 不降级、`UserNodeQuest` 行落库
+- 遗留问题：闯关题目复用节点关联题（`relatedQuestions` 前 20 题），尚无独立闯关题库/难度分层；结算需用户回到详情抽屉手动触发；未做服务端题目级校验（当前 accuracy 由前端上报）
+- 下一步：提交推送后部署到 43.128.30.191（新迁移随 app 启动自动应用），浏览器验证闯关流程；随后实施“错题→真题联动”
 
 ### 2026-08-14 Phase 2b：计划语义迁移到 knowledgeNodeId
 

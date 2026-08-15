@@ -95,6 +95,7 @@ export interface KnowledgeDetail {
 }
 
 export type NodeMasteryStatus = 'untouched' | 'weak' | 'review' | 'mastered';
+export type NodeQuestStatus = 'not_started' | 'in_progress' | 'passed';
 
 export interface NodeMasterySummary {
   knowledgeNodeId: string;
@@ -105,9 +106,18 @@ export interface NodeMasterySummary {
   correctCount: number;
   wrongCount: number;
   status: NodeMasteryStatus;
+  questStatus?: NodeQuestStatus;
   lastLearnedAt: string | null;
   lastReviewedAt: string | null;
   nextReviewAt: string | null;
+}
+
+export interface NodeQuestState {
+  knowledgeNodeId: string;
+  status: NodeQuestStatus;
+  attempts: number;
+  bestAccuracy: number;
+  passedAt: string | null;
 }
 
 export interface MyNodeMastery {
@@ -138,4 +148,23 @@ export async function fetchMyMastery(): Promise<MyNodeMastery> {
   const response = await fetchWithAuth(`${API_BASE_URL}/knowledge/mastery`);
   if (!response.ok) throw new Error(`Knowledge mastery failed with ${response.status}`);
   return response.json() as Promise<MyNodeMastery>;
+}
+
+export async function fetchNodeQuest(knowledgeNodeId: string): Promise<NodeQuestState> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/knowledge/${encodeURIComponent(knowledgeNodeId)}/quest`);
+  if (!response.ok) throw new Error(`Node quest failed with ${response.status}`);
+  return response.json() as Promise<NodeQuestState>;
+}
+
+export async function completeNodeQuest(
+  knowledgeNodeId: string,
+  accuracy: number,
+): Promise<NodeQuestState> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/knowledge/${encodeURIComponent(knowledgeNodeId)}/quest/complete`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ accuracy }),
+  });
+  if (!response.ok) throw new Error(`Node quest complete failed with ${response.status}`);
+  return response.json() as Promise<NodeQuestState>;
 }

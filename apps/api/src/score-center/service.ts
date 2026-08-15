@@ -12,8 +12,10 @@ import {
   buildMasteryTrend,
   calculatePriority,
   composeDailyPlan,
+  deriveNodeQuestStatus,
   deriveNodeMasteryStatus,
   estimateRetention,
+  QUEST_PASS_THRESHOLD,
   updateMasteryAfterAttempt,
   updateStabilityAfterReview,
 } from '@kaoyan408/shared';
@@ -30,6 +32,8 @@ import {
   loadKnowledgeRelations,
   loadLatestFrequencySnapshots,
   loadMasteries,
+  loadNodeQuest,
+  loadNodeQuests,
   loadMasteryRow,
   loadMasterySnapshots,
   loadRelatedQuestionsForNode,
@@ -39,6 +43,7 @@ import {
   resolveWrongQuestion,
   saveMastery,
   saveMasterySnapshot,
+  saveNodeQuestAttempt,
   touchWrongQuestion,
   type AttemptFact,
   type DbClient,
@@ -261,6 +266,12 @@ export class ScoreCenterService {
 
   async getMyMastery(userId: string) {
     const rows = await loadMasteries(this.prisma, userId);
+    const quests = await loadNodeQuests(
+      this.prisma,
+      userId,
+      rows.map((row) => row.knowledgeNodeId),
+    );
+    const questByNode = new Map(quests.map((quest) => [quest.knowledgeNodeId, quest]));
     return {
       generatedAt: new Date().toISOString(),
       items: rows.map((row) => ({
@@ -275,10 +286,66 @@ export class ScoreCenterService {
           mastery: row.mastery,
           attempts: row.attempts,
         }),
+        questStatus: deriveNodeQuestStatus({
+          masteryAttempts: row.attempts,
+          questAttempts: questByNode.get(row.knowledgeNodeId)?.attempts ?? 0,
+          questPassed: questByNode.get(row.knowledgeNodeId)?.passed ?? false,
+        }),
         lastLearnedAt: row.lastLearnedAt?.toISOString() ?? null,
         lastReviewedAt: row.lastReviewedAt?.toISOString() ?? null,
         nextReviewAt: row.nextReviewAt?.toISOString() ?? null,
       })),
+    };
+  }
+
+  async getNodeQuest(userId: string, knowledgeNodeId: string) {
+    if (!this.enabled) {
+      return {
+        knowledgeNodeId,
+        status: deriveNodeQuestStatus({ masteryAttempts: 0, questAttempts: 0, questPassed: false }),
+        attempts: 0,
+        bestAccuracy: 0,
+        passedAt: null,
+      };
+    }
+    const [mastery, quest] = await Promise.all([
+      loadMasteryRow(this.prisma, userId, knowledgeNodeId),
+      loadNodeQuest(this.prisma, userId, knowledgeNodeId),
+    ]);
+    return {
+      knowledgeNodeId,
+      status: deriveNodeQuestStatus({
+        masteryAttempts: mastery?.attempts ?? 0,
+        questAttempts: quest?.attempts ?? 0,
+        questPassed: quest?.passed ?? false,
+      }),
+      attempts: quest?.attempts ?? 0,
+      bestAccuracy: quest?.bestAccuracy ?? 0,
+      passedAt: quest?.passedAt?.toISOString() ?? null,
+    };
+  }
+
+  async completeNodeQuest(userId: string, knowledgeNodeId: string, accuracy: number) {
+    if (!this.enabled) {
+      return this.getNodeQuest(userId, knowledgeNodeId);
+    }
+    const node = await this.prisma.knowledgeNode.findUnique({ where: { id: knowledgeNodeId } });
+    if (!node) return null;
+    const clamped = Math.min(100, Math.max(0, accuracy));
+    const quest = await saveNodeQuestAttempt(this.prisma, userId, knowledgeNodeId, {
+      accuracy: clamped,
+      passed: clamped >= QUEST_PASS_THRESHOLD,
+    });
+    return {
+      knowledgeNodeId,
+      status: deriveNodeQuestStatus({
+        masteryAttempts: (await loadMasteryRow(this.prisma, userId, knowledgeNodeId))?.attempts ?? 0,
+        questAttempts: quest.attempts,
+        questPassed: quest.passed,
+      }),
+      attempts: quest.attempts,
+      bestAccuracy: quest.bestAccuracy,
+      passedAt: quest.passedAt?.toISOString() ?? null,
     };
   }
 

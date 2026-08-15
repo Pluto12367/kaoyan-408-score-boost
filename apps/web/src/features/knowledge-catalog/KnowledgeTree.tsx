@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { CatalogAtomicPoint, CatalogSubject } from '@kaoyan408/shared';
 import { deriveNodeMasteryStatus } from '@kaoyan408/shared';
-import type { NodeMasterySummary, NodeMasteryStatus } from '../../api/endpoints/score-center';
-import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, TREND_LABELS } from './constants';
+import type { NodeMasterySummary, NodeMasteryStatus, NodeQuestStatus } from '../../api/endpoints/score-center';
+import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, QUEST_STATUS_LABELS, TREND_LABELS } from './constants';
 
 export interface ExpansionCommand {
   version: number;
@@ -25,10 +25,12 @@ function AtomicPointRow({
   point,
   onSelectPoint = noop,
   masteryStatus,
+  questStatus,
 }: {
   point: CatalogAtomicPoint;
   onSelectPoint?: (point: CatalogAtomicPoint) => void;
   masteryStatus?: NodeMasteryStatus;
+  questStatus?: NodeQuestStatus;
 }) {
   const evidence = point.evidence;
   return (
@@ -45,6 +47,11 @@ function AtomicPointRow({
           {masteryStatus ? (
             <span className="catalog-mastery-badge" data-status={masteryStatus}>
               {MASTERY_STATUS_LABELS[masteryStatus]}
+            </span>
+          ) : null}
+          {questStatus ? (
+            <span className="catalog-quest-badge" data-status={questStatus}>
+              {QUEST_STATUS_LABELS[questStatus]}
             </span>
           ) : null}
           重要度 <Stars value={point.importance} />
@@ -120,6 +127,8 @@ export function KnowledgeTree({
     if (!item) return 'untouched';
     return deriveNodeMasteryStatus({ mastery: item.mastery, attempts: item.attempts });
   };
+  const questStatus = (pointId: string): NodeQuestStatus | undefined =>
+    masteryById?.[pointId]?.questStatus;
 
   return (
     <div id="knowledge-catalog-panel" className="catalog-tree" data-testid="knowledge-tree">
@@ -172,6 +181,7 @@ export function KnowledgeTree({
                               point={point}
                               onSelectPoint={onSelectPoint}
                               masteryStatus={masteryStatus(point.id)}
+                              questStatus={questStatus(point.id)}
                             />
                           ))}
                         </div>
