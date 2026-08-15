@@ -254,7 +254,9 @@ export function App() {
   }, [activeSection, todayTaskLaunchContext]);
 
   useEffect(() => {
-    if (questContext && activeSection !== 'question') {
+    // The quest survives while the student stays in practice (question) or
+    // returns to the catalog (knowledge-catalog) to settle the round.
+    if (questContext && activeSection !== 'question' && activeSection !== 'knowledge-catalog') {
       setQuestContext(null);
       setQuestResults([]);
     }

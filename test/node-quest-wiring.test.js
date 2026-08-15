@@ -37,3 +37,12 @@ test('frontend wires node quest api, drawer section and app session', () => {
   assert.match(catalog, /onStartQuest/);
   assert.match(app, /questContext/);
 });
+
+test('quest context survives returning to the catalog for settlement', () => {
+  const app = readFileSync('apps/web/src/App.tsx', 'utf8');
+  assert.match(
+    app,
+    /questContext && activeSection !== 'question' && activeSection !== 'knowledge-catalog'/,
+    'leaving practice for the catalog must keep the quest context so the round can be settled',
+  );
+});
