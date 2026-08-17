@@ -113,7 +113,7 @@ test/student-learning-console-ui.test.js
 只在本地做整合、冲突解决和测试；服务器只拉取干净发布分支。
 
 ```powershell
-cd "C:\Users\Lenovo\Documents\计算机考研提分系统"
+cd "D:\计算机考研提分系统"
 
 git fetch origin
 git switch codex/deployment-ready

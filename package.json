@@ -16,6 +16,8 @@
     "verify:deployed": "node scripts/verify-deployed.mjs",
     "verify:graph-convergence": "node scripts/verify-graph-convergence.mjs",
     "verify:node-quest": "node scripts/verify-node-quest.mjs",
+    "verify:full-student": "node scripts/verify-full-student.mjs",
+    "verify:deep-interactions": "node scripts/verify-deep-interactions.mjs",
     "verify:pdf-runtime-tools": "node scripts/verify-pdf-runtime-tools.mjs",
     "verify:api-build-layout": "npm run build:api && node scripts/verify-api-build-layout.mjs",
     "validate:env": "node scripts/validate-environment.mjs",
