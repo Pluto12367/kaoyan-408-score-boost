@@ -4,72 +4,57 @@
 
 本地路径：
 
-C:\Users\Lenovo\Documents\计算机考研提分系统
+D:\计算机考研提分系统
 
 当前分支：
 
 codex/deployment-ready
 
-最新已提交并推送功能：
+最新已提交并推送：
 
-2de4abe feat(web): unify student next learning steps（学习路径“下一步入口”统一强化）
+83182ad feat(web): add A/B/C theme switching with localStorage persistence（A/B/C 三档界面主题切换）
 
 远端状态：
 
-origin/codex/deployment-ready 已包含 2de4abe
+origin/codex/deployment-ready 已包含 83182ad
 
 服务器：
 
-43.128.30.191 已部署，功能测试正常（实测时线上仍为旧构建，aria-label 修复与冒烟脚本提交后需重新部署）。
+43.128.30.191 已部署；线上 bundle（index-CUi0Kb3N.js）已确认包含 `theme-switch`、`kaoyan408:theme`，主题切换已上线。
 
-已完成的学生端闭环功能：
+## 最近完成（本交接周期）
 
-- 学生端首页 / 学习中控台
-- 今日任务完成闭环
-- 今日任务可执行性兜底
-- 任务完成后下一步推荐
-- 错题本复盘闭环强化
-- 学习报告行动化
-- 学习计划行动化
-- 训练即时反馈强化
-- 阶段测评结果行动化
-- 专项训练结果行动化
-- 学生端学习闭环导航条
-- 学习数据可信度与推荐理由强化
-- 学习目标感强化
-- 学习路径“下一步入口”统一强化（提交 2de4abe，已部署验证：首页/今日任务/题库训练/错题本/报告五面卡片全部出现，按钮跳转正确，移动端竖排正常）
+- 功能：登录后工作区支持「深色 / 极简 / 标准」三档主题切换；顶栏按钮直接切换，选择写入 localStorage（`kaoyan408:theme`），刷新保持；`main.tsx` 在首帧渲染前应用主题，避免闪烁；全部通过 CSS 变量 + `html[data-theme]` 实现，不触碰业务逻辑。
+- 文件：`apps/web/src/App.tsx`、`apps/web/src/main.tsx`、`apps/web/src/styles.css`、`apps/web/src/components/ThemeToggle.tsx`（新增）、`apps/web/src/hooks/useTheme.ts`（新增）、`apps/web/src/theme/themePreference.ts`（新增）、`test/theme-preference.test.js`（新增）。
+- 验证：`npm test` 577 通过 / 0 失败 / 1 跳过；`npm run build:web`、`npm run build:api` 通过；浏览器实测三主题即时切换、持久化、刷新保持、无横向溢出；线上 bundle 检查通过。
+- 设计：四方向高保真 Mockup 套件在 `design/option-c-mockups/`（A/B/C/D 一键切换版，含 7 个页面效果图），**未入库**，是否存档由用户决定。
 
-当前正在推进的下一项：
+## 已完成的学生端闭环功能（此前已上线，仍有效）
 
-P0 知识点目录接入学习引擎
+- 学生端首页 / 学习中控台、今日任务完成闭环、任务完成后下一步推荐
+- 错题本复盘闭环、学习报告行动化、学习计划行动化、训练即时反馈、阶段测评/专项训练结果行动化
+- 学生端学习闭环导航条、数据可信度与推荐理由强化、学习目标感强化、学习路径“下一步入口”统一
+- 408 知识图谱（掌握度着色、题库/真题接入、闯关小测）与知识目录驱动的计划/推荐（P0 系列）
 
-方向：
+## 工作区注意（非本次改动，交接前已存在的未提交内容）
 
-让学习引擎以 408 知识目录（`408-codex-handoff/data/408/knowledge-tree-408-v2.json` 等权威数据）为准，掌握度、薄弱报告、推荐与计划不再局限于内置 4 个知识点，核心提分闭环对导入题库真实生效。
+- 已修改：`docs/deployment-feature-integration-checklist.md`、`package.json`（以及本交接文档本身）
+- 未跟踪：`408-codex-handoff/`、`CODEX-KNOWLEDGE-CATALOG-FIRST-PROMPT.md`、`MANIFEST.json`、`assets/*-check/`、`scripts/probe-*.mjs`、`scripts/verify-deep-interactions.mjs`、`scripts/verify-full-student.mjs`、`var/`
+- 规则：禁止 `git add .`；提交/推送必须先经用户批准；不要把这些与本任务无关的改动混入新提交。
 
-进展（2026-08-14）：方案 B（`KnowledgePointNodeMap` 桥接）已实现——16 粗粒度点 → 原子点映射文件 + `seed:knowledge-map` 脚本 + 共享命名解析 + StudyService 掌握度/薄弱/错题接线，全量测试与集成测试通过；待提交/推送、生产执行 seed 与教研复核映射。
+## 遗留与风险
 
-待提交（等用户批准）：
+- 深色主题（A）已覆盖主要表面（面板、输入框、表格、按钮、状态条）；个别老组件若仍显示硬编码浅色，需截图后逐条补 CSS 覆盖。
+- 极简主题（B）是 token 级收敛（去阴影、圆角收紧、侧栏浅色化），布局骨架未改，密度比 Mockup 更克制。
+- 登录/注册页保持原有深色设计，不参与三档切换。
+- 主题切换只在登录后的工作区顶栏出现；未登录页面无切换入口（设计如此）。
 
-- P0-2 方案 B：`data/408/knowledge-point-node-map.json`、`scripts/seed-knowledge-point-map.mjs`、`packages/shared/src/knowledgeDisplay.ts`、`knowledge-point.repository.ts`、`study.service.ts` 接线、`test/knowledge-point-node-map.test.js`、`test/knowledge-display.test.js`、集成断言
+## 下一步建议
 
-已写文档（本地未跟踪，建议随下次提交一并入库）：
+- 运行 `npm run verify:deployed` 对线上做全量核对（重点：主题切换按钮在登录后可见、三档可切换、刷新保持）。
+- 后续新任务按 `docs/ROADMAP.md` / `docs/DEVELOPMENT_LOG.md` 的“当前状态”继续。
+- 如需扩展主题能力（跟随系统偏好、教师/管理端配色），基于现有 `themePreference.ts` + CSS 变量继续。
 
-- docs/superpowers/specs/2026-08-14-next-learning-step-design.md
-- docs/superpowers/plans/2026-08-14-next-learning-step.md
-- docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md（P0 设计）
-- docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md（P0 计划）
+## 下次接入后继续提示词
 
-注意：
-
-交接文档与 superpowers 设计/计划文档目前是本地未跟踪文件，如果要永久保留，建议后续单独提交。
-
-下次接入后继续提示词：
-
-请先读取 CODEX_HANDOFF_NEXT.md、docs/PROJECT_CONTEXT.md、docs/ARCHITECTURE.md，以及：
-
-docs/superpowers/specs/2026-08-14-knowledge-catalog-engine-design.md
-
-docs/superpowers/plans/2026-08-14-knowledge-catalog-engine.md
-
-然后从“P0 知识点目录接入学习引擎”继续，按设计/计划与 TDD 实现。禁止 git add .，提交/推送必须等我批准。
+请先读取 CODEX_HANDOFF_NEXT.md、docs/PROJECT_CONTEXT.md、docs/ARCHITECTURE.md、docs/DEVELOPMENT_LOG.md（当前状态），以仓库实际代码为准核对，不依赖历史聊天记录；涉及代码修改前执行开源参考检查。禁止 git add .，提交/推送必须等用户批准。

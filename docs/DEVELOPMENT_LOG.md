@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`codex/deployment-ready`，A/B/C 三档主题切换（深色/极简/标准）已提交推送并部署上线（`83182ad`，与 origin 同步，线上 bundle 已确认包含 `theme-switch`/`kaoyan408:theme`）；`npm test` 577 通过 / 0 失败 / 1 跳过、`build:api`/`build:web` 通过。下一步：`npm run verify:deployed` 线上全量核对；主题能力可后续扩展（跟随系统偏好、教师/管理端配色）。
 - 分支/提交：`codex/deployment-ready`，节点闯关（图谱原子节点 未开始/进行中/已通关 + 闯关小测 ≥60% 通关 + `UserNodeQuest` 里程碑表）已完成 TDD 与全量验证，**尚未提交**；`npm test` 570 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含闯关断言）通过。下一步：提交推送 → 部署 → 浏览器验证闯关流程 → 错题→真题联动。
 - 分支/提交：`codex/deployment-ready`，阶段 0-5 已提交推送；Phase 2b（计划语义迁移到 `knowledgeNodeId`）已完成并**尚未提交**；`npm test` 565 项 564 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含节点计划+questionIds 断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署后浏览器验证“今日计划任务按节点启动练习”；至此方案 C 全部阶段（Phase 1/2/2b）完成，P2-2 口径统一收敛。
 - 分支/提交：`codex/deployment-ready`，阶段 0-4 已提交推送（`a900a93`/`4197b0a`/`3d26900`/`8b0f6e6`）；阶段 5（收敛工程化：旧口径冻结日志、60s TTL 多实例缓存、图谱无障碍、HTTPS nginx 示例+Certbot 文档、阶段 0→5 上线运行手册）已完成并**尚未提交**；`npm test` 560 项 559 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres` 通过。下一步：提交推送 → 按运行手册部署并执行数据脚本 → 浏览器端到端验收；阶段 0→5 全部完成后可对目标做最终验收。
@@ -582,3 +583,16 @@
 - 测试结果：`npm run build:api` 通过；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm test` 210 项：208 通过 / 1 失败（`admin-user-email-ui`，根因为沙箱内 esbuild 读取父目录被拒，与本次改动无关）/ 1 跳过；`build:web` 的 tsc 阶段通过，vite/esbuild 阶段受同一沙箱限制，需在无沙箱环境补跑。
 - 遗留问题：学习模式每题即时核对复用 `POST /practice-records`（真实落库），完成后不批量提交会话，会留下一个 practice_set 草稿会话（可在"继续学习"横幅看到，属已知体验细节）；综合题在学习模式不自动判分（提示到训练/模拟模式提交自评）；错因中"公式记错/计算错误"主要靠自选，规则自动推断覆盖其余 6 类。
 - 下一步：在无沙箱环境补跑 `npm run build:web` 与 `npm run test:integration:postgres`；随后进入阶段 4（错题筛选 + 变式复测）。
+
+### 2026-08-17 实施：A/B/C 三档界面主题切换并部署上线
+
+- 日期：2026-08-17
+- 任务：登录后工作区新增「深色 / 极简 / 标准」三档主题切换（A/B/C），支持 localStorage 持久化与首帧防闪烁，并部署到 `43.128.30.191`。
+- 修改原因：用户确认方案 C（深墨纸白）为默认，并要求 A/B/C 三档可按钮直接切换；D（数据驾驶舱）仅作为 Mockup 参考，不进入系统。
+- 修改文件：`apps/web/src/App.tsx`（顶栏挂载切换按钮）、`apps/web/src/main.tsx`（首帧前恢复主题）、`apps/web/src/styles.css`（A/B 两套 token 与表面色覆盖）、`apps/web/src/components/ThemeToggle.tsx`（新增）、`apps/web/src/hooks/useTheme.ts`（新增）、`apps/web/src/theme/themePreference.ts`（新增）、`test/theme-preference.test.js`（新增）；设计交付物 `design/option-c-mockups/`（未入库）。
+- 数据库变化：无。
+- API 变化：无。
+- 测试结果：`node --test test/theme-preference.test.js` 6/6 通过；`npm test` 577 通过 / 0 失败 / 1 跳过；`npm run build:web` 通过；`npm run build:api` 通过。
+- 截图或验证证据：浏览器实测三主题即时切换、localStorage 持久化、刷新保持（存 A 刷新仍深色）、三主题均无横向溢出；线上 bundle `index-CUi0Kb3N.js` 包含 `theme-switch` 与 `kaoyan408:theme`。
+- 遗留问题：深色主题已覆盖主要表面，个别老组件若仍有硬编码浅色需截图后逐条补覆盖；B（极简）为 token 级收敛，布局骨架未动；登录/注册页保持原深色设计，不参与切换；主题切换入口仅在登录后顶栏。
+- 下一步：`npm run verify:deployed` 线上全量核对（登录后切主题、刷新保持）；按 `docs/ROADMAP.md` 与「当前状态」继续后续任务。
