@@ -5817,6 +5817,55 @@ html[data-theme="a"] .learning-console-next-step {
   border-color: rgba(61, 214, 140, 0.3);
 }
 
+/* A：首页学习看板卡片 */
+html[data-theme="a"] .student-insight-card,
+html[data-theme="a"] .student-schedule-card,
+html[data-theme="a"] .next-learning-step-card,
+html[data-theme="a"] .goal-progress-insight {
+  background: var(--surface);
+  border-color: var(--line);
+  box-shadow: var(--shadow-card);
+}
+html[data-theme="a"] .focus-point-list button,
+html[data-theme="a"] .recent-mistake-list button,
+html[data-theme="a"] .week-focus-list article,
+html[data-theme="a"] .goal-progress-grid article,
+html[data-theme="a"] .goal-progress-pill {
+  background: var(--surface-soft);
+  border-color: var(--line);
+}
+html[data-theme="a"] .focus-point-list button:hover,
+html[data-theme="a"] .recent-mistake-list button:hover {
+  border-color: var(--primary-line);
+  box-shadow: 0 14px 34px rgb(0 0 0 / 22%);
+}
+html[data-theme="a"] .next-learning-step-copy h4,
+html[data-theme="a"] .goal-progress-main h4,
+html[data-theme="a"] .focus-point-list button strong,
+html[data-theme="a"] .recent-mistake-list button strong,
+html[data-theme="a"] .week-focus-list span,
+html[data-theme="a"] .goal-progress-grid strong,
+html[data-theme="a"] .goal-progress-pill strong {
+  color: var(--text-strong);
+}
+html[data-theme="a"] .next-learning-step-copy p,
+html[data-theme="a"] .goal-progress-main span,
+html[data-theme="a"] .goal-progress-insight p,
+html[data-theme="a"] .goal-progress-pill span,
+html[data-theme="a"] .goal-progress-grid span,
+html[data-theme="a"] .focus-point-list small,
+html[data-theme="a"] .recent-mistake-list span,
+html[data-theme="a"] .week-focus-list small,
+html[data-theme="a"] .mastery-trend-caption {
+  color: var(--text-secondary);
+}
+html[data-theme="a"] .week-focus-list strong {
+  color: var(--primary-strong);
+}
+html[data-theme="a"] .next-learning-step-copy p span {
+  color: var(--green-strong);
+}
+
 /* A：文本与控件 */
 html[data-theme="a"] .topbar h2,
 html[data-theme="a"] .panel h3,

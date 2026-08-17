@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   DEFAULT_THEME,
   THEME_STORAGE_KEY,
@@ -70,4 +71,33 @@ test('theme: applyTheme stamps the html element for CSS cascade', () => {
   assert.equal(doc.documentElement.dataset.theme, 'a');
   applyTheme(doc, 'c');
   assert.equal(doc.documentElement.dataset.theme, 'c');
+});
+
+test('theme: dark dashboard cards pair dark surfaces with readable text', () => {
+  const styles = readFileSync('apps/web/src/styles.css', 'utf8');
+  const selectors = [
+    '.student-insight-card',
+    '.student-schedule-card',
+    '.focus-point-list button',
+    '.recent-mistake-list button',
+    '.week-focus-list article',
+    '.next-learning-step-card',
+    '.goal-progress-insight',
+    '.goal-progress-grid article',
+    '.goal-progress-pill',
+  ];
+
+  for (const selector of selectors) {
+    const escaped = selector.replaceAll('.', '\\.').replaceAll(' ', '\\s+');
+    assert.match(
+      styles,
+      new RegExp(`html\\[data-theme="a"\\][\\s\\S]*${escaped}[\\s\\S]*background:\\s*var\\(--surface`),
+      `${selector} should use a dark theme surface`,
+    );
+  }
+
+  assert.match(
+    styles,
+    /html\[data-theme="a"\][\s\S]*\.next-learning-step-copy h4[\s\S]*\.goal-progress-grid strong[\s\S]*color:\s*var\(--text-strong\)/,
+  );
 });
