@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>方案 C · 错题复盘</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="v-switch" aria-label="方案切换">
+    <span class="v-label">方案</span>
+    <button type="button" data-v="a">A 深色</button>
+    <button type="button" data-v="b">B 极简</button>
+    <button type="button" data-v="c" class="active">C 纸白</button>
+    <button type="button" data-v="d">D 驾驶舱</button>
+  </div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-orb">408</span>
+        <div class="brand-copy">
+          <span class="brand-kicker">408 Score Boost</span>
+          <span class="brand-name">计算机考研 408 提分系统</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="学生功能">
+        <p class="nav-label">学习闭环</p>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>学习总览</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>今日计划</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>今日提分</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>408知识图谱</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V7"/><path d="m16 12 2 2 4-4"/><path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3"/></svg>题库训练</button>
+        <button class="nav-item active"><span class="count">1</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>错题复盘</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>提分报告</button>
+        <p class="nav-label">辅助</p>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/></svg>AI 答疑</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="user-mini">
+          <span class="avatar">林</span>
+          <div><strong>林同学</strong><span>学生 · 强化阶段</span></div>
+        </div>
+        <button class="nav-item" style="padding:9px 12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>退出登录</button>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">学生工作区</p>
+          <h1>错题复盘</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="pill">学生</span>
+          <span class="pill mock"><i class="dot"></i>演示数据 · mock</span>
+        </div>
+      </header>
+
+      <div class="page">
+        <section class="hero" style="padding:22px 26px">
+          <div class="hero-top">
+            <div>
+              <h2>把错题变成可修复动作</h2>
+              <p class="hero-sub">自动收集需要回炉的题目；复盘后，系统会给出同考点练习建议。</p>
+            </div>
+            <div class="hero-actions">
+              <button class="btn btn-lg" style="background:#fff;color:var(--ink-900);border-color:transparent">继续复盘</button>
+              <button class="btn btn-lg" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.25)">再练同考点</button>
+            </div>
+          </div>
+          <div class="kpis" style="grid-template-columns:repeat(4,minmax(0,1fr))">
+            <div class="kpi"><span>待复盘</span><strong>1 道</strong><em>Cache 映射与替换</em></div>
+            <div class="kpi"><span>已复盘</span><strong>0 道</strong><em>等待标记</em></div>
+            <div class="kpi"><span>重做解决</span><strong>0 道</strong><em>继续努力</em></div>
+            <div class="kpi"><span>高频错因</span><strong>概念混淆</strong><em>共 2 次</em></div>
+          </div>
+        </section>
+
+        <section class="sec">
+          <div class="sec-head">
+            <div><h2>复盘闭环</h2><p>错题不是再看一遍，而是把错误变成下一次会做的动作。</p></div>
+          </div>
+          <div class="steps">
+            <div class="step"><span class="no">1</span><b>先看错因</b><span>判断是没学过、概念混淆、审题错误还是时间问题</span></div>
+            <div class="step"><span class="no">2</span><b>再做修复</b><span>针对错因补一个最小动作：看解析、写笔记、重做原题</span></div>
+            <div class="step"><span class="no">3</span><b>最后复测</b><span>用同考点变式或下一次复习验证，避免只记住答案</span></div>
+          </div>
+        </section>
+
+        <section class="sec">
+          <div class="sec-head">
+            <div><h2>筛选</h2><p>按科目、章节、知识点与错因组合过滤</p></div>
+            <button class="btn btn-ghost">重置筛选</button>
+          </div>
+          <div class="band" style="padding:14px 18px;display:grid;gap:12px">
+            <div class="filters">
+              <button class="filter active">全部科目</button>
+              <button class="filter">数据结构</button>
+              <button class="filter">计算机组成原理</button>
+              <button class="filter">操作系统</button>
+              <button class="filter">计算机网络</button>
+            </div>
+            <div class="filters">
+              <button class="filter active">全部章节</button>
+              <button class="filter">存储系统</button>
+              <button class="filter">树与二叉树</button>
+              <button class="filter">进程管理</button>
+              <button class="filter">传输层</button>
+            </div>
+            <div class="filters">
+              <button class="filter active">全部错因</button>
+              <button class="filter">概念混淆</button>
+              <button class="filter">审题错误</button>
+              <button class="filter">计算失误</button>
+              <button class="filter">速度偏慢</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="sec">
+          <div class="sec-head">
+            <div><h2>错题列表</h2><p>1 道待复盘 · 按错误次数排序</p></div>
+            <span class="chip red">待处理 1</span>
+          </div>
+          <div class="band">
+            <div class="row" style="background:var(--red-soft)">
+              <div class="row-main">
+                <div class="row-title">直接映射 Cache（共 8 行）中，主存块号 29 应映射到 Cache 的哪一行？ <span class="chip red">错 2 次</span></div>
+                <div class="row-meta">
+                  <span class="chip amber">概念混淆 · 2</span>
+                  <span class="chip amber">审题错误 · 1</span>
+                  <span>计算机组成原理 / 存储系统 / Cache 映射与替换</span>
+                </div>
+                <div class="row-meta">最近错误：2026-08-16 · 用时 3 分 20 秒 · 建议先看解析再重做</div>
+              </div>
+              <div class="row-actions">
+                <button class="btn btn-primary">继续复盘</button>
+                <button class="btn btn-soft">再练同考点</button>
+              </div>
+            </div>
+          </div>
+          <div class="note">闭环建议：先复盘 1 道待处理错题，补全错因；优先重做 Cache 映射与替换，它的错误次数最高。</div>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script>
+  (function () {
+    var root = document.body, cur = root.dataset.variant || 'c';
+    root.dataset.variant = cur;
+    var btns = document.querySelectorAll('.v-switch button');
+    function sync() { btns.forEach(function (b) { b.classList.toggle('active', b.dataset.v === cur); }); }
+    btns.forEach(function (b) { b.addEventListener('click', function () { cur = b.dataset.v; root.dataset.variant = cur; sync(); }); });
+    sync();
+  })();
+  </script>
+</body>
+</html>

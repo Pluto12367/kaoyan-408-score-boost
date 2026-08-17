@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>方案 C · 登录页</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="auth-bg">
+  <div class="v-switch" aria-label="方案切换">
+    <span class="v-label">方案</span>
+    <button type="button" data-v="a">A 深色</button>
+    <button type="button" data-v="b">B 极简</button>
+    <button type="button" data-v="c" class="active">C 纸白</button>
+    <button type="button" data-v="d">D 驾驶舱</button>
+  </div>
+  <div class="auth-body">
+    <div class="auth-shell">
+      <section class="auth-brand">
+        <div class="auth-brand-row">
+          <span class="brand-orb">408</span>
+          <div>
+            <p class="brand-kicker">408 Score Boost</p>
+            <p style="color:#b9c7dd;font-size:13px;font-weight:600">计算机考研 408 提分系统</p>
+          </div>
+        </div>
+        <h1>从入学诊断到模拟考试，四科薄弱点一清二楚</h1>
+        <p class="auth-tagline">个性化提分系统，不是普通题库</p>
+        <p class="auth-copy">登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，每一步都指向下一次做对。</p>
+        <div class="feature-grid">
+          <div class="feature">
+            <span class="fi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V7"/><path d="m16 12 2 2 4-4"/><path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3"/></svg></span>
+            <div><b>题库训练</b><small>按薄弱点精准组题</small></div>
+          </div>
+          <div class="feature">
+            <span class="fi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg></span>
+            <div><b>错题复盘</b><small>错因分类，变式重练</small></div>
+          </div>
+          <div class="feature">
+            <span class="fi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></span>
+            <div><b>学情分析</b><small>四科掌握度实时可视化</small></div>
+          </div>
+          <div class="feature">
+            <span class="fi"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4"/></svg></span>
+            <div><b>AI 辅助</b><small>四层提示拆解解题思路</small></div>
+          </div>
+        </div>
+        <p class="auth-foot">学生 / 教师 / 管理员均可进入对应工作台 · 面向计算机考研 408 考生的个性化提分系统</p>
+      </section>
+
+      <section class="auth-card">
+        <div>
+          <h2>欢迎回来</h2>
+          <p class="sub">登录后同步你的学习记录与进度</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="登录或注册">
+          <button type="button" class="active" role="tab" aria-selected="true">登录</button>
+          <button type="button" role="tab" aria-selected="false">注册</button>
+        </div>
+        <form>
+          <div class="field">
+            <label for="email">邮箱</label>
+            <input id="email" name="email" type="email" placeholder="you@example.com" autocomplete="email">
+          </div>
+          <div class="field">
+            <label for="password">密码</label>
+            <input id="password" name="password" type="password" placeholder="至少 8 位" autocomplete="current-password">
+          </div>
+          <div style="display:grid;gap:10px;margin-top:4px">
+            <button type="submit" class="btn btn-primary btn-lg" style="width:100%">登录</button>
+            <button type="button" class="btn btn-ghost" style="width:100%">注册新账号</button>
+          </div>
+        </form>
+        <div class="auth-divider">演示环境</div>
+        <div class="demo-row">
+          <button type="button" class="btn btn-soft">学生</button>
+          <button type="button" class="btn btn-soft">教师</button>
+          <button type="button" class="btn btn-soft">管理员</button>
+        </div>
+        <p class="auth-status">请登录后同步学习记录。学生可使用诊断、计划、练习、错题和 AI 答疑。</p>
+      </section>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var root = document.body, cur = root.dataset.variant || 'c';
+    root.dataset.variant = cur;
+    var btns = document.querySelectorAll('.v-switch button');
+    function sync() { btns.forEach(function (b) { b.classList.toggle('active', b.dataset.v === cur); }); }
+    btns.forEach(function (b) { b.addEventListener('click', function () { cur = b.dataset.v; root.dataset.variant = cur; sync(); }); });
+    sync();
+  })();
+  </script>
+</body>
+</html>

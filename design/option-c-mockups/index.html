@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>方案 C · 408 提分系统 UI 概念设计</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="v-switch" aria-label="方案切换">
+    <span class="v-label">方案</span>
+    <button type="button" data-v="a">A 深色</button>
+    <button type="button" data-v="b">B 极简</button>
+    <button type="button" data-v="c" class="active">C 纸白</button>
+    <button type="button" data-v="d">D 驾驶舱</button>
+  </div>
+  <div class="workspace" style="max-width:960px;margin:0 auto">
+    <header class="topbar" style="margin-bottom:28px">
+      <div>
+        <p class="eyebrow">方案 C · 概念设计 v0</p>
+        <h1>408 提分系统 · UI 最终效果</h1>
+      </div>
+      <span class="pill mock"><i class="dot"></i>代码原生高保真 Mockup</span>
+    </header>
+
+    <div class="page" style="display:grid;gap:26px">
+      <section class="sec">
+        <div class="sec-head"><div><h2>设计方向</h2><p>「学术纸感 + 深墨专注」——工作台浅底留白，导航深墨沉静，一屏一个主任务</p></div></div>
+        <div class="band" style="padding:20px;display:grid;gap:14px">
+          <div class="flex flex-wrap" style="gap:10px">
+            <span class="chip ink">深墨导航 #0c1828</span>
+            <span class="chip blue">主色 靛蓝 #2e5bd8</span>
+            <span class="chip teal">进步 青绿 #0e8f7a</span>
+            <span class="chip amber">风险 琥珀 #b7791f</span>
+            <span class="chip red">薄弱 红 #d64545</span>
+            <span class="chip ink">背景 纸白 #f4f6f9</span>
+          </div>
+          <p class="small muted">原则：8/16/24 间距节奏 · 打开式列表代替卡片堆叠 · 错误态友好文案 + 重试 · 骨架屏代替「加载中」· 移动端底部五栏导航。</p>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><div><h2>页面清单</h2><p>点击打开对应高保真页面（建议 1440px 宽度浏览）</p></div></div>
+        <div class="band">
+          <div class="row-list">
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">01 · 登录 / 注册页 <span class="chip teal">公开页</span></div>
+                <div class="row-meta">深墨渐变 + 玻璃表单卡，登录 / 注册分段切换，演示身份入口</div>
+              </div>
+              <div class="row-actions"><a class="btn btn-primary" href="auth.html">打开</a></div>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">02 · 学习总览 <span class="chip blue">学生首页</span></div>
+                <div class="row-meta">今日中控台 KPI 带 · 学习路径 · 科目掌握度 · 薄弱 TOP5 · 节奏与目标</div>
+              </div>
+              <div class="row-actions"><a class="btn btn-primary" href="dashboard.html">打开</a></div>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">03 · 今日计划 <span class="chip blue">学生</span></div>
+                <div class="row-meta">学习日历 · 今日任务（优先级 / 进度）· 阶段测评 · 任务预览</div>
+              </div>
+              <div class="row-actions"><a class="btn btn-primary" href="plan.html">打开</a></div>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">04 · 题库训练 <span class="chip blue">学生</span></div>
+                <div class="row-meta">答题主区 + 计时 / 答题卡侧栏 · 标准解析 · 复习资源推荐</div>
+              </div>
+              <div class="row-actions"><a class="btn btn-primary" href="question.html">打开</a></div>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">05 · 错题复盘 <span class="chip blue">学生</span></div>
+                <div class="row-meta">复盘统计带 · 复盘闭环三步 · 组合筛选 · 错题列表与建议动作</div>
+              </div>
+              <div class="row-actions"><a class="btn btn-primary" href="wrong-book.html">打开</a></div>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">06 · 提分报告 <span class="chip blue">学生</span></div>
+                <div class="row-meta">报告结论（预测分数 / 进步 / 风险）· 目标进度 · 趋势与行动建议</div>
+              </div>
+              <div class="row-actions"><a class="btn btn-primary" href="report.html">打开</a></div>
+            </div>
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">07 · 移动端学习总览 <span class="chip amber">响应式</span></div>
+                <div class="row-meta">390px 手机画布 · 底部五栏导航 · 单栏卡片流</div>
+              </div>
+              <div class="row-actions"><a class="btn btn-primary" href="mobile.html">打开</a></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="sec-head"><div><h2>组件样例</h2><p>统一设计语言的最小集合</p></div></div>
+        <div class="band" style="padding:20px;display:grid;gap:16px">
+          <div class="flex flex-wrap" style="gap:8px">
+            <button class="btn btn-primary">主操作</button>
+            <button class="btn btn-soft">次级操作</button>
+            <button class="btn btn-teal">成功/动作</button>
+            <button class="btn">默认按钮</button>
+            <button class="btn btn-ghost">弱操作</button>
+          </div>
+          <div class="flex flex-wrap" style="gap:8px">
+            <span class="chip red">薄弱</span><span class="chip amber">需巩固</span><span class="chip green">已完成</span><span class="chip teal">进行中</span><span class="chip blue">低优先级</span><span class="chip ink">中性</span>
+          </div>
+          <div style="display:grid;gap:8px;max-width:360px">
+            <div class="progress"><i style="width:72%"></i></div>
+            <div class="progress red"><i style="width:38%"></i></div>
+            <div class="progress amber"><i style="width:55%"></i></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var root = document.body, cur = root.dataset.variant || 'c';
+    root.dataset.variant = cur;
+    var btns = document.querySelectorAll('.v-switch button');
+    function sync() { btns.forEach(function (b) { b.classList.toggle('active', b.dataset.v === cur); }); }
+    btns.forEach(function (b) { b.addEventListener('click', function () { cur = b.dataset.v; root.dataset.variant = cur; sync(); }); });
+    sync();
+  })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>方案 C · 提分报告</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="v-switch" aria-label="方案切换">
+    <span class="v-label">方案</span>
+    <button type="button" data-v="a">A 深色</button>
+    <button type="button" data-v="b">B 极简</button>
+    <button type="button" data-v="c" class="active">C 纸白</button>
+    <button type="button" data-v="d">D 驾驶舱</button>
+  </div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-orb">408</span>
+        <div class="brand-copy">
+          <span class="brand-kicker">408 Score Boost</span>
+          <span class="brand-name">计算机考研 408 提分系统</span>
+        </div>
+      </div>
+      <nav class="nav" aria-label="学生功能">
+        <p class="nav-label">学习闭环</p>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>学习总览</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>今日计划</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>今日提分</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>408知识图谱</button>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V7"/><path d="m16 12 2 2 4-4"/><path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3"/></svg>题库训练</button>
+        <button class="nav-item"><span class="count">1</span><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>错题复盘</button>
+        <button class="nav-item active"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>提分报告</button>
+        <p class="nav-label">辅助</p>
+        <button class="nav-item"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/></svg>AI 答疑</button>
+      </nav>
+      <div class="sidebar-foot">
+        <div class="user-mini">
+          <span class="avatar">林</span>
+          <div><strong>林同学</strong><span>学生 · 强化阶段</span></div>
+        </div>
+        <button class="nav-item" style="padding:9px 12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>退出登录</button>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">学生工作区</p>
+          <h1>提分报告</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="pill">学生</span>
+          <span class="pill mock"><i class="dot"></i>演示数据 · mock</span>
+          <button class="btn btn-ghost">刷新报告数据</button>
+        </div>
+      </header>
+
+      <div class="page">
+        <section class="sec">
+          <div class="sec-head">
+            <div><h2>报告结论</h2><p>先看结论，再看数据</p></div>
+            <div class="tabs" style="width:340px">
+              <button class="active">总览</button>
+              <button>四科掌握度</button>
+              <button>测评历史</button>
+              <button>今日行动</button>
+            </div>
+          </div>
+          <div class="verdict">
+            <div class="verdict-main">
+              <span class="eyebrow">较上阶段提升 · 预测分数</span>
+              <div class="verdict-score"><strong>82–96 分</strong><span>参考值 89 分</span></div>
+              <p class="small muted">基于当前正确率 33.3%、平均掌握度 64% 与剩余 96 天估算</p>
+              <div class="flex flex-wrap">
+                <span class="chip green">最近测评 +14 分</span>
+                <span class="chip teal">连续学习 3 天</span>
+                <span class="chip amber">1 个考点耗时过长</span>
+              </div>
+            </div>
+            <div class="verdict-item"><span>主要进步</span><strong>+14 分</strong><p>最近测评较上次提升</p></div>
+            <div class="verdict-item"><span>当前风险</span><strong>2 项</strong><p>1 个考点耗时过长 · 1 道错题待复盘</p></div>
+            <div class="verdict-item"><span>下周最重要任务</span><strong>补强存储系统</strong><p>Cache 映射与替换（掌握 38%）</p></div>
+          </div>
+        </section>
+
+        <section class="goal-band">
+          <div class="goal-panel">
+            <div class="goal-head">
+              <div><h3>目标进度</h3><span>目标院校：北京邮电大学</span></div>
+              <span class="chip blue">每日 3.5 小时</span>
+            </div>
+            <div class="goal-nums">
+              <div class="goal-num"><span>当前估分</span><strong>72 分</strong></div>
+              <div class="goal-num"><span>目标分</span><strong>115 分</strong></div>
+              <div class="goal-num"><span>还差</span><strong>43 分</strong><em>预计可提升 34</em></div>
+              <div class="goal-num"><span>剩余天数</span><strong>96 天</strong></div>
+            </div>
+            <div class="progress"><i style="width:63%"></i></div>
+          </div>
+          <div class="band">
+            <div class="band-head"><h3>下一步学习建议</h3><span>报告不是终点</span></div>
+            <div class="row-list">
+              <div class="row">
+                <div class="row-main">
+                  <div class="row-title">优先复盘错题</div>
+                  <div class="row-meta">还有 1 道错题待复盘，先把丢分点变成可修复动作。</div>
+                </div>
+                <div class="row-actions"><button class="btn btn-soft">去错题本</button></div>
+              </div>
+              <div class="row">
+                <div class="row-main">
+                  <div class="row-title">训练薄弱知识点</div>
+                  <div class="row-meta">优先训练 Cache 映射与替换，对应存储系统。</div>
+                </div>
+                <div class="row-actions"><button class="btn btn-primary">去练习</button></div>
+              </div>
+              <div class="row">
+                <div class="row-main">
+                  <div class="row-title">回到今日任务</div>
+                  <div class="row-meta">把报告建议落到今天的任务里，完成后观察掌握度变化。</div>
+                </div>
+                <div class="row-actions"><button class="btn btn-ghost">回到首页</button></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="split">
+          <div class="stack">
+            <section class="band">
+              <div class="band-head"><h3>掌握度趋势</h3><span>最近 7 天 vs 上一阶段</span></div>
+              <div style="padding:10px 18px 16px;display:grid;gap:10px">
+                <svg class="spark" viewBox="0 0 320 64" preserveAspectRatio="none" aria-label="掌握度趋势">
+                  <defs><linearGradient id="rp" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2e5bd8" stop-opacity=".22"/><stop offset="1" stop-color="#2e5bd8" stop-opacity="0"/></linearGradient></defs>
+                  <path d="M0,56 L46,50 L92,52 L138,42 L184,36 L230,30 L276,24 L320,18 L320,64 L0,64 Z" fill="url(#rp)"></path>
+                  <path d="M0,56 L46,50 L92,52 L138,42 L184,36 L230,30 L276,24 L320,18" fill="none" stroke="#2e5bd8" stroke-width="2.5" stroke-linecap="round"></path>
+                  <circle cx="320" cy="18" r="4" fill="#2e5bd8"></circle>
+                </svg>
+                <div class="legend-row"><span><i style="background:var(--primary)"></i>平均掌握度 64%</span><span><i style="background:var(--teal)"></i>较上阶段 +6%</span></div>
+              </div>
+            </section>
+
+            <section class="band">
+              <div class="band-head"><h3>答题表现</h3><span>近 20 次练习统计</span></div>
+              <table class="table">
+                <thead><tr><th>指标</th><th>数值</th><th>说明</th></tr></thead>
+                <tbody>
+                  <tr><td>综合正确率</td><td><b>33.3%</b></td><td class="muted">近 20 次练习</td></tr>
+                  <tr><td>预计提分空间</td><td><b>34 分</b></td><td class="muted">基于薄弱点和目标分估算</td></tr>
+                  <tr><td>平均单题用时</td><td><b>105 秒</b></td><td class="muted">目标 90 秒内</td></tr>
+                  <tr><td>阶段测评</td><td><b>1 次</b></td><td class="muted">较上次提升 14 分</td></tr>
+                </tbody>
+              </table>
+            </section>
+          </div>
+
+          <div class="stack">
+            <section class="band">
+              <div class="band-head"><h3>长期薄弱点</h3><span>需要持续投入</span></div>
+              <div class="row-list">
+                <div class="row">
+                  <div class="row-main">
+                    <div class="row-title">Cache 映射与替换 <span class="chip red">掌握 38%</span></div>
+                    <div class="row-meta">计算机组成原理 / 存储系统 · 错 2 次</div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="row-main">
+                    <div class="row-title">树的遍历应用 <span class="chip amber">掌握 55%</span></div>
+                    <div class="row-meta">数据结构 / 树与二叉树</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="band">
+              <div class="band-head"><h3>错题处理</h3><span>复盘闭环</span></div>
+              <div class="row-list">
+                <div class="row">
+                  <div class="row-main"><div class="row-title">待复盘</div><div class="row-meta">1 道 · Cache 映射与替换</div></div>
+                  <span class="chip red">待处理</span>
+                </div>
+                <div class="row">
+                  <div class="row-main"><div class="row-title">已复盘 / 重做解决</div><div class="row-meta">0 / 0 道</div></div>
+                  <span class="chip ink">空</span>
+                </div>
+              </div>
+            </section>
+
+            <section class="band">
+              <div class="band-head"><h3>学习档案</h3><span>提分闭环轨迹</span></div>
+              <div style="padding:6px 18px 14px">
+                <div class="timeline">
+                  <div class="tl-row"><div class="tl-date">2026-06-30</div><div class="tl-main"><b>入学诊断完成</b><span>系统已生成阶段计划</span></div><span class="chip green">完成</span></div>
+                  <div class="tl-row"><div class="tl-date">2026-06-30</div><div class="tl-main"><b>推荐题组练习</b><span>完成推荐题组并同步练习记录</span></div><span class="chip green">完成</span></div>
+                  <div class="tl-row"><div class="tl-date">2026-06-30</div><div class="tl-main"><b>错题复盘</b><span>已复盘错题并获得相似题建议</span></div><span class="chip green">完成</span></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <p class="disclaimer">预测分数仅为估算，实际结果受题目难度、复习质量与临场状态影响。建议每周完成一次阶段测评，持续校准推荐方向。</p>
+      </div>
+    </main>
+  </div>
+  <script>
+  (function () {
+    var root = document.body, cur = root.dataset.variant || 'c';
+    root.dataset.variant = cur;
+    var btns = document.querySelectorAll('.v-switch button');
+    function sync() { btns.forEach(function (b) { b.classList.toggle('active', b.dataset.v === cur); }); }
+    btns.forEach(function (b) { b.addEventListener('click', function () { cur = b.dataset.v; root.dataset.variant = cur; sync(); }); });
+    sync();
+  })();
+  </script>
+</body>
+</html>

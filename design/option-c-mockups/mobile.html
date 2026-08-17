@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>方案 C · 移动端</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body style="background:#dfe3ea">
+  <div class="v-switch" aria-label="方案切换">
+    <span class="v-label">方案</span>
+    <button type="button" data-v="a">A 深色</button>
+    <button type="button" data-v="b">B 极简</button>
+    <button type="button" data-v="c" class="active">C 纸白</button>
+    <button type="button" data-v="d">D 驾驶舱</button>
+  </div>
+  <div class="phone-stage">
+    <div class="phone">
+      <div class="phone-head">
+        <p class="eyebrow">学生工作区</p>
+        <h1>林同学，当前处于强化阶段</h1>
+        <div class="flex spread">
+          <span class="pill" style="height:26px">学生</span>
+          <span class="pill mock" style="height:26px"><i class="dot"></i>演示数据</span>
+        </div>
+      </div>
+      <div class="phone-body">
+        <section class="hero" style="padding:16px">
+          <div class="hero-top">
+            <div>
+              <h2 style="font-size:17px">今天先做什么</h2>
+              <p class="hero-sub">下一步：复盘 1 道错题</p>
+            </div>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><span>今日完成</span><strong>3 / 4</strong><em>+1 较昨日</em></div>
+            <div class="kpi"><span>正确率</span><strong>71%</strong><em>6 题</em></div>
+            <div class="kpi"><span>连续学习</span><strong>3 天</strong><em>保持</em></div>
+            <div class="kpi"><span>待复盘</span><strong>1 道</strong><em>Cache</em></div>
+          </div>
+          <button class="btn" style="width:100%;background:#fff;color:var(--ink-900);border-color:transparent">继续今日计划</button>
+        </section>
+
+        <section class="next-band" style="padding:12px 14px">
+          <div>
+            <b>下一步：错题复盘</b>
+            <p>今日任务已处理，仍有 1 道待复盘</p>
+          </div>
+          <button class="btn btn-teal">去错题本</button>
+        </section>
+
+        <section class="sec">
+          <div class="sec-head"><div><h2>408 科目模块</h2></div></div>
+          <div class="subject-grid">
+            <div class="subject">
+              <div class="subject-top"><h4>数据结构</h4><span class="avg">72<small>%</small></span></div>
+              <div class="progress teal"><i style="width:72%"></i></div>
+            </div>
+            <div class="subject">
+              <div class="subject-top"><h4>计算机组成原理</h4><span class="avg" style="color:var(--red)">38<small>%</small></span></div>
+              <div class="progress red"><i style="width:38%"></i></div>
+            </div>
+            <div class="subject">
+              <div class="subject-top"><h4>操作系统</h4><span class="avg">72<small>%</small></span></div>
+              <div class="progress teal"><i style="width:72%"></i></div>
+            </div>
+            <div class="subject">
+              <div class="subject-top"><h4>计算机网络</h4><span class="avg">72<small>%</small></span></div>
+              <div class="progress teal"><i style="width:72%"></i></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="band">
+          <div class="band-head"><h3>薄弱知识点</h3><span>TOP1</span></div>
+          <div class="row">
+            <div class="row-main">
+              <div class="row-title">Cache 映射与替换 <span class="chip red">薄弱</span></div>
+              <div class="row-meta">计算机组成原理 · 错 2 次</div>
+            </div>
+            <div style="width:86px;display:grid;gap:5px"><span class="small muted">38%</span><div class="progress red"><i style="width:38%"></i></div></div>
+          </div>
+        </section>
+
+        <section class="band">
+          <div class="band-head"><h3>本周学习节奏</h3></div>
+          <div style="padding:8px 12px 12px">
+            <div class="bars" style="height:74px">
+              <div class="bar-col"><div class="bar-track"><i class="bar" style="height:0%"></i></div><small>11</small></div>
+              <div class="bar-col"><div class="bar-track"><i class="bar" style="height:0%"></i></div><small>12</small></div>
+              <div class="bar-col"><div class="bar-track"><i class="bar" style="height:0%"></i></div><small>13</small></div>
+              <div class="bar-col"><div class="bar-track"><i class="bar" style="height:0%"></i></div><small>14</small></div>
+              <div class="bar-col"><div class="bar-track"><i class="bar" style="height:34%"></i></div><small>15</small></div>
+              <div class="bar-col"><div class="bar-track"><i class="bar" style="height:34%"></i></div><small>16</small></div>
+              <div class="bar-col"><div class="bar-track"><i class="bar today" style="height:86%"></i></div><small>今天</small></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="band">
+          <div class="band-head"><h3>408 模拟考试</h3></div>
+          <div style="padding:12px 14px;display:grid;gap:10px">
+            <span class="muted small">待生成 · 180 分钟 · 40 题</span>
+            <button class="btn btn-primary">生成并开始考试</button>
+          </div>
+        </section>
+      </div>
+      <nav class="bottom-nav" aria-label="移动端导航">
+        <button class="active"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>首页</button>
+        <button><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z"/><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z"/></svg>答疑</button>
+        <button><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V7"/><path d="m16 12 2 2 4-4"/><path d="M22 6V4a1 1 0 0 0-1-1h-5a4 4 0 0 0-4 4 4 4 0 0 0-4-4H3a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h6a3 3 0 0 1 3 3 3 3 0 0 1 3-3h6a1 1 0 0 0 1-1v-1.3"/></svg>练习</button>
+        <button><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>错题</button>
+        <button><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 14 4-4 3 3 5-6"/></svg>报告</button>
+      </nav>
+    </div>
+  </div>
+  <script>
+  (function () {
+    var root = document.body, cur = root.dataset.variant || 'c';
+    root.dataset.variant = cur;
+    var btns = document.querySelectorAll('.v-switch button');
+    function sync() { btns.forEach(function (b) { b.classList.toggle('active', b.dataset.v === cur); }); }
+    btns.forEach(function (b) { b.addEventListener('click', function () { cur = b.dataset.v; root.dataset.variant = cur; sync(); }); });
+    sync();
+  })();
+  </script>
+</body>
+</html>
