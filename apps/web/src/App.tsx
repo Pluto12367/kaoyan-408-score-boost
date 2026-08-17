@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ApiStateIndicator, type ApiState } from './components/ApiStateIndicator';
+import { ThemeToggle } from './components/ThemeToggle';
 import { ErrorReasonSelector } from './components/ErrorReasonSelector';
 import { OverlayDialog } from './components/OverlayDialog';
 import { sectionFallback } from './components/sectionFallback';
@@ -1337,6 +1338,7 @@ paperId: paper.id,
             </h2>
           </div>
           <div className="topbar-actions">
+            <ThemeToggle />
             <span className="role-pill">{roleLabel[sessionUser?.role ?? 'student']}</span>
             <ApiStateIndicator
               state={apiState}

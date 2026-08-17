@@ -5540,6 +5540,488 @@ button.student-insight-card:hover,
 .catalog-cta:hover {
   filter: brightness(1.05);
 }
+
+/* ================================================================
+   主题切换（A 深色 / B 极简 / C 标准）
+   默认（无 data-theme）= C 标准；A/B 通过 html[data-theme] 覆盖 token。
+   ================================================================ */
+.theme-switch {
+  align-items: center;
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft-2);
+}
+.theme-switch button {
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+.theme-switch button:hover {
+  color: var(--text);
+}
+.theme-switch button.active {
+  background: var(--surface);
+  color: var(--primary-strong);
+  box-shadow: 0 1px 3px rgb(15 23 42 / 10%);
+}
+
+/* ---------- A · 深色专注 ---------- */
+html[data-theme="a"] {
+  color-scheme: dark;
+  --bg: #0b111c;
+  --surface: #141d2e;
+  --surface-soft: #182234;
+  --surface-soft-2: #1a2538;
+  --line: #223047;
+  --line-faint: #1c2940;
+  --line-strong: #31415e;
+  --text: #e8eefb;
+  --text-strong: #f4f7ff;
+  --text-body: #c3cfe2;
+  --text-secondary: #aab8d0;
+  --text-muted: #8395b4;
+  --muted: #8395b4;
+  --text-soft: #aab8d0;
+  --primary: #4f7dff;
+  --primary-hover: #6b92ff;
+  --primary-strong: #9db4ff;
+  --primary-soft: rgba(79, 125, 255, 0.14);
+  --primary-faint: rgba(79, 125, 255, 0.1);
+  --primary-line: #2c3f6b;
+  --teal: #2bbf9e;
+  --teal-soft: rgba(43, 191, 158, 0.13);
+  --amber: #e3a04c;
+  --amber-strong: #f3c987;
+  --amber-soft: rgba(227, 160, 76, 0.13);
+  --green: #3dd68c;
+  --green-soft: rgba(61, 214, 140, 0.13);
+  --green-pill: rgba(61, 214, 140, 0.16);
+  --green-strong: #7ce0c8;
+  --red: #ff6b6b;
+  --red-soft: rgba(255, 107, 107, 0.12);
+  --info-soft: rgba(56, 189, 248, 0.14);
+  --info-strong: #7dd3fc;
+  --slate-900: #0f1a2c;
+  --slate-800: #16233a;
+  --slate-300: #3d4f70;
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 4%), 0 14px 34px rgb(0 0 0 / 35%);
+  --shadow-strong: 0 18px 48px rgb(0 0 0 / 5%);
+  color: var(--text);
+  background: var(--bg);
+}
+html[data-theme="a"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* A：白色/浅色表面 → 深色表面 */
+html[data-theme="a"] .error-reason-panel,
+html[data-theme="a"] .student-loop-guide-steps button.active,
+html[data-theme="a"] .student-loop-guide-steps button:hover,
+html[data-theme="a"] .recommendation-evidence-grid p,
+html[data-theme="a"] .admin-users-list article,
+html[data-theme="a"] .assessment-action-panel,
+html[data-theme="a"] .similar-list span,
+html[data-theme="a"] .review-card,
+html[data-theme="a"] .class-analytics-grid article,
+html[data-theme="a"] .subject-weakness-list article,
+html[data-theme="a"] .risk-student-list article,
+html[data-theme="a"] .weak-point-teaching-list article,
+html[data-theme="a"] .review-meta,
+html[data-theme="a"] .mastery-point,
+html[data-theme="a"] .mastery-empty,
+html[data-theme="a"] .paper-result-summary article,
+html[data-theme="a"] .assessment-history-list article,
+html[data-theme="a"] .answer-result-analysis,
+html[data-theme="a"] .answer-impact-card,
+html[data-theme="a"] .answer-next-action-card,
+html[data-theme="a"] .task-progress-feedback,
+html[data-theme="a"] .student-subject-card .progress-fill,
+html[data-theme="a"] .wrong-review-loop-steps article,
+html[data-theme="a"] .wrong-row-next-actions button,
+html[data-theme="a"] .report-action-card,
+html[data-theme="a"] .wrong-detail-panel,
+html[data-theme="a"] .learning-outcome-grid article,
+html[data-theme="a"] .recent-learning-feedback-grid article,
+html[data-theme="a"] .daily-review-grid article,
+html[data-theme="a"] .detail-note textarea,
+html[data-theme="a"] .exam-config-grid select,
+html[data-theme="a"] .exam-config-grid input,
+html[data-theme="a"] .segmented-control button,
+html[data-theme="a"] .exam-session,
+html[data-theme="a"] .exam-header,
+html[data-theme="a"] .option-btn,
+html[data-theme="a"] .answer-cell,
+html[data-theme="a"] .submit-confirm-panel,
+html[data-theme="a"] .account-form input,
+html[data-theme="a"] .account-form select,
+html[data-theme="a"] .feedback-fields select,
+html[data-theme="a"] .feedback-message textarea,
+html[data-theme="a"] .review-resource-card,
+html[data-theme="a"] .question-import-form input,
+html[data-theme="a"] .question-import-form select,
+html[data-theme="a"] .question-import-review select,
+html[data-theme="a"] .question-import-review textarea,
+html[data-theme="a"] .question-import-candidates article,
+html[data-theme="a"] .trial-status-control select,
+html[data-theme="a"] .authorization-form select,
+html[data-theme="a"] .authorization-list article,
+html[data-theme="a"] .wrong-filter-bar select,
+html[data-theme="a"] .report-conclusion-card,
+html[data-theme="a"] .tutor-prompt-input,
+html[data-theme="a"] .hint-layer,
+html[data-theme="a"] .follow-up-actions button,
+html[data-theme="a"] .task-adjust-row input[type="date"],
+html[data-theme="a"] .history-import-fields input {
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+html[data-theme="a"] .subjective-scoring,
+html[data-theme="a"] .exam-answer-sheet,
+html[data-theme="a"] .recommendation-evidence,
+html[data-theme="a"] .admin-grid article,
+html[data-theme="a"] .admin-users-summary article,
+html[data-theme="a"] .plan-action-summary article,
+html[data-theme="a"] .calendar-day,
+html[data-theme="a"] .assessment-grid article,
+html[data-theme="a"] .tutor-result article,
+html[data-theme="a"] .follow-up-result > article,
+html[data-theme="a"] .teacher-grid article,
+html[data-theme="a"] .class-analytics-panel,
+html[data-theme="a"] .teacher-question-list article,
+html[data-theme="a"] .review-row,
+html[data-theme="a"] .review-empty,
+html[data-theme="a"] .config-grid article,
+html[data-theme="a"] .diagnostic-grid article,
+html[data-theme="a"] .profile-grid article,
+html[data-theme="a"] .trial-list article,
+html[data-theme="a"] .reminder-row,
+html[data-theme="a"] .sprint-summary article,
+html[data-theme="a"] .sprint-days article,
+html[data-theme="a"] .mastery-subject,
+html[data-theme="a"] .task-adjustment,
+html[data-theme="a"] .wrong-summary-grid article,
+html[data-theme="a"] .paper-result-panel,
+html[data-theme="a"] .paper-session-panel,
+html[data-theme="a"] .assessment-history-summary article,
+html[data-theme="a"] .wrong-loop-panel article,
+html[data-theme="a"] .practice-status,
+html[data-theme="a"] .practice-set,
+html[data-theme="a"] .question-import-form details,
+html[data-theme="a"] .question-import-batch-list button,
+html[data-theme="a"] .question-import-confirm,
+html[data-theme="a"] .source-page-image,
+html[data-theme="a"] .formula-preview > div,
+html[data-theme="a"] .module-inline-unavailable,
+html[data-theme="a"] .week-plan-strip article,
+html[data-theme="a"] .task-card.completed,
+html[data-theme="a"] .task-action-guide article,
+html[data-theme="a"] .question-import-summary article,
+html[data-theme="a"] .practice-set-action-panel,
+html[data-theme="a"] .wrong-filter-bar,
+html[data-theme="a"] .review-layer,
+html[data-theme="a"] .detail-analysis,
+html[data-theme="a"] .learning-outcome-card,
+html[data-theme="a"] .recent-learning-feedback-card {
+  background: var(--surface-soft);
+  border-color: var(--line);
+}
+
+/* A：语义浅色 → 深色语义 */
+html[data-theme="a"] .reason-option.selected,
+html[data-theme="a"] .option-letter,
+html[data-theme="a"] .checkpoint-banner,
+html[data-theme="a"] .auth-register-guide {
+  background: rgba(43, 191, 158, 0.14);
+  border-color: rgba(43, 191, 158, 0.3);
+}
+html[data-theme="a"] .option-btn.selected,
+html[data-theme="a"] .calendar-day.active,
+html[data-theme="a"] .assessment-result,
+html[data-theme="a"] .review-row.approved,
+html[data-theme="a"] .trial-list article.completed,
+html[data-theme="a"] .redo-badge,
+html[data-theme="a"] .week-plan-strip article.active {
+  background: rgba(43, 191, 158, 0.13);
+  border-color: rgba(43, 191, 158, 0.32);
+}
+html[data-theme="a"] .question-header button.marked,
+html[data-theme="a"] .admin-alert-strip article,
+html[data-theme="a"] .ai-safety-note,
+html[data-theme="a"] .risk-list span,
+html[data-theme="a"] .mistake-stat-list span,
+html[data-theme="a"] .question-import-notice,
+html[data-theme="a"] .daily-review-card {
+  background: rgba(227, 160, 76, 0.12);
+  border-color: rgba(227, 160, 76, 0.3);
+}
+html[data-theme="a"] .unanswered-warning,
+html[data-theme="a"] .demo-mode-banner,
+html[data-theme="a"] .review-row.needs_recheck,
+html[data-theme="a"] .review-status {
+  background: rgba(227, 160, 76, 0.14);
+  border-color: rgba(227, 160, 76, 0.32);
+  color: #f3c987;
+}
+html[data-theme="a"] .api-pill.mock,
+html[data-theme="a"] .priority,
+html[data-theme="a"] .review-actions button:last-child,
+html[data-theme="a"] .low-confidence-badge,
+html[data-theme="a"] .priority-medium,
+html[data-theme="a"] .mastery-复习中 {
+  background: rgba(227, 160, 76, 0.16);
+  border-color: rgba(227, 160, 76, 0.35);
+  color: #f3c987;
+}
+html[data-theme="a"] .admin-secret-box,
+html[data-theme="a"] .teaching-actions span,
+html[data-theme="a"] .today-task-context,
+html[data-theme="a"] .question-import-batch-list button.active,
+html[data-theme="a"] .question-import-stepper li.active,
+html[data-theme="a"] .wrong-review-loop-card,
+html[data-theme="a"] .review-status.status-review {
+  background: rgba(79, 125, 255, 0.14);
+  border-color: rgba(79, 125, 255, 0.3);
+}
+html[data-theme="a"] .follow-up-actions button,
+html[data-theme="a"] .review-actions button,
+html[data-theme="a"] .trial-list a,
+html[data-theme="a"] .reminder-row a,
+html[data-theme="a"] .sprint-days footer span,
+html[data-theme="a"] .mastery-point a,
+html[data-theme="a"] .mastery-point button,
+html[data-theme="a"] .secondary-link,
+html[data-theme="a"] .task-actions button,
+html[data-theme="a"] .options button,
+html[data-theme="a"] .paper-breakdown span {
+  background: rgba(79, 125, 255, 0.16);
+  color: #bcd0ff;
+}
+html[data-theme="a"] .answer-result.answer-correct,
+html[data-theme="a"] .today-task-next-step,
+html[data-theme="a"] .report-action-plan,
+html[data-theme="a"] .review-status.status-mastered,
+html[data-theme="a"] .attempt-row.correct,
+html[data-theme="a"] .learning-console-next-step {
+  background: rgba(61, 214, 140, 0.13);
+  border-color: rgba(61, 214, 140, 0.3);
+}
+
+/* A：文本与控件 */
+html[data-theme="a"] .topbar h2,
+html[data-theme="a"] .panel h3,
+html[data-theme="a"] .metric strong {
+  color: var(--text-strong);
+}
+html[data-theme="a"] .panel-heading span,
+html[data-theme="a"] .task-row span,
+html[data-theme="a"] .task-row small,
+html[data-theme="a"] .eyebrow {
+  color: var(--text-secondary);
+}
+html[data-theme="a"] .metric span,
+html[data-theme="a"] .muted,
+html[data-theme="a"] .task-row p,
+html[data-theme="a"] .weak-list span,
+html[data-theme="a"] .empty-state,
+html[data-theme="a"] .task-status {
+  color: var(--text-muted);
+}
+html[data-theme="a"] .secondary-action {
+  background: rgba(79, 125, 255, 0.16);
+  color: #bcd0ff;
+}
+html[data-theme="a"] .secondary-action:hover:not(:disabled),
+html[data-theme="a"] .icon-action:hover:not(:disabled) {
+  background: rgba(79, 125, 255, 0.26);
+}
+html[data-theme="a"] .icon-action {
+  background: rgba(79, 125, 255, 0.16);
+  color: #bcd0ff;
+}
+html[data-theme="a"] .option-btn {
+  border-color: var(--line-strong);
+  color: var(--text-body);
+}
+html[data-theme="a"] .option-btn.selected {
+  border-color: var(--teal);
+  background: rgba(43, 191, 158, 0.13);
+}
+html[data-theme="a"] .answer-cell {
+  color: var(--text-secondary);
+}
+html[data-theme="a"] .answer-cell.answered {
+  color: #fff;
+}
+html[data-theme="a"] .segmented-control button {
+  color: var(--text-soft);
+}
+html[data-theme="a"] .segmented-control button.active {
+  background: var(--teal);
+  color: #fff;
+}
+html[data-theme="a"] .account-form label {
+  color: var(--text-body);
+}
+html[data-theme="a"] .account-form input,
+html[data-theme="a"] .account-form select,
+html[data-theme="a"] .detail-note textarea,
+html[data-theme="a"] .exam-config-grid select,
+html[data-theme="a"] .exam-config-grid input,
+html[data-theme="a"] .feedback-fields select,
+html[data-theme="a"] .feedback-message textarea,
+html[data-theme="a"] .question-import-form input,
+html[data-theme="a"] .question-import-form select,
+html[data-theme="a"] .question-import-review select,
+html[data-theme="a"] .question-import-review textarea,
+html[data-theme="a"] .trial-status-control select,
+html[data-theme="a"] .authorization-form select,
+html[data-theme="a"] .wrong-filter-bar select,
+html[data-theme="a"] .tutor-prompt-input,
+html[data-theme="a"] .task-adjust-row input[type="date"],
+html[data-theme="a"] .history-import-fields input {
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: var(--surface);
+}
+html[data-theme="a"] .account-form input:focus,
+html[data-theme="a"] .account-form select:focus {
+  border-color: var(--primary);
+  outline-color: var(--primary-line);
+}
+html[data-theme="a"] .topbar button {
+  background: var(--primary);
+  color: #fff;
+}
+html[data-theme="a"] .theme-switch {
+  background: var(--surface-soft-2);
+  border-color: var(--line);
+}
+html[data-theme="a"] .theme-switch button.active {
+  background: var(--surface);
+  color: var(--primary-strong);
+  box-shadow: none;
+}
+html[data-theme="a"] .demo-mode-banner {
+  border-bottom-color: rgba(227, 160, 76, 0.32);
+}
+
+/* ---------- B · 浅色极简 ---------- */
+html[data-theme="b"] {
+  color-scheme: light;
+  --bg: #fbfcfd;
+  --surface: #ffffff;
+  --surface-soft: #f7f8fa;
+  --surface-soft-2: #eef1f6;
+  --line: #e7eaef;
+  --line-faint: #eef1f5;
+  --line-strong: #d9dee6;
+  --text: #0f172a;
+  --text-strong: #0b1220;
+  --text-body: #334155;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --muted: #6b7280;
+  --text-soft: #4b5563;
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-strong: #1e40af;
+  --primary-soft: #eef2ff;
+  --primary-faint: #f4f7ff;
+  --primary-line: #dbe2f7;
+  --teal: #0d9488;
+  --teal-soft: #e9f7f5;
+  --amber: #b45309;
+  --amber-strong: #92400e;
+  --amber-soft: #fdf1e3;
+  --green: #15803d;
+  --green-soft: #eaf7ef;
+  --green-pill: #dcfce7;
+  --green-strong: #166534;
+  --red: #dc2626;
+  --red-soft: #fdeeee;
+  --info-soft: #e0f2fe;
+  --info-strong: #075985;
+  --slate-900: #0f172a;
+  --slate-800: #1e293b;
+  --slate-300: #cbd5e1;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --shadow-card: none;
+  --shadow-strong: 0 8px 24px rgb(15 23 42 / 10%);
+  color: var(--text);
+  background: var(--bg);
+}
+html[data-theme="b"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* B：侧栏浅色化 + 边框克制 */
+html[data-theme="b"] .sidebar {
+  background: #ffffff;
+  color: #334155;
+  border-right: 1px solid var(--line);
+}
+html[data-theme="b"] .sidebar h1 {
+  color: var(--text);
+}
+html[data-theme="b"] .sidebar a,
+html[data-theme="b"] .sidebar nav button {
+  color: var(--text-soft);
+}
+html[data-theme="b"] .sidebar a.active,
+html[data-theme="b"] .sidebar a:hover,
+html[data-theme="b"] .sidebar nav button.active,
+html[data-theme="b"] .sidebar nav button:hover {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+}
+html[data-theme="b"] .sidebar-brand .eyebrow {
+  color: var(--text-muted);
+}
+html[data-theme="b"] .account-form input,
+html[data-theme="b"] .account-form select,
+html[data-theme="b"] .detail-note textarea,
+html[data-theme="b"] .exam-config-grid select,
+html[data-theme="b"] .exam-config-grid input,
+html[data-theme="b"] .feedback-fields select,
+html[data-theme="b"] .feedback-message textarea,
+html[data-theme="b"] .question-import-form input,
+html[data-theme="b"] .question-import-form select,
+html[data-theme="b"] .question-import-review select,
+html[data-theme="b"] .question-import-review textarea,
+html[data-theme="b"] .trial-status-control select,
+html[data-theme="b"] .authorization-form select,
+html[data-theme="b"] .wrong-filter-bar select,
+html[data-theme="b"] .tutor-prompt-input,
+html[data-theme="b"] .task-adjust-row input[type="date"],
+html[data-theme="b"] .history-import-fields input {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+html[data-theme="b"] .topbar,
+html[data-theme="b"] .panel,
+html[data-theme="b"] .metric {
+  box-shadow: none;
+}
+html[data-theme="b"] .role-pill {
+  background: var(--surface-soft);
+}
 .mastery-trend-panel .trend-overall,
 .mastery-trend-panel .trend-subjects,
 .mastery-trend-panel .trend-deltas {
