@@ -388,6 +388,24 @@ export function createMockLearningProfile(): LearningProfile {
       { id: 'mock-profile-3', type: 'wrong_review', title: '错题复盘', date: '2026-06-30', summary: '已复盘错题并获得相似题建议。' },
     ],
     nextMilestone: '继续完成推荐题组，并复盘本组错因。',
+    insights: {
+      learningState: 'stable',
+      stateReason: '当前处于轻度复习期，保持节奏即可。',
+      weakPoints: [{
+        knowledgePointId: 'co-cache',
+        subject: '计算机组成原理',
+        chapter: '存储系统',
+        title: 'Cache 映射与替换',
+        wrongCount: 1,
+        accuracyRate: 42.9,
+        weaknessScore: 88,
+        topReason: '概念混淆',
+        suggestion: '先对比直接映射与组相联映射。',
+      }],
+      speedRisks: [],
+      mistakeReasons: [{ reason: '概念混淆', count: 2 }, { reason: '审题错误', count: 1 }],
+      focusHints: ['优先补强：Cache 映射与替换', '保持错题复盘闭环'],
+    },
   };
 }
 

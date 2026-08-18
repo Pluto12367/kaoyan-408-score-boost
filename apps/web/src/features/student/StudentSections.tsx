@@ -34,6 +34,7 @@ import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { ReviewResourcesPanel } from '../report/ReviewResourcesPanel';
 import { WeaknessReportPanel } from '../report/WeaknessReportPanel';
+import { LearningProfileCard } from '../dashboard/LearningProfileCard';
 import { StudentLearningConsole } from './StudentLearningConsole';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
@@ -169,6 +170,7 @@ export function StudentSections(props: StudentSectionsProps) {
                 onNavigate={props.onNavigate}
                 onLaunchTodayTask={props.onLaunchTodayTask}
               />
+              <LearningProfileCard profile={props.learningProfile} onRetry={props.onRetryLearningProfile} />
               <StudentLaunchpad
                 showOnboarding={props.showOnboarding}
                 todayPlan={props.todayPlan}

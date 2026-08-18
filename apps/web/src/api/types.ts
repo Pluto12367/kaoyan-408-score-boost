@@ -123,6 +123,34 @@ export interface LearningProfile {
     summary: string;
   }>;
   nextMilestone: string;
+  insights: {
+    learningState: 'stable' | 'rising' | 'risky';
+    stateReason: string;
+    weakPoints: Array<{
+      knowledgePointId: string;
+      subject: string;
+      chapter: string;
+      title: string;
+      wrongCount: number;
+      accuracyRate: number;
+      weaknessScore: number;
+      topReason: string | null;
+      suggestion: string;
+    }>;
+    speedRisks: Array<{
+      knowledgePointId: string;
+      subject: string;
+      chapter: string;
+      title: string;
+      wrongCount: number;
+      accuracyRate: number;
+      weaknessScore: number;
+      topReason: string | null;
+      suggestion: string;
+    }>;
+    mistakeReasons: Array<{ reason: string; count: number }>;
+    focusHints: string[];
+  };
 }
 
 // ---- Practice ----
@@ -652,6 +680,16 @@ export interface TutorReply {
     difficulty: string;
     source: string;
   }>;
+  evidenceSummary?: {
+    whyImportant: string;
+    nextStepHint: string;
+    cards: Array<{
+      title: string;
+      value: string;
+      note: string;
+      tone: 'info' | 'positive' | 'warning' | 'neutral';
+    }>;
+  } | null;
   nextActions: string[];
   source: string;
 }

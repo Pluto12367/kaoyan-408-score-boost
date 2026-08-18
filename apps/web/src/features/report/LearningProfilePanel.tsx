@@ -19,6 +19,11 @@ export function LearningProfilePanel({ profile, onRetry }: { profile: ModuleReso
         <article><strong>{data.summary.accuracyRate}%</strong><span>综合正确率</span></article>
       </div>
       <p className="task-status">{data.nextMilestone}</p>
+      <div className="profile-insight-list">
+        <article><strong>学习状态</strong><span>{data.insights.learningState} · {data.insights.stateReason}</span></article>
+        {data.insights.weakPoints[0] ? <article><strong>最弱点</strong><span>{data.insights.weakPoints[0].title}</span></article> : null}
+        {data.insights.speedRisks[0] ? <article><strong>速度风险</strong><span>{data.insights.speedRisks[0].title}</span></article> : null}
+      </div>
       <div className="timeline-list">
         {data.timeline.slice(0, 5).map((item) => (
           <article key={item.id}><time>{item.date}</time><div><strong>{item.title}</strong><span>{item.summary}</span></div></article>

@@ -9,6 +9,7 @@ import {
   buildStudyPlan,
   buildTemplateFollowUp,
   buildTemplateTutorReply,
+  buildKnowledgeEvidenceSummary,
   classifyMistake,
   computeMasteryReport,
   computeWeaknessReport,
@@ -28,6 +29,7 @@ import {
   type AiTutorReplyDraft,
   type AiTutorSimilarQuestion,
   type DiagnosticProfile,
+  type KnowledgeEvidenceSummary,
   type KnowledgePoint,
   type MasteryPointExtras,
   type NodePlanEvidenceNode,
@@ -915,6 +917,57 @@ export class StudyService implements OnModuleInit {
       nextMilestone: report.weakPoints[0]
         ? `继续处理 ${report.weakPoints[0].title}，完成一组推荐题并复盘错因。`
         : '保持当前节奏，进入限时真题训练。',
+      insights: {
+        learningState:
+          !this.diagnosticProfilesByUser.has(userId) || report.weakPoints.length >= 3 || this.listWrongQuestions(userId).length >= 3
+            ? 'risky'
+            : report.accuracyRate >= 75 && calendar.streakDays >= 3 && reviewedWrongQuestions.size > 0
+              ? 'rising'
+              : 'stable',
+        stateReason: !this.diagnosticProfilesByUser.has(userId)
+          ? '尚未完成完整诊断，建议先补齐入学诊断和首轮练习。'
+          : report.weakPoints.length >= 3 || this.listWrongQuestions(userId).length >= 3
+            ? `当前仍有 ${Math.max(this.listWrongQuestions(userId).length, report.weakPoints.length)} 个薄弱信号，优先处理高频错点。`
+            : report.speedRisks.length > 0
+              ? '正确率尚可，但部分知识点仍存在速度风险，需要加入限时训练。'
+              : report.accuracyRate >= 75 && calendar.streakDays >= 3
+                ? '当前学习节奏稳定，适合进入强化巩固和真题提升。'
+                : reviewedWrongQuestions.size > 0
+                  ? '已开始形成复盘闭环，继续保持错题回收和变式练习。'
+                  : '当前学习状态平稳，建议继续按计划完成训练与复盘。',
+        weakPoints: report.weakPoints.slice(0, 5).map((point) => ({
+          knowledgePointId: point.knowledgePointId,
+          subject: point.subject,
+          chapter: point.chapter,
+          title: point.title,
+          wrongCount: point.wrongCount,
+          accuracyRate: point.accuracyRate,
+          weaknessScore: point.weaknessScore,
+          topReason: point.topReason,
+          suggestion: point.suggestion,
+        })),
+        speedRisks: report.speedRisks.slice(0, 5).map((point) => ({
+          knowledgePointId: point.knowledgePointId,
+          subject: point.subject,
+          chapter: point.chapter,
+          title: point.title,
+          wrongCount: point.wrongCount,
+          accuracyRate: point.accuracyRate,
+          weaknessScore: point.weaknessScore,
+          topReason: point.topReason,
+          suggestion: point.suggestion,
+        })),
+        mistakeReasons: Object.entries(report.mistakeReasons)
+          .filter(([, count]) => count > 0)
+          .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+          .map(([reason, count]) => ({ reason, count })),
+        focusHints: [
+          ...report.weakPoints.slice(0, 3).map((point) => `优先补强：${point.title}`),
+          ...report.speedRisks.slice(0, 2).map((point) => `限时训练：${point.title}`),
+          ...(Object.entries(report.mistakeReasons).sort((left, right) => right[1] - left[1])[0] ? [`主要错因：${Object.entries(report.mistakeReasons).sort((left, right) => right[1] - left[1])[0][0]}`] : []),
+          ...(reviewedWrongQuestions.size > 0 ? ['保持错题复盘闭环'] : []),
+        ].slice(0, 4),
+      },
     };
   }
 
@@ -3061,7 +3114,8 @@ export class StudyService implements OnModuleInit {
     const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
     const selectedAnswer = input.selectedAnswer?.trim().toUpperCase();
     const similarQuestions = this.collectSimilarQuestions(question);
-    const context = this.buildTutorContext(input, question, knowledgePoint, selectedAnswer);
+    const evidenceSummary = this.buildEvidenceSummary(question, knowledgePoint, input.userId ?? this.student.id);
+    const context = this.buildTutorContext(input, question, knowledgePoint, selectedAnswer, evidenceSummary);
 
     if (!this.aiTutorService.configured) {
       return this.assembleTutorReply(
@@ -3096,7 +3150,8 @@ export class StudyService implements OnModuleInit {
     }
 
     const knowledgePoint = this.knowledgePoints.find((point) => point.id === question.knowledgePointIds[0]);
-    const context = this.buildTutorContext(input, question, knowledgePoint, undefined);
+    const evidenceSummary = this.buildEvidenceSummary(question, knowledgePoint, input.userId ?? this.student.id);
+    const context = this.buildTutorContext(input, question, knowledgePoint, undefined, evidenceSummary);
     const message = input.message?.trim() || '请解释这道题并整理复习卡片。';
 
     if (!this.aiTutorService.configured) {
@@ -3144,11 +3199,62 @@ export class StudyService implements OnModuleInit {
     }));
   }
 
+  private buildEvidenceSummary(
+    question: Question,
+    knowledgePoint: KnowledgePoint | undefined,
+    userId: string,
+  ): KnowledgeEvidenceSummary | null {
+    if (!knowledgePoint) return null;
+    const pointRecords = this.records.filter(
+      (record) => record.userId === userId && record.knowledgePointId === knowledgePoint.id,
+    );
+    const correctCount = pointRecords.filter((record) => record.correct).length;
+    const wrongCount = pointRecords.length - correctCount;
+    const masteryRate = pointRecords.length
+      ? Math.min(1, correctCount / pointRecords.length)
+      : 0;
+    const status: 'untouched' | 'weak' | 'review' | 'mastered' = pointRecords.length === 0
+      ? 'untouched'
+      : masteryRate >= 0.8 && wrongCount === 0
+        ? 'mastered'
+        : masteryRate >= 0.6
+          ? 'review'
+          : 'weak';
+    const relatedQuestions = this.questions
+      .filter((item) => item.id !== question.id)
+      .filter((item) => item.knowledgePointIds.includes(knowledgePoint.id))
+      .slice(0, 6);
+    const prerequisites = knowledgePoint.prerequisites ?? [];
+    return buildKnowledgeEvidenceSummary({
+      point: {
+        id: knowledgePoint.id,
+        name: knowledgePoint.title,
+        importance: knowledgePoint.importance,
+        difficulty: knowledgePoint.importance,
+        evidence: null,
+      },
+      mastery: {
+        status,
+        mastery: masteryRate,
+        accuracy: masteryRate,
+        attempts: pointRecords.length,
+        correctCount,
+        wrongCount,
+        nextReviewAt: null,
+      },
+      examQuestions: [],
+      relatedQuestionsCount: relatedQuestions.length,
+      prerequisiteCount: prerequisites.length,
+      relatedCount: 0,
+    });
+  }
+
   private buildTutorContext(
     input: { userId?: string; questionId: string; prompt?: string },
     question: Question,
     knowledgePoint: KnowledgePoint | undefined,
     selectedAnswer: string | undefined,
+    evidenceSummary?: KnowledgeEvidenceSummary | null,
   ): AiTutorContext {
     const userId = input.userId ?? this.student.id;
     const knowledgePointId = knowledgePoint?.id ?? question.knowledgePointIds[0];
@@ -3177,6 +3283,7 @@ export class StudyService implements OnModuleInit {
       selectedAnswer,
       mistakeReason: null,
       recentWrongQuestions,
+      evidenceSummary: evidenceSummary ?? null,
       prompt: input.prompt,
     };
   }

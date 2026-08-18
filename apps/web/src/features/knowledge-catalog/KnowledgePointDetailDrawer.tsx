@@ -1,3 +1,4 @@
+import { buildKnowledgeEvidenceSummary } from '@kaoyan408/shared';
 import type { CatalogPointContext } from '@kaoyan408/shared';
 import { OverlayDialog } from '../../components/OverlayDialog';
 import type { KnowledgeDetail, NodeMasterySummary, NodeQuestStatus } from '../../api/endpoints/score-center';
@@ -48,6 +49,25 @@ export function KnowledgePointDetailDrawer({
 
   const { point, subjectName, chapterName, sectionName } = context;
   const evidence = point.evidence;
+  const evidenceSummary = buildKnowledgeEvidenceSummary({
+    point,
+    mastery: mastery
+      ? {
+          status: mastery.status,
+          mastery: mastery.mastery,
+          accuracy: mastery.accuracy,
+          attempts: mastery.attempts,
+          correctCount: mastery.correctCount,
+          wrongCount: mastery.wrongCount,
+          nextReviewAt: mastery.nextReviewAt,
+        }
+      : null,
+    examQuestions,
+    relatedQuestionsCount: relatedQuestions?.length ?? 0,
+    prerequisiteCount: prerequisiteContexts.length,
+    relatedCount: relatedContexts.length,
+  });
+  const evidenceCards = evidenceSummary.cards;
 
   return (
     <OverlayDialog label={`知识点详情：${point.name}`} onClose={onClose}>
@@ -75,7 +95,19 @@ export function KnowledgePointDetailDrawer({
         </dl>
 
         <section className="catalog-drawer-section">
-          <h4>考频证据</h4>
+          <h4>学习证据与建议</h4>
+          <div className="catalog-evidence-grid">
+            {evidenceCards.map((card) => (
+              <article
+                key={card.title}
+                className={`catalog-evidence-card catalog-evidence-tone-${card.tone}`}
+              >
+                <strong>{card.title}</strong>
+                <p>{card.value}</p>
+                <small>{card.note}</small>
+              </article>
+            ))}
+          </div>
           {evidence ? (
             <dl className="catalog-detail-grid">
               <div>

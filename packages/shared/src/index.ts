@@ -1,6 +1,7 @@
 export * from './domain';
 export * from './feedback';
 export * from './learning';
+export * from './learningProfile';
 export * from './postExamScheduling';
 export * from './questionImport';
 export * from './stageReport';
@@ -10,6 +11,7 @@ export * from './assessmentHistorySummary';
 export * from './ai-tutor';
 export * from './score-center/index';
 export * from './knowledgeDisplay';
+export * from './knowledgeEvidence';
 export * from './nodeMastery';
 export * from './nodePlan';
 export type {

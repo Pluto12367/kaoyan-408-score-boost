@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, RotateCcw, CheckCircle, Clock, AlertCircle, Target } from 'lucide-react';
+import { buildKnowledgeEvidenceSummary } from '@kaoyan408/shared';
 import { fetchWrongQuestionDetail, fetchWrongQuestionExamLinks, saveWrongQuestionNote, type WrongQuestionDetail as DetailType, type WrongQuestionDetailLayerItem, type WrongQuestionExamLinks } from '../api/endpoints/review';
 
 interface Props {
@@ -54,6 +55,50 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
   if (!detail) return <div className="panel"><p className="task-status">加载中...</p></div>;
 
   const rs = detail.reviewSchedule;
+  const evidenceSummary = useMemo(() => buildKnowledgeEvidenceSummary({
+    point: {
+      id: detail.questionId,
+      name: detail.knowledgePointTitle,
+      importance: examLinks?.summary.maxImportance ?? 0,
+      difficulty: examLinks?.summary.maxDifficulty ?? 0,
+      evidence: examLinks?.frequency[0]
+        ? {
+            recent3Frequency: examLinks.frequency[0].recent3Frequency,
+            recent5Frequency: examLinks.frequency[0].recent5Frequency,
+            allTimeEvidence: examLinks.frequency[0].allTimeEvidence,
+            primaryScore5y: examLinks.frequency[0].primaryScore5y,
+            trendDirection: examLinks.frequency[0].trendDirection.toLowerCase() as 'rising' | 'stable' | 'falling' | 'cold',
+            trendDelta: 0,
+            evidenceConfidence: examLinks.frequency[0].evidenceConfidence.toLowerCase() as 'high' | 'medium' | 'low',
+          }
+        : null,
+    },
+    mastery: {
+      status: detail.masteryStatus === '已掌握' ? 'mastered' : detail.masteryStatus === '复习中' ? 'review' : 'weak',
+      mastery: detail.masteryCriteria ? Math.min(1, (detail.masteryCriteria.consecutiveCorrect + detail.masteryCriteria.variantCorrectCount) / 5) : 0,
+      accuracy: detail.masteryCriteria ? Math.min(1, (detail.masteryCriteria.consecutiveCorrect + detail.masteryCriteria.variantCorrectCount) / 5) : 0,
+      attempts: detail.attemptHistory.length,
+      correctCount: detail.attemptHistory.filter((attempt) => attempt.correct).length,
+      wrongCount: detail.attemptHistory.filter((attempt) => !attempt.correct).length,
+      nextReviewAt: rs?.nextReviewAt ?? null,
+    },
+    examQuestions: examLinks?.examHits.map((hit) => ({
+      year: hit.year,
+      questionNo: hit.questionNo,
+      questionType: hit.questionType,
+      score: hit.score,
+      summary: hit.summary,
+    })) ?? (detail.reviewLayers.original ? [{
+      year: Number(detail.attemptHistory[0]?.date.slice(0, 4) ?? new Date().getFullYear()),
+      questionNo: 0,
+      questionType: detail.reviewLayers.original.type ?? '题目',
+      score: null,
+      summary: detail.reviewLayers.original.stem,
+    }] : []),
+    relatedQuestionsCount: detail.similarQuestions.length,
+    prerequisiteCount: detail.reviewLayers.confusingConcepts.length,
+    relatedCount: detail.reviewLayers.variants.length + detail.reviewLayers.comprehensive.length,
+  }), [detail, examLinks, rs]);
 
   async function handleSaveNote() {
     setNoteStatus('保存中...');
@@ -196,6 +241,15 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
               <span>近 5 年命中 <strong>{examLinks.summary.recent5Hits}</strong> 次</span>
               <span>真题累计 <strong>{examLinks.summary.totalScore}</strong> 分</span>
               <span>关联考点 <strong>{examLinks.summary.nodeCount}</strong> 个</span>
+            </div>
+            <div className="catalog-evidence-grid wrong-question-evidence-grid">
+              {evidenceSummary.cards.map((card) => (
+                <article key={card.title} className={`catalog-evidence-card catalog-evidence-tone-${card.tone}`}>
+                  <strong>{card.title}</strong>
+                  <p>{card.value}</p>
+                  <small>{card.note}</small>
+                </article>
+              ))}
             </div>
             {examLinks.knowledgeNodes.length > 0 ? (
               <div className="exam-link-nodes">

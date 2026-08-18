@@ -1,6 +1,8 @@
 // AI 答疑共享逻辑：提示词构造、JSON 解析校验、模板回退。
 // 纯函数，无网络与 process.env 依赖，便于前端/后端/测试复用。
 
+import type { KnowledgeEvidenceSummary } from './knowledgeEvidence';
+
 export type AiTutorFollowUpMode =
   | 'simplify'
   | 'option-error'
@@ -36,6 +38,7 @@ export interface AiTutorContext {
     knowledgePointTitle: string;
     mistakeReason?: string | null;
   }>;
+  evidenceSummary?: KnowledgeEvidenceSummary | null;
   prompt?: string;
 }
 
@@ -141,6 +144,10 @@ export function buildTutorUserPrompt(context: AiTutorContext): string {
     reasonText,
     `学生提问：${context.prompt?.trim() || '请讲解这道题。'}`,
     `最近相关错题：\n${recentWrongText}`,
+    context.evidenceSummary ? [
+      '知识证据卡：',
+      ...context.evidenceSummary.cards.map((card) => `- ${card.title}：${card.value}｜${card.note}`),
+    ].join('\n') : '知识证据卡：\n（无）',
     '',
     '期望的 JSON 结构（字段名必须完全一致）：',
     JSON.stringify({
@@ -173,6 +180,10 @@ export function buildFollowUpUserPrompt(
     `标准解析：${context.analysis}`,
     `学生作答：${context.selectedAnswer ?? '未作答'}`,
     `学生追问：${message.trim() || '请讲解这道题。'}`,
+    context.evidenceSummary ? [
+      '知识证据卡：',
+      ...context.evidenceSummary.cards.map((card) => `- ${card.title}：${card.value}｜${card.note}`),
+    ].join('\n') : '知识证据卡：\n（无）',
     modeInstruction ? `追问类型要求：${modeInstruction}` : '',
     '',
     '期望的 JSON 结构（字段名必须完全一致）：',
