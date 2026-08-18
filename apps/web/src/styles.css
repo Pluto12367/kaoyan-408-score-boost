@@ -601,6 +601,7 @@ button {
   border-radius: var(--radius-sm);
   cursor: pointer;
   font: inherit;
+  transition: background-color .15s ease, box-shadow .15s ease, transform .08s ease, color .15s ease;
 }
 
 /* Keyboard focus indicator (WCAG 2.4.7): 2px ring with contrast on every interactive element */
@@ -1220,6 +1221,11 @@ textarea:focus-visible,
   box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
 }
 
+.report-tab:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .panel-heading,
 .task-row {
   align-items: center;
@@ -1605,6 +1611,16 @@ textarea:focus-visible,
   background: #e0e7ff;
 }
 
+.secondary-action:active:not(:disabled) {
+  transform: translateY(1px);
+  background: #c7d2fe;
+}
+
+.secondary-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .secondary-action:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -1628,6 +1644,16 @@ textarea:focus-visible,
   background: var(--primary-hover);
 }
 
+.primary-action:active:not(:disabled) {
+  transform: translateY(1px);
+  background: var(--primary-strong);
+}
+
+.primary-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .primary-action:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -1647,6 +1673,26 @@ textarea:focus-visible,
 
 .icon-action:hover:not(:disabled) {
   background: #e0e7ff;
+}
+
+.icon-action:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.icon-action:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.icon-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.btn-loading {
+  pointer-events: none;
+  opacity: 0.7;
+  position: relative;
 }
 
 .tutor-result {
@@ -5228,6 +5274,58 @@ textarea:focus-visible,
   padding-top: 14px;
 }
 
+.detail-primary-cta {
+  width: 100%;
+  min-height: 44px;
+  font-size: 15px;
+}
+
+.ghost-action {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.ghost-action:hover:not(:disabled) {
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.ghost-action:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.exam-link-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface-soft-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--line-faint);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.exam-link-node:hover {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  border-color: var(--primary-line);
+}
+
+.exam-link-node:active {
+  transform: translateY(1px);
+}
+
 /* ---- Desktop clickable dashboard cards (stage 4-5 fix) ---- */
 button.student-insight-card {
   cursor: pointer;
@@ -5363,6 +5461,35 @@ button.student-insight-card:hover,
 }
 .follow-up-actions button:hover {
   background: rgba(37, 99, 235, 0.08);
+}
+
+.tutor-quick-mode {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-soft-2);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--line-faint);
+  cursor: pointer;
+  transition: all .15s ease;
+}
+
+.tutor-quick-mode:hover {
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  border-color: var(--primary-line);
+}
+
+.tutor-quick-mode:active {
+  transform: translateY(1px);
+}
+
+.tutor-quick-mode:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 @media (max-width: 720px) {
   .tutor-prompt-row {
@@ -5574,6 +5701,40 @@ button.student-insight-card:hover,
 }
 .catalog-cta:hover {
   filter: brightness(1.05);
+}
+
+.catalog-cta:active {
+  transform: translateY(1px);
+  filter: brightness(0.95);
+}
+
+.catalog-cta:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.catalog-cta:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.catalog-drawer-section:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.catalog-drawer-primary {
+  width: 100%;
+  min-height: 44px;
+  font-size: 15px;
+  margin-top: 8px;
+}
+
+.catalog-drawer-section:last-of-type h4,
+.catalog-drawer-section:nth-last-of-type(2) h4 {
+  font-size: 14px;
+  color: var(--text-secondary);
 }
 
 /* ================================================================

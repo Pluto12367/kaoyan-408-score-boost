@@ -16,6 +16,7 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [noteStatus, setNoteStatus] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
   const [examLinks, setExamLinks] = useState<WrongQuestionExamLinks | null>(null);
   const [examLinksError, setExamLinksError] = useState('');
   const scrolledIntoViewFor = useRef<string | null>(null);
@@ -101,6 +102,7 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
   }), [detail, examLinks, rs]);
 
   async function handleSaveNote() {
+    setNoteSaving(true);
     setNoteStatus('保存中...');
     try {
       await saveWrongQuestionNote(questionId, note);
@@ -108,6 +110,8 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
       setNoteStatus('已保存');
     } catch (saveError) {
       setNoteStatus(saveError instanceof Error ? saveError.message : '保存失败');
+    } finally {
+      setNoteSaving(false);
     }
   }
 
@@ -168,7 +172,9 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
         />
         <div className="note-actions">
           <span>{note.length}/2000 {noteStatus}</span>
-          <button type="button" className="secondary-action" onClick={handleSaveNote}>保存笔记</button>
+          <button type="button" className="secondary-action" onClick={handleSaveNote} disabled={noteSaving}>
+            {noteSaving ? '保存中...' : '保存笔记'}
+          </button>
         </div>
       </div>
 
@@ -302,7 +308,7 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
             <span className="layer-tag">原题回顾</span>
             <p>先回顾原题与解析，确认是否已理解核心考点。</p>
           </div>
-          <button type="button" className="secondary-action" onClick={() => onRedo(questionId)}>重做原题</button>
+          <button type="button" className="ghost-action" onClick={() => onRedo(questionId)}>重做原题</button>
         </div>
         {renderLayer('变式题', '同考点变式，连续答对可推动掌握状态升级。', detail.reviewLayers.variants)}
         {renderLayer('易混辨析', '同章节易混知识点辨析，帮助区分易错条件。', detail.reviewLayers.confusingConcepts)}
@@ -326,7 +332,7 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
       <div className="detail-actions">
         <p className="task-status"><AlertCircle size={14} /> {detail.recommendation}</p>
         <div>
-          <button type="button" className="primary-action" onClick={() => onRedo(questionId)}>
+          <button type="button" className="primary-action detail-primary-cta" onClick={() => onRedo(questionId)}>
             <RotateCcw size={14} /> 重做此题
           </button>
         </div>

@@ -156,7 +156,7 @@ export function KnowledgePointDetailDrawer({
           ) : (
             <p className="catalog-drawer-empty">尚未练习该知识点</p>
           )}
-          <button type="button" className="catalog-cta" onClick={onNavigate}>
+          <button type="button" className="primary-action catalog-drawer-primary" onClick={onNavigate}>
             去练习
           </button>
         </section>
@@ -185,14 +185,14 @@ export function KnowledgePointDetailDrawer({
             <p className="catalog-drawer-empty">本节点已通关，继续保持。</p>
           ) : questContext ? (
             <>
-              <button type="button" className="catalog-cta" onClick={onCompleteQuest}>
+              <button type="button" className="secondary-action" onClick={onCompleteQuest}>
                 完成闯关并结算
               </button>
               {questError ? <p className="catalog-mastery-error">{questError}</p> : null}
             </>
           ) : (
             <>
-              <button type="button" className="catalog-cta" onClick={onStartQuest}>
+              <button type="button" className="secondary-action" onClick={onStartQuest}>
                 开始闯关
               </button>
               {questError ? <p className="catalog-mastery-error">{questError}</p> : null}
@@ -215,7 +215,7 @@ export function KnowledgePointDetailDrawer({
                   </small>
                   <button
                     type="button"
-                    className="catalog-cta"
+                    className="secondary-action"
                     onClick={() => onPracticeQuestion?.(question.id, point.name)}
                   >
                     练习本题

@@ -21,6 +21,7 @@ function isRealModelSource(source: string | undefined): boolean {
 export function TutorPanel({ reply, followUp, status, failed = false, onRetry, onAskTutor, onAskFollowUp }: TutorPanelProps) {
   const [expandedLayers, setExpandedLayers] = useState<number[]>([]);
   const [question, setQuestion] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   function toggleLayer(level: number) {
     setExpandedLayers((current) => (
@@ -30,9 +31,14 @@ export function TutorPanel({ reply, followUp, status, failed = false, onRetry, o
 
   function submitQuestion() {
     const text = question.trim();
-    if (!text) return;
-    onAskFollowUp(text);
-    setQuestion('');
+    if (!text || submitting) return;
+    setSubmitting(true);
+    try {
+      onAskFollowUp(text);
+      setQuestion('');
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const realModel = isRealModelSource(reply?.source) || isRealModelSource(followUp?.source);
@@ -56,7 +62,7 @@ export function TutorPanel({ reply, followUp, status, failed = false, onRetry, o
       <p className="ai-safety-note">AI 解释仅作辅助，最终以标准答案、标准解析和教师审核内容为准。</p>
       <div className="follow-up-actions">
         {AI_TUTOR_FOLLOW_UP_MODES.map(({ mode, label }) => (
-          <button key={mode} type="button" onClick={() => onAskFollowUp(label, mode)}>{label}</button>
+          <button key={mode} type="button" className="tutor-quick-mode" onClick={() => onAskFollowUp(label, mode)}>{label}</button>
         ))}
       </div>
       <div className="tutor-prompt-row">
@@ -68,8 +74,8 @@ export function TutorPanel({ reply, followUp, status, failed = false, onRetry, o
           placeholder="输入你的问题，例如：这道题为什么选 B？"
           aria-label="向 AI 助教提问"
         />
-        <button type="button" className="secondary-action" onClick={submitQuestion} disabled={!question.trim()}>
-          <Send size={16} /> 提问
+        <button type="button" className="primary-action" onClick={submitQuestion} disabled={!question.trim() || submitting}>
+          <Send size={16} /> {submitting ? '发送中...' : '提问'}
         </button>
       </div>
       {reply ? (
