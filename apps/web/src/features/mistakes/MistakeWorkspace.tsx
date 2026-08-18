@@ -21,6 +21,7 @@ interface MistakeWorkspaceProps {
   onReview: (questionId: string) => void;
   onRedo: (questionId: string, knowledgePointTitle?: string) => void;
   onPracticeVariant?: (questionId: string, variantOfQuestionId: string) => void;
+  onOpenCatalog?: (nodeId: string) => void;
   onNavigate: (section: RoleSection) => void;
   onRetrySummary: () => void;
 }
@@ -48,7 +49,7 @@ function reviewReasonFor(item: WrongQuestion) {
   return `为什么要复盘：这题暴露了「${reason}」，关联 ${item.knowledgePointTitle}，已错 ${item.wrongCount} 次。`;
 }
 
-export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onNavigate, onRetrySummary }: MistakeWorkspaceProps) {
+export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onOpenCatalog, onNavigate, onRetrySummary }: MistakeWorkspaceProps) {
   const summaryData = summary.data;
   const [subject, setSubject] = useState('');
   const [chapter, setChapter] = useState('');
@@ -303,7 +304,7 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
           </article>
         ))}
       </div>
-      {detailQuestionId ? <WrongQuestionDetailView questionId={detailQuestionId} onClose={onCloseDetail} onRedo={(questionId) => onRedo(questionId)} onPracticeVariant={onPracticeVariant} /> : null}
+      {detailQuestionId ? <WrongQuestionDetailView questionId={detailQuestionId} onClose={onCloseDetail} onRedo={(questionId) => onRedo(questionId)} onPracticeVariant={onPracticeVariant} onOpenCatalog={onOpenCatalog} /> : null}
     </section>
   );
 }

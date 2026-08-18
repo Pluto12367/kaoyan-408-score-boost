@@ -244,6 +244,54 @@ export async function loadExamQuestionsForNode(db: DbClient, knowledgeNodeId: st
   });
 }
 
+export async function loadExamQuestionsForNodes(db: DbClient, knowledgeNodeIds: string[]) {
+  if (knowledgeNodeIds.length === 0) return [];
+  return db.examQuestionKnowledgeTag.findMany({
+    where: { knowledgeNodeId: { in: knowledgeNodeIds } },
+    select: {
+      knowledgeNodeId: true,
+      role: true,
+      question: {
+        select: {
+          id: true,
+          questionNo: true,
+          subject: true,
+          questionType: true,
+          score: true,
+          summary: true,
+          sourceRef: true,
+          paper: { select: { exam: true, year: true, source: true } },
+        },
+      },
+    },
+    orderBy: { question: { paper: { year: 'desc' } } },
+  });
+}
+
+export async function loadLatestFrequencyForNodes(db: DbClient, knowledgeNodeIds: string[]) {
+  if (knowledgeNodeIds.length === 0) return [];
+  const latest = await db.knowledgeFrequencySnapshot.findFirst({
+    orderBy: { snapshotDate: 'desc' },
+    select: { snapshotDate: true, modelVersion: true },
+  });
+  if (!latest) return [];
+  return db.knowledgeFrequencySnapshot.findMany({
+    where: {
+      knowledgeNodeId: { in: knowledgeNodeIds },
+      snapshotDate: latest.snapshotDate,
+      modelVersion: latest.modelVersion,
+    },
+  });
+}
+
+export async function loadNodesWithParents(db: DbClient, ids: string[]) {
+  if (ids.length === 0) return [];
+  return db.knowledgeNode.findMany({
+    where: { id: { in: ids }, isActive: true },
+    include: { parent: { include: { parent: true } } },
+  });
+}
+
 export async function loadEvidenceNodes(db: DbClient) {
   return db.knowledgeNode.findMany({
     where: { isActive: true, nodeType: 'atomicPoint' },

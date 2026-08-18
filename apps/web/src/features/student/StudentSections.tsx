@@ -123,6 +123,7 @@ export interface StudentSectionsProps {
   onRetryPracticeSet: () => void;
   onOpenDetail: (questionId: string) => void;
   onCloseDetail: () => void;
+  onOpenCatalog?: (nodeId: string) => void;
   onReviewWrongQuestion: (questionId: string) => void;
   onRetryWrongQuestionSummary: () => void;
   onRedo: (questionId: string, knowledgePointTitle?: string) => void;
@@ -314,6 +315,7 @@ export function StudentSections(props: StudentSectionsProps) {
               onRetrySummary={props.onRetryWrongQuestionSummary}
               onRedo={props.onRedo}
               onPracticeVariant={props.onPracticeVariant}
+              onOpenCatalog={props.onOpenCatalog}
               onNavigate={props.onNavigate}
             />
           </Suspense>

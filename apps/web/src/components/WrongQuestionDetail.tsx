@@ -1,19 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, RotateCcw, CheckCircle, Clock, AlertCircle, Target } from 'lucide-react';
-import { fetchWrongQuestionDetail, saveWrongQuestionNote, type WrongQuestionDetail as DetailType, type WrongQuestionDetailLayerItem } from '../api/endpoints/review';
+import { fetchWrongQuestionDetail, fetchWrongQuestionExamLinks, saveWrongQuestionNote, type WrongQuestionDetail as DetailType, type WrongQuestionDetailLayerItem, type WrongQuestionExamLinks } from '../api/endpoints/review';
 
 interface Props {
   questionId: string;
   onRedo: (questionId: string) => void;
   onPracticeVariant?: (questionId: string, variantOfQuestionId: string) => void;
+  onOpenCatalog?: (nodeId: string) => void;
   onClose: () => void;
 }
 
-export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant, onClose }: Props) {
+export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant, onOpenCatalog, onClose }: Props) {
   const [detail, setDetail] = useState<DetailType | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState('');
   const [noteStatus, setNoteStatus] = useState('');
+  const [examLinks, setExamLinks] = useState<WrongQuestionExamLinks | null>(null);
+  const [examLinksError, setExamLinksError] = useState('');
   const scrolledIntoViewFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -29,6 +32,22 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
         setNote(value.note ?? '');
       })
       .catch((e) => setError(e instanceof Error ? e.message : '加载失败'));
+  }, [questionId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setExamLinks(null);
+    setExamLinksError('');
+    fetchWrongQuestionExamLinks(questionId)
+      .then((value) => {
+        if (!cancelled) setExamLinks(value);
+      })
+      .catch((e) => {
+        if (!cancelled) setExamLinksError(e instanceof Error ? e.message : '真题命中加载失败');
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [questionId]);
 
   if (error) return <div className="panel"><p className="task-status">加载失败: {error}</p></div>;
@@ -157,6 +176,66 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
           ))}
         </div>
       ) : null}
+
+      {/* Wrong question -> knowledge point -> real exam linkage */}
+      <div className="exam-link-panel">
+        <div className="exam-link-head">
+          <strong><Target size={14} /> 考点真题怎么考</strong>
+          <p>这道错题关联的考点在历年 408 真题中的命中情况，帮你看清它的真实考法与权重。</p>
+        </div>
+        {examLinksError ? (
+          <p className="task-status">真题命中加载失败：{examLinksError}</p>
+        ) : !examLinks ? (
+          <p className="task-status">正在加载真题命中...</p>
+        ) : examLinks.summary.nodeCount === 0 ? (
+          <p className="task-status">暂无真题命中记录</p>
+        ) : (
+          <>
+            <div className="exam-link-summary">
+              <span>近 3 年命中 <strong>{examLinks.summary.recent3Hits}</strong> 次</span>
+              <span>近 5 年命中 <strong>{examLinks.summary.recent5Hits}</strong> 次</span>
+              <span>真题累计 <strong>{examLinks.summary.totalScore}</strong> 分</span>
+              <span>关联考点 <strong>{examLinks.summary.nodeCount}</strong> 个</span>
+            </div>
+            {examLinks.knowledgeNodes.length > 0 ? (
+              <div className="exam-link-nodes">
+                {examLinks.knowledgeNodes.map((node) => (
+                  <button
+                    key={node.id}
+                    type="button"
+                    className="exam-link-node"
+                    onClick={() => onOpenCatalog?.(node.id)}
+                    title="在知识图谱中查看该考点"
+                  >
+                    {node.name}（重要度 {node.importance} / 难度 {node.difficulty}）
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {examLinks.examHits.length > 0 ? (
+              <ul className="exam-hit-list">
+                {examLinks.examHits.map((hit) => (
+                  <li key={`${hit.id}-${hit.knowledgeNodeId}`} className="exam-hit-row">
+                    <strong>
+                      {hit.year} 年 第 {hit.questionNo} 题 · {hit.questionType}
+                      {hit.score != null ? ` · ${hit.score} 分` : ''}
+                    </strong>
+                    {hit.knowledgeNodeName ? <span>{hit.knowledgeNodeName}</span> : null}
+                    {hit.summary ? <p>{hit.summary}</p> : null}
+                    {hit.sourceUrl ? (
+                      <a href={hit.sourceUrl} target="_blank" rel="noreferrer">
+                        查看真题来源
+                      </a>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="task-status">该考点暂无真题命中记录</p>
+            )}
+          </>
+        )}
+      </div>
 
       {/* Four-layer review path */}
       <div className="review-layers">

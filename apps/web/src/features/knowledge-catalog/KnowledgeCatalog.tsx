@@ -35,6 +35,7 @@ export function KnowledgeCatalog({
   questState,
   questError,
   questVersion = 0,
+  focusNodeId = null,
 }: {
   onNavigate?: (section: RoleSection) => void;
   onPracticeQuestion?: (questionId: string, title: string) => void;
@@ -44,6 +45,7 @@ export function KnowledgeCatalog({
   questState?: NodeQuestState | null;
   questError?: string;
   questVersion?: number;
+  focusNodeId?: string | null;
 }) {
   const catalog = useMemo(() => getKnowledgeCatalog(), []);
   const [active, setActive] = useState<SubjectCode>('DS');
@@ -107,6 +109,15 @@ export function KnowledgeCatalog({
   }, [query]);
 
   const pointIndex = useMemo(() => buildKnowledgePointIndex(catalog), [catalog]);
+
+  useEffect(() => {
+    if (!focusNodeId) return;
+    if (!pointIndex[focusNodeId]) return;
+    const subjectCode = focusNodeId.slice(0, 2) as SubjectCode;
+    if (SUBJECT_ORDER.includes(subjectCode)) setActive(subjectCode);
+    setSelectedPointId(focusNodeId);
+  }, [focusNodeId, pointIndex]);
+
   const selectedContext = useMemo<CatalogPointContext | null>(
     () => (selectedPointId ? pointIndex[selectedPointId] ?? null : null),
     [selectedPointId, pointIndex],

@@ -57,6 +57,13 @@ export class ScoreCenterController {
     return this.scoreCenterService.getNodeQuest(user.id, id);
   }
 
+  @Get('wrong-questions/:questionId/exam-links')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getWrongQuestionExamLinks(@CurrentUser() user: UserProfile, @Param('questionId') questionId: string) {
+    return this.scoreCenterService.getWrongQuestionExamLinks(questionId);
+  }
+
   @Post('knowledge/:id/quest/complete')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')

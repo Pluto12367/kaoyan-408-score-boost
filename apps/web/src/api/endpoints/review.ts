@@ -113,6 +113,57 @@ export async function fetchWrongQuestionDetail(questionId: string): Promise<Wron
   return response.json();
 }
 
+export interface WrongQuestionExamLink {
+  knowledgeNodeId: string;
+  knowledgeNodeName: string;
+  id: string;
+  exam: string;
+  year: number;
+  questionNo: number;
+  subject: string;
+  questionType: string;
+  score: number | null;
+  summary: string | null;
+  sourceUrl: string | null;
+}
+
+export interface WrongQuestionExamLinks {
+  questionId: string;
+  knowledgeNodes: Array<{
+    id: string;
+    name: string;
+    subject: string;
+    importance: number;
+    difficulty: number;
+    chapter: string;
+  }>;
+  frequency: Array<{
+    knowledgeNodeId: string;
+    recent3Frequency: number;
+    recent5Frequency: number;
+    allTimeEvidence: number;
+    primaryScore5y: number;
+    trendDirection: string;
+    evidenceConfidence: string;
+  }>;
+  examHits: WrongQuestionExamLink[];
+  summary: {
+    nodeCount: number;
+    totalScore: number;
+    recent3Hits: number;
+    recent5Hits: number;
+    allTimeHits: number;
+    maxImportance: number;
+    maxDifficulty: number;
+  };
+}
+
+export async function fetchWrongQuestionExamLinks(questionId: string): Promise<WrongQuestionExamLinks> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/${encodeURIComponent(questionId)}/exam-links`);
+  if (!response.ok) throw new Error(`Wrong question exam links failed with ${response.status}`);
+  return response.json() as Promise<WrongQuestionExamLinks>;
+}
+
 export async function saveWrongQuestionNote(questionId: string, note: string) {
   const response = await fetchWithAuth(`${API_BASE_URL}/wrong-questions/${questionId}/note`, {
     method: 'PATCH',

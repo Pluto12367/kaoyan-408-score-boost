@@ -28,14 +28,17 @@ import {
   loadActiveKnowledgeNodes,
   loadEvidenceNodes,
   loadExamQuestionsForNode,
+  loadExamQuestionsForNodes,
   loadKnowledgeDetail,
   loadKnowledgeRelations,
+  loadLatestFrequencyForNodes,
   loadLatestFrequencySnapshots,
   loadMasteries,
   loadNodeQuest,
   loadNodeQuests,
   loadMasteryRow,
   loadMasterySnapshots,
+  loadNodesWithParents,
   loadRelatedQuestionsForNode,
   loadTodayScoreCenterPlan,
   neutralMastery,
@@ -261,6 +264,84 @@ export class ScoreCenterService {
             pinned: mastery.pinned,
           }
         : null,
+    };
+  }
+
+  async getWrongQuestionExamLinks(questionId: string) {
+    const empty = {
+      questionId,
+      knowledgeNodes: [],
+      frequency: [],
+      examHits: [],
+      summary: {
+        nodeCount: 0,
+        totalScore: 0,
+        recent3Hits: 0,
+        recent5Hits: 0,
+        allTimeHits: 0,
+        maxImportance: 0,
+        maxDifficulty: 0,
+      },
+    };
+    if (!this.enabled) return empty;
+    const tags = await resolveKnowledgeNodesForQuestion(this.prisma, questionId);
+    if (tags.length === 0) return empty;
+    const nodeIds = [...new Set(tags.map((tag) => tag.knowledgeNodeId))];
+    const [nodes, snapshots, examTags] = await Promise.all([
+      loadNodesWithParents(this.prisma, nodeIds),
+      loadLatestFrequencyForNodes(this.prisma, nodeIds),
+      loadExamQuestionsForNodes(this.prisma, nodeIds),
+    ]);
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+
+    const examHits = examTags
+      .filter((tag) => nodeById.has(tag.knowledgeNodeId))
+      .map((tag) => ({
+        knowledgeNodeId: tag.knowledgeNodeId,
+        knowledgeNodeName: nodeById.get(tag.knowledgeNodeId)!.name,
+        id: tag.question.id,
+        exam: tag.question.paper.exam,
+        year: tag.question.paper.year,
+        questionNo: tag.question.questionNo,
+        subject: tag.question.subject,
+        questionType: tag.question.questionType,
+        score: tag.question.score ?? null,
+        summary: tag.question.summary ?? null,
+        sourceUrl: tag.question.sourceRef ?? tag.question.paper.source ?? null,
+      }));
+
+    // A comprehensive exam question can be tagged by several nodes; count it once.
+    const uniqueHits = [...new Map(examTags.map((tag) => [tag.question.id, tag])).values()];
+    const currentYear = new Date().getFullYear();
+    return {
+      questionId,
+      knowledgeNodes: nodes.map((node) => ({
+        id: node.id,
+        name: node.name,
+        subject: node.subject,
+        importance: node.importance,
+        difficulty: node.difficulty,
+        chapter: node.parent?.parent?.name ?? node.parent?.name ?? '',
+      })),
+      frequency: snapshots.map((snapshot) => ({
+        knowledgeNodeId: snapshot.knowledgeNodeId,
+        recent3Frequency: snapshot.recent3Frequency,
+        recent5Frequency: snapshot.recent5Frequency,
+        allTimeEvidence: snapshot.allTimeEvidence,
+        primaryScore5y: snapshot.primaryScore5y,
+        trendDirection: snapshot.trendDirection,
+        evidenceConfidence: snapshot.evidenceConfidence,
+      })),
+      examHits,
+      summary: {
+        nodeCount: nodes.length,
+        recent3Hits: uniqueHits.filter((tag) => tag.question.paper.year >= currentYear - 2).length,
+        recent5Hits: uniqueHits.filter((tag) => tag.question.paper.year >= currentYear - 4).length,
+        allTimeHits: uniqueHits.length,
+        totalScore: uniqueHits.reduce((sum, tag) => sum + (tag.question.score ?? 0), 0),
+        maxImportance: nodes.reduce((max, node) => Math.max(max, node.importance), 0),
+        maxDifficulty: nodes.reduce((max, node) => Math.max(max, node.difficulty), 0),
+      },
     };
   }
 
