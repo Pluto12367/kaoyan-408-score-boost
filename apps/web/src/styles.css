@@ -1618,6 +1618,7 @@ textarea:focus-visible,
 
 .secondary-action:active:not(:disabled) {
   transform: translateY(1px);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 8%);
   background: #c7d2fe;
 }
 
@@ -1647,10 +1648,12 @@ textarea:focus-visible,
 
 .primary-action:hover:not(:disabled) {
   background: var(--primary-hover);
+  box-shadow: 0 2px 8px rgb(37 99 235 / 25%);
 }
 
 .primary-action:active:not(:disabled) {
   transform: translateY(1px);
+  box-shadow: 0 1px 3px rgb(37 99 235 / 20%);
   background: var(--primary-strong);
 }
 
@@ -6494,6 +6497,12 @@ html[data-theme="b"] .role-pill {
   border: 1px solid var(--line-faint);
   border-radius: var(--radius-sm);
   background: var(--surface-soft);
+  transition: box-shadow .15s ease, border-color .15s ease;
+}
+
+.catalog-evidence-card:hover {
+  border-color: var(--primary-line);
+  box-shadow: 0 2px 8px rgb(15 23 42 / 6%);
 }
 
 .catalog-evidence-card strong {
