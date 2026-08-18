@@ -1416,6 +1416,11 @@ textarea:focus-visible,
   padding-top: 12px;
 }
 
+.task-row-primary {
+  border-left: 3px solid var(--primary);
+  background: var(--primary-faint);
+}
+
 .calendar-strip {
   display: grid;
   gap: 10px;

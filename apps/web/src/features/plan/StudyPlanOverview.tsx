@@ -26,8 +26,8 @@ export function StudyPlanOverview({ plan }: StudyPlanOverviewProps) {
         </article>
       </div>
       <div className="task-list">
-        {plan.dailyTasks.map((task) => (
-          <article key={task.id} className="task-row">
+        {plan.dailyTasks.map((task, index) => (
+          <article key={task.id} className={`task-row ${index === 0 ? 'task-row-primary' : ''}`}>
             <div>
               <strong>{task.title}</strong>
               <p>{task.subject} / {task.chapter} / {task.mode}</p>
@@ -37,7 +37,12 @@ export function StudyPlanOverview({ plan }: StudyPlanOverviewProps) {
               </div>
               <small>{task.nextAction}</small>
             </div>
-            <div className="task-actions"><span>{task.minutes} 分钟 · {task.questionCount} 题</span></div>
+            <div className="task-actions">
+              {index === 0 ? (
+                <button type="button" className="primary-action">开始今日任务</button>
+              ) : null}
+              <span>{task.minutes} 分钟 · {task.questionCount} 题</span>
+            </div>
           </article>
         ))}
       </div>
