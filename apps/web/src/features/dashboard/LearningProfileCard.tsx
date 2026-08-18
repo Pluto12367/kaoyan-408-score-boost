@@ -26,9 +26,7 @@ export function LearningProfileCard({ profile, onRetry }: { profile: ModuleResou
       </div>
       <p className="task-status">{data.insights.stateReason}</p>
       <div className="profile-insight-list">
-        {topWeak ? <article><strong>最弱点</strong><span>{topWeak.title} · {topWeak.suggestion}</span></article> : null}
-        {topSpeedRisk ? <article><strong>速度风险</strong><span>{topSpeedRisk.title} · 建议限时训练</span></article> : null}
-        {data.insights.mistakeReasons[0] ? <article><strong>主要错因</strong><span>{data.insights.mistakeReasons[0].reason}（{data.insights.mistakeReasons[0].count} 次）</span></article> : null}
+        {topWeak ? <article><strong>最弱点</strong><span>{topWeak.title}</span></article> : null}
       </div>
       <div className="timeline-list">
         {data.insights.focusHints.slice(0, 4).map((hint) => (

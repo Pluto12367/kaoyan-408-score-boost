@@ -25,7 +25,7 @@ export function LearningProfilePanel({ profile, onRetry }: { profile: ModuleReso
         {data.insights.speedRisks[0] ? <article><strong>速度风险</strong><span>{data.insights.speedRisks[0].title}</span></article> : null}
       </div>
       <div className="timeline-list">
-        {data.timeline.slice(0, 5).map((item) => (
+        {data.timeline.slice(0, 3).map((item) => (
           <article key={item.id}><time>{item.date}</time><div><strong>{item.title}</strong><span>{item.summary}</span></div></article>
         ))}
       </div>
