@@ -80,6 +80,15 @@ test('first-screen highlights prioritize weak, high-frequency and unfinished que
   assert.equal(highlights[0].reason, '掌握度 24% · 已练 4 次');
   assert.equal(highlights[1].reason, '近5年 6 次 · 重要度 5/5');
   assert.equal(highlights[2].reason, '闯关进行中 · 掌握度 55%');
+  assert.deepEqual(
+    highlights.map((item) => [item.kind, item.actionType, item.actionLabel]),
+    [
+      ['weak', 'inspect', '查看考点建议'],
+      ['highFrequency', 'exam', '看真题命中'],
+      ['quest', 'quest', '打开闯关入口'],
+    ],
+  );
+  assert.ok(highlights.every((item) => item.actionHint.length > 0));
 });
 
 test('first-screen highlights fall back to useful high-frequency points when a subject has no mastery data', () => {

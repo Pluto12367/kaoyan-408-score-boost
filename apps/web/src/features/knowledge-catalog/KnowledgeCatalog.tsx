@@ -207,6 +207,10 @@ export function KnowledgeCatalog({
                 <strong>{highlight.point.name}</strong>
                 <span className="catalog-first-screen-reason">{highlight.reason}</span>
                 <span className="catalog-first-screen-status">{highlight.statusLabel}</span>
+                <span className="catalog-first-screen-action" data-action-type={highlight.actionType}>
+                  {highlight.actionLabel}
+                </span>
+                <span className="catalog-first-screen-action-hint">{highlight.actionHint}</span>
               </button>
             ))}
           </div>

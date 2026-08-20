@@ -626,3 +626,21 @@
 - 截图或验证证据：聚焦测试与全量测试输出均为通过；Web 构建产物包含 `KnowledgeCatalog-C3m1Lfnb.js`。
 - 遗留问题：2026-08-20 线上浏览器验收发现已部署版本中「薄弱优先」fallback 会在无 weak/review 节点时推荐已掌握节点；本地已补回归测试并修复为优先 fallback 到未掌握/未通关高频候选，待提交推送并重新部署后复验。
 - 下一步：提交/推送线上验收修复 → 重新部署 → 复验知识图谱首屏；通过后进入 P1-2。
+
+### 2026-08-20 P1-2 知识图谱推荐卡行动增强
+
+- 日期：2026-08-20
+- 任务：增强知识图谱「建议先看」推荐卡的行动语义，并修复详情抽屉在无关联题库题时仍提供可执行练习/闯关入口的问题。
+- 修改原因：P1-1 已把优先查看节点前置，但卡片缺少明确下一步；详情抽屉在题库未加载或无关联题时仍显示“去练习/开始闯关”，会让学生产生点击无反馈或学习闭环断裂的感受。
+- 修改文件：
+  - `packages/shared/src/knowledgeCatalog.ts`、`packages/shared/src/index.ts`（推荐 highlight 增加 `actionType/actionLabel/actionHint`）
+  - `apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx`（首屏推荐卡渲染行动文案与行动提示）
+  - `apps/web/src/features/knowledge-catalog/KnowledgePointDetailDrawer.tsx`（按加载中/无题库题/有题库题区分练习与闯关行动态）
+  - `apps/web/src/styles.css`（推荐卡行动文案与抽屉禁用说明样式）
+  - `test/knowledge-catalog-first-screen.test.js`、`test/knowledge-catalog-ui.test.js`（TDD 覆盖行动字段和无题库禁用合同）
+- 数据库变化：无。
+- API 变化：无。
+- 参考方向：参考 GOV.UK disabled button 指南、Carbon/Atlassian empty state 指南和 Material button label 指南；落地为“禁用时必须说明原因，空态必须给下一步，按钮文字描述实际动作”。
+- 测试结果：RED 阶段新增测试按预期失败；GREEN 后 `node test/knowledge-catalog-first-screen.test.js` 3/3 通过，`node test/knowledge-catalog-ui.test.js` 17/17 通过；`npm test` 613 通过 / 0 失败 / 1 跳过；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 Vite 动态导入与 chunk 体积提示）。
+- 遗留问题：尚未提交、推送和线上部署；上线后需要用真实测试账号复验知识图谱首屏推荐卡和无题库节点抽屉禁用态。
+- 下一步：提交/推送 P1-2 → 用户手动部署 → 线上浏览器验收后进入 P1-3。

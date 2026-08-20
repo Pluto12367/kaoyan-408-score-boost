@@ -116,6 +116,7 @@ export interface CatalogFirstScreenMastery {
 }
 
 export type CatalogFirstScreenHighlightKind = 'weak' | 'highFrequency' | 'quest';
+export type CatalogFirstScreenActionType = 'inspect' | 'exam' | 'quest';
 
 export interface CatalogFirstScreenHighlight {
   kind: CatalogFirstScreenHighlightKind;
@@ -123,6 +124,9 @@ export interface CatalogFirstScreenHighlight {
   point: CatalogAtomicPoint;
   statusLabel: string;
   reason: string;
+  actionType: CatalogFirstScreenActionType;
+  actionLabel: string;
+  actionHint: string;
 }
 
 export interface CatalogFilterOptions {
@@ -492,6 +496,27 @@ const FIRST_SCREEN_TITLES: Record<CatalogFirstScreenHighlightKind, string> = {
   quest: '闯关未完成',
 };
 
+const FIRST_SCREEN_ACTIONS: Record<
+  CatalogFirstScreenHighlightKind,
+  { type: CatalogFirstScreenActionType; label: string; hint: string }
+> = {
+  weak: {
+    type: 'inspect',
+    label: '查看考点建议',
+    hint: '先看掌握度和证据，再决定是否补题。',
+  },
+  highFrequency: {
+    type: 'exam',
+    label: '看真题命中',
+    hint: '优先确认近年考频和真题证据。',
+  },
+  quest: {
+    type: 'quest',
+    label: '打开闯关入口',
+    hint: '进入详情后按题库情况开始闯关。',
+  },
+};
+
 const FIRST_SCREEN_STATUS_LABELS: Record<CatalogMasteryStatus, string> = {
   untouched: '未学习',
   weak: '薄弱',
@@ -521,12 +546,16 @@ export function buildKnowledgeCatalogFirstScreenHighlights(input: {
     const point = candidates.find((candidate) => !used.has(candidate.id)) ?? candidates[0];
     if (!point) return;
     used.add(point.id);
+    const action = FIRST_SCREEN_ACTIONS[kind];
     highlights.push({
       kind,
       title: FIRST_SCREEN_TITLES[kind],
       point,
       statusLabel: statusLabel(kind, input.masteryById[point.id]),
       reason: reasonFor(kind, point, input.masteryById[point.id]),
+      actionType: action.type,
+      actionLabel: action.label,
+      actionHint: action.hint,
     });
   };
 

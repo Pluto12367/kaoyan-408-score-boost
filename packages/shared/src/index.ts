@@ -36,6 +36,7 @@ export type {
   CatalogQuestStatus,
   CatalogFirstScreenMastery,
   CatalogFirstScreenHighlightKind,
+  CatalogFirstScreenActionType,
   CatalogFirstScreenHighlight,
 } from './knowledgeCatalog';
 export type {

@@ -68,6 +68,38 @@ export function KnowledgePointDetailDrawer({
     relatedCount: relatedContexts.length,
   });
   const evidenceCards = evidenceSummary.cards;
+  const relatedQuestionCount = relatedQuestions?.length ?? 0;
+  const examQuestionCount = examQuestions?.length ?? 0;
+  const hasRelatedQuestions = relatedQuestionCount > 0;
+  const hasExamQuestions = examQuestionCount > 0;
+  const actionDataPending = !detailError && relatedQuestions == null && examQuestions == null;
+  const practiceActionLabel = hasRelatedQuestions
+    ? '去练习'
+    : actionDataPending
+      ? '题库加载中'
+      : '暂无题库题';
+  const practiceActionHint = hasRelatedQuestions
+    ? ''
+    : actionDataPending
+      ? '正在加载关联题库，稍后会显示可练题目。'
+      : detailError
+        ? '题库加载失败，请稍后重试。'
+      : hasExamQuestions
+        ? '该节点已有真题命中，先看真题命中；补齐题库后再进入练习。'
+        : '该节点暂无关联题库题目，补齐题库后再进入练习。';
+  const canStartQuest = hasRelatedQuestions;
+  const questActionLabel = canStartQuest
+    ? '开始闯关'
+    : actionDataPending
+      ? '题库加载中'
+      : '暂无闯关题';
+  const questUnavailableHint = actionDataPending
+    ? '正在加载关联题库，加载完成后会开放闯关入口。'
+    : detailError
+      ? '题库加载失败，暂不能开始闯关。'
+    : hasExamQuestions
+      ? '该节点已有真题命中，但暂无题库题；先看真题命中，补题后再闯关。'
+      : '该节点暂无题库题，补齐关联题后再开放闯关。';
 
   return (
     <OverlayDialog label={`知识点详情：${point.name}`} onClose={onClose}>
@@ -156,9 +188,16 @@ export function KnowledgePointDetailDrawer({
           ) : (
             <p className="catalog-drawer-empty">尚未练习该知识点</p>
           )}
-          <button type="button" className="primary-action catalog-drawer-primary" onClick={onNavigate}>
-            去练习
+          <button
+            type="button"
+            className="primary-action catalog-drawer-primary"
+            disabled={!hasRelatedQuestions}
+            aria-disabled={!hasRelatedQuestions}
+            onClick={hasRelatedQuestions ? onNavigate : undefined}
+          >
+            {practiceActionLabel}
           </button>
+          {!hasRelatedQuestions ? <p className="catalog-drawer-action-note">{practiceActionHint}</p> : null}
         </section>
 
         <section className="catalog-drawer-section">
@@ -192,9 +231,16 @@ export function KnowledgePointDetailDrawer({
             </>
           ) : (
             <>
-              <button type="button" className="secondary-action" onClick={onStartQuest}>
-                开始闯关
+              <button
+                type="button"
+                className={`secondary-action${canStartQuest ? '' : ' catalog-action-disabled'}`}
+                disabled={!canStartQuest}
+                aria-disabled={!canStartQuest}
+                onClick={canStartQuest ? onStartQuest : undefined}
+              >
+                {questActionLabel}
               </button>
+              {!canStartQuest ? <p className="catalog-drawer-action-note">{questUnavailableHint}</p> : null}
               {questError ? <p className="catalog-mastery-error">{questError}</p> : null}
             </>
           )}

@@ -199,9 +199,23 @@ test('catalog first screen recommends what to inspect before the full tree', asy
   assert.match(page, /highlight\.title/, 'recommendation cards should render the helper category title');
   assert.match(page, /highlight\.reason/, 'recommendation cards should render the helper reason');
   assert.match(page, /highlight\.statusLabel/, 'recommendation cards should render the helper status');
+  assert.match(page, /highlight\.actionLabel/, 'recommendation cards should render a concrete next action');
+  assert.match(page, /highlight\.actionHint/, 'recommendation cards should explain why the action helps');
   assert.match(
     page,
     /setSelectedPointId\(highlight\.point\.id\)/,
     'clicking a recommendation should reuse the existing detail drawer selection path',
   );
+});
+
+test('detail drawer does not offer executable practice or quest actions before related questions exist', async () => {
+  const drawer = await source('apps/web/src/features/knowledge-catalog/KnowledgePointDetailDrawer.tsx');
+  assert.match(drawer, /hasRelatedQuestions/, 'drawer should derive whether this point has exercisable questions');
+  assert.match(drawer, /actionDataPending/, 'drawer should distinguish loading from a true no-question state');
+  assert.match(drawer, /disabled=\{!hasRelatedQuestions\}/, 'practice navigation should be disabled without related questions');
+  assert.match(drawer, /disabled=\{!canStartQuest\}/, 'quest start should be disabled without related questions');
+  assert.match(drawer, /题库加载中/, 'loading state should not look like an executable action');
+  assert.match(drawer, /暂无题库题/, 'empty题库 state should be explicit');
+  assert.match(drawer, /暂无闯关题/, 'empty闯关 state should be explicit');
+  assert.match(drawer, /真题命中/, 'empty题库 guidance should point to exam evidence when available');
 });
