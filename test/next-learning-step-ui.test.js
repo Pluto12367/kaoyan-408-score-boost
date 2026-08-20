@@ -255,10 +255,13 @@ test('next learning step card is wired into all approved student loop surfaces',
   assert.match(dashboard, /NextLearningStepCard/);
   assert.match(dashboard, /buildDashboardNextLearningStep/);
   assert.match(dashboard, /onNavigate=\{onNavigate\}/);
+  assert.match(dashboard, /firstDayLearning/);
+  assert.match(dashboard, /首日主行动/);
 
   assert.match(plan, /NextLearningStepCard/);
   assert.match(plan, /buildPlanNextLearningStep/);
-  assert.match(plan, /onNavigate=\{onNavigate\}/);
+  assert.doesNotMatch(plan, /today-plan-next-step-banner/);
+  assert.match(plan, /progressSummary/);
 
   assert.match(practice, /NextLearningStepCard/);
   assert.match(practice, /buildPracticeNextLearningStep/);

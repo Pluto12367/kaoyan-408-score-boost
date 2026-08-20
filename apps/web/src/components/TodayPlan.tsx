@@ -152,6 +152,7 @@ export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpen
   const progressPercent = summary.totalTasks > 0
     ? Math.round((summary.completedTasks / summary.totalTasks) * 100)
     : 0;
+  const progressSummary = summary.totalTasks > 0 ? `${summary.completedTasks}/${summary.totalTasks} 已完成` : '今日任务待生成';
   const nextLearningStep = buildPlanNextLearningStep(plan);
 
   return (
@@ -161,7 +162,7 @@ export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpen
           <p className="eyebrow">{plan.phase}</p>
           <h3>今日学习</h3>
         </div>
-        <span>{summary.completedTasks}/{summary.totalTasks} 已完成</span>
+        <span>{progressSummary}</span>
       </div>
 
       {plan.weekProgress.length ? (

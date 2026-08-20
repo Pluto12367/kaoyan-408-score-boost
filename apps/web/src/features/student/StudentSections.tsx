@@ -217,6 +217,8 @@ export function StudentSections(props: StudentSectionsProps) {
               reviewResources={props.reviewResources}
               assessmentHistory={props.assessmentHistory}
               plan={props.plan}
+              wrongQuestionSummary={props.wrongQuestionSummary}
+              todayPlan={props.todayPlan}
               feedbackStatus={props.feedbackStatus}
               diagnosticStatus={props.diagnosticStatus}
               onRetryStageReport={props.onRetryStageReport}

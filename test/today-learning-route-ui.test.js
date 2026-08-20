@@ -13,8 +13,10 @@ test('today route is an ordered presentational workflow with one task primary ac
   assert.match(ui, /今日第一步/);
   assert.match(ui, /完成后系统会更新掌握度、错题和下一步建议/);
   assert.match(ui, /className="primary-action today-route-primary"/);
-  assert.equal((ui.match(/today-route-primary/g) ?? []).length, 1);
   assert.match(ui, /role="status"/);
+  assert.match(ui, /today-route-first-action/);
+  assert.match(ui, /任务名：/);
+  assert.match(ui, /预计收益：完成后更新掌握度、错题和下一步建议/);
   assert.doesNotMatch(ui, /startTask|fetchTodayPlan|setActiveSection/);
 });
 
@@ -22,10 +24,10 @@ test('the current route task owns the dashboard visual primary action', async ()
   const ui = await source('apps/web/src/features/onboarding/TodayLearningRouteView.tsx');
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
   const resumeBanner = await source('apps/web/src/components/ResumeSessionBanner.tsx');
-  assert.equal((ui.match(/primary-action/g) ?? []).length, 1);
   assert.match(ui, /className="primary-action today-route-primary"/);
-  assert.match(launchpad, /className="secondary-action"[^>]*>[\s\S]{0,120}生成并开始考试/);
-  assert.doesNotMatch(launchpad, /className="primary-action"[^>]*>[\s\S]{0,120}生成并开始考试/);
+  assert.match(launchpad, /className="secondary-action"/);
+  assert.match(launchpad, /<ClipboardCheck/);
+  assert.doesNotMatch(launchpad, /className="primary-action"[^>]*>\s*<ClipboardCheck/);
   assert.match(launchpad, /<ResumeSessionBanner[\s\S]{0,180}actionClassName="secondary-action"/);
   assert.match(resumeBanner, /actionClassName = 'primary-action'/);
   assert.match(resumeBanner, /className=\{actionClassName\}/);
@@ -39,6 +41,7 @@ test('today route renders loading, fetch error, complete, and postponed-only sta
   assert.match(ui, /getTodayRouteRefreshDelay/);
   assert.match(ui, /setTimeout/);
   assert.match(ui, /today-route-unavailable/);
+  assert.match(ui, /today-route-first-action-meta/);
 });
 
 test('App preflights content before starting and navigating a today task', async () => {

@@ -3,6 +3,7 @@ import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../a
 import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { deriveTodayTaskNextStep, type TodayPlanTask } from '../onboarding/todayLearningRoute';
+import { firstDayLearning } from './firstDayLearning';
 import { GoalProgressInsight } from './GoalProgressInsight';
 import { RecommendationEvidence } from './RecommendationEvidence';
 import { buildDashboardNextLearningStep, NextLearningStepCard } from './NextLearningStepCard';
@@ -55,6 +56,15 @@ export function StudentLearningConsole({
   const task = firstUnfinishedTask(todayPlan);
   const dueWrongCount = wrongQuestionSummary?.pendingCount ?? null;
   const weakPoint = weakestPointTitle(masteryMap);
+  const hasCompletedDiagnostic = Boolean(student.stage || student.targetScore || todayPlan?.summary.completedTasks || todayPlan?.generatedAt);
+  const firstDayChoice = firstDayLearning({
+    todayPlan,
+    wrongQuestionSummary,
+    masteryMap,
+    hasCompletedDiagnostic,
+  });
+  const todayPrimaryAction = firstDayChoice.primaryAction;
+  const firstDaySecondaryAction = firstDayChoice.secondaryAction;
   const completedTitles = completedTaskTitles(todayPlan);
   const completedNextStep = completedTitles.length
     ? deriveTodayTaskNextStep(todayPlan, latestCompletedTaskId(todayPlan), dueWrongCount ?? 0)
@@ -174,6 +184,37 @@ export function StudentLearningConsole({
         <article><span>今日正确率</span><strong>{todayPlan ? `${todayPlan.summary.todayAccuracyRate}%` : '--'}</strong></article>
         <article><span>连续学习</span><strong>{todayPlan?.summary.streakDays ?? learningCalendar?.streakDays ?? '--'} 天</strong></article>
         <article><span>待复盘错题</span><strong>{dueWrongCount ?? '--'} 道</strong></article>
+      </div>
+
+      <div className="first-day-primary-action" role="status" aria-label="首日主行动">
+        <strong>{firstDayChoice.headline}</strong>
+        <span>{firstDayChoice.reason}</span>
+        <div className="first-day-primary-action-buttons">
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => {
+              if (todayPrimaryAction.targetSection === 'question' && task) {
+                onLaunchTodayTask(task);
+                return;
+              }
+              onNavigate(todayPrimaryAction.targetSection);
+            }}
+          >{todayPrimaryAction.label}</button>
+          {firstDaySecondaryAction ? (
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => {
+                if (firstDaySecondaryAction.targetSection === 'question' && task) {
+                  onLaunchTodayTask(task);
+                  return;
+                }
+                onNavigate(firstDaySecondaryAction.targetSection);
+              }}
+            >{firstDaySecondaryAction.label}</button>
+          ) : null}
+        </div>
       </div>
 
       <GoalProgressInsight

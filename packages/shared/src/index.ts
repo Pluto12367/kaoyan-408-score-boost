@@ -14,6 +14,7 @@ export * from './knowledgeDisplay';
 export * from './knowledgeEvidence';
 export * from './nodeMastery';
 export * from './nodePlan';
+export * from './learningInsight';
 export type {
   SubjectCode,
   CatalogNodeType,

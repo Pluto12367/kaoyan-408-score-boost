@@ -138,7 +138,7 @@ export function PracticePanel({
             <p className="answer-result-kp"><strong>核心考点</strong>{answerResult.knowledgePointTitle}</p>
           ) : null}
           <div className="answer-impact-card">
-            <strong>本题影响</strong>
+            <strong>本次学习影响</strong>
             <p><span>知识点</span>{answerResult.knowledgePointTitle ?? '当前题目关联考点'}</p>
             <p>
               <span>学习变化</span>

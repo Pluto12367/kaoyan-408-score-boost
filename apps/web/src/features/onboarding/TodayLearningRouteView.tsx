@@ -57,6 +57,12 @@ export function TodayLearningRoute(props: TodayLearningRouteProps) {
     0,
   );
 
+  const firstTask = route.currentTask;
+  const firstTaskProgress = firstTask?.progress?.completedQuestionCount ?? 0;
+  const firstTaskBenefits = firstTask
+    ? `任务名：${firstTask.title} · ${firstTask.questionCount} 题 · 预计收益：完成后更新掌握度、错题和下一步建议`
+    : '当前没有可执行任务，请先查看计划或等待可开始时间。';
+
   return <section className="panel today-route" aria-labelledby="today-route-title">
     <header className="today-route-header">
       <div>
@@ -66,6 +72,23 @@ export function TodayLearningRoute(props: TodayLearningRouteProps) {
       <div className="today-route-summary">预计 {totalMinutes} 分钟 · 已完成 {completedMinutes} 分钟</div>
       <button type="button" className="text-button" onClick={props.onOpenPlan}>调整计划</button>
     </header>
+
+    {firstTask ? (
+      <div className="today-route-first-action" role="status" aria-label="今日第一步主行动">
+        <strong>今日第一步：{firstTask.title}</strong>
+        <span>{firstTaskBenefits}</span>
+        <div className="today-route-first-action-meta">
+          <span>{firstTask.subject} · {firstTask.chapter}</span>
+          <span>{firstTaskProgress}/{firstTask.questionCount} 题</span>
+        </div>
+        <button
+          type="button"
+          className="primary-action today-route-primary"
+          disabled={props.launchingTaskId === firstTask.id}
+          onClick={() => props.onLaunch(firstTask)}
+        >{props.launchingTaskId === firstTask.id ? '正在启动…' : getTodayTaskActionLabel(firstTask, resolveTodayTaskDestination(firstTask.mode))}</button>
+      </div>
+    ) : null}
 
     <div className="today-route-live" role="status" aria-live="polite" aria-atomic="true">
       {props.launchError}

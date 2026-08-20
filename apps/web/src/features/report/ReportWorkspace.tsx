@@ -2,13 +2,16 @@ import { useState } from 'react';
 import type { FeedbackDraft, StageReport, StudyPlan, UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type {
   AssessmentHistory,
+  LearningCalendar,
   LearningProfile,
   MasteryMap,
   ReviewResourceRecommendation,
   SprintPlan,
   StudyReminders,
   TrialProgress,
+  WrongQuestionSummary,
 } from '../../api';
+import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { StudentProgressOverview } from '../dashboard/StudentProgressOverview';
@@ -45,6 +48,9 @@ interface ReportWorkspaceProps {
   reviewResources: ModuleResource<ReviewResourceRecommendation>;
   assessmentHistory: ModuleResource<AssessmentHistory>;
   plan: StudyPlan;
+  learningCalendar?: LearningCalendar;
+  wrongQuestionSummary: ModuleResource<WrongQuestionSummary>;
+  todayPlan?: TodayPlanType | null;
   feedbackStatus: string;
   diagnosticStatus: string;
   onRetryStageReport: () => void;
@@ -93,6 +99,9 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           report={props.report}
           stageReport={props.stageReport}
           masteryMap={props.masteryMap}
+          learningProfile={props.learningProfile.data ?? null}
+          wrongQuestionSummary={props.wrongQuestionSummary.data}
+          todayPlan={props.todayPlan}
           onRetry={props.onRetryStageReport}
           onNavigate={props.onNavigate}
         />

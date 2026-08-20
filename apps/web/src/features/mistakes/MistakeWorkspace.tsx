@@ -9,6 +9,7 @@ import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
 import { buildWrongBookNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
+import { buildWrongReviewPriority, rankWrongReviewItems } from './wrongReviewPriority';
 
 interface MistakeWorkspaceProps {
   wrongQuestions: WrongQuestion[];
@@ -126,6 +127,7 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
   const displayQuestions = listError && isMockAllowed()
     ? clientFiltered
     : (serverQuestions ?? wrongQuestions);
+  const prioritizedQuestions = useMemo(() => rankWrongReviewItems(displayQuestions), [displayQuestions]);
   const selectedKnowledgePointTitle = knowledgePointId
     ? knowledgePointOptions.find(([value]) => value === knowledgePointId)?.[1] ?? knowledgePointId
     : null;
@@ -133,6 +135,8 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
     pendingCount: summaryData?.pendingCount ?? wrongQuestions.length,
     filteredKnowledgePointTitle: selectedKnowledgePointTitle,
   });
+  const todayReviewTask = prioritizedQuestions[0] ?? null;
+  const todayReviewPriority = todayReviewTask ? buildWrongReviewPriority(todayReviewTask) : null;
   const wrongReviewLoop = [
     { title: '先看错因', description: '先判断是知识点没学过、概念混淆、审题错误，还是时间问题。' },
     { title: '再做修复', description: '针对错因补一个最小动作：看解析、写笔记、重做原题。' },
@@ -203,6 +207,21 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
           ))}
         </div>
       </div>
+      {todayReviewTask && todayReviewPriority ? (
+        <div className="wrong-today-task-panel" role="status" aria-label="今日最该复盘">
+          <div className="wrong-today-task-head">
+            <strong>今日最该复盘：{todayReviewTask.knowledgePointTitle}</strong>
+            <span>{todayReviewPriority.priority} 优先级</span>
+          </div>
+          <p>{todayReviewPriority.reason}</p>
+          <div className="wrong-today-task-actions">
+            <button type="button" className="primary-action" onClick={() => onReview(todayReviewTask.questionId)}>先复盘这题</button>
+            <button type="button" className="secondary-action" onClick={() => onRedo(todayReviewTask.questionId, todayReviewTask.knowledgePointTitle)}>重做这题</button>
+            <button type="button" className="secondary-action" onClick={() => onOpenDetail(todayReviewTask.questionId)}>看详情与笔记</button>
+          </div>
+          <p className="wrong-today-task-hint">{todayReviewPriority.suggestedAction}</p>
+        </div>
+      ) : null}
       <div className="wrong-filter-bar" role="group" aria-label="错题筛选">
         <label>
           <span>科目</span>

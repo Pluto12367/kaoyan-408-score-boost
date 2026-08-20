@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
-import { estimatePredictedScore } from '@kaoyan408/shared';
+import { buildLearningInsights, estimatePredictedScore } from '@kaoyan408/shared';
 import type { StageReport, UserProfile, WeaknessReport } from '@kaoyan408/shared';
-import type { MasteryMap } from '../../api';
+import type { MasteryMap, LearningProfile } from '../../api';
+import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
@@ -19,11 +20,14 @@ interface ReportSummaryPanelProps {
   report: WeaknessReport;
   stageReport: StageReport | null;
   masteryMap: MasteryMap | null;
+  learningProfile?: LearningProfile | null;
+  wrongQuestionSummary?: { pendingCount: number } | null;
+  todayPlan?: TodayPlanType | null;
   onRetry: () => void;
   onNavigate: (section: RoleSection) => void;
 }
 
-export function ReportSummaryPanel({ student, report, stageReport, masteryMap, onRetry, onNavigate }: ReportSummaryPanelProps) {
+export function ReportSummaryPanel({ student, report, stageReport, masteryMap, learningProfile = null, wrongQuestionSummary = null, todayPlan = null, onRetry, onNavigate }: ReportSummaryPanelProps) {
   const averageMastery = useMemo(() => {
     if (!masteryMap || masteryMap.subjects.length === 0) return null;
     const total = masteryMap.subjects.reduce((sum, subject) => sum + subject.averageMastery, 0);
@@ -85,6 +89,12 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
     report,
     stageReport?.mastery.weakestPoints[0]?.title ?? null,
   );
+  const learningInsights = buildLearningInsights({
+    masteryMap,
+    wrongSummary: wrongQuestionSummary ?? null,
+    todayPlan: todayPlan ?? null,
+    learningProfile: learningProfile ?? null,
+  });
 
   const longTermWeakPoints = useMemo(() => {
     const weak = (masteryMap?.subjects ?? []).flatMap((subject) =>
@@ -99,8 +109,8 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
   const reportActionPlan = [
     {
       title: '优先复盘错题',
-      description: (stageReport?.wrong.pendingCount ?? 0) > 0
-        ? `还有 ${stageReport?.wrong.pendingCount} 道错题待复盘，先把丢分点变成可修复动作。`
+      description: (wrongQuestionSummary?.pendingCount ?? stageReport?.wrong.pendingCount ?? 0) > 0
+        ? `还有 ${wrongQuestionSummary?.pendingCount ?? stageReport?.wrong.pendingCount ?? 0} 道错题待复盘，先把丢分点变成可修复动作。`
         : '当前待复盘压力不高，保持错题复盘节奏即可。',
       action: '去错题本',
       onClick: () => onNavigate('wrong-book'),
@@ -115,7 +125,9 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
     },
     {
       title: '回到今日任务',
-      description: '把报告建议落到今天的任务里，完成后再回来观察掌握度变化。',
+      description: todayPlan?.priorityTasks?.length
+        ? '把报告建议落到今天的任务里，完成后再回来观察掌握度变化。'
+        : '暂无今日任务数据，先完成诊断或重新加载计划。完成入学诊断后，系统会为你生成唯一主行动。',
       action: '回到首页',
       onClick: () => onNavigate('dashboard'),
     },
@@ -166,8 +178,33 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, o
       <GoalProgressInsight
         student={student}
         report={report}
+        todayPlan={todayPlan}
         actionLabel="报告目标进度"
       />
+
+      <section className="report-insight-grid" aria-label="报告学习洞察">
+        {learningInsights.map((insight) => {
+          const target: RoleSection = insight.action === '去错题本'
+            ? 'wrong-book'
+            : insight.action === '去练习薄弱点'
+              ? 'question'
+              : insight.action === '完成入学诊断'
+                ? 'plan'
+                : 'dashboard';
+          return (
+            <article key={insight.type} className={`report-insight-card report-insight-${insight.type}`}>
+              <p className="eyebrow">{insight.type === 'progress' ? '进步点' : insight.type === 'risk' ? '风险点' : '下一步建议'}</p>
+              <h4>{insight.title}</h4>
+              <strong>为什么这样判断</strong>
+              <p>{insight.evidence}</p>
+              <strong>影响</strong>
+              <p>{insight.impact}</p>
+              <strong>下一步动作</strong>
+              <button type="button" className="secondary-action" onClick={() => onNavigate(target)}>{insight.action}</button>
+            </article>
+          );
+        })}
+      </section>
 
       <NextLearningStepCard step={reportNextLearningStep} onNavigate={onNavigate} />
 

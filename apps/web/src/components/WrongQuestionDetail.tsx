@@ -177,6 +177,25 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
         {detail.answer ? <span className="answer-badge">答案: {detail.answer}</span> : null}
       </div>
 
+      <div className="wrong-detail-summary-grid">
+        <article>
+          <strong>本题考点</strong>
+          <p>{detail.knowledgePointTitle}</p>
+        </article>
+        <article>
+          <strong>我的错因</strong>
+          <p>{latestAttempt?.mistakeReason ?? detail.reviewSchedule?.inferredReason ?? '待诊断'}</p>
+        </article>
+        <article>
+          <strong>我的掌握度</strong>
+          <p>{detail.masteryStatus} · 连续正确 {detail.masteryCriteria?.consecutiveCorrect ?? 0} 次</p>
+        </article>
+        <article>
+          <strong>下一步怎么学</strong>
+          <p>{detail.recommendation}</p>
+        </article>
+      </div>
+
       {detail.analysis ? (
         <div className="detail-analysis">
           <strong><BookOpen size={14} /> 解析</strong>

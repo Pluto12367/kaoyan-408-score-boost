@@ -21,5 +21,9 @@ test('PracticePanel turns completed practice sets into concrete next actions', a
   assert.match(panel, /onNavigate\?\.\('wrong-book'\)/, 'wrong-book action should route to mistake review');
   assert.match(panel, /onNavigate\?\.\('plan'\)/, 'plan action should route to today plan');
   assert.match(panel, /onNavigate\?\.\('report'\)/, 'report action should route to the report page');
+  assert.match(panel, /本次学习影响/, 'single-question completion should show impact copy');
+  assert.match(panel, /学习变化/, 'single-question completion should mention mastery updates');
+  assert.match(panel, /错题复盘/, 'single-question completion should mention wrong-question impact');
+  assert.match(panel, /下一步建议/, 'single-question completion should expose the next step');
   assert.match(sections, /onNavigate=\{props\.onNavigate\}/, 'StudentSections should wire navigation into PracticePanel');
 });

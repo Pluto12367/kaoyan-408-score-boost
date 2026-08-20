@@ -29,7 +29,7 @@ test('PracticePanel turns answer feedback into immediate learning actions', asyn
   const source = await readFile(new URL('../apps/web/src/features/practice/PracticePanel.tsx', import.meta.url), 'utf8');
 
   assert.match(source, /answer-impact-card/);
-  assert.match(source, /本题影响/);
+  assert.match(source, /本次学习影响/);
   assert.match(source, /知识点/);
   assert.match(source, /提升该知识点掌握度/);
   assert.match(source, /进入错题复盘/);
