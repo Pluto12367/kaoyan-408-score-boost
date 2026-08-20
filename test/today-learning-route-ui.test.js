@@ -9,6 +9,9 @@ test('today route is an ordered presentational workflow with one task primary ac
   assert.match(ui, /<ol[^>]*className="today-route-list"/);
   assert.match(ui, /resolveTodayRoute\(/);
   assert.match(ui, /getTodayTaskActionLabel\(/);
+  assert.match(ui, /today-route-first-step/);
+  assert.match(ui, /今日第一步/);
+  assert.match(ui, /完成后系统会更新掌握度、错题和下一步建议/);
   assert.match(ui, /className="primary-action today-route-primary"/);
   assert.equal((ui.match(/today-route-primary/g) ?? []).length, 1);
   assert.match(ui, /role="status"/);

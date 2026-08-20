@@ -7,6 +7,8 @@ const railwayConfig = readFileSync(new URL('../railway.toml', import.meta.url), 
 const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
 const webDockerfile = readFileSync(new URL('../Dockerfile.web', import.meta.url), 'utf8');
 const productionCompose = readFileSync(new URL('../compose.production.yml', import.meta.url), 'utf8');
+const httpsComposePath = new URL('../compose.https.yml', import.meta.url);
+const httpsCompose = existsSync(httpsComposePath) ? readFileSync(httpsComposePath, 'utf8') : '';
 const productionEnvTemplate = readFileSync(
   new URL('../deploy/tencent-ip/.env.production.example', import.meta.url),
   'utf8',
@@ -14,6 +16,10 @@ const productionEnvTemplate = readFileSync(
 const deploymentGuide = readFileSync(new URL('../docs/deploy-to-tencent-ip.md', import.meta.url), 'utf8');
 const gatewayConfig = readFileSync(
   new URL('../deploy/tencent-ip/nginx.conf', import.meta.url),
+  'utf8',
+);
+const httpsGatewayConfig = readFileSync(
+  new URL('../deploy/tencent-ip/nginx-https.conf.example', import.meta.url),
   'utf8',
 );
 const deploymentWorkflow = readFileSync(
@@ -298,6 +304,37 @@ test('HTTPS guide describes a future topology instead of implying the HTTP pilot
   assert.match(deploymentGuide, /git switch --detach[\s\S]*?-f compose\.production\.yml -f compose\.https\.yml up/);
   assert.match(deploymentGuide, /ALLOW_INSECURE_HTTP_IP=false/);
   assert.match(deploymentGuide, /关闭旧 IP 入口/);
+});
+
+test('HTTPS production override is an executable TLS topology with no insecure HTTP pilot fallback', () => {
+  assert.ok(existsSync(httpsComposePath), 'compose.https.yml must exist for the formal HTTPS deployment');
+  assert.match(webDockerfile, /ARG NGINX_CONF=deploy\/tencent-ip\/nginx\.conf/);
+  assert.match(webDockerfile, /COPY \$\{NGINX_CONF\} \/etc\/nginx\/conf\.d\/default\.conf/);
+  assert.match(webDockerfile, /EXPOSE 80 443/);
+  assert.match(httpsCompose, /gateway:/);
+  assert.match(httpsCompose, /"80:80"/);
+  assert.match(httpsCompose, /"443:443"/);
+  assert.match(httpsCompose, /NGINX_CONF:\s*deploy\/tencent-ip\/nginx-https\.conf\.example/);
+  assert.match(httpsCompose, /TLS_CERT_DIR:\?TLS_CERT_DIR must point to the issued certificate directory/);
+  assert.match(httpsCompose, /\$\{TLS_CERT_DIR:\?TLS_CERT_DIR must point to the issued certificate directory\}:\/etc\/nginx\/certs:ro/);
+  assert.match(httpsCompose, /WEB_ORIGIN:\s*\$\{WEB_ORIGIN:\?WEB_ORIGIN must be the HTTPS domain\}/);
+  assert.match(httpsCompose, /VITE_API_BASE_URL:\s*\$\{VITE_API_BASE_URL:\?VITE_API_BASE_URL must be the HTTPS API URL\}/);
+  assert.match(httpsCompose, /ALLOW_INSECURE_HTTP_IP:\s+"false"/);
+  assert.match(httpsGatewayConfig, /listen 80/);
+  assert.match(httpsGatewayConfig, /return 301 https:\/\/\$host\$request_uri/);
+  assert.match(httpsGatewayConfig, /listen 443 ssl/);
+  assert.match(httpsGatewayConfig, /ssl_certificate\s+\/etc\/nginx\/certs\/fullchain\.pem/);
+  assert.match(httpsGatewayConfig, /ssl_certificate_key\s+\/etc\/nginx\/certs\/privkey\.pem/);
+  assert.match(httpsGatewayConfig, /Strict-Transport-Security/);
+  assert.match(httpsGatewayConfig, /X-Forwarded-Proto https/);
+  assert.equal(
+    packageJson.scripts['prod:https:config'],
+    'docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml config',
+  );
+  assert.equal(
+    packageJson.scripts['prod:https:up'],
+    'docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml up -d --build --wait',
+  );
 });
 
 test('CI verifies the production image and uses Node 24 based GitHub actions', () => {

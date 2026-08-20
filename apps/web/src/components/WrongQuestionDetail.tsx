@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpen, RotateCcw, CheckCircle, Clock, AlertCircle, Target } from 'lucide-react';
 import { buildKnowledgeEvidenceSummary } from '@kaoyan408/shared';
 import { fetchWrongQuestionDetail, fetchWrongQuestionExamLinks, saveWrongQuestionNote, type WrongQuestionDetail as DetailType, type WrongQuestionDetailLayerItem, type WrongQuestionExamLinks } from '../api/endpoints/review';
+import { requestTutorReply } from '../api/endpoints/tutor';
+import type { TutorReply } from '../api';
 
 interface Props {
   questionId: string;
@@ -19,6 +21,9 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
   const [noteSaving, setNoteSaving] = useState(false);
   const [examLinks, setExamLinks] = useState<WrongQuestionExamLinks | null>(null);
   const [examLinksError, setExamLinksError] = useState('');
+  const [aiDiagnosis, setAiDiagnosis] = useState<TutorReply | null>(null);
+  const [aiDiagnosisError, setAiDiagnosisError] = useState('');
+  const [aiDiagnosisLoading, setAiDiagnosisLoading] = useState(false);
   const scrolledIntoViewFor = useRef<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +33,8 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
   }, [detail, questionId]);
 
   useEffect(() => {
+    setAiDiagnosis(null);
+    setAiDiagnosisError('');
     fetchWrongQuestionDetail(questionId)
       .then((value) => {
         setDetail(value);
@@ -56,6 +63,7 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
   if (!detail) return <div className="panel"><p className="task-status">加载中...</p></div>;
 
   const rs = detail.reviewSchedule;
+  const latestAttempt = detail.attemptHistory[0];
   const evidenceSummary = useMemo(() => buildKnowledgeEvidenceSummary({
     point: {
       id: detail.questionId,
@@ -115,6 +123,23 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
     }
   }
 
+  async function handleAiDiagnosis() {
+    setAiDiagnosisLoading(true);
+    setAiDiagnosisError('');
+    try {
+      const reply = await requestTutorReply({
+        questionId,
+        selectedAnswer: latestAttempt?.selectedAnswer,
+        prompt: 'AI错题诊断：请结合我的最近作答、错因、标准解析和知识证据，指出为什么错、该补哪个概念、下一步怎么复习。',
+      });
+      setAiDiagnosis(reply);
+    } catch (diagnosisError) {
+      setAiDiagnosisError(diagnosisError instanceof Error ? diagnosisError.message : 'AI错题诊断生成失败');
+    } finally {
+      setAiDiagnosisLoading(false);
+    }
+  }
+
   function renderLayer(title: string, description: string, items: WrongQuestionDetailLayerItem[]) {
     if (items.length === 0) return null;
     return (
@@ -158,6 +183,33 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
           <p>{detail.analysis}</p>
         </div>
       ) : null}
+
+      <div className="detail-analysis ai-diagnosis-panel">
+        <div className="exam-link-head">
+          <strong><Target size={14} /> AI错题诊断</strong>
+          <p>基于本题解析、最近作答、错因和知识证据，生成一次面向提分的复盘建议。</p>
+        </div>
+        <button type="button" className="secondary-action" onClick={handleAiDiagnosis} disabled={aiDiagnosisLoading}>
+          {aiDiagnosisLoading ? '生成中...' : '生成 AI 错题诊断'}
+        </button>
+        {aiDiagnosisError ? <p className="task-status">AI错题诊断失败：{aiDiagnosisError}</p> : null}
+        {aiDiagnosis ? (
+          <div className="timeline-list">
+            <article>
+              <div>
+                <strong>{aiDiagnosis.answerCheck}</strong>
+                <span>{aiDiagnosis.source}</span>
+              </div>
+            </article>
+            {aiDiagnosis.explanationSteps.slice(0, 3).map((step) => (
+              <article key={step}><div><strong>{step}</strong></div></article>
+            ))}
+            {aiDiagnosis.nextActions.slice(0, 3).map((action) => (
+              <article key={action}><div><strong>下一步</strong><span>{action}</span></div></article>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <div className="detail-note">
         <strong><BookOpen size={14} /> 我的错题笔记</strong>

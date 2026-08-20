@@ -178,13 +178,13 @@ curl -fsS http://127.0.0.1/health
 
 三个服务应为运行状态，PostgreSQL 和应用应健康；再用浏览器访问 `http://服务器公网IP`，用一个测试学生账号完成登录与练习。若服务未启动，先查第 5 节日志，再核对 Docker 服务是否已启用。
 
-## 9. 从临时 HTTP 迁移到正式 HTTPS（未来工作）
+## 9. 从临时 HTTP 迁移到正式 HTTPS
 
-**当前镜像只公开 80 端口，不能只改环境变量获得 HTTPS。** 本手册没有提供已验证的 TLS 网关配置，也没有引入自动申请证书的工具。完成域名备案、获得证书并在测试环境验证前，请保持当前封闭 HTTP 体验的范围，不要声称网站已启用 HTTPS。
+**默认 HTTP 体验配置当前镜像只公开 80 端口，不能只改环境变量获得 HTTPS。** 正式 HTTPS 必须使用 `compose.production.yml` + `compose.https.yml`，并让网关加载 `deploy/tencent-ip/nginx-https.conf.example`。完成域名备案、获得证书并在测试环境验证前，请保持当前封闭 HTTP 体验的范围，不要声称网站已启用 HTTPS。
 
-未来的 HTTPS 变更必须作为一次单独的、可回滚的配置发布，同时完成以下项目：
+HTTPS 变更必须作为一次单独的、可回滚的配置发布，同时完成以下项目：
 
-1. 新建并测试 Nginx 配置：443 使用 `ssl` 和证书，80 端口只做重定向到 HTTPS；不得把应用或 PostgreSQL 端口直接暴露到公网。仓库已提供可直接改域名后使用的 `deploy/tencent-ip/nginx-https.conf.example`（证书路径默认 `/etc/letsencrypt/live/<域名>/`，用 `deploy.sh` 的构建步骤将其替换到镜像内）。
+1. 使用仓库内置的 Nginx 配置：443 使用 `ssl` 和证书，80 端口只做重定向到 HTTPS；不得把应用或 PostgreSQL 端口直接暴露到公网。配置文件是 `deploy/tencent-ip/nginx-https.conf.example`，证书在容器内挂载到 `/etc/nginx/certs/`。
 
    ```nginx
    listen 443 ssl;
@@ -194,33 +194,44 @@ curl -fsS http://127.0.0.1/health
 
    ```yaml
    volumes:
-     - /etc/letsencrypt/live/exam.example.com:/etc/nginx/certs:ro
+     - ${TLS_CERT_DIR}:/etc/nginx/certs:ro
    ```
 
-4. 新建专用的 `compose.https.yml` 覆盖配置，为网关发布 443（当前 `compose.production.yml` 不应直接照抄为 TLS）：
+4. 仓库已提供专用的 `compose.https.yml` 覆盖配置，为网关发布 443（当前 `compose.production.yml` 不应直接照抄为 TLS）：
 
    ```yaml
    services:
      app:
        environment:
          VITE_API_BASE_URL: "https://exam.example.com/api"
+         ALLOW_INSECURE_HTTP_IP: "false"
      gateway:
        ports:
          - "80:80"
          - "443:443"
    ```
 
-   这里的 `app.environment.VITE_API_BASE_URL` 是 API 启动安全校验所需的 HTTPS 绝对地址；前端仍由网关以同源 `/api` 路径转发。将这段完整配置保存为 `compose.https.yml`。
+   这里的 `app.environment.VITE_API_BASE_URL` 是 API 启动安全校验所需的 HTTPS 绝对地址；前端仍由网关以同源 `/api` 路径转发。
 
 5. 在腾讯云防火墙中开放 TCP 443，并保留 TCP 80 用于 HTTPS 重定向；SSH 22 仍只允许管理员 IP/CIDR。完成验收后，再关闭旧 IP 入口。
-6. 在 `.env.production` 设置下面两项：
+6. 在 `.env.production` 设置下面几项：
 
    ```dotenv
    WEB_ORIGIN=https://exam.example.com
+   VITE_API_BASE_URL=https://exam.example.com/api
+   TLS_CERT_DIR=/etc/letsencrypt/live/exam.example.com
    ALLOW_INSECURE_HTTP_IP=false
    ```
 
-7. 从配置检查开始，所有 HTTPS Compose 操作都必须同时带基础文件和覆盖文件。下面给出配置、启动、备份，以及切换到已验证 commit 后重建回滚版本的完整命令；不要在 HTTPS 部署中改回只传一个 `-f`：
+7. 从配置检查开始，所有 HTTPS Compose 操作都必须同时带基础文件和覆盖文件。可直接使用 npm 脚本：
+
+   ```sh
+   npm run prod:https:config
+   npm run prod:https:up
+   npm run prod:https:status
+   ```
+
+   等价的底层命令如下；不要在 HTTPS 部署中改回只传一个 `-f`：
 
    ```sh
    docker compose --env-file .env.production -f compose.production.yml -f compose.https.yml config

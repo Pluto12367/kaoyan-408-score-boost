@@ -60,6 +60,16 @@ test('wrong question detail view wires the shared evidence summary block', () =>
   assert.match(detail, /在知识图谱中查看该考点/);
 });
 
+test('wrong question detail view exposes an on-demand AI mistake diagnosis', () => {
+  const detail = readFileSync('apps/web/src/components/WrongQuestionDetail.tsx', 'utf8');
+  assert.match(detail, /requestTutorReply/);
+  assert.match(detail, /AI错题诊断/);
+  assert.match(detail, /生成 AI 错题诊断/);
+  assert.match(detail, /aiDiagnosis/);
+  assert.match(detail, /aiDiagnosisError/);
+  assert.match(detail, /selectedAnswer: latestAttempt\?\.selectedAnswer/);
+});
+
 test('wrong question detail API still provides the exam links payload consumed by the evidence cards', () => {
   const api = readFileSync('apps/web/src/api/endpoints/review.ts', 'utf8');
   assert.match(api, /WrongQuestionExamLinks/);

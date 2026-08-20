@@ -7,6 +7,7 @@ export function LearningProfileCard({ profile, onRetry }: { profile: ModuleResou
   const data = profile.data;
   const topWeak = data.insights.weakPoints[0];
   const topSpeedRisk = data.insights.speedRisks[0];
+  const topMistakeReason = data.insights.mistakeReasons[0];
 
   return (
     <section className="panel learning-profile-card">
@@ -27,6 +28,8 @@ export function LearningProfileCard({ profile, onRetry }: { profile: ModuleResou
       <p className="task-status">{data.insights.stateReason}</p>
       <div className="profile-insight-list">
         {topWeak ? <article><strong>最弱点</strong><span>{topWeak.title}</span></article> : null}
+        {topSpeedRisk ? <article><strong>速度风险</strong><span>{topSpeedRisk.title}</span></article> : null}
+        {topMistakeReason ? <article><strong>主要错因</strong><span>{topMistakeReason.reason} · {topMistakeReason.count} 次</span></article> : null}
       </div>
       <div className="timeline-list">
         {data.insights.focusHints.slice(0, 4).map((hint) => (

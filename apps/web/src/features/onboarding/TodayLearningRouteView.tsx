@@ -112,6 +112,10 @@ export function TodayLearningRoute(props: TodayLearningRouteProps) {
                 {task.progress?.completedQuestionCount ?? 0}/{task.questionCount} 题
                 {task.progress ? ` · 已学习 ${task.progress.minutesSpent} 分钟` : ''}
               </p>
+              <div className="today-route-first-step" aria-label="今日第一步">
+                <strong>今日第一步</strong>
+                <span>先做 {task.questionCount} 题，完成后系统会更新掌握度、错题和下一步建议。</span>
+              </div>
               <button
                 type="button"
                 className="primary-action today-route-primary"

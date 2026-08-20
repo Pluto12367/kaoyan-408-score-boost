@@ -1,0 +1,17 @@
+services:
+  app:
+    environment:
+      WEB_ORIGIN: ${WEB_ORIGIN:?WEB_ORIGIN must be the HTTPS domain}
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:?VITE_API_BASE_URL must be the HTTPS API URL}
+      ALLOW_INSECURE_HTTP_IP: "false"
+
+  gateway:
+    build:
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?VITE_API_BASE_URL must be the HTTPS API URL}
+        NGINX_CONF: deploy/tencent-ip/nginx-https.conf.example
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ${TLS_CERT_DIR:?TLS_CERT_DIR must point to the issued certificate directory}:/etc/nginx/certs:ro
