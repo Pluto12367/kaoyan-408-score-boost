@@ -110,3 +110,30 @@ test('first-screen highlights fall back to useful high-frequency points when a s
     ],
   );
 });
+
+test('weak first-screen fallback never recommends a mastered point when unmastered points exist', () => {
+  const highlights = buildKnowledgeCatalogFirstScreenHighlights({
+    subject: subject([
+      point('DS-mastered-in-progress', '线性表定义', {
+        importance: 3,
+        evidence: { recent3Frequency: 1, recent5Frequency: 1, allTimeEvidence: 1, trendDirection: 'cold', trendDelta: 0, evidenceConfidence: 'medium' },
+      }),
+      point('DS-unlearned-hot', '哈夫曼树构造', {
+        importance: 5,
+        evidence: { recent3Frequency: 4, recent5Frequency: 5, allTimeEvidence: 12, trendDirection: 'rising', trendDelta: 2, evidenceConfidence: 'high' },
+      }),
+    ]),
+    masteryById: {
+      'DS-mastered-in-progress': {
+        status: 'mastered',
+        mastery: 0.83,
+        attempts: 129,
+        questStatus: 'in_progress',
+      },
+    },
+  });
+
+  assert.equal(highlights[0].kind, 'weak');
+  assert.equal(highlights[0].point.id, 'DS-unlearned-hot');
+  assert.notEqual(highlights[0].statusLabel, '已掌握');
+});

@@ -545,7 +545,8 @@ function weakCandidates(
     const status = masteryById[point.id]?.status;
     return status === 'weak' || status === 'review';
   });
-  return (candidates.length > 0 ? candidates : points).sort((left, right) => {
+  if (candidates.length === 0) return highFrequencyCandidates(points, masteryById);
+  return candidates.sort((left, right) => {
     const leftMastery = masteryById[left.id]?.mastery ?? 1;
     const rightMastery = masteryById[right.id]?.mastery ?? 1;
     return leftMastery - rightMastery || scoreFrequency(right) - scoreFrequency(left) || left.order - right.order;

@@ -622,7 +622,7 @@
   - `test/knowledge-catalog-first-screen.test.js`、`test/knowledge-catalog-ui.test.js`（TDD 覆盖推荐排序、fallback 与页面接线）
 - 数据库变化：无。
 - API 变化：无。
-- 测试结果：`node test/knowledge-catalog-first-screen.test.js` 2/2 通过；`node test/knowledge-catalog-ui.test.js` 16/16 通过；`npm test` 611 通过 / 0 失败 / 1 跳过；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 chunk 体积警告）。
+- 测试结果：`node test/knowledge-catalog-first-screen.test.js` 3/3 通过；`node test/knowledge-catalog-ui.test.js` 16/16 通过；`npm test` 612 通过 / 0 失败 / 1 跳过；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 chunk 体积警告）。
 - 截图或验证证据：聚焦测试与全量测试输出均为通过；Web 构建产物包含 `KnowledgeCatalog-C3m1Lfnb.js`。
-- 遗留问题：尚未做浏览器截图验收；正式上线前建议手动检查桌面/移动端知识图谱首屏。
-- 下一步：确认后提交/推送并部署，或继续 P1 后续项。
+- 遗留问题：2026-08-20 线上浏览器验收发现已部署版本中「薄弱优先」fallback 会在无 weak/review 节点时推荐已掌握节点；本地已补回归测试并修复为优先 fallback 到未掌握/未通关高频候选，待提交推送并重新部署后复验。
+- 下一步：提交/推送线上验收修复 → 重新部署 → 复验知识图谱首屏；通过后进入 P1-2。
