@@ -596,3 +596,33 @@
 - 截图或验证证据：浏览器实测三主题即时切换、localStorage 持久化、刷新保持（存 A 刷新仍深色）、三主题均无横向溢出；线上 bundle `index-CUi0Kb3N.js` 包含 `theme-switch` 与 `kaoyan408:theme`。
 - 遗留问题：深色主题已覆盖主要表面，个别老组件若仍有硬编码浅色需截图后逐条补覆盖；B（极简）为 token 级收敛，布局骨架未动；登录/注册页保持原深色设计，不参与切换；主题切换入口仅在登录后顶栏。
 - 下一步：`npm run verify:deployed` 线上全量核对（登录后切主题、刷新保持）；按 `docs/ROADMAP.md` 与「当前状态」继续后续任务。
+
+### 2026-08-20 P0 核心学生闭环发布验收
+
+- 日期：2026-08-20
+- 任务：记录 P0 阶段已部署，并通过线上核心学生闭环验证。
+- 修改原因：P0 修复已发布到腾讯云后，需要在项目日志中保留发布提交、验证范围与后续阶段起点。
+- 修改文件：无业务代码改动（本条为发布记录）。
+- 数据库变化：无新增迁移；线上 E2E 使用测试账号产生了授权范围内的学习数据变更。
+- API 变化：无。
+- 测试结果：发布提交 `04d8199`；部署前本地验证 `npm test`、`npm run build:api`、`npm run build:web`、`npm run validate:env:development` 通过；线上 `npm run verify:p0-student -- --base-url http://43.128.30.191/ --email 1234@qq.com --password <授权测试密码>` 核心检查 15/15 通过。
+- 截图或验证证据：`assets/p0-student-loop-check/report.json`；验证范围覆盖登录、今日计划、做题、错因提交、错题详情、重做、知识图谱。
+- 遗留问题：线上仍为 IP HTTP 访问，HTTPS 正式域名启用按既有部署文档继续；本轮仅确认核心学生闭环。
+- 下一步：进入 P1-1「知识图谱首屏增强」。
+
+### 2026-08-20 P1-1 知识图谱首屏增强
+
+- 日期：2026-08-20
+- 任务：在 408 知识图谱页首屏新增「建议先看」推荐区，按薄弱、高频、闯关状态给学生三个优先查看的知识点入口。
+- 修改原因：知识图谱原有首屏直接进入完整树和筛选器，新用户需要自己判断先看哪里；P1-1 目标是降低首屏理解成本，把提分优先级前置。
+- 修改文件：
+  - `packages/shared/src/knowledgeCatalog.ts`、`packages/shared/src/index.ts`（新增 `buildKnowledgeCatalogFirstScreenHighlights` 纯函数与类型导出）
+  - `apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx`（首屏推荐区接入，点击复用详情抽屉选择路径）
+  - `apps/web/src/styles.css`（首屏推荐卡片与移动端单列样式）
+  - `test/knowledge-catalog-first-screen.test.js`、`test/knowledge-catalog-ui.test.js`（TDD 覆盖推荐排序、fallback 与页面接线）
+- 数据库变化：无。
+- API 变化：无。
+- 测试结果：`node test/knowledge-catalog-first-screen.test.js` 2/2 通过；`node test/knowledge-catalog-ui.test.js` 16/16 通过；`npm test` 611 通过 / 0 失败 / 1 跳过；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 chunk 体积警告）。
+- 截图或验证证据：聚焦测试与全量测试输出均为通过；Web 构建产物包含 `KnowledgeCatalog-C3m1Lfnb.js`。
+- 遗留问题：尚未做浏览器截图验收；正式上线前建议手动检查桌面/移动端知识图谱首屏。
+- 下一步：确认后提交/推送并部署，或继续 P1 后续项。

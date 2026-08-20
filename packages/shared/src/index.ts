@@ -32,6 +32,11 @@ export type {
   CatalogSearchResult,
   CatalogPointContext,
   KnowledgePointIndex,
+  CatalogMasteryStatus,
+  CatalogQuestStatus,
+  CatalogFirstScreenMastery,
+  CatalogFirstScreenHighlightKind,
+  CatalogFirstScreenHighlight,
 } from './knowledgeCatalog';
 export type {
   TrendDirection as CatalogTrendDirection,
@@ -47,4 +52,5 @@ export {
   resolveKnowledgePointRefs,
   summarizeSearchHits,
   summarizeSubject,
+  buildKnowledgeCatalogFirstScreenHighlights,
 } from './knowledgeCatalog';

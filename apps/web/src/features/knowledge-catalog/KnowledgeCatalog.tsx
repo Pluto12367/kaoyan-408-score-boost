@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
+  buildKnowledgeCatalogFirstScreenHighlights,
   buildKnowledgePointIndex,
   filterKnowledgeTree,
   resolveKnowledgePointRefs,
@@ -133,6 +134,10 @@ export function KnowledgeCatalog({
 
   const subject = catalog[active];
   const summary = useMemo(() => summarizeSubject(subject), [subject]);
+  const firstScreenHighlights = useMemo(
+    () => buildKnowledgeCatalogFirstScreenHighlights({ subject, masteryById }),
+    [subject, masteryById],
+  );
 
   const filteredSubject = useMemo(
     () => filterKnowledgeTree(subject, { onlyHighFrequency, onlyHighImportance }),
@@ -184,6 +189,29 @@ export function KnowledgeCatalog({
           </button>
         ))}
       </div>
+      {firstScreenHighlights.length > 0 ? (
+        <div className="catalog-first-screen" aria-label={`${SUBJECT_NAMES[active]}建议先看`}>
+          <div className="catalog-first-screen-heading">
+            <strong>建议先看</strong>
+            <span>{SUBJECT_NAMES[active]} · 按薄弱、高频和闯关状态排序</span>
+          </div>
+          <div className="catalog-first-screen-grid">
+            {firstScreenHighlights.map((highlight) => (
+              <button
+                key={`${highlight.kind}-${highlight.point.id}`}
+                type="button"
+                className={`catalog-first-screen-card catalog-first-screen-${highlight.kind}`}
+                onClick={() => setSelectedPointId(highlight.point.id)}
+              >
+                <span className="catalog-first-screen-type">{highlight.title}</span>
+                <strong>{highlight.point.name}</strong>
+                <span className="catalog-first-screen-reason">{highlight.reason}</span>
+                <span className="catalog-first-screen-status">{highlight.statusLabel}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="catalog-filter-bar">
         <input
           type="search"

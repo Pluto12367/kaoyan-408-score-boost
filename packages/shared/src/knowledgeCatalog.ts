@@ -105,6 +105,26 @@ export interface SubjectSummary {
   atomicPointCount: number;
 }
 
+export type CatalogMasteryStatus = 'untouched' | 'weak' | 'review' | 'mastered';
+export type CatalogQuestStatus = 'not_started' | 'in_progress' | 'passed';
+
+export interface CatalogFirstScreenMastery {
+  status?: CatalogMasteryStatus;
+  mastery?: number;
+  attempts?: number;
+  questStatus?: CatalogQuestStatus;
+}
+
+export type CatalogFirstScreenHighlightKind = 'weak' | 'highFrequency' | 'quest';
+
+export interface CatalogFirstScreenHighlight {
+  kind: CatalogFirstScreenHighlightKind;
+  title: string;
+  point: CatalogAtomicPoint;
+  statusLabel: string;
+  reason: string;
+}
+
 export interface CatalogFilterOptions {
   onlyHighFrequency?: boolean;
   onlyHighImportance?: boolean;
@@ -464,4 +484,132 @@ export function summarizeSubject(subject: CatalogSubject): SubjectSummary {
     0,
   );
   return { chapterCount, sectionCount, atomicPointCount };
+}
+
+const FIRST_SCREEN_TITLES: Record<CatalogFirstScreenHighlightKind, string> = {
+  weak: '薄弱优先',
+  highFrequency: '高频考点',
+  quest: '闯关未完成',
+};
+
+const FIRST_SCREEN_STATUS_LABELS: Record<CatalogMasteryStatus, string> = {
+  untouched: '未学习',
+  weak: '薄弱',
+  review: '复习中',
+  mastered: '已掌握',
+};
+
+const FIRST_SCREEN_QUEST_LABELS: Record<CatalogQuestStatus, string> = {
+  not_started: '未开始',
+  in_progress: '进行中',
+  passed: '已通关',
+};
+
+export function buildKnowledgeCatalogFirstScreenHighlights(input: {
+  subject: CatalogSubject;
+  masteryById: Record<string, CatalogFirstScreenMastery | undefined>;
+}): CatalogFirstScreenHighlight[] {
+  const points = input.subject.chapters.flatMap((chapter) =>
+    chapter.sections.flatMap((section) => section.points),
+  );
+  if (points.length === 0) return [];
+
+  const used = new Set<string>();
+  const highlights: CatalogFirstScreenHighlight[] = [];
+
+  const add = (kind: CatalogFirstScreenHighlightKind, candidates: CatalogAtomicPoint[]) => {
+    const point = candidates.find((candidate) => !used.has(candidate.id)) ?? candidates[0];
+    if (!point) return;
+    used.add(point.id);
+    highlights.push({
+      kind,
+      title: FIRST_SCREEN_TITLES[kind],
+      point,
+      statusLabel: statusLabel(kind, input.masteryById[point.id]),
+      reason: reasonFor(kind, point, input.masteryById[point.id]),
+    });
+  };
+
+  add('weak', weakCandidates(points, input.masteryById));
+  add('highFrequency', highFrequencyCandidates(points, input.masteryById));
+  add('quest', questCandidates(points, input.masteryById));
+
+  return highlights;
+}
+
+function weakCandidates(
+  points: CatalogAtomicPoint[],
+  masteryById: Record<string, CatalogFirstScreenMastery | undefined>,
+): CatalogAtomicPoint[] {
+  const candidates = points.filter((point) => {
+    const status = masteryById[point.id]?.status;
+    return status === 'weak' || status === 'review';
+  });
+  return (candidates.length > 0 ? candidates : points).sort((left, right) => {
+    const leftMastery = masteryById[left.id]?.mastery ?? 1;
+    const rightMastery = masteryById[right.id]?.mastery ?? 1;
+    return leftMastery - rightMastery || scoreFrequency(right) - scoreFrequency(left) || left.order - right.order;
+  });
+}
+
+function highFrequencyCandidates(
+  points: CatalogAtomicPoint[],
+  masteryById: Record<string, CatalogFirstScreenMastery | undefined>,
+): CatalogAtomicPoint[] {
+  const candidates = points.filter((point) => {
+    const mastery = masteryById[point.id];
+    return mastery?.status !== 'mastered' && mastery?.questStatus !== 'passed';
+  });
+  return (candidates.length > 0 ? candidates : points).sort((left, right) =>
+    scoreFrequency(right) - scoreFrequency(left) || right.importance - left.importance || left.order - right.order,
+  );
+}
+
+function questCandidates(
+  points: CatalogAtomicPoint[],
+  masteryById: Record<string, CatalogFirstScreenMastery | undefined>,
+): CatalogAtomicPoint[] {
+  const candidates = points.filter((point) => {
+    const questStatus = masteryById[point.id]?.questStatus;
+    return questStatus === 'in_progress' || questStatus === 'not_started';
+  });
+  return (candidates.length > 0 ? candidates : highFrequencyCandidates(points, masteryById)).sort((left, right) => {
+    const leftQuest = questRank(masteryById[left.id]?.questStatus);
+    const rightQuest = questRank(masteryById[right.id]?.questStatus);
+    return leftQuest - rightQuest || scoreFrequency(right) - scoreFrequency(left) || left.order - right.order;
+  });
+}
+
+function scoreFrequency(point: CatalogAtomicPoint): number {
+  return (point.evidence?.recent5Frequency ?? 0) * 10 + point.importance;
+}
+
+function questRank(status?: CatalogQuestStatus): number {
+  if (status === 'in_progress') return 0;
+  if (status === 'not_started') return 1;
+  return 2;
+}
+
+function statusLabel(kind: CatalogFirstScreenHighlightKind, mastery?: CatalogFirstScreenMastery): string {
+  if (kind === 'quest') return FIRST_SCREEN_QUEST_LABELS[mastery?.questStatus ?? 'not_started'];
+  if (mastery?.status) return FIRST_SCREEN_STATUS_LABELS[mastery.status];
+  return FIRST_SCREEN_STATUS_LABELS.untouched;
+}
+
+function reasonFor(
+  kind: CatalogFirstScreenHighlightKind,
+  point: CatalogAtomicPoint,
+  mastery?: CatalogFirstScreenMastery,
+): string {
+  if (kind === 'weak') {
+    return `掌握度 ${formatPercent(mastery?.mastery)} · 已练 ${mastery?.attempts ?? 0} 次`;
+  }
+  if (kind === 'quest') {
+    return `闯关${FIRST_SCREEN_QUEST_LABELS[mastery?.questStatus ?? 'not_started']} · 掌握度 ${formatPercent(mastery?.mastery)}`;
+  }
+  return `近5年 ${point.evidence?.recent5Frequency ?? 0} 次 · 重要度 ${point.importance}/5`;
+}
+
+function formatPercent(value?: number): string {
+  return `${Math.round((value ?? 0) * 100)}%`;
 }

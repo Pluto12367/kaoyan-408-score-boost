@@ -5577,6 +5577,106 @@ button.student-insight-card:hover,
   color: var(--text-secondary);
   font-size: 14px;
 }
+.catalog-first-screen {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+}
+.catalog-first-screen-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.catalog-first-screen-heading strong {
+  color: var(--text-strong);
+  font-size: 15px;
+}
+.catalog-first-screen-heading span {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.catalog-first-screen-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.catalog-first-screen-card {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-height: 112px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.catalog-first-screen-card:hover {
+  border-color: var(--primary-line);
+  box-shadow: 0 2px 10px rgb(15 23 42 / 7%);
+  transform: translateY(-1px);
+}
+.catalog-first-screen-card:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.catalog-first-screen-type {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.catalog-first-screen-card strong {
+  color: var(--text-strong);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.catalog-first-screen-reason {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.catalog-first-screen-status {
+  justify-self: start;
+  align-self: end;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-alt, #f1f5f9);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.catalog-first-screen-weak {
+  border-left: 3px solid var(--red);
+}
+.catalog-first-screen-highFrequency {
+  border-left: 3px solid var(--primary-strong);
+}
+.catalog-first-screen-quest {
+  border-left: 3px solid var(--amber);
+}
+@media (max-width: 720px) {
+  .catalog-first-screen-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .catalog-first-screen-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-first-screen-card {
+    min-height: 0;
+  }
+}
 .catalog-tree {
   display: flex;
   flex-direction: column;

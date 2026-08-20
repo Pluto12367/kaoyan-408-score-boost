@@ -190,3 +190,18 @@ test('tree renders honest chapter and section stats from the joined DTO only', a
   assert.match(tree, /近5年/, 'Recent5Y display must remain');
   assert.match(tree, /ALL_TIME_EVIDENCE_LABEL/, 'AllTime label display must remain');
 });
+
+test('catalog first screen recommends what to inspect before the full tree', async () => {
+  const page = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+  assert.match(page, /buildKnowledgeCatalogFirstScreenHighlights/, 'page should use the shared first-screen helper');
+  assert.match(page, /catalog-first-screen/, 'page should render a dedicated first-screen recommendation area');
+  assert.match(page, /建议先看/, 'recommendation area should explain the first-screen intent');
+  assert.match(page, /highlight\.title/, 'recommendation cards should render the helper category title');
+  assert.match(page, /highlight\.reason/, 'recommendation cards should render the helper reason');
+  assert.match(page, /highlight\.statusLabel/, 'recommendation cards should render the helper status');
+  assert.match(
+    page,
+    /setSelectedPointId\(highlight\.point\.id\)/,
+    'clicking a recommendation should reuse the existing detail drawer selection path',
+  );
+});
