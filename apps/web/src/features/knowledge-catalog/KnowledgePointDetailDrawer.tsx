@@ -1,5 +1,6 @@
+import { useEffect, useRef } from 'react';
 import { buildKnowledgeEvidenceSummary } from '@kaoyan408/shared';
-import type { CatalogPointContext } from '@kaoyan408/shared';
+import type { CatalogFirstScreenActionType, CatalogPointContext } from '@kaoyan408/shared';
 import { OverlayDialog } from '../../components/OverlayDialog';
 import type { KnowledgeDetail, NodeMasterySummary, NodeQuestStatus } from '../../api/endpoints/score-center';
 import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, QUEST_STATUS_LABELS, TREND_LABELS } from './constants';
@@ -8,6 +9,7 @@ interface KnowledgePointDetailDrawerProps {
   open: boolean;
   onClose: () => void;
   context: CatalogPointContext | null;
+  focusIntent?: CatalogFirstScreenActionType | null;
   prerequisiteContexts: CatalogPointContext[];
   relatedContexts: CatalogPointContext[];
   mastery?: NodeMasterySummary | null;
@@ -29,6 +31,7 @@ export function KnowledgePointDetailDrawer({
   open,
   onClose,
   context,
+  focusIntent,
   prerequisiteContexts,
   relatedContexts,
   mastery,
@@ -45,6 +48,29 @@ export function KnowledgePointDetailDrawer({
   onCompleteQuest,
   onNavigate,
 }: KnowledgePointDetailDrawerProps) {
+  const evidenceSectionRef = useRef<HTMLElement | null>(null);
+  const masterySectionRef = useRef<HTMLElement | null>(null);
+  const questSectionRef = useRef<HTMLElement | null>(null);
+  const examSectionRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open || !context || !focusIntent) return;
+    const target =
+      focusIntent === 'inspect'
+        ? evidenceSectionRef.current
+        : focusIntent === 'exam'
+          ? examSectionRef.current
+          : focusIntent === 'quest'
+            ? questSectionRef.current
+            : null;
+    if (!target) return;
+    const timer = window.setTimeout(() => {
+      target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      target.focus({ preventScroll: true });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [open, context?.point.id, focusIntent]);
+
   if (!open || !context) return null;
 
   const { point, subjectName, chapterName, sectionName } = context;
@@ -100,6 +126,8 @@ export function KnowledgePointDetailDrawer({
     : hasExamQuestions
       ? '该节点已有真题命中，但暂无题库题；先看真题命中，补题后再闯关。'
       : '该节点暂无题库题，补齐关联题后再开放闯关。';
+  const sectionClassName = (...targets: CatalogFirstScreenActionType[]) =>
+    `catalog-drawer-section${focusIntent && targets.includes(focusIntent) ? ' catalog-drawer-section-focused' : ''}`;
 
   return (
     <OverlayDialog label={`知识点详情：${point.name}`} onClose={onClose}>
@@ -126,7 +154,11 @@ export function KnowledgePointDetailDrawer({
           </div>
         </dl>
 
-        <section className="catalog-drawer-section">
+        <section
+          ref={evidenceSectionRef}
+          className={sectionClassName('inspect')}
+          tabIndex={-1}
+        >
           <h4>学习证据与建议</h4>
           <div className="catalog-evidence-grid">
             {evidenceCards.map((card) => (
@@ -164,7 +196,11 @@ export function KnowledgePointDetailDrawer({
           )}
         </section>
 
-        <section className="catalog-drawer-section">
+        <section
+          ref={masterySectionRef}
+          className={sectionClassName('inspect')}
+          tabIndex={-1}
+        >
           <h4>我的掌握度</h4>
           {mastery ? (
             <dl className="catalog-detail-grid">
@@ -200,7 +236,11 @@ export function KnowledgePointDetailDrawer({
           {!hasRelatedQuestions ? <p className="catalog-drawer-action-note">{practiceActionHint}</p> : null}
         </section>
 
-        <section className="catalog-drawer-section">
+        <section
+          ref={questSectionRef}
+          className={sectionClassName('quest')}
+          tabIndex={-1}
+        >
           <h4>节点闯关</h4>
           <dl className="catalog-detail-grid">
             <div>
@@ -274,7 +314,11 @@ export function KnowledgePointDetailDrawer({
           )}
         </section>
 
-        <section className="catalog-drawer-section">
+        <section
+          ref={examSectionRef}
+          className={sectionClassName('exam')}
+          tabIndex={-1}
+        >
           <h4>真题命中</h4>
           {examQuestions?.length ? (
             <ul className="catalog-ref-list">

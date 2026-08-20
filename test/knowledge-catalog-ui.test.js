@@ -208,6 +208,39 @@ test('catalog first screen recommends what to inspect before the full tree', asy
   );
 });
 
+test('catalog first-screen action cards carry their intent into the detail drawer', async () => {
+  const page = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+  assert.match(page, /selectedActionType/, 'page should track the selected recommendation action type');
+  assert.match(
+    page,
+    /setSelectedActionType\(highlight\.actionType\)/,
+    'recommendation card click should capture the helper action type',
+  );
+  assert.match(page, /focusIntent=\{selectedActionType\}/, 'page should pass the selected intent into the drawer');
+  assert.match(
+    page,
+    /onSelectPoint=\{\(point\) => \{[\s\S]*setSelectedActionType\(null\)[\s\S]*setSelectedPointId\(point\.id\)/,
+    'ordinary tree selection should clear recommendation intent before opening the drawer',
+  );
+  assert.match(
+    page,
+    /onClose=\{\(\) => \{[\s\S]*setSelectedActionType\(null\)[\s\S]*setSelectedPointId\(null\)/,
+    'closing the drawer should clear the remembered recommendation intent',
+  );
+});
+
+test('detail drawer maps recommendation intent to a focused section', async () => {
+  const drawer = await source('apps/web/src/features/knowledge-catalog/KnowledgePointDetailDrawer.tsx');
+  assert.match(drawer, /CatalogFirstScreenActionType/, 'drawer should accept the shared recommendation action type');
+  assert.match(drawer, /focusIntent/, 'drawer should receive the recommendation intent');
+  assert.match(drawer, /scrollIntoView/, 'drawer should bring the intended section into view');
+  assert.match(drawer, /catalog-drawer-section-focused/, 'drawer should visually highlight the intended section');
+  assert.match(drawer, /focusIntent === 'inspect'/, 'inspect intent should map to learning evidence and mastery');
+  assert.match(drawer, /focusIntent === 'exam'/, 'exam intent should map to 真题命中');
+  assert.match(drawer, /focusIntent === 'quest'/, 'quest intent should map to 节点闯关');
+  assert.match(drawer, /tabIndex=\{-1\}/, 'focused static sections should be programmatically focusable');
+});
+
 test('detail drawer does not offer executable practice or quest actions before related questions exist', async () => {
   const drawer = await source('apps/web/src/features/knowledge-catalog/KnowledgePointDetailDrawer.tsx');
   assert.match(drawer, /hasRelatedQuestions/, 'drawer should derive whether this point has exercisable questions');

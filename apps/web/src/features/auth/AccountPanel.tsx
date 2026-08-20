@@ -21,10 +21,11 @@ export function AccountPanel(props: AccountPanelProps) {
   const role = props.user?.role ?? 'student';
   return (
     <section className="panel role-panel">
-      <div className="panel-heading">
+      <div className="panel-heading auth-panel-heading">
         <div>
           <p className="eyebrow">账号与角色权限</p>
-          <h3>{props.user?.name ?? props.fallbackName ?? '未登录'}</h3>
+          <h3>{props.user?.name ?? props.fallbackName ?? '开始学习'}</h3>
+          <p className="auth-panel-subtitle">登录后同步学习进度，继续提分之旅</p>
         </div>
         {props.hasRefreshToken || Boolean(props.user) ? (
           <button type="button" className="secondary-action" onClick={props.onLogout}>退出登录</button>
@@ -106,12 +107,12 @@ export function AccountPanel(props: AccountPanelProps) {
               />
             </label>
             <div className="account-actions">
-              <button type="submit">{props.authMode === 'register' ? '创建学生账号' : '登录'}</button>
+              <button type="submit">{props.authMode === 'register' ? '创建学生账号' : '登录 · 进入学习'}</button>
             </div>
           </form>
           {props.authMode === 'login' ? (
             <button type="button" className="secondary-action auth-register-link" onClick={props.onToggleMode}>
-              注册新账号
+              还没有账号？注册新账号
             </button>
           ) : null}
         </>

@@ -8,6 +8,7 @@ import {
   summarizeSearchHits,
   summarizeSubject,
   type CatalogAtomicPoint,
+  type CatalogFirstScreenActionType,
   type CatalogPointContext,
   type CatalogSearchResult,
   type CatalogSubject,
@@ -55,6 +56,7 @@ export function KnowledgeCatalog({
   const [onlyHighImportance, setOnlyHighImportance] = useState(false);
   const [expansion, setExpansion] = useState<ExpansionCommand>({ version: 0, mode: 'collapse' });
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+  const [selectedActionType, setSelectedActionType] = useState<CatalogFirstScreenActionType | null>(null);
   const [masteryById, setMasteryById] = useState<Record<string, NodeMasterySummary>>({});
   const [masteryError, setMasteryError] = useState('');
   const [detail, setDetail] = useState<KnowledgeDetail | null>(null);
@@ -116,6 +118,7 @@ export function KnowledgeCatalog({
     if (!pointIndex[focusNodeId]) return;
     const subjectCode = focusNodeId.slice(0, 2) as SubjectCode;
     if (SUBJECT_ORDER.includes(subjectCode)) setActive(subjectCode);
+    setSelectedActionType(null);
     setSelectedPointId(focusNodeId);
   }, [focusNodeId, pointIndex]);
 
@@ -201,7 +204,10 @@ export function KnowledgeCatalog({
                 key={`${highlight.kind}-${highlight.point.id}`}
                 type="button"
                 className={`catalog-first-screen-card catalog-first-screen-${highlight.kind}`}
-                onClick={() => setSelectedPointId(highlight.point.id)}
+                onClick={() => {
+                  setSelectedActionType(highlight.actionType);
+                  setSelectedPointId(highlight.point.id);
+                }}
               >
                 <span className="catalog-first-screen-type">{highlight.title}</span>
                 <strong>{highlight.point.name}</strong>
@@ -259,7 +265,10 @@ export function KnowledgeCatalog({
           key={subject.code}
           subject={visibleSubject}
           expansionCommand={expansion}
-          onSelectPoint={(point) => setSelectedPointId(point.id)}
+          onSelectPoint={(point) => {
+            setSelectedActionType(null);
+            setSelectedPointId(point.id);
+          }}
           masteryById={masteryById}
         />
       ) : searchHits.otherSubjects.length > 0 ? (
@@ -281,8 +290,12 @@ export function KnowledgeCatalog({
       )}
       <KnowledgePointDetailDrawer
         open={selectedPointId !== null}
-        onClose={() => setSelectedPointId(null)}
+        onClose={() => {
+          setSelectedActionType(null);
+          setSelectedPointId(null);
+        }}
         context={selectedContext}
+        focusIntent={selectedActionType}
         prerequisiteContexts={prerequisiteContexts}
         relatedContexts={relatedContexts}
         mastery={selectedPointId ? masteryById[selectedPointId] ?? null : null}

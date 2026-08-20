@@ -644,3 +644,20 @@
 - 测试结果：RED 阶段新增测试按预期失败；GREEN 后 `node test/knowledge-catalog-first-screen.test.js` 3/3 通过，`node test/knowledge-catalog-ui.test.js` 17/17 通过；`npm test` 613 通过 / 0 失败 / 1 跳过；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 Vite 动态导入与 chunk 体积提示）。
 - 遗留问题：尚未提交、推送和线上部署；上线后需要用真实测试账号复验知识图谱首屏推荐卡和无题库节点抽屉禁用态。
 - 下一步：提交/推送 P1-2 → 用户手动部署 → 线上浏览器验收后进入 P1-3。
+
+### 2026-08-20 P1-3 知识图谱推荐卡意图落点增强
+
+- 日期：2026-08-20
+- 任务：让知识图谱「建议先看」推荐卡的点击落点与行动文案一致：薄弱卡定位到学习证据/掌握度，高频卡定位到真题命中，闯关卡定位到节点闯关。
+- 修改原因：P1-2 已给推荐卡增加行动文案，但点击后仍统一打开详情抽屉顶部，学生还需要自己寻找对应区块；P1-3 目标是减少“点了之后去哪看”的理解成本。
+- 修改文件：
+  - `apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx`（记录推荐卡 `actionType`，普通树点击/关闭抽屉时清空 intent，并传给详情抽屉）
+  - `apps/web/src/features/knowledge-catalog/KnowledgePointDetailDrawer.tsx`（按 `inspect/exam/quest` intent 滚动并聚焦对应区块；薄弱 intent 同时高亮学习证据和我的掌握度）
+  - `apps/web/src/styles.css`（详情抽屉目标区块轻量高亮样式）
+  - `test/knowledge-catalog-ui.test.js`（TDD 覆盖 intent 传递、普通树点击清空 intent、抽屉落点映射）
+- 数据库变化：无。
+- API 变化：无。
+- 参考方向：参考 WAI-ARIA Dialog focus 管理、Carbon AnchorLinks、Material drawer focus/active destination、Atlassian selected/focus state；落地为“打开抽屉后把对应静态区块设为可程序聚焦并滚入视野，使用轻量 selected 边框/背景提示当前落点”。
+- 测试结果：RED 阶段新增测试按预期失败；GREEN 后 `node test/knowledge-catalog-ui.test.js` 19/19 通过；`node test/knowledge-catalog-first-screen.test.js` 3/3 通过；`npm test` 615 通过 / 0 失败 / 1 跳过；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 Vite 动态导入与 chunk 体积提示）。
+- 遗留问题：尚未提交、推送和线上部署；上线后需要浏览器验收三张推荐卡是否滚动/高亮到对应区块，且普通知识树点击不残留推荐 intent。
+- 下一步：提交/推送 P1-3 → 用户手动部署 → 线上浏览器验收；通过后继续后续 P1 阶段。

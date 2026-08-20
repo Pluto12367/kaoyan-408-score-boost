@@ -1052,17 +1052,73 @@ export function App() {
               <span className="auth-orb" aria-hidden="true">408</span>
               <div>
                 <p className="eyebrow">408 SCORE BOOST</p>
-                <p className="auth-orb-caption">计算机考研 408 提分系统</p>
+                <p className="auth-orb-caption">计算机考研 · AI 提分系统</p>
               </div>
             </div>
-            <h1>计算机考研 408 提分系统</h1>
-            <p className="auth-tagline">从入学诊断到模拟考试，四科薄弱点一清二楚</p>
-            <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
+            <div className="auth-brand-copy">
+              <p className="auth-brand-kicker">AI 智能学习助手</p>
+              <h1>你的 408 上岸计划<br />从今天开始</h1>
+              <p className="auth-hero-summary">AI 已分析 260+ 知识点 · 12000+ 道真题 · 覆盖四科全部考纲</p>
+              <p className="auth-tagline">从入学诊断到模拟考试，四科薄弱点一清二楚</p>
+              <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
+            </div>
+            <div className="auth-subject-grid" aria-label="408 四科覆盖">
+              <article className="auth-subject-card">
+                <div className="auth-subject-badge auth-subject-ds">DS</div>
+                <div>
+                  <strong>数据结构</strong>
+                  <span>87 个知识点 · 86 个高频考点</span>
+                </div>
+                <em>45分</em>
+              </article>
+              <article className="auth-subject-card">
+                <div className="auth-subject-badge auth-subject-co">CO</div>
+                <div>
+                  <strong>计算机组成原理</strong>
+                  <span>82 个知识点 · 74 个高频考点</span>
+                </div>
+                <em>45分</em>
+              </article>
+              <article className="auth-subject-card">
+                <div className="auth-subject-badge auth-subject-os">OS</div>
+                <div>
+                  <strong>操作系统</strong>
+                  <span>64 个知识点 · 58 个高频考点</span>
+                </div>
+                <em>35分</em>
+              </article>
+              <article className="auth-subject-card">
+                <div className="auth-subject-badge auth-subject-cn">CN</div>
+                <div>
+                  <strong>计算机网络</strong>
+                  <span>52 个知识点 · 43 个高频考点</span>
+                </div>
+                <em>25分</em>
+              </article>
+            </div>
             <div className="auth-feature-grid" aria-label="系统能力">
               <span><BookOpenCheck size={16} /><b>题库训练</b><small>按薄弱点精准组题</small></span>
               <span><ShieldCheck size={16} /><b>错题复盘</b><small>错因分类，变式重练</small></span>
               <span><Target size={16} /><b>学情分析</b><small>四科掌握度实时可视化</small></span>
               <span><Brain size={16} /><b>AI 辅助</b><small>四层提示拆解解题思路</small></span>
+            </div>
+            <div className="auth-path" aria-label="学习路径">
+              <p className="auth-path-label">学 习 路 径</p>
+              <div className="auth-path-steps">
+                <span className="auth-path-step is-done">📋 入学诊断</span>
+                <span className="auth-path-arrow">▸</span>
+                <span className="auth-path-step is-active">🎯 精准训练</span>
+                <span className="auth-path-arrow">▸</span>
+                <span className="auth-path-step">🔄 错题闭环</span>
+                <span className="auth-path-arrow">▸</span>
+                <span className="auth-path-step">🏆 提分上岸</span>
+              </div>
+              <p className="auth-path-caption">AI 会根据你的入学诊断结果，自动生成今日学习计划</p>
+            </div>
+            <div className="auth-metrics" aria-label="学习成效">
+              <span><strong>87%</strong><small>学员平均提分率</small></span>
+              <span><strong>260+</strong><small>AI 覆盖知识点</small></span>
+              <span><strong>4科</strong><small>408 全科覆盖</small></span>
             </div>
             <p className="auth-role-copy">学生 / 教师 / 管理员均可进入对应工作台。</p>
             <p className="auth-trust">面向计算机考研 408 考生的个性化提分系统</p>
