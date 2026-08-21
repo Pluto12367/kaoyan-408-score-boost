@@ -20,7 +20,7 @@ test('knowledge catalog section is wired into navigation and the student shell',
   const unionRegion = navigation.slice(0, navigation.indexOf('interface NavigationItem'));
   assert.match(unionRegion, /'knowledge-catalog'/, 'RoleSection should include knowledge-catalog');
   assert.match(navigation, /'knowledge-catalog'/, 'navigation should reference the section id');
-  assert.match(navigation, /408知识图谱/, 'student navigation should expose 408知识图谱');
+  assert.match(navigation, /\{ id: 'knowledge-catalog', label: '知识', icon: Network \}/, 'student navigation should expose the knowledge catalog as 知识');
 
   const app = await source('apps/web/src/App.tsx');
   assert.match(app, /KnowledgeCatalog/, 'App should lazy-import KnowledgeCatalog');

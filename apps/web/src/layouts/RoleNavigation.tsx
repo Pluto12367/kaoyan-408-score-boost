@@ -1,4 +1,4 @@
-import { Activity, BookOpen, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Home, Network, PenLine, ShieldCheck, Target, Upload, User, type LucideIcon } from 'lucide-react';
+import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Home, Network, ShieldCheck, Target, Upload, type LucideIcon } from 'lucide-react';
 import type { UserRole } from '@kaoyan408/shared';
 
 export type RoleSection =
@@ -9,6 +9,7 @@ export type RoleSection =
   | 'question'
   | 'wrong-book'
   | 'report'
+  | 'test'
   | 'ai'
   | 'admin'
   | 'review'
@@ -43,24 +44,31 @@ const teacherItems: NavigationItem[] = [
 ];
 
 const studentItems: NavigationItem[] = [
-  { id: 'dashboard', label: '学习总览', icon: Activity },
-  { id: 'plan', label: '今日计划', icon: ClipboardList },
-  { id: 'score-center', label: '今日提分', icon: Target },
-  { id: 'knowledge-catalog', label: '408知识图谱', icon: Network },
-  { id: 'question', label: '题库训练', icon: BookOpenCheck },
-  { id: 'wrong-book', label: '错题复盘', icon: ShieldCheck },
-  { id: 'report', label: '提分报告', icon: Target },
-  { id: 'ai', label: 'AI 答疑', icon: Brain },
+  { id: 'dashboard', label: '首页', icon: Home },
+  { id: 'question', label: '题库', icon: BookOpenCheck },
+  { id: 'knowledge-catalog', label: '知识', icon: Network },
+  { id: 'wrong-book', label: '错题', icon: ShieldCheck },
+  { id: 'test', label: '测试', icon: ClipboardCheck },
 ];
 
-// Mobile (<=720px) bottom navigation for students: keeps to five tabs.
-// dashboard + plan fold into 首页; ai (AI 答疑) becomes 学习; report is 我的.
 const studentBottomItems: NavigationItem[] = [
   { id: 'dashboard', label: '首页', icon: Home },
-  { id: 'ai', label: '答疑', icon: BookOpen },
-  { id: 'question', label: '练习', icon: PenLine },
+  { id: 'question', label: '题库', icon: BookOpenCheck },
+  { id: 'knowledge-catalog', label: '知识', icon: Network },
   { id: 'wrong-book', label: '错题', icon: ShieldCheck },
-  { id: 'report', label: '报告', icon: User },
+  { id: 'test', label: '测试', icon: ClipboardCheck },
+];
+
+const studentCompatSections: RoleSection[] = [
+  'dashboard',
+  'plan',
+  'score-center',
+  'knowledge-catalog',
+  'question',
+  'wrong-book',
+  'report',
+  'test',
+  'ai',
 ];
 
 export function defaultRoleSection(role: UserRole = 'student'): RoleSection {
@@ -69,7 +77,14 @@ export function defaultRoleSection(role: UserRole = 'student'): RoleSection {
   return 'dashboard';
 }
 
+export function normalizeRoleSection(section: RoleSection): RoleSection {
+  if (section === 'plan' || section === 'score-center') return 'dashboard';
+  if (section === 'report') return 'test';
+  return section;
+}
+
 export function isSectionAllowedForRole(role: UserRole = 'student', section: RoleSection) {
+  if (role === 'student') return studentCompatSections.includes(section);
   return navigationItemsForRole(role).some((item) => item.id === section);
 }
 
@@ -105,8 +120,6 @@ export function RoleNavigation({ role = 'student', activeSection, onNavigate }: 
   );
 }
 
-// Mobile (<=720px) bottom navigation for students, rendered outside the
-// sidebar so it stays visible when the sidebar is hidden.
 export function StudentBottomNav({
   role = 'student',
   activeSection,
@@ -118,9 +131,7 @@ export function StudentBottomNav({
     <nav className="bottom-nav" aria-label="移动端导航">
       {studentBottomItems.map((item) => {
         const Icon = item.icon;
-        const active = item.id === 'dashboard'
-          ? activeSection === 'dashboard' || activeSection === 'plan'
-          : item.id === activeSection;
+        const active = item.id === activeSection;
         return (
           <button
             key={item.id}

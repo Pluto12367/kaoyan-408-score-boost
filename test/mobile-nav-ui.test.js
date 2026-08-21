@@ -13,9 +13,9 @@ test('stage 6: student bottom navigation keeps five unique tabs', async () => {
 
   assert.equal(ids.length, 5, `expected 5 bottom tabs, got ${ids.length}`);
   assert.equal(new Set(ids).size, 5, 'bottom tab ids must be unique');
-  assert.deepEqual(labels, ['首页', '答疑', '练习', '错题', '报告']);
-  // dashboard tab stays active when the merged plan section is open
-  assert.match(navigation, /item\.id === 'dashboard'[\s\S]*?activeSection === 'plan'/);
+  assert.deepEqual(labels, ['首页', '题库', '知识', '错题', '测试']);
+  assert.match(navigation, /normalizeRoleSection\(section: RoleSection\)/);
+  assert.match(navigation, /if \(section === 'report'\) return 'test'/);
   assert.match(navigation, /className="bottom-nav"/);
   assert.match(navigation, /export function StudentBottomNav/);
 });
@@ -36,7 +36,7 @@ test('stage 6: refresh restores the last section via sessionStorage', async () =
   assert.match(navigation, /SECTION_STORAGE_KEY/);
   assert.match(navigation, /export function readStoredSection/);
   assert.match(navigation, /sessionStorage\.setItem\(SECTION_STORAGE_KEY, activeSection\)/);
-  assert.match(navigation, /useState<RoleSection>\(\(\) => readStoredSection\(resolvedRole\)\)/);
+  assert.match(navigation, /useState<RoleSection>\(\(\) => normalizeRoleSection\(readStoredSection\(resolvedRole\)\)\)/);
   assert.match(app, /useRoleSectionNavigation/);
   // student sidebar is hidden on mobile so the bottom nav takes over
   assert.match(app, /sidebar sidebar-student/);

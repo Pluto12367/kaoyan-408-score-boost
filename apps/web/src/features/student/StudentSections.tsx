@@ -201,7 +201,7 @@ export function StudentSections(props: StudentSectionsProps) {
         )
       ) : null}
 
-      {visibleSection === 'report' ? (
+      {visibleSection === 'test' || visibleSection === 'report' ? (
         studentOverviewReady ? (
           <Suspense fallback={sectionFallback('提分报告')}>
             <ReportWorkspace

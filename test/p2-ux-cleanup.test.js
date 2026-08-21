@@ -4,11 +4,13 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('P2-02: mobile tabs use desktop-aligned semantics for 答疑 and 报告', async () => {
+test('P2-02: mobile tabs match the simplified student learning flow', async () => {
   const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
   const bottomItems = navigation.match(/const studentBottomItems: NavigationItem\[\] = \[([\s\S]*?)\];/)?.[1] ?? '';
-  assert.match(bottomItems, /\{ id: 'ai', label: '答疑', icon: BookOpen \}/, 'AI section should be labelled 答疑');
-  assert.match(bottomItems, /\{ id: 'report', label: '报告', icon: User \}/, 'report section should be labelled 报告');
+  assert.match(bottomItems, /\{ id: 'question', label: '题库', icon: BookOpenCheck \}/, 'question section should be labelled 题库');
+  assert.match(bottomItems, /\{ id: 'knowledge-catalog', label: '知识', icon: Network \}/, 'knowledge catalog should be labelled 知识');
+  assert.match(bottomItems, /\{ id: 'test', label: '测试', icon: ClipboardCheck \}/, 'test section should be labelled 测试');
+  assert.match(navigation, /if \(section === 'report'\) return 'test'/, 'old report links should remain compatible');
   assert.doesNotMatch(bottomItems, /label: '学习'/, 'mobile must not reuse the ambiguous 学习 label');
   assert.doesNotMatch(bottomItems, /label: '我的'/, 'mobile must not reuse the ambiguous 我的 label');
 });

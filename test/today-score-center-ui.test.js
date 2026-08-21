@@ -52,14 +52,13 @@ test('recommendation card and explain drawer expose score, action, minutes and r
   assert.match(drawer, /examValue/);
 });
 
-test('score center remains in navigation and the student shell without a competing homepage CTA', async () => {
+test('score center remains compatible while the simplified homepage owns the CTA', async () => {
   const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
   assert.match(navigation, /'score-center'/);
-  assert.match(navigation, /今日提分/);
+  assert.match(navigation, /if \(section === 'plan' \|\| section === 'score-center'\) return 'dashboard'/);
 
   const app = await source('apps/web/src/App.tsx');
   assert.match(app, /TodaysScoreCenter/);
-  assert.match(app, /visibleSection === 'score-center'/);
 
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
   assert.doesNotMatch(

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { defaultRoleSection, isSectionAllowedForRole, type RoleSection } from '../../layouts/RoleNavigation';
+import { defaultRoleSection, isSectionAllowedForRole, normalizeRoleSection, type RoleSection } from '../../layouts/RoleNavigation';
 import type { UserRole } from '@kaoyan408/shared';
 
 const SECTION_STORAGE_KEY = 'kaoyan408:last-section';
@@ -10,7 +10,8 @@ function readSectionFromHash(role: UserRole): RoleSection | null {
   const hash = window.location.hash;
   if (!hash.startsWith(SECTION_HASH_PREFIX)) return null;
   const candidate = hash.slice(SECTION_HASH_PREFIX.length).split('?')[0] as RoleSection;
-  return isSectionAllowedForRole(role, candidate) ? candidate : null;
+  const normalized = normalizeRoleSection(candidate);
+  return isSectionAllowedForRole(role, normalized) ? normalized : null;
 }
 
 export function readStoredSection(role: UserRole): RoleSection {
@@ -30,7 +31,7 @@ export function readStoredSection(role: UserRole): RoleSection {
 
 export function useRoleSectionNavigation(role?: UserRole) {
   const resolvedRole = role ?? 'student';
-  const [activeSection, setActiveSectionState] = useState<RoleSection>(() => readStoredSection(resolvedRole));
+  const [activeSection, setActiveSectionState] = useState<RoleSection>(() => normalizeRoleSection(readStoredSection(resolvedRole)));
 
   // Keep the URL hash in sync; replace on mount so first load does not add history entries.
   useEffect(() => {
@@ -49,7 +50,7 @@ export function useRoleSectionNavigation(role?: UserRole) {
     function handleHashChange() {
       const fromHash = readSectionFromHash(resolvedRole);
       if (fromHash) {
-        setActiveSectionState(fromHash);
+        setActiveSectionState(normalizeRoleSection(fromHash));
         return;
       }
       const fallback = defaultRoleSection(resolvedRole);
@@ -81,11 +82,12 @@ export function useRoleSectionNavigation(role?: UserRole) {
   }, [activeSection]);
 
   function setActiveSection(next: RoleSection) {
-    setActiveSectionState(next);
-    const target = `${SECTION_HASH_PREFIX}${next}`;
+    const normalized = normalizeRoleSection(next);
+    setActiveSectionState(normalized);
+    const target = `${SECTION_HASH_PREFIX}${normalized}`;
     if (window.location.hash !== target) {
       try {
-        window.location.hash = `/${next}`;
+        window.location.hash = `/${normalized}`;
       } catch {
         // Ignore URL write errors and keep the in-app section state.
       }

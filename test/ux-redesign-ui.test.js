@@ -12,7 +12,7 @@ test('role navigation is state-driven instead of anchor-scroll driven', async ()
   assert.doesNotMatch(navigation, /href="#/);
   assert.match(navigation, /aria-current/);
   assert.match(navigation, /题库文档导入/);
-  assert.match(navigation, /学习总览/);
+  assert.match(navigation, /\{ id: 'dashboard', label: '首页', icon: Home \}/);
 });
 
 test('App switches role workspaces by active section instead of rendering every section in one long page', async () => {
