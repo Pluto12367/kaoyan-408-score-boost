@@ -13,7 +13,6 @@ import {
 import { useRoleSectionNavigation, withTimeout } from './features/navigation/useRoleSectionNavigation';
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
 import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
-import { useTeacherActions } from './features/teacher/useTeacherActions';
 import { AccountPanel } from './features/auth/AccountPanel';
 import { StudentSections } from './features/student/StudentSections';
 import { StudentLoopGuide } from './features/student/StudentLoopGuide';
@@ -213,7 +212,10 @@ export function App() {
   const [aiFollowUp, setAiFollowUp] = useState<AiFollowUp | null>(() => isMockAllowed() ? createMockAiFollowUp() : null);
   const [tutorStatus, setTutorStatus] = useState('选择一道题后，可以让 AI 助教按标准解析拆解思路。');
   const [tutorFailed, setTutorFailed] = useState(false);
+  const [teacherStatus, setTeacherStatus] = useState('教师可以新增题目，学生端会立即用于检索和练习。');
   const [configStatus, setConfigStatus] = useState('推荐策略参数会影响阶段测评和每日训练建议。');
+  const [knowledgeStatus, setKnowledgeStatus] = useState('教研可以维护 408 知识树，新增考点后可用于题目绑定。');
+  const [paperStatus, setPaperStatus] = useState('教师可以按知识点生成专项卷、阶段卷或模拟卷。');
   const [latestPaper, setLatestPaper] = useState<GeneratedPaper | null>(null);
   const [paperResult, setPaperResult] = useState<PaperSubmitResult | null>(() => isMockAllowed() ? createMockPaperSubmitResult() : null);
   const [paperSession, setPaperSession] = useState<PaperSubmitResult['examSession'] | null>(null);
@@ -425,38 +427,6 @@ export function App() {
     currentQuestion.id,
     practiceIndex,
   );
-
-  const teacherActions = useTeacherActions({
-    teacherQuestionList,
-    setTeacherQuestionList,
-    setLatestPaper,
-    setPaperResult,
-    setPaperSession,
-    setOverview,
-    setApiState,
-    refreshMasteryMap,
-    refreshWrongQuestionSummary,
-    refreshAssessmentHistory,
-    studentId: student.id,
-    currentQuestion,
-  });
-  const {
-    teacherStatus,
-    knowledgeStatus,
-    paperStatus,
-    setPaperStatus,
-    createQuestion: handleCreateTeacherQuestion,
-    filterQuestions: handleFilterTeacherQuestions,
-    updateQuestion: handleUpdateTeacherQuestion,
-    deleteQuestion: handleDeleteTeacherQuestion,
-    createKnowledge: handleCreateKnowledgePoint,
-    generatePaper: handleGeneratePaper,
-    startPaperSession,
-    submitPaper,
-  } = teacherActions;
-
-  const handleStartPaperSession = () => startPaperSession(latestPaper);
-  const handleSubmitPaper = () => submitPaper(latestPaper, addMockPaperResultToHistory);
 
   useEffect(() => {
     practiceTimerRef.current = {
@@ -714,11 +684,6 @@ export function App() {
     void trackEvent('practice.bank_restart');
   }
 
-  function handleOpenCatalogNode(nodeId: string) {
-    setCatalogFocusNodeId(nodeId);
-    setActiveSection('knowledge-catalog');
-  }
-
   function handleStartLearningMode() {
     const practiceSet = studentLearning.practiceSet.data;
     if (!practiceSet || practiceSet.questions.length === 0) {
@@ -824,6 +789,11 @@ export function App() {
     setDetailQuestionId(null);
     setPracticeStatus(`正在练习：${title}。请选择答案。`);
     setActiveSection('question');
+  }
+
+  function handleOpenCatalogNode(nodeId: string) {
+    setCatalogFocusNodeId(nodeId);
+    setActiveSection('knowledge-catalog');
   }
 
   async function handleStartQuestFromCatalog(nodeId: string, title: string, questionIds: string[]) {
@@ -953,6 +923,269 @@ export function App() {
     }
   }
 
+  async function handleCreateTeacherQuestion() {
+    setTeacherStatus('正在新增题目...');
+
+    try {
+      const created = await createTeacherQuestion({
+        stem: 'Cache 命中率提高后，平均访存时间通常会如何变化？',
+        options: ['增大', '不变', '减小', '无法判断'],
+        answer: 'C',
+        analysis: '命中率提高后，访问更多落在高速 Cache 中，平均访存时间通常减小。',
+        knowledgePointIds: ['co-cache'],
+        difficulty: currentQuestion.difficulty,
+        type: currentQuestion.type,
+        source: '教师新增',
+        year: 2026,
+        expectedTimeSec: 90,
+      });
+      const nextQuestions = await fetchQuestions();
+      setTeacherQuestionList(nextQuestions);
+      setApiState('connected');
+      setTeacherStatus(`已新增 ${created.id}，当前题库共 ${nextQuestions.length} 题。`);
+    } catch {
+      setTeacherStatus('题目录入失败，请检查题干、选项、答案和知识点绑定。');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
+  async function handleFilterTeacherQuestions() {
+    setTeacherStatus('正在按 Cache 考点筛选题目...');
+
+    try {
+      const nextQuestions = await fetchQuestions({ knowledgePointId: 'co-cache' });
+      setTeacherQuestionList(nextQuestions);
+      setApiState('connected');
+      setTeacherStatus(`已筛选出 ${nextQuestions.length} 道 Cache 映射与替换相关题目。`);
+    } catch {
+      if (isMockAllowed()) {
+        setTeacherQuestionList(teacherQuestionList.filter((question) => question.knowledgePointIds.includes('co-cache')));
+        setTeacherStatus('已使用本地演示题库筛选 Cache 相关题目。');
+        setApiState('mock');
+      } else {
+        setTeacherStatus('题目筛选失败，当前列表保持不变，请稍后重试。');
+        setApiState('error');
+      }
+    }
+  }
+
+  async function handleUpdateTeacherQuestion() {
+    const target = teacherQuestionList.find((question) => question.id.startsWith('q-')) ?? teacherQuestionList[0];
+    if (!target) {
+      setTeacherStatus('当前没有可编辑的演示题目。');
+      return;
+    }
+
+    setTeacherStatus('正在编辑演示题目...');
+
+    if (isStaticDemoMode()) {
+      const updated = {
+        ...target,
+        difficulty: '困难' as typeof target.difficulty,
+        analysis: '更新后的解析用于教师维护题目质量。',
+        expectedTimeSec: 150,
+      };
+      setTeacherQuestionList(teacherQuestionList.map((question) => question.id === target.id ? updated : question));
+      setTeacherStatus(`已使用静态演示数据更新 ${target.id}：难度改为困难，预计 150 秒。`);
+      setApiState('mock');
+      return;
+    }
+
+    try {
+      const updated = await updateTeacherQuestion(target.id, {
+        difficulty: '困难',
+        analysis: '更新后的解析用于教师维护题目质量。',
+        expectedTimeSec: 150,
+      });
+      const nextQuestions = await fetchQuestions();
+      setTeacherQuestionList(nextQuestions);
+      setApiState('connected');
+      setTeacherStatus(`已更新 ${updated.id}：难度 ${updated.difficulty}，预计 ${updated.expectedTimeSec} 秒。`);
+    } catch {
+      setTeacherStatus('题目编辑失败，请稍后重试。');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
+  async function handleDeleteTeacherQuestion() {
+    const target = teacherQuestionList.find((question) => !['q-001', 'q-002'].includes(question.id)) ?? teacherQuestionList[0];
+    if (!target) {
+      setTeacherStatus('当前没有可删除的演示题目。');
+      return;
+    }
+
+    setTeacherStatus('正在删除演示题目...');
+
+    if (isStaticDemoMode()) {
+      setTeacherQuestionList(teacherQuestionList.filter((question) => question.id !== target.id));
+      setTeacherStatus(`已使用静态演示数据删除 ${target.id}。`);
+      setApiState('mock');
+      return;
+    }
+
+    try {
+      const deleted = await deleteTeacherQuestion(target.id);
+      const nextQuestions = await fetchQuestions();
+      setTeacherQuestionList(nextQuestions);
+      setApiState('connected');
+      setTeacherStatus(`已删除 ${deleted.id}，筛选列表已刷新。`);
+    } catch {
+      setTeacherStatus('题目删除失败，请稍后重试。');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
+  async function handleCreateKnowledgePoint() {
+    setKnowledgeStatus('正在新增知识点...');
+
+    try {
+      const point = await createKnowledgePoint({
+        id: `os-memory-${Date.now()}`,
+        subject: '操作系统',
+        chapter: '内存管理',
+        title: '分页与地址转换',
+        importance: 5,
+        frequency: 4,
+        prerequisites: ['进程地址空间'],
+      });
+      setApiState('connected');
+      setKnowledgeStatus(`已新增知识点：${point.title}。`);
+    } catch {
+      setKnowledgeStatus('知识点新增失败，请检查 ID、科目、章节和标题。');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
+  async function handleGeneratePaper() {
+    setPaperStatus('正在生成专项卷...');
+
+    if (isStaticDemoMode()) {
+      const mockPaper = createMockGeneratedPaper({
+        title: '存储系统专项卷',
+        paperType: '专项卷',
+        knowledgePointIds: ['co-cache'],
+        questionCount: 2,
+        createdBy: 'teacher-001',
+      });
+      setLatestPaper(mockPaper);
+      setPaperSession(createInitialPaperSession(mockPaper));
+      setPaperResult(null);
+      setApiState('mock');
+      setPaperStatus(`已使用静态演示数据生成 ${mockPaper.title}，共 ${mockPaper.questionCount} 题，可继续提交查看报告。`);
+      return;
+    }
+
+    try {
+      const paper = await generatePaper({
+        title: '存储系统专项卷',
+        paperType: '专项卷',
+        knowledgePointIds: ['co-cache'],
+        questionCount: 2,
+        createdBy: 'teacher-001',
+      });
+      setLatestPaper(paper);
+      setPaperSession(createInitialPaperSession(paper));
+      setPaperResult(null);
+      setApiState('connected');
+      setPaperStatus(`已生成 ${paper.title}，共 ${paper.questionCount} 题，预计 ${paper.estimatedMinutes} 分钟。`);
+    } catch {
+      if (!isMockAllowed()) {
+        setPaperStatus('试卷生成失败，请检查 API 连接后重试。');
+        setApiState('error');
+        return;
+      }
+      const mockPaper = createMockGeneratedPaper({
+        title: '存储系统专项卷',
+        paperType: '专项卷',
+        knowledgePointIds: ['co-cache'],
+        questionCount: 2,
+        createdBy: 'teacher-001',
+      });
+      setLatestPaper(mockPaper);
+      setPaperSession(createInitialPaperSession(mockPaper));
+      setPaperResult(null);
+      setPaperStatus(`已使用静态演示数据生成 ${mockPaper.title}，共 ${mockPaper.questionCount} 题，可继续提交查看报告。`);
+      setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
+  function handleStartPaperSession() {
+    const paper = latestPaper;
+    if (!paper) {
+      setPaperStatus('请先生成一套演示试卷。');
+      return;
+    }
+
+    const elapsedSec = paper.questions.reduce((sum, question) => sum + question.expectedTimeSec + 15, 0);
+    const session = {
+      answeredCount: paper.questions.length,
+      unansweredCount: 0,
+      totalQuestions: paper.questions.length,
+      elapsedSec,
+      timeLimitSec: paper.estimatedMinutes * 60,
+      overtime: elapsedSec > paper.estimatedMinutes * 60,
+      progressRate: 100,
+    };
+    setPaperSession(session);
+    setPaperStatus(`已完成演示答卷：${session.answeredCount}/${session.totalQuestions} 题，用时 ${Math.round(session.elapsedSec / 60)} 分钟，可提交查看报告。`);
+  }
+
+  async function handleSubmitPaper() {
+    const paper = latestPaper;
+    if (!paper) {
+      setPaperStatus('请先生成一套演示试卷。');
+      return;
+    }
+
+    setPaperStatus('正在提交演示试卷...');
+
+    if (isStaticDemoMode()) {
+      const mockResult = createMockPaperSubmitResult(paper, student.id);
+      setPaperResult(mockResult);
+      setPaperSession(mockResult?.examSession ?? null);
+      if (mockResult) addMockPaperResultToHistory(mockResult, paper);
+      setApiState('mock');
+      setPaperStatus(mockResult
+        ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
+        : '试卷提交失败，请稍后重试。');
+      return;
+    }
+
+    try {
+      const result = await submitPaper({
+paperId: paper.id,
+        answers: paper.questions.map((question, index) => ({
+          questionId: question.id,
+          selectedAnswer: index === 0 ? (question.answer === 'A' ? 'B' : 'A') : question.answer,
+          timeSpentSec: question.expectedTimeSec + 15,
+        })),
+      });
+      const nextOverview = await fetchDashboardOverview();
+      setPaperResult(result);
+      setPaperSession(result.examSession);
+      setOverview(nextOverview);
+      await refreshMasteryMap();
+      await refreshWrongQuestionSummary();
+      await refreshAssessmentHistory();
+      setApiState('connected');
+      setPaperStatus(`试卷已提交：${result.score} 分，正确率 ${result.accuracyRate}%，已同步 ${result.syncedPracticeRecordCount} 条练习记录。`);
+    } catch {
+      if (!isMockAllowed()) {
+        setPaperStatus('试卷提交失败，未生成任何演示成绩，请稍后重试。');
+        setApiState('error');
+        return;
+      }
+      const mockResult = createMockPaperSubmitResult(paper, student.id);
+      setPaperResult(mockResult);
+      setPaperSession(mockResult?.examSession ?? null);
+      if (mockResult) addMockPaperResultToHistory(mockResult, paper);
+      setPaperStatus(mockResult
+        ? `已使用静态演示数据提交：${mockResult.score} 分，正确率 ${mockResult.accuracyRate}%，可查看试卷报告。`
+        : '试卷提交失败，请稍后重试。');
+      setApiState(isMockAllowed() ? 'mock' : 'error');
+    }
+  }
+
   async function handleApplySprintConfig() {
     setConfigStatus('正在应用冲刺期推荐策略...');
 
@@ -1052,73 +1285,17 @@ export function App() {
               <span className="auth-orb" aria-hidden="true">408</span>
               <div>
                 <p className="eyebrow">408 SCORE BOOST</p>
-                <p className="auth-orb-caption">计算机考研 · AI 提分系统</p>
+                <p className="auth-orb-caption">计算机考研 408 提分系统</p>
               </div>
             </div>
-            <div className="auth-brand-copy">
-              <p className="auth-brand-kicker">AI 智能学习助手</p>
-              <h1>你的 408 上岸计划<br />从今天开始</h1>
-              <p className="auth-hero-summary">AI 已分析 260+ 知识点 · 12000+ 道真题 · 覆盖四科全部考纲</p>
-              <p className="auth-tagline">从入学诊断到模拟考试，四科薄弱点一清二楚</p>
-              <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
-            </div>
-            <div className="auth-subject-grid" aria-label="408 四科覆盖">
-              <article className="auth-subject-card">
-                <div className="auth-subject-badge auth-subject-ds">DS</div>
-                <div>
-                  <strong>数据结构</strong>
-                  <span>87 个知识点 · 86 个高频考点</span>
-                </div>
-                <em>45分</em>
-              </article>
-              <article className="auth-subject-card">
-                <div className="auth-subject-badge auth-subject-co">CO</div>
-                <div>
-                  <strong>计算机组成原理</strong>
-                  <span>82 个知识点 · 74 个高频考点</span>
-                </div>
-                <em>45分</em>
-              </article>
-              <article className="auth-subject-card">
-                <div className="auth-subject-badge auth-subject-os">OS</div>
-                <div>
-                  <strong>操作系统</strong>
-                  <span>64 个知识点 · 58 个高频考点</span>
-                </div>
-                <em>35分</em>
-              </article>
-              <article className="auth-subject-card">
-                <div className="auth-subject-badge auth-subject-cn">CN</div>
-                <div>
-                  <strong>计算机网络</strong>
-                  <span>52 个知识点 · 43 个高频考点</span>
-                </div>
-                <em>25分</em>
-              </article>
-            </div>
+            <h1>计算机考研 408 提分系统</h1>
+            <p className="auth-tagline">从入学诊断到模拟考试，四科薄弱点一清二楚</p>
+            <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
             <div className="auth-feature-grid" aria-label="系统能力">
               <span><BookOpenCheck size={16} /><b>题库训练</b><small>按薄弱点精准组题</small></span>
               <span><ShieldCheck size={16} /><b>错题复盘</b><small>错因分类，变式重练</small></span>
               <span><Target size={16} /><b>学情分析</b><small>四科掌握度实时可视化</small></span>
               <span><Brain size={16} /><b>AI 辅助</b><small>四层提示拆解解题思路</small></span>
-            </div>
-            <div className="auth-path" aria-label="学习路径">
-              <p className="auth-path-label">学 习 路 径</p>
-              <div className="auth-path-steps">
-                <span className="auth-path-step is-done">📋 入学诊断</span>
-                <span className="auth-path-arrow">▸</span>
-                <span className="auth-path-step is-active">🎯 精准训练</span>
-                <span className="auth-path-arrow">▸</span>
-                <span className="auth-path-step">🔄 错题闭环</span>
-                <span className="auth-path-arrow">▸</span>
-                <span className="auth-path-step">🏆 提分上岸</span>
-              </div>
-              <p className="auth-path-caption">AI 会根据你的入学诊断结果，自动生成今日学习计划</p>
-            </div>
-            <div className="auth-metrics" aria-label="学习成效">
-              <span><strong>87%</strong><small>学员平均提分率</small></span>
-              <span><strong>260+</strong><small>AI 覆盖知识点</small></span>
-              <span><strong>4科</strong><small>408 全科覆盖</small></span>
             </div>
             <p className="auth-role-copy">学生 / 教师 / 管理员均可进入对应工作台。</p>
             <p className="auth-trust">面向计算机考研 408 考生的个性化提分系统</p>

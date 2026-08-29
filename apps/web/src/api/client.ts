@@ -141,3 +141,11 @@ export function isStaticDemoMode(): boolean {
     && window.location.hostname.endsWith('github.io')
     && !import.meta.env.VITE_API_BASE_URL;
 }
+
+
+//发请求->自动加Authorization:Bearer<accessToken>
+//->收到401？
+//->有 refreshToken → refreshSessionOnce()（并发单飞，只允许一个刷新请求）
+//→ 刷新成功 → 用新 token 重试原请求
+//→ 刷新失败 → 仅当没有其他并发请求替换会话时才清登录态
+//刷新逻辑的关键是 `refreshGate`：因为 refresh token 是一次性轮换的，多个并发请求同时刷新会互相消耗，所以用「单飞」保证只有一个请求去换新 token，其余请求等待并复用结果。
