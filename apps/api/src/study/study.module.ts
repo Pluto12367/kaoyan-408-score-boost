@@ -3,6 +3,7 @@ import { AuthModule } from '../auth/auth.module';
 import { QuestionsModule } from '../questions/questions.module';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PracticeRecordRepository } from './practice-record.repository';
+import { AnswerReceiptRepository } from './answer-receipt.repository';
 import { LearningProgressRepository } from './learning-progress.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { KnowledgePointRepository } from './knowledge-point.repository';
@@ -14,6 +15,28 @@ import { LearningSessionRepository } from './learning-session.repository';
 import { ReviewScheduleRepository } from './review-schedule.repository';
 import { ExamReviewPlanRepository } from './exam-review-plan.repository';
 import { OnboardingPlanRepository } from './onboarding-plan.repository';
+import { StudentStateProjectionService } from './student-state-projection.service';
+import { StudentStateQueryService } from './student-state-query.service';
+import { StudentStateReminderQueryService } from './student-state-reminder-query.service';
+import { StudentStateSprintPlanQueryService } from './student-state-sprint-plan-query.service';
+import { StudentStateTrialProgressQueryService } from './student-state-trial-progress-query.service';
+import { StudentStateLearningCalendarQueryService } from './student-state-learning-calendar-query.service';
+import { ActivityProjectionService } from './activity-projection.service';
+import { PracticeProjectionService } from './practice-projection.service';
+import { MasterySummaryProjectionService } from './mastery-summary-projection.service';
+import { WrongQuestionProjectionService } from './wrong-question-projection.service';
+import { WrongQuestionQueryService } from './wrong-question-query.service';
+import { TodayPlanQueryService } from './today-plan-query.service';
+import { TodayPlanProjectionService } from './today-plan-projection.service';
+import { DashboardQueryService } from './dashboard-query.service';
+import { DashboardProjectionService } from './dashboard-projection.service';
+import { AssessmentProjectionService } from './assessment-projection.service';
+import { StageAssessmentProjectionService } from './stage-assessment-projection.service';
+import { StageAssessmentQueryService } from './stage-assessment-query.service';
+import { AssessmentHistoryProjectionService } from './assessment-history-projection.service';
+import { AssessmentHistoryQueryService } from './assessment-history-query.service';
+import { ExamScoreHistoryProjectionService } from './exam-score-history.projection.service';
+import { ExamScoreHistoryQueryService } from './exam-score-history.query.service';
 import { StudyController } from './study.controller';
 import { StudyService } from './study.service';
 import { AiTutorService } from './ai-tutor.service';
@@ -28,6 +51,10 @@ import { ScoreCenterModule } from '../score-center/score-center.module';
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule],
   controllers: [StudyController],
-  providers: [StudyService, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, PracticeRecordRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
+  providers: [StudyService, StudentStateProjectionService, StudentStateQueryService, StudentStateReminderQueryService, StudentStateSprintPlanQueryService, StudentStateTrialProgressQueryService, StudentStateLearningCalendarQueryService, ActivityProjectionService, PracticeProjectionService, MasterySummaryProjectionService, WrongQuestionProjectionService, WrongQuestionQueryService, TodayPlanProjectionService, TodayPlanQueryService, DashboardProjectionService, DashboardQueryService, AssessmentProjectionService, StageAssessmentProjectionService, StageAssessmentQueryService, AssessmentHistoryProjectionService, AssessmentHistoryQueryService, ExamScoreHistoryQueryService, {
+    provide: ExamScoreHistoryProjectionService,
+    useFactory: (sessions: LearningSessionRepository, practiceRecords: PracticeRecordRepository) =>
+      new ExamScoreHistoryProjectionService({ sessions, practiceRecords }),    inject: [LearningSessionRepository, PracticeRecordRepository],
+  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
 })
 export class StudyModule {}

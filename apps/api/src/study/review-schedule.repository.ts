@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export type ReviewStability = 'learning' | 'review' | 'mastered';
@@ -72,24 +73,25 @@ export class ReviewScheduleRepository {
     return result;
   }
 
-  async saveSchedule(schedule: ReviewScheduleState) {
+  async saveSchedule(schedule: ReviewScheduleState, tx?: Prisma.TransactionClient) {
     if (!this.enabled) return;
-    await this.prisma.reviewSchedule.upsert({
+    const db = tx ?? this.prisma;
+    await db.reviewSchedule.upsert({
       where: { userId_questionId: { userId: schedule.userId, questionId: schedule.questionId } },
       create: toScheduleData(schedule),
       update: toScheduleUpdate(schedule),
     });
   }
 
-  async saveReview(schedule: ReviewScheduleState, attempt: ReviewAttemptState) {
+  async saveReview(schedule: ReviewScheduleState, attempt: ReviewAttemptState, tx?: Prisma.TransactionClient) {
     if (!this.enabled) return;
-    await this.prisma.$transaction(async (tx) => {
-      const saved = await tx.reviewSchedule.upsert({
+    const save = async (db: Prisma.TransactionClient | PrismaService) => {
+      const saved = await db.reviewSchedule.upsert({
         where: { userId_questionId: { userId: schedule.userId, questionId: schedule.questionId } },
         create: toScheduleData(schedule),
         update: toScheduleUpdate(schedule),
       });
-      await tx.reviewAttempt.create({
+      await db.reviewAttempt.create({
         data: {
           scheduleId: saved.id,
           redoCorrect: attempt.redoCorrect,
@@ -100,7 +102,12 @@ export class ReviewScheduleRepository {
           reviewedAt: new Date(attempt.reviewedAt),
         },
       });
-    });
+    };
+    if (tx) {
+      await save(tx);
+      return;
+    }
+    await this.prisma.$transaction(save);
   }
 
   async saveNote(userId: string, questionId: string, note: string) {

@@ -41,7 +41,9 @@ test('study service wires practice records into today task progress and auto-com
   assert.match(source, /private async applyPracticeProgressToTasks\(userId: string, record: PracticeRecord\)/, 'service should expose the progress hook');
   assert.match(source, /await this\.applyPracticeProgressToTasks\(input\.userId, savedRecord\);/, 'single-question submits should accumulate progress');
   assert.match(source, /for \(const record of records\) \{\s*await this\.applyPracticeProgressToTasks\(userId, record\);/, 'session submits should accumulate progress per record');
-  assert.match(source, /progress: this\.getTaskProgressView\(userId, task\)/, 'today plan should expose per-task progress');
+  assert.match(source, /loadStudyTaskProgress\(userId\)/, 'today plan should load persisted task progress in DB mode');
+  assert.match(source, /progress: this\.getTaskProgressView\(userId, task, persistedTaskProgress\)/, 'today plan should expose persisted per-task progress');
+  assert.match(source, /incrementStudyTaskProgress\(\{/, 'practice progress should advance via the persisted atomic accumulator');
   assert.match(source, /await this\.completeStudyTask\(task\.id, \{/, 'reaching the target should auto-complete the task');
 });
 

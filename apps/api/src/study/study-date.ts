@@ -31,6 +31,16 @@ export function lastNDates(count: number): string[] {
   });
 }
 
+export function lastNDatesEndingAt(asOf: string | Date, count: number): string[] {
+  const anchor = studyDateKey(asOf);
+  const end = new Date(`${anchor}T00:00:00.000Z`);
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(end);
+    date.setUTCDate(end.getUTCDate() - (count - index - 1));
+    return date.toISOString().slice(0, 10);
+  });
+}
+
 export function nextNDates(count: number): string[] {
   const today = new Date(`${todayKey()}T00:00:00.000Z`);
   return Array.from({ length: count }, (_, index) => {

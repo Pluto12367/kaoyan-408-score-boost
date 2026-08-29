@@ -19,6 +19,18 @@ export type MasteryPersistence = MasteryState & {
   pinned?: boolean;
 };
 
+type MasteryRow = NonNullable<Awaited<ReturnType<typeof loadMasteryRow>>>;
+type MasteryMutation = (row: MasteryRow | null) => MasteryPersistence;
+
+const MAX_MASTERY_CONFLICT_RETRIES = 3;
+
+export class MasteryOptimisticLockConflictError extends Error {
+  constructor(userId: string, knowledgeNodeId: string) {
+    super(`UserKnowledgeMastery optimistic lock conflict for user=${userId} knowledgeNode=${knowledgeNodeId}`);
+    this.name = 'MasteryOptimisticLockConflictError';
+  }
+}
+
 const NEUTRAL_MASTERY: MasteryState = {
   mastery: 0.5,
   accuracy: 0.55,
@@ -83,6 +95,60 @@ export async function saveMastery(
   knowledgeNodeId: string,
   state: MasteryPersistence,
 ) {
+  return saveMasteryWithOptimisticRetry(db, userId, knowledgeNodeId, () => state);
+}
+
+export async function saveMasteryWithOptimisticRetry(
+  db: DbClient,
+  userId: string,
+  knowledgeNodeId: string,
+  calculate: MasteryMutation,
+) {
+  let retries = 0;
+  for (;;) {
+    const row = await loadMasteryRow(db, userId, knowledgeNodeId);
+    const data = buildMasteryWriteData(row, calculate(row));
+    if (!row) {
+      try {
+        return await db.userKnowledgeMastery.create({
+          data: {
+            userId,
+            knowledgeNodeId,
+            ...data,
+            version: 0,
+          },
+        });
+      } catch (error) {
+        if (!isPrismaErrorCode(error, 'P2002') || retries >= MAX_MASTERY_CONFLICT_RETRIES) {
+          throw error;
+        }
+        await waitForMasteryRetry(retries);
+        retries += 1;
+        continue;
+      }
+    }
+
+    const result = await db.userKnowledgeMastery.updateMany({
+      where: { id: row.id, version: row.version },
+      data: {
+        ...data,
+        version: { increment: 1 },
+      },
+    });
+    if (result.count === 1) {
+      const saved = await loadMasteryRow(db, userId, knowledgeNodeId);
+      if (saved) return saved;
+    }
+
+    if (retries >= MAX_MASTERY_CONFLICT_RETRIES) {
+      throw new MasteryOptimisticLockConflictError(userId, knowledgeNodeId);
+    }
+    await waitForMasteryRetry(retries);
+    retries += 1;
+  }
+}
+
+function buildMasteryWriteData(row: MasteryRow | null, state: MasteryPersistence) {
   const data = {
     mastery: state.mastery,
     accuracy: state.accuracy,
@@ -91,20 +157,26 @@ export async function saveMastery(
     correctCount: state.correctCount,
     wrongCount: state.wrongCount,
     confidence: state.confidence,
-    retention: state.retention ?? null,
-    stabilityDays: state.stabilityDays ?? null,
-    lastLearnedAt: state.lastLearnedAt ?? null,
-    lastReviewedAt: state.lastReviewedAt ?? null,
-    nextReviewAt: state.nextReviewAt ?? null,
-    pinned: state.pinned ?? false,
+    retention: state.retention !== undefined ? state.retention : row?.retention ?? null,
+    stabilityDays: state.stabilityDays !== undefined ? state.stabilityDays : row?.stabilityDays ?? null,
+    lastLearnedAt: state.lastLearnedAt !== undefined ? state.lastLearnedAt : row?.lastLearnedAt ?? null,
+    lastReviewedAt: state.lastReviewedAt !== undefined ? state.lastReviewedAt : row?.lastReviewedAt ?? null,
+    nextReviewAt: state.nextReviewAt !== undefined ? state.nextReviewAt : row?.nextReviewAt ?? null,
+    pinned: state.pinned !== undefined ? state.pinned : row?.pinned ?? false,
   };
-  await db.userKnowledgeMastery.upsert({
-    where: {
-      userId_knowledgeNodeId: { userId, knowledgeNodeId },
-    },
-    create: { userId, knowledgeNodeId, ...data },
-    update: data,
-  });
+  return data;
+}
+
+function isPrismaErrorCode(error: unknown, code: string) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === code;
+}
+
+async function waitForMasteryRetry(retryIndex: number) {
+  // P2034 transaction-level abort retry is intentionally deferred. This helper
+  // only handles row-level OCC conflicts: stale version updates and P2002 on create.
+  const baseMs = 10 * 2 ** retryIndex;
+  const jitterMs = Math.floor(Math.random() * 5);
+  await new Promise((resolve) => setTimeout(resolve, baseMs + jitterMs));
 }
 
 export async function saveMasterySnapshot(
@@ -150,12 +222,10 @@ export async function touchWrongQuestion(db: DbClient, userId: string, questionI
     create: {
       userId,
       questionId,
-      reviewedAt: now,
       resolved: false,
       resolvedAt: null,
     },
     update: {
-      reviewedAt: now,
       resolved: false,
       resolvedAt: null,
     },
@@ -168,12 +238,10 @@ export async function resolveWrongQuestion(db: DbClient, userId: string, questio
     create: {
       userId,
       questionId,
-      reviewedAt: now,
       resolved: true,
       resolvedAt: now,
     },
     update: {
-      reviewedAt: now,
       resolved: true,
       resolvedAt: now,
     },

@@ -1,6 +1,18 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import type { AiTutorFollowUpMode, Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
+import { StudentStateProjectionService } from './student-state-projection.service';
+import { StudentStateQueryService } from './student-state-query.service';
+import { StudentStateReminderQueryService } from './student-state-reminder-query.service';
+import { StudentStateSprintPlanQueryService } from './student-state-sprint-plan-query.service';
+import { StudentStateTrialProgressQueryService } from './student-state-trial-progress-query.service';
+import { StudentStateLearningCalendarQueryService } from './student-state-learning-calendar-query.service';
+import { WrongQuestionQueryService } from './wrong-question-query.service';
+import { TodayPlanQueryService } from './today-plan-query.service';
+import { DashboardQueryService } from './dashboard-query.service';
+import { StageAssessmentQueryService } from './stage-assessment-query.service';
+import { AssessmentHistoryQueryService } from './assessment-history-query.service';
+import { ExamScoreHistoryQueryService } from './exam-score-history.query.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { CompleteStudyTaskDto } from './dto/complete-study-task.dto';
 import {
@@ -21,7 +33,21 @@ import type { UserProfile } from '@kaoyan408/shared';
 
 @Controller()
 export class StudyController {
-  constructor(private readonly studyService: StudyService) {}
+  constructor(
+    private readonly studyService: StudyService,
+    private readonly studentStateProjection: StudentStateProjectionService,
+    private readonly studentStateQuery: StudentStateQueryService,
+    private readonly studentStateReminderQuery: StudentStateReminderQueryService,
+    private readonly studentStateSprintPlanQuery: StudentStateSprintPlanQueryService,
+    private readonly studentStateTrialProgressQuery: StudentStateTrialProgressQueryService,
+    private readonly studentStateLearningCalendarQuery: StudentStateLearningCalendarQueryService,
+    private readonly wrongQuestionQuery: WrongQuestionQueryService,
+    private readonly todayPlanQuery: TodayPlanQueryService,
+    private readonly dashboardQuery: DashboardQueryService,
+    private readonly stageAssessmentQuery: StageAssessmentQueryService,
+    private readonly assessmentHistoryQuery: AssessmentHistoryQueryService,
+    private readonly examScoreHistoryQuery: ExamScoreHistoryQueryService,
+  ) {}
 
   // ---- Student endpoints (require student+ auth) ----
   // All student-facing endpoints use @CurrentUser() — userId NEVER comes from the client
@@ -47,7 +73,17 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getDashboardOverview(this.resolveUserId(user, viewUserId));
+    return this.dashboardQuery.getDashboardOverviewCompat(this.resolveUserId(user, viewUserId));
+  }
+
+  @Get('student-state')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getStudentStateSnapshot(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.studentStateProjection.getSnapshot(this.resolveUserId(user, viewUserId));
   }
 
   @Get('trial-progress')
@@ -57,7 +93,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getTrialProgress(this.resolveUserId(user, viewUserId));
+    return this.studentStateTrialProgressQuery.getTrialProgressCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Get('study-reminders')
@@ -67,7 +103,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getStudyReminders(this.resolveUserId(user, viewUserId));
+    return this.studentStateReminderQuery.getStudyRemindersCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Get('sprint-plan')
@@ -77,7 +113,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getSprintPlan(this.resolveUserId(user, viewUserId));
+    return this.studentStateSprintPlanQuery.getSprintPlanCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Get('mastery-map')
@@ -87,7 +123,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getMasteryMap(this.resolveUserId(user, viewUserId));
+    return this.studentStateQuery.getMasteryMapCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Get('students/:userId/profile')
@@ -116,7 +152,7 @@ export class StudyController {
     @Query('reviewedWithinDays') reviewedWithinDays?: string,
     @Query('importance') importance?: string,
   ) {
-    return this.studyService.listWrongQuestions(this.resolveUserId(user, viewUserId), this.parseWrongQuestionFilters({
+    return this.wrongQuestionQuery.getWrongQuestionsCompat(this.resolveUserId(user, viewUserId), this.parseWrongQuestionFilters({
       subject,
       chapter,
       knowledgePointId,
@@ -135,7 +171,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getWrongQuestionSummary(this.resolveUserId(user, viewUserId));
+    return this.wrongQuestionQuery.getWrongQuestionSummaryCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Post('wrong-questions/:questionId/review')
@@ -188,7 +224,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getLearningCalendar(this.resolveUserId(user, viewUserId));
+    return this.studentStateLearningCalendarQuery.getLearningCalendarCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Get('assessments/stage')
@@ -198,7 +234,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getStageAssessment(this.resolveUserId(user, viewUserId));
+    return this.stageAssessmentQuery.getStageAssessmentCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Post('assessments/stage/submit')
@@ -239,9 +275,17 @@ export class StudyController {
   async createPracticeRecord(
     @CurrentUser() user: UserProfile,
     @Body() input: CreatePracticeRecordDto,
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     if (input.userId) this.assertAccess(user, input.userId);
-    const record = await this.studyService.createPracticeRecord({ ...input, userId: user.id });
+    const trimmedKey = idempotencyKey?.trim();
+    if (!trimmedKey) throw new BadRequestException('Idempotency-Key is required');
+    if (trimmedKey.length > 255) throw new BadRequestException('Idempotency-Key is too long');
+    const record = await this.studyService.createPracticeRecord(
+      { ...input, userId: user.id },
+      { idempotencyKey: trimmedKey },
+    );
+    if ('analysis' in record && 'correctAnswer' in record && 'knowledgePointTitle' in record) return record;
     const feedback = await this.studyService.getPracticeFeedback(record.questionId);
     return {
       ...record,
@@ -350,7 +394,7 @@ export class StudyController {
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
   getTodayPlan(@CurrentUser() user: UserProfile) {
-    return this.studyService.getTodayPlan(user.id);
+    return this.todayPlanQuery.getTodayPlanCompat(user.id);
   }
 
   @Post('tasks/:taskId/postpone')
@@ -427,7 +471,7 @@ export class StudyController {
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
   getDueReviews(@CurrentUser() user: UserProfile) {
-    return this.studyService.getDueReviews(user.id);
+    return this.wrongQuestionQuery.getDueReviewsCompat(user.id);
   }
 
   @Get('wrong-questions/:questionId/detail')
@@ -471,7 +515,7 @@ export class StudyController {
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
   getExamScoreHistory(@CurrentUser() user: UserProfile) {
-    return this.studyService.getExamScoreHistory(user.id);
+    return this.examScoreHistoryQuery.getExamScoreHistoryCompat(user.id);
   }
 
   @Post('exam/papers/prepare')
@@ -510,7 +554,7 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
   ) {
-    return this.studyService.getAssessmentHistory(this.resolveUserId(user, viewUserId));
+    return this.assessmentHistoryQuery.getAssessmentHistoryCompat(this.resolveUserId(user, viewUserId));
   }
 
   @Get('reports/overview')

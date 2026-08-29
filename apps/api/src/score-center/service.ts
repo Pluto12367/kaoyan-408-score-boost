@@ -43,8 +43,7 @@ import {
   loadTodayScoreCenterPlan,
   neutralMastery,
   resolveKnowledgeNodesForQuestion,
-  resolveWrongQuestion,
-  saveMastery,
+  saveMasteryWithOptimisticRetry,
   saveMasterySnapshot,
   saveNodeQuestAttempt,
   touchWrongQuestion,
@@ -126,17 +125,19 @@ export class ScoreCenterService {
     for (const tag of tags) {
       const node = nodeById.get(tag.knowledgeNodeId);
       if (!node) continue;
-      const row = await loadMasteryRow(db, userId, node.id);
-      const current = row ? toMasteryState(row) : neutralMastery();
-      const next = updateMasteryAfterAttempt(current, {
-        isCorrect: record.correct,
-        difficulty: clampDifficulty(node.difficulty),
-        role: tag.role,
+      const saved = await saveMasteryWithOptimisticRetry(db, userId, node.id, (row) => {
+        const current = row ? toMasteryState(row) : neutralMastery();
+        const next = updateMasteryAfterAttempt(current, {
+          isCorrect: record.correct,
+          difficulty: clampDifficulty(node.difficulty),
+          role: tag.role,
+        });
+        return {
+          ...next,
+          lastLearnedAt: submittedAt,
+        };
       });
-      await saveMastery(db, userId, node.id, {
-        ...next,
-        lastLearnedAt: submittedAt,
-      });
+      const next = toMasteryState(saved);
       await saveMasterySnapshot(db, userId, node.id, next, startOfUtcDay(submittedAt));
     }
 
@@ -161,25 +162,24 @@ export class ScoreCenterService {
       for (const tag of tags) {
         const node = nodeById.get(tag.knowledgeNodeId);
         if (!node) continue;
-        const row = await loadMasteryRow(tx, userId, node.id);
-        const current = row ? toMasteryState(row) : neutralMastery();
-        const stabilityDays = updateStabilityAfterReview(
-          row?.stabilityDays ?? null,
-          input.redoCorrect ? 4 : 2,
-        );
-        const retention = 1;
-        const nextReviewAt = new Date(input.reviewedAt.getTime() + stabilityDays * 86_400_000);
-        await saveMastery(tx, userId, node.id, {
-          ...current,
-          retention,
-          stabilityDays,
-          lastReviewedAt: input.reviewedAt,
-          nextReviewAt,
+        const saved = await saveMasteryWithOptimisticRetry(tx, userId, node.id, (row) => {
+          const current = row ? toMasteryState(row) : neutralMastery();
+          const stabilityDays = updateStabilityAfterReview(
+            row?.stabilityDays ?? null,
+            input.redoCorrect ? 4 : 2,
+          );
+          const retention = 1;
+          const nextReviewAt = new Date(input.reviewedAt.getTime() + stabilityDays * 86_400_000);
+          return {
+            ...current,
+            retention,
+            stabilityDays,
+            lastReviewedAt: input.reviewedAt,
+            nextReviewAt,
+          };
         });
+        const current = toMasteryState(saved);
         await saveMasterySnapshot(tx, userId, node.id, current, startOfUtcDay(input.reviewedAt));
-      }
-      if (input.redoCorrect) {
-        await resolveWrongQuestion(tx, userId, questionId, input.reviewedAt);
       }
     });
   }

@@ -26,9 +26,7 @@ test('responsive styles exist for the new first-day, wrong-review, and report in
 test('report workspace keeps report inputs real and does not fabricate today plan data', async () => {
   const workspace = await source('apps/web/src/features/report/ReportWorkspace.tsx');
   assert.doesNotMatch(workspace, /todayPlan=\{props\.plan/);
-  assert.doesNotMatch(workspace, /wrongQuestionSummary=\{props\.report \? undefined : undefined\}/);
   assert.match(workspace, /wrongQuestionSummary=\{props\.wrongQuestionSummary\.data\}/);
-  assert.doesNotMatch(workspace, /wrongQuestionSummary=\{props\.report \? undefined : undefined\}/);
   assert.match(workspace, /ReportSummaryPanel/);
 });
 

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 export interface PersistedLearningProgress {
@@ -13,6 +14,12 @@ export interface TaskCompletionMetric {
   minutesSpent: number;
   selfRating: number;
   completedAt: string;
+}
+
+export interface StudyTaskProgressMetric {
+  completedQuestionCount: number;
+  correctCount: number;
+  minutesSpent: number;
 }
 
 @Injectable()
@@ -57,13 +64,76 @@ export class LearningProgressRepository {
     return { completedTasks, taskCompletionMetrics, wrongQuestionReviews };
   }
 
-  async saveWrongQuestionReview(userId: string, questionId: string, reviewedAt: string) {
+  async saveWrongQuestionReview(userId: string, questionId: string, reviewedAt: string, tx?: Prisma.TransactionClient) {
     if (!this.enabled) return;
-    await this.prisma.wrongQuestionReview.upsert({
+    const db = tx ?? this.prisma;
+    await db.wrongQuestionReview.upsert({
       where: { userId_questionId: { userId, questionId } },
       create: { userId, questionId, reviewedAt: new Date(reviewedAt) },
       update: { reviewedAt: new Date(reviewedAt) },
     });
+  }
+
+  async loadStudyTaskProgress(userId: string, tx?: Prisma.TransactionClient): Promise<Map<string, StudyTaskProgressMetric>> {
+    const progress = new Map<string, StudyTaskProgressMetric>();
+    if (!this.enabled) return progress;
+    const db = tx ?? this.prisma;
+    const rows = await db.studyTaskProgress.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'asc' },
+    });
+    for (const row of rows) {
+      progress.set(row.taskId, {
+        completedQuestionCount: row.completedQuestionCount,
+        correctCount: row.correctCount,
+        minutesSpent: row.minutesSpent,
+      });
+    }
+    return progress;
+  }
+
+  async incrementStudyTaskProgress(input: {
+    userId: string;
+    taskId: string;
+    completedQuestionIncrement: number;
+    correctIncrement: number;
+    minutesIncrement: number;
+  }, tx?: Prisma.TransactionClient): Promise<StudyTaskProgressMetric & { taskId: string }> {
+    if (!this.enabled) {
+      return {
+        taskId: input.taskId,
+        completedQuestionCount: input.completedQuestionIncrement,
+        correctCount: input.correctIncrement,
+        minutesSpent: input.minutesIncrement,
+      };
+    }
+    const db = tx ?? this.prisma;
+    const row = await db.studyTaskProgress.upsert({
+      where: {
+        userId_taskId: {
+          userId: input.userId,
+          taskId: input.taskId,
+        },
+      },
+      create: {
+        userId: input.userId,
+        taskId: input.taskId,
+        completedQuestionCount: input.completedQuestionIncrement,
+        correctCount: input.correctIncrement,
+        minutesSpent: input.minutesIncrement,
+      },
+      update: {
+        completedQuestionCount: { increment: input.completedQuestionIncrement },
+        correctCount: { increment: input.correctIncrement },
+        minutesSpent: { increment: input.minutesIncrement },
+      },
+    });
+    return {
+      taskId: row.taskId,
+      completedQuestionCount: row.completedQuestionCount,
+      correctCount: row.correctCount,
+      minutesSpent: row.minutesSpent,
+    };
   }
 
   async saveTaskCompletion(input: {

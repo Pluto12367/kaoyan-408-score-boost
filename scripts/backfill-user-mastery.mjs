@@ -129,7 +129,7 @@ export async function replayUserMastery(db, userId, { dryRun = false } = {}) {
     db.userKnowledgeMastery.deleteMany({ where: { userId } }),
     ...[...stateByNode.entries()].map(([knowledgeNodeId, state]) =>
       db.userKnowledgeMastery.create({
-        data: { userId, knowledgeNodeId, ...state },
+        data: { userId, knowledgeNodeId, ...state, version: 0 },
       })),
     db.userMasterySnapshot.deleteMany({ where: { userId } }),
     ...[...snapshotByKey.values()].map((snapshot) =>

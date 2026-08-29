@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ForbiddenException, Injectable, Logger, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, Logger, OnModuleInit, Optional, ServiceUnavailableException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import {
   accumulateTaskProgress,
   applyDiagnosticProfile as buildDiagnosticProfile,
@@ -52,7 +53,7 @@ import { QuestionsService, type ReviewItem } from '../questions/questions.servic
 import { toStudentQuestion, toStudentQuestions } from '../questions/question-view';
 import { PracticeRecordRepository } from './practice-record.repository';
 import { AiTutorService } from './ai-tutor.service';
-import { LearningProgressRepository, type TaskCompletionMetric } from './learning-progress.repository';
+import { LearningProgressRepository, type StudyTaskProgressMetric, type TaskCompletionMetric } from './learning-progress.repository';
 import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { KnowledgePointRepository } from './knowledge-point.repository';
@@ -76,15 +77,23 @@ import { AdminUserRepository, type ManagedUserRecord, type TrialStatus } from '.
 import { FEEDBACK_SCENES, FeedbackRepository, type FeedbackRecord, type FeedbackScene } from './feedback.repository';
 import { countByDate, lastNDates, nextNDates, studyDateKey, todayKey } from './study-date';
 import { UserEventRepository } from './user-event.repository';
+import { AnswerReceiptRepository, isPrismaUniqueError, type AnswerReceiptState } from './answer-receipt.repository';
+import {
+  MasterySummaryProjectionService,
+  toReportMasteryDto,
+} from './mastery-summary-projection.service';
+import { computePracticeRecordRequestHash, PRACTICE_RECORD_HASH_VERSION } from './answer-request-hash';
 import { ScoreCenterService } from '../score-center/service';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   loadActiveAtomicNodeCatalog,
   loadLatestFrequencySnapshots,
+  resolveWrongQuestion,
   type DbClient,
 } from '../score-center/repository';
 
 const OFFICIAL_FEEDBACK_SURVEY_URL = 'https://wj.qq.com/s2/27160624/40fe/';
+const ANSWER_RECEIPT_STALE_MS = 60_000;
 
 interface NodeCatalogEntry {
   subject: NodeMasteryRow['subject'];
@@ -128,6 +137,8 @@ export class StudyService implements OnModuleInit {
     private readonly userEventRepository: UserEventRepository,
     private readonly scoreCenterService?: ScoreCenterService,
     private readonly prisma?: PrismaService,
+    @Optional() private readonly answerReceipts?: AnswerReceiptRepository,
+    @Optional() private readonly masterySummaryProjection?: MasterySummaryProjectionService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -528,6 +539,13 @@ export class StudyService implements OnModuleInit {
       records: this.records.filter((r) => r.userId === uid),
       targetScore: student.targetScore ?? 115,
     }));
+    if (this.masterySummaryProjection) {
+      const projection = this.masterySummaryProjection.getProjectionFromRows(
+        uid,
+        this.nodeMasteryByUser.get(uid) ?? [],
+      );
+      return toReportMasteryDto(projection, report);
+    }
     if (this.useNodeMastery) {
       return {
         ...report,
@@ -1097,6 +1115,9 @@ export class StudyService implements OnModuleInit {
     const calendar = this.getLearningCalendar(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
     const scoreCenter = (await this.scoreCenterService?.getTodayScoreCenterPlan(userId)) ?? null;
+    const persistedTaskProgress = this.learningProgressRepository.enabled
+      ? await this.learningProgressRepository.loadStudyTaskProgress(userId)
+      : undefined;
 
     if (scheduledPlan) {
       const dayTasks = scheduledPlan.tasks.filter((task) => task.scheduledDate === today);
@@ -1104,7 +1125,7 @@ export class StudyService implements OnModuleInit {
       const priorityTasks = dayTasks.map((task) => ({
         ...task,
         completed: task.status === 'completed',
-        progress: this.getTaskProgressView(userId, task),
+        progress: this.getTaskProgressView(userId, task, persistedTaskProgress),
         questionIds: this.nodeQuestionIdsByNode.get(task.knowledgePointId) ?? undefined,
       }));
 
@@ -1153,7 +1174,7 @@ export class StudyService implements OnModuleInit {
           questionCount: task.questionCount,
           minutes: task.minutes,
           completed: task.completed,
-        }),
+        }, persistedTaskProgress),
         status: task.completed
           ? 'completed' as const
           : this.startedTasks.has(`${userId}@${task.id}`)
@@ -1179,7 +1200,7 @@ export class StudyService implements OnModuleInit {
     minutes: number;
     status?: string;
     completed?: boolean;
-  }): TaskProgress & { reachedTarget: boolean } {
+  }, persistedTaskProgress?: ReadonlyMap<string, StudyTaskProgressMetric>): TaskProgress & { reachedTarget: boolean } {
     if (task.status === 'completed' || task.completed) {
       const metrics = this.taskCompletionMetricsByUser.get(userId)?.get(task.id);
       return {
@@ -1188,6 +1209,16 @@ export class StudyService implements OnModuleInit {
         minutesSpent: metrics?.minutesSpent ?? task.minutes,
         reachedTarget: true,
       };
+    }
+    const persisted = persistedTaskProgress?.get(task.id);
+    if (persisted) {
+      return {
+        ...persisted,
+        reachedTarget: persisted.completedQuestionCount >= task.questionCount,
+      };
+    }
+    if (this.learningProgressRepository.enabled) {
+      return { completedQuestionCount: 0, correctCount: 0, minutesSpent: 0, reachedTarget: false };
     }
     const current = this.taskProgressByUser.get(userId)?.get(task.id);
     return current
@@ -1215,6 +1246,34 @@ export class StudyService implements OnModuleInit {
   private async applyPracticeProgressToTasks(userId: string, record: PracticeRecord) {
     const task = this.findTodayPracticeTask(userId, record.knowledgePointId);
     if (!task) return;
+    if (this.learningProgressRepository.enabled) {
+      // PracticeRecord does not carry taskId yet, so attribution still uses today's
+      // task + knowledgePointId + task state. Precise taskId attribution is deferred.
+      const progress = await this.learningProgressRepository.incrementStudyTaskProgress({
+        userId,
+        taskId: task.id,
+        completedQuestionIncrement: 1,
+        correctIncrement: record.correct ? 1 : 0,
+        minutesIncrement: Math.max(1, Math.round(record.timeSpentSec / 60)),
+      });
+      if (progress.completedQuestionCount >= task.questionCount) {
+        try {
+          await this.completeStudyTask(task.id, {
+            userId,
+            completedQuestionCount: progress.completedQuestionCount,
+            correctCount: progress.correctCount,
+            minutesSpent: progress.minutesSpent,
+            selfRating: 3,
+          });
+        } catch (error) {
+          this.logger.warn(
+            `Auto-complete task ${task.id} failed after practice`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
+      return;
+    }
     const byUser = this.taskProgressByUser.get(userId) ?? new Map<string, TaskProgress>();
     const current = byUser.get(task.id) ?? { completedQuestionCount: 0, correctCount: 0, minutesSpent: 0 };
     const next = accumulateTaskProgress({
@@ -2165,6 +2224,9 @@ export class StudyService implements OnModuleInit {
     reviewed.set(questionId, now.toISOString());
     this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
     await this.learningProgressRepository.saveWrongQuestionReview(userId, questionId, now.toISOString());
+    if (stability === 'mastered' && this.prisma) {
+      await resolveWrongQuestion(this.prisma, userId, questionId, now);
+    }
     if (input.isReview === true) {
       try {
         await this.scoreCenterService?.applyReview(userId, questionId, {
@@ -2613,7 +2675,18 @@ export class StudyService implements OnModuleInit {
     return result;
   }
 
-  async createPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }) {
+  async createPracticeRecord(
+    input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question },
+    options: { idempotencyKey?: string } = {},
+  ) {
+    const idempotencyKey = options.idempotencyKey?.trim();
+    if (!idempotencyKey) return this.createPracticeRecordLegacy(input);
+    if (idempotencyKey.length > 255) throw new BadRequestException('Idempotency-Key is too long');
+    if (!this.prisma || !this.answerReceipts?.enabled) return this.createPracticeRecordLegacy(input);
+    return this.createPracticeRecordWithReceipt(input, idempotencyKey);
+  }
+
+  private async createPracticeRecordLegacy(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }) {
     const questionSnapshot = input.questionSnapshot
       ?? await this.questionsService.findQuestionById(input.questionId)
       ?? undefined;
@@ -2641,6 +2714,153 @@ export class StudyService implements OnModuleInit {
     return variantProgress ? { ...savedRecord, variantProgress } : savedRecord;
   }
 
+  private async createPracticeRecordWithReceipt(
+    input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question },
+    idempotencyKey: string,
+  ): Promise<PracticeRecord & Record<string, unknown>> {
+    const requestHash = computePracticeRecordRequestHash(input);
+    const existing = await this.answerReceipts!.findByKey(input.userId, idempotencyKey);
+    if (existing) return this.resolveExistingAnswerReceipt(existing, input, idempotencyKey, requestHash);
+
+    let receipt: AnswerReceiptState;
+    try {
+      receipt = await this.answerReceipts!.createPending({
+        userId: input.userId,
+        idempotencyKey,
+        requestHash,
+        hashVersion: PRACTICE_RECORD_HASH_VERSION,
+      });
+    } catch (error) {
+      if (!isPrismaUniqueError(error)) throw error;
+      const raced = await this.answerReceipts!.findByKey(input.userId, idempotencyKey);
+      if (raced) return this.resolveExistingAnswerReceipt(raced, input, idempotencyKey, requestHash);
+      throw error;
+    }
+
+    let result: {
+      response: PracticeRecord & Record<string, unknown>;
+      savedRecord: PracticeRecord;
+      reviewSchedule: ReviewSchedule | null;
+    };
+    try {
+      result = await this.prisma!.$transaction(async (tx) => {
+        const questionSnapshot = input.questionSnapshot
+          ?? await this.questionsService.findQuestionById(input.questionId)
+          ?? undefined;
+        const record = this.buildPracticeRecord({ ...input, questionSnapshot });
+        const savedRecord = await this.practiceRecordRepository.save(record, tx);
+        await this.scoreCenterService?.applyAttempts(input.userId, [savedRecord], tx);
+        const reviewSchedule = !savedRecord.correct
+          ? await this.persistReviewScheduleForWrongRecord(savedRecord, tx)
+          : null;
+        const variantProgress = input.variantQuestionId
+          ? await this.applyVariantRetest(savedRecord, input.variantQuestionId, tx)
+          : null;
+        const response = await this.buildPracticeRecordResponse(savedRecord, variantProgress);
+        const responseSnapshot = toJsonSnapshot(response);
+        await this.answerReceipts!.markSucceeded(tx, {
+          id: receipt.id,
+          responseSnapshot,
+          practiceRecordIds: [savedRecord.id],
+        });
+        return { response: responseSnapshot as PracticeRecord & Record<string, unknown>, savedRecord, reviewSchedule };
+      });
+    } catch (error) {
+      await this.markAnswerReceiptFailed(receipt, error);
+      throw error;
+    }
+
+    if (this.prisma) await this.refreshNodeMasteryCache(input.userId);
+    this.records.push(result.savedRecord);
+    if (result.reviewSchedule) this.commitReviewScheduleMemory(result.reviewSchedule);
+    await this.applyPracticeProgressToTasks(input.userId, result.savedRecord);
+    await this.trackUserEvent(input.userId, 'practice.submit', {
+      questionId: result.savedRecord.questionId,
+      correct: result.savedRecord.correct,
+    });
+    return result.response;
+  }
+
+  private async resolveExistingAnswerReceipt(
+    receipt: AnswerReceiptState,
+    input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question },
+    idempotencyKey: string,
+    requestHash: string,
+  ): Promise<PracticeRecord & Record<string, unknown>> {
+    if (receipt.requestHash !== requestHash) {
+      throw new ConflictException('Idempotency-Key was already used with a different request');
+    }
+    if (receipt.status === 'SUCCEEDED') return receipt.responseSnapshot as PracticeRecord & Record<string, unknown>;
+    if (receipt.status === 'FAILED') {
+      throw replayFailedReceipt(receipt.responseSnapshot);
+    }
+    const now = new Date();
+    if (receipt.updatedAt.getTime() > now.getTime() - ANSWER_RECEIPT_STALE_MS) {
+      throw new HttpException('Answer submission is still being processed', 425);
+    }
+    const taken = await this.answerReceipts!.takeOverPending({
+      userId: input.userId,
+      idempotencyKey,
+      requestHash,
+      staleBefore: new Date(now.getTime() - ANSWER_RECEIPT_STALE_MS),
+      updatedAt: now,
+    });
+    if (!taken) {
+      const refreshed = await this.answerReceipts!.findByKey(input.userId, idempotencyKey);
+      if (refreshed) return this.resolveExistingAnswerReceipt(refreshed, input, idempotencyKey, requestHash);
+      throw new HttpException('Answer submission is still being processed', 425);
+    }
+    return this.createPracticeRecordFromExistingPending(input, receipt);
+  }
+
+  private async createPracticeRecordFromExistingPending(
+    input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question },
+    receipt: AnswerReceiptState,
+  ): Promise<PracticeRecord & Record<string, unknown>> {
+    let result: {
+      response: PracticeRecord & Record<string, unknown>;
+      savedRecord: PracticeRecord;
+      reviewSchedule: ReviewSchedule | null;
+    };
+    try {
+      result = await this.prisma!.$transaction(async (tx) => {
+        const questionSnapshot = input.questionSnapshot
+          ?? await this.questionsService.findQuestionById(input.questionId)
+          ?? undefined;
+        const record = this.buildPracticeRecord({ ...input, questionSnapshot });
+        const savedRecord = await this.practiceRecordRepository.save(record, tx);
+        await this.scoreCenterService?.applyAttempts(input.userId, [savedRecord], tx);
+        const reviewSchedule = !savedRecord.correct
+          ? await this.persistReviewScheduleForWrongRecord(savedRecord, tx)
+          : null;
+        const variantProgress = input.variantQuestionId
+          ? await this.applyVariantRetest(savedRecord, input.variantQuestionId, tx)
+          : null;
+        const response = await this.buildPracticeRecordResponse(savedRecord, variantProgress);
+        const responseSnapshot = toJsonSnapshot(response);
+        await this.answerReceipts!.markSucceeded(tx, {
+          id: receipt.id,
+          responseSnapshot,
+          practiceRecordIds: [savedRecord.id],
+        });
+        return { response: responseSnapshot as PracticeRecord & Record<string, unknown>, savedRecord, reviewSchedule };
+      });
+    } catch (error) {
+      await this.markAnswerReceiptFailed(receipt, error);
+      throw error;
+    }
+
+    if (this.prisma) await this.refreshNodeMasteryCache(input.userId);
+    this.records.push(result.savedRecord);
+    if (result.reviewSchedule) this.commitReviewScheduleMemory(result.reviewSchedule);
+    await this.applyPracticeProgressToTasks(input.userId, result.savedRecord);
+    await this.trackUserEvent(input.userId, 'practice.submit', {
+      questionId: result.savedRecord.questionId,
+      correct: result.savedRecord.correct,
+    });
+    return result.response;
+  }
+
   async getPracticeFeedback(questionId: string) {
     const question = await this.questionsService.findQuestionById(questionId);
     if (!question) {
@@ -2661,6 +2881,38 @@ export class StudyService implements OnModuleInit {
       correctAnswer: question.answer,
       knowledgePointTitle: display?.title || knowledgePoint?.title || '',
     };
+  }
+
+  private async buildPracticeRecordResponse(record: PracticeRecord, variantProgress: unknown) {
+    const feedback = await this.getPracticeFeedback(record.questionId);
+    return variantProgress
+      ? {
+          ...record,
+          analysis: feedback.analysis,
+          correctAnswer: feedback.correctAnswer,
+          knowledgePointTitle: feedback.knowledgePointTitle,
+          variantProgress,
+        }
+      : {
+          ...record,
+          analysis: feedback.analysis,
+          correctAnswer: feedback.correctAnswer,
+          knowledgePointTitle: feedback.knowledgePointTitle,
+        };
+  }
+
+  private async markAnswerReceiptFailed(receipt: AnswerReceiptState, error: unknown) {
+    try {
+      await this.answerReceipts?.markFailed({
+        id: receipt.id,
+        responseSnapshot: serializeFailure(error),
+      });
+    } catch (receiptError) {
+      this.logger.warn(
+        `Answer receipt ${receipt.id} failed-state update failed`,
+        receiptError instanceof Error ? receiptError.message : String(receiptError),
+      );
+    }
   }
 
   private buildPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }): PracticeRecord {
@@ -2710,7 +2962,7 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  private async applyVariantRetest(record: PracticeRecord, originalQuestionId: string) {
+  private async applyVariantRetest(record: PracticeRecord, originalQuestionId: string, tx?: Prisma.TransactionClient) {
     if (originalQuestionId === record.questionId) return null;
     const key = scheduleKey(record.userId, originalQuestionId);
     const existing = this.reviewSchedules.get(key);
@@ -2747,12 +2999,16 @@ export class StudyService implements OnModuleInit {
     const attempts = this.reviewAttemptsByKey.get(key) ?? [];
     attempts.push(attempt);
     this.reviewAttemptsByKey.set(key, attempts);
-    await this.reviewScheduleRepository.saveReview(schedule, attempt);
+    await this.reviewScheduleRepository.saveReview(schedule, attempt, tx);
 
     const reviewed = this.wrongQuestionReviewDatesByUser.get(record.userId) ?? new Map<string, string>();
     reviewed.set(originalQuestionId, now.toISOString());
     this.wrongQuestionReviewDatesByUser.set(record.userId, reviewed);
-    await this.learningProgressRepository.saveWrongQuestionReview(record.userId, originalQuestionId, now.toISOString());
+    await this.learningProgressRepository.saveWrongQuestionReview(record.userId, originalQuestionId, now.toISOString(), tx);
+    const db = tx ?? this.prisma;
+    if (stability === 'mastered' && db) {
+      await resolveWrongQuestion(db, record.userId, originalQuestionId, now);
+    }
 
     return {
       originalQuestionId,
@@ -2780,12 +3036,12 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  private async ensureReviewSchedule(record: PracticeRecord) {
+  private buildReviewScheduleForWrongRecord(record: PracticeRecord): ReviewSchedule {
     const key = scheduleKey(record.userId, record.questionId);
     const existing = this.reviewSchedules.get(key);
     const nextReviewAt = new Date();
     nextReviewAt.setUTCDate(nextReviewAt.getUTCDate() + 1);
-    const schedule: ReviewSchedule = {
+    return {
       questionId: record.questionId,
       userId: record.userId,
       inferredReason: record.mistakeReason ?? '待归因',
@@ -2799,8 +3055,23 @@ export class StudyService implements OnModuleInit {
       reviewCount: existing?.reviewCount ?? 0,
       lastReviewedAt: existing?.lastReviewedAt,
     };
+  }
+
+  private commitReviewScheduleMemory(schedule: ReviewSchedule) {
+    const key = scheduleKey(schedule.userId, schedule.questionId);
     this.reviewSchedules.set(key, schedule);
     if (!this.reviewAttemptsByKey.has(key)) this.reviewAttemptsByKey.set(key, []);
+  }
+
+  private async persistReviewScheduleForWrongRecord(record: PracticeRecord, tx: Prisma.TransactionClient) {
+    const schedule = this.buildReviewScheduleForWrongRecord(record);
+    await this.reviewScheduleRepository.saveSchedule(schedule, tx);
+    return schedule;
+  }
+
+  private async ensureReviewSchedule(record: PracticeRecord) {
+    const schedule = this.buildReviewScheduleForWrongRecord(record);
+    this.commitReviewScheduleMemory(schedule);
     await this.reviewScheduleRepository.saveSchedule(schedule);
   }
 
@@ -4641,6 +4912,37 @@ export interface ReviewSchedule {
   nextReviewAt: string;
   reviewCount: number;
   lastReviewedAt?: string;
+}
+
+function toJsonSnapshot<T>(value: T): Prisma.InputJsonValue {
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+function serializeFailure(error: unknown): Prisma.InputJsonObject {
+  const statusCode = typeof (error as { getStatus?: () => number })?.getStatus === 'function'
+    ? (error as { getStatus: () => number }).getStatus()
+    : 500;
+  const response = typeof (error as { getResponse?: () => unknown })?.getResponse === 'function'
+    ? (error as { getResponse: () => unknown }).getResponse()
+    : null;
+  const message = response && typeof response === 'object' && 'message' in response
+    ? (response as { message?: unknown }).message
+    : error instanceof Error
+      ? error.message
+      : 'Answer submission failed';
+  return {
+    statusCode,
+    message: typeof message === 'string' ? message : JSON.stringify(message),
+  };
+}
+
+function replayFailedReceipt(snapshot: Prisma.JsonValue | null): HttpException {
+  const body = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+    ? snapshot as { statusCode?: unknown; message?: unknown }
+    : {};
+  const statusCode = typeof body.statusCode === 'number' ? body.statusCode : 500;
+  const message = typeof body.message === 'string' ? body.message : 'Answer submission failed';
+  return new HttpException(message, statusCode);
 }
 
 function toFeedbackItem(record: FeedbackRecord): FeedbackItem {
