@@ -36,12 +36,15 @@ test('student dashboard wires goal progress into the learning console', () => {
 
 test('today plan, practice feedback, and report all surface goal progress context', () => {
   const app = readFileSync('apps/web/src/App.tsx', 'utf8');
+  const home = readFileSync('apps/web/src/features/student/home/StudentHome.tsx', 'utf8');
   const todayPlan = readFileSync('apps/web/src/components/TodayPlan.tsx', 'utf8');
   const practice = readFileSync('apps/web/src/features/practice/PracticePanel.tsx', 'utf8');
   const report = readFileSync('apps/web/src/features/report/ReportSummaryPanel.tsx', 'utf8');
   const sections = readFileSync('apps/web/src/features/student/StudentSections.tsx', 'utf8');
 
-  assert.match(app, /<TodayPlan[\s\S]*student=\{student\}/);
+  // V3 Sprint 1 收尾后 TodayPlan 由首页 StudentHome 承载（原 App plan 分支已并入首页）。
+  assert.match(home, /<TodayPlan[\s\S]*student=\{student\}/);
+  assert.match(sections, /StudentHome/);
   assert.match(todayPlan, /GoalProgressInsight/);
   assert.match(todayPlan, /student\?: UserProfile \| null/);
   assert.match(todayPlan, /todayPlan=\{plan\}/);

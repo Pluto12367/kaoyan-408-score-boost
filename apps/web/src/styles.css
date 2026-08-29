@@ -7558,3 +7558,25 @@ html[data-theme="b"] .role-pill {
     font-size: 13px;
   }
 }
+
+/* V3 首页与测试中心布局 */
+.student-home {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.student-home-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.test-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.test-section-entry .task-status {
+  margin: 0 0 12px;
+}

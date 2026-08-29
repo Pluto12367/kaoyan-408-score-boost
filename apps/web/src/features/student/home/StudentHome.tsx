@@ -18,7 +18,8 @@ interface StudentHomeProps {
   todayPlanError: string;
   wrongQuestionSummary: WrongQuestionSummary | null;
   masteryMap: MasteryMap | null;
-  learningCalendar: LearningCalendar | null;
+  learningCalendar: LearningCalendar;
+  planFocusTaskId: string | null;
   onNavigate: (section: RoleSection) => void;
   onLaunchTodayTask: (task: TodayPlanTask) => void;
   onRefreshTodayPlan: () => void;
@@ -34,6 +35,7 @@ export function StudentHome({
   wrongQuestionSummary,
   masteryMap,
   learningCalendar,
+  planFocusTaskId,
   onNavigate,
   onLaunchTodayTask,
   onRefreshTodayPlan,
@@ -58,6 +60,24 @@ export function StudentHome({
         />
       </div>
 
+      <section className="panel" aria-label="学习日历">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">学习日历</p>
+            <h3>连续学习 {learningCalendar.streakDays} 天</h3>
+          </div>
+          <span>今日 {learningCalendar.today.completedTaskCount} 项任务 · {learningCalendar.today.practiceCount} 次练习</span>
+        </div>
+        <div className="calendar-strip">
+          {learningCalendar.days.map((day) => (
+            <div key={day.date} className={`calendar-day ${day.isActive ? 'active' : ''}`}>
+              <strong>{day.date.slice(5)}</strong>
+              <span>{day.completedTaskCount + day.practiceCount}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="panel student-home-plan-card" aria-label="今日计划入口">
         <div className="panel-heading">
           <div>
@@ -71,6 +91,7 @@ export function StudentHome({
             <TodayPlan
               plan={todayPlan}
               student={student}
+              focusTaskId={planFocusTaskId}
               onRefresh={async () => {
                 onRefreshTodayPlan();
               }}

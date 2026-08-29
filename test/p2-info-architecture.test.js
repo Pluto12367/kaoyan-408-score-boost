@@ -4,16 +4,17 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('P2-01: TodayPlan renders only in the plan section; the homepage uses the route summary', async () => {
+test('P2-01: TodayPlan lives in the v3 StudentHome; the launchpad keeps the route summary', async () => {
   const app = await source('apps/web/src/App.tsx');
-  const usages = [...app.matchAll(/<TodayPlan\b/g)];
-  assert.equal(usages.length, 1, 'TodayPlan should render exactly once');
-  assert.match(
+  assert.doesNotMatch(
     app,
-    /visibleSection === 'plan' \? ?\(?\s*(?:studentOverviewReady \? )?<>[\s\S]*?<TodayPlan\b/,
-    'TodayPlan should live under the plan section',
+    /<TodayPlan\b/,
+    'App should no longer render TodayPlan directly (the v3 home owns it)',
   );
-  const usageRegion = app.slice(usages[0].index, usages[0].index + 320);
+  const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
+  const usages = [...home.matchAll(/<TodayPlan\b/g)];
+  assert.equal(usages.length, 1, 'StudentHome should render TodayPlan exactly once');
+  const usageRegion = home.slice(usages[0].index, usages[0].index + 320);
   assert.match(usageRegion, /focusTaskId=\{planFocusTaskId\}/, 'TodayPlan receives the focused task');
 
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');

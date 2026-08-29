@@ -30,19 +30,21 @@ import type {
 } from '../../api';
 import { ModuleUnavailable } from '../../components/ModuleResourceState';
 import { sectionFallback } from '../../components/sectionFallback';
+import { isMockAllowed } from '../../api/env';
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { ReviewResourcesPanel } from '../report/ReviewResourcesPanel';
 import { WeaknessReportPanel } from '../report/WeaknessReportPanel';
 import { LearningProfileCard } from '../dashboard/LearningProfileCard';
-import { StudentLearningConsole } from './StudentLearningConsole';
+import { StudentHome } from './home/StudentHome';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { SessionView } from '../../api/endpoints/sessions';
 import { deriveTodayTaskNextStep, type TodayPlanTask, type TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
 
 const StudentLaunchpad = lazy(() => import('../onboarding/StudentLaunchpad').then((m) => ({ default: m.StudentLaunchpad })));
-const ReportWorkspace = lazy(() => import('../report/ReportWorkspace').then((m) => ({ default: m.ReportWorkspace })));
+const StudyPlanOverview = lazy(() => import('../plan/StudyPlanOverview').then((m) => ({ default: m.StudyPlanOverview })));
+const TestSection = lazy(() => import('../test/TestSection').then((m) => ({ default: m.TestSection })));
 const PracticePanel = lazy(() => import('../practice/PracticePanel').then((m) => ({ default: m.PracticePanel })));
 const TutorPanel = lazy(() => import('../tutor/TutorPanel').then((m) => ({ default: m.TutorPanel })));
 const MistakeWorkspace = lazy(() => import('../mistakes/MistakeWorkspace').then((m) => ({ default: m.MistakeWorkspace })));
@@ -91,9 +93,13 @@ export interface StudentSectionsProps {
   detailQuestionId: string | null;
   wrongStatus: string;
   stageResult: StageAssessmentResult | null;
+  stageAssessment: DashboardOverview['stageAssessment'];
   assessmentStatus: string;
+  onSubmitAssessment: () => void;
+  onGenerateAssessment: () => void;
   diagnosticStatus: string;
   feedbackStatus: string;
+  planFocusTaskId: string | null;
   tutorReply: TutorReply | null;
   aiFollowUp: AiFollowUp | null;
   tutorStatus: string;
@@ -158,7 +164,7 @@ export function StudentSections(props: StudentSectionsProps) {
         studentOverviewReady ? (
           <Suspense fallback={sectionFallback('学习总览')}>
             <>
-              <StudentLearningConsole
+              <StudentHome
                 student={props.student}
                 report={report}
                 todayPlan={props.todayPlan}
@@ -167,9 +173,17 @@ export function StudentSections(props: StudentSectionsProps) {
                 wrongQuestionSummary={props.wrongQuestionSummary.data}
                 masteryMap={props.masteryMap}
                 learningCalendar={props.learningCalendar}
+                planFocusTaskId={props.planFocusTaskId}
                 onNavigate={props.onNavigate}
                 onLaunchTodayTask={props.onLaunchTodayTask}
+                onRefreshTodayPlan={props.onRetryTodayPlan}
+                onOpenReview={props.onOpenReview}
               />
+              {!props.todayPlan && isMockAllowed() ? (
+                <Suspense fallback={sectionFallback('学习计划')}>
+                  <StudyPlanOverview plan={props.plan} />
+                </Suspense>
+              ) : null}
               <LearningProfileCard profile={props.learningProfile} onRetry={props.onRetryLearningProfile} />
               <StudentLaunchpad
                 showOnboarding={props.showOnboarding}
@@ -203,8 +217,8 @@ export function StudentSections(props: StudentSectionsProps) {
 
       {visibleSection === 'test' || visibleSection === 'report' ? (
         studentOverviewReady ? (
-          <Suspense fallback={sectionFallback('提分报告')}>
-            <ReportWorkspace
+          <Suspense fallback={sectionFallback('测试中心')}>
+            <TestSection
               student={props.student}
               report={report}
               stageReport={props.stageReport}
@@ -219,8 +233,11 @@ export function StudentSections(props: StudentSectionsProps) {
               plan={props.plan}
               wrongQuestionSummary={props.wrongQuestionSummary}
               todayPlan={props.todayPlan}
+              stageAssessment={props.stageAssessment}
+              stageResult={props.stageResult}
               feedbackStatus={props.feedbackStatus}
               diagnosticStatus={props.diagnosticStatus}
+              assessmentStatus={props.assessmentStatus}
               onRetryStageReport={props.onRetryStageReport}
               onRetryTrial={props.onRetryTrial}
               onRetryReminders={props.onRetryReminders}
@@ -231,11 +248,13 @@ export function StudentSections(props: StudentSectionsProps) {
               onRetryAssessmentHistory={props.onRetryAssessmentHistory}
               onSubmitFeedback={props.onSubmitFeedback}
               onSubmitDiagnostic={props.onSubmitDiagnostic}
+              onSubmitAssessment={props.onSubmitAssessment}
+              onGenerateAssessment={props.onGenerateAssessment}
               onNavigate={props.onNavigate}
             />
           </Suspense>
         ) : (
-          <ModuleUnavailable title="提分报告" resource={overviewResource} onRetry={onRetryOverview} />
+          <ModuleUnavailable title="测试中心" resource={overviewResource} onRetry={onRetryOverview} />
         )
       ) : null}
 

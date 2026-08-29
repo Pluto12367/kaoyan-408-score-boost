@@ -101,10 +101,7 @@ const ExamSession = lazy(() => import('./components/ExamSession').then((m) => ({
 const ExamReportView = lazy(() => import('./components/ExamReport').then((m) => ({ default: m.ExamReportView })));
 const AdminWorkspace = lazy(() => import('./features/admin/AdminWorkspace').then((m) => ({ default: m.AdminWorkspace })));
 const TeacherWorkspace = lazy(() => import('./features/teacher/TeacherWorkspace').then((m) => ({ default: m.TeacherWorkspace })));
-const StageAssessmentPanel = lazy(() => import('./features/assessment/StageAssessmentPanel').then((m) => ({ default: m.StageAssessmentPanel })));
-const StudyPlanOverview = lazy(() => import('./features/plan/StudyPlanOverview').then((m) => ({ default: m.StudyPlanOverview })));
 const TodayPlan = lazy(() => import('./components/TodayPlan').then((m) => ({ default: m.TodayPlan })));
-const TodaysScoreCenter = lazy(() => import('./features/today-score-center/TodaysScoreCenter').then((m) => ({ default: m.TodaysScoreCenter })));
 const KnowledgeCatalog = lazy(() => import('./features/knowledge-catalog/KnowledgeCatalog').then((m) => ({ default: m.KnowledgeCatalog })));
 
 interface QuestContext {
@@ -1412,7 +1409,11 @@ paperId: paper.id,
             detailQuestionId={detailQuestionId}
             wrongStatus={wrongStatus}
             stageResult={stageResult}
+            stageAssessment={stageAssessment}
             assessmentStatus={assessmentStatus}
+            onSubmitAssessment={handleSubmitAssessment}
+            onGenerateAssessment={handleGenerateAssessment}
+            planFocusTaskId={planFocusTaskId}
             diagnosticStatus={diagnosticStatus}
             feedbackStatus={feedbackStatus}
             tutorReply={tutorReply}
@@ -1523,79 +1524,6 @@ paperId: paper.id,
         </AdminLayout>
 
         <StudentLayout role={sessionUser?.role}>
-        {visibleSection === 'plan' ? (
-          studentOverviewReady ? <>
-        <section id="study-calendar" className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">学习日历</p>
-              <h3>连续学习 {learningCalendar.streakDays} 天</h3>
-            </div>
-            <span>今日 {learningCalendar.today.completedTaskCount} 项任务 · {learningCalendar.today.practiceCount} 次练习</span>
-          </div>
-          <div className="calendar-strip">
-            {learningCalendar.days.map((day) => (
-              <div key={day.date} className={`calendar-day ${day.isActive ? 'active' : ''}`}>
-                <strong>{day.date.slice(5)}</strong>
-                <span>{day.completedTaskCount + day.practiceCount}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {todayPlan ? (
-          <Suspense fallback={sectionFallback('今日计划')}>
-          <TodayPlan
-            plan={todayPlan}
-            student={student}
-            focusTaskId={planFocusTaskId}
-            onRefresh={refreshTodayPlan}
-            onNavigate={setActiveSection}
-            onOpenReview={(questionId) => {
-              setDetailQuestionId(questionId);
-              setActiveSection('wrong-book');
-            }}
-          />
-          </Suspense>
-        ) : todayPlanLoading || todayPlanError ? (
-          <ModuleUnavailable
-            title="今日计划"
-            resource={{ data: null, state: todayPlanLoading ? 'loading' : 'error', error: todayPlanError || undefined }}
-            onRetry={refreshTodayPlan}
-          />
-        ) : (
-          <section className="panel">
-            <div className="panel-heading">
-              <div><p className="eyebrow">今日计划</p><h3>暂未生成今日计划</h3></div>
-            </div>
-            <p className="empty-state">完成入学引导和入学诊断后，系统会自动生成今日学习任务。</p>
-          </section>
-        )}
-
-        <Suspense fallback={sectionFallback('阶段测评')}>
-          <StageAssessmentPanel
-            assessment={stageAssessment}
-            result={stageResult}
-            status={assessmentStatus}
-            onSubmit={handleSubmitAssessment}
-            onGenerate={handleGenerateAssessment}
-            onNavigate={setActiveSection}
-          />
-        </Suspense>
-
-        {!todayPlan && isMockAllowed() ? (
-          <Suspense fallback={sectionFallback('学习计划')}>
-            <StudyPlanOverview plan={plan} />
-          </Suspense>
-        ) : null}
-          </> : (
-            <ModuleUnavailable title="今日计划" resource={dashboardOverview.overview} onRetry={refreshOverview} />
-          )) : null}
-        {visibleSection === 'score-center' ? (
-          <Suspense fallback={sectionFallback('今日提分')}>
-            <TodaysScoreCenter />
-          </Suspense>
-        ) : null}
         {visibleSection === 'knowledge-catalog' ? (
           <Suspense fallback={sectionFallback('408知识图谱')}>
             <KnowledgeCatalog

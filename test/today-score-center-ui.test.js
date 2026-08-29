@@ -57,8 +57,9 @@ test('score center remains compatible while the simplified homepage owns the CTA
   assert.match(navigation, /'score-center'/);
   assert.match(navigation, /if \(section === 'plan' \|\| section === 'score-center'\) return 'dashboard'/);
 
-  const app = await source('apps/web/src/App.tsx');
-  assert.match(app, /TodaysScoreCenter/);
+  // V3 收敛后 score center 由 StudentHome 承载为首页「学习路线」卡片。
+  const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
+  assert.match(home, /TodaysScoreCenter/);
 
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
   assert.doesNotMatch(
