@@ -1,0 +1,40 @@
+{
+  "feature": "408-knowledge-catalog",
+  "files": [
+    {
+      "path": "CODEX-KNOWLEDGE-CATALOG-FIRST-PROMPT.md",
+      "sizeBytes": 3861,
+      "sha256": "4b5eccd434839ed8af4b31314294bb40782da7d85f81461bd06ee71362597216"
+    },
+    {
+      "path": "README-KNOWLEDGE-CATALOG.md",
+      "sizeBytes": 2641,
+      "sha256": "74e4d2262f7d4a5aab25ac2c7ede3dd4560718ec9e02897882635bb7aceadba3"
+    },
+    {
+      "path": "data/408/knowledge-catalog/atomic-stats-2022-2026.json",
+      "sizeBytes": 837436,
+      "sha256": "b58cdb8844c6023a18eb795034439157efe247791a5b9f73db73ec3da6085d69"
+    },
+    {
+      "path": "data/408/knowledge-catalog/chapter-section-stats-2022-2026.json",
+      "sizeBytes": 61853,
+      "sha256": "f1e4d825322752272709646e2becdfa7fd3c029434ea510ea9eaa4ca6987c582"
+    },
+    {
+      "path": "data/408/knowledge-catalog/frequency-model-v2.json",
+      "sizeBytes": 1037554,
+      "sha256": "02cdc81ebb4b94788efd2995e0595d3010faf4b8edd025785d4ed8baf0ce2542"
+    },
+    {
+      "path": "data/408/knowledge-catalog/hotspots-2022-2026.json",
+      "sizeBytes": 33891,
+      "sha256": "42ea87e1354576843c8cd1de677d6dcf4bab8b66a214c9f7c3ea11471af67d3e"
+    },
+    {
+      "path": "data/408/knowledge-catalog/knowledge-tree-408-v2.json",
+      "sizeBytes": 953758,
+      "sha256": "a2ca56550e00972ede7fb3e291ee26e0646ba615a4d291e9c60e444e3cffa5a2"
+    }
+  ]
+}

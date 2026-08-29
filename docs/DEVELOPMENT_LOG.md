@@ -21,6 +21,7 @@
 
 ## 当前状态（下次开工先看这里）
 
+- 分支/提交：`feature/v3-product-refactor`，Phase R（修复与收线）已完成并分批提交：重建被测试加载器破坏的 today-plan 投影服务、修复破坏性写回加载器为安全沙箱；补齐 12 个 provider 的 @Injectable 并修复 StudyModule DI（无 DB 内存模式启动验证通过，/health 200）；裁定并修复 exam-score-history parity（9）与 assessment-history projection（1）分歧（均为测试 stub 不忠实，生产代码未改）；历史工作区已分 5 批落库；StudentHome/TestSection 已接入学生导航并清理旧 plan/score-center 分支；`npm test` 1005 通过 / 0 失败 / 1 跳过、`build:api`/`build:web` 通过。下一步：OverviewReportAdapter 与 /reports/overview 接线，或 V3 Sprint 2（前端切换 /student-state、删 mock、废弃三冗余端点）。
 - 分支/提交：`codex/deployment-ready`，A/B/C 三档主题切换（深色/极简/标准）已提交推送并部署上线（`83182ad`，与 origin 同步，线上 bundle 已确认包含 `theme-switch`/`kaoyan408:theme`）；`npm test` 577 通过 / 0 失败 / 1 跳过、`build:api`/`build:web` 通过。下一步：`npm run verify:deployed` 线上全量核对；主题能力可后续扩展（跟随系统偏好、教师/管理端配色）。
 - 分支/提交：`codex/deployment-ready`，节点闯关（图谱原子节点 未开始/进行中/已通关 + 闯关小测 ≥60% 通关 + `UserNodeQuest` 里程碑表）已完成 TDD 与全量验证，**尚未提交**；`npm test` 570 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含闯关断言）通过。下一步：提交推送 → 部署 → 浏览器验证闯关流程 → 错题→真题联动。
 - 分支/提交：`codex/deployment-ready`，阶段 0-5 已提交推送；Phase 2b（计划语义迁移到 `knowledgeNodeId`）已完成并**尚未提交**；`npm test` 565 项 564 通过 / 1 跳过、`build:api`/`build:web` 通过、`test:integration:postgres`（含节点计划+questionIds 断言）与 `test:integration:content-import` 通过。下一步：提交推送 → 部署后浏览器验证“今日计划任务按节点启动练习”；至此方案 C 全部阶段（Phase 1/2/2b）完成，P2-2 口径统一收敛。
@@ -661,3 +662,17 @@
 - 测试结果：RED 阶段新增测试按预期失败；GREEN 后 `node test/knowledge-catalog-ui.test.js` 19/19 通过；`node test/knowledge-catalog-first-screen.test.js` 3/3 通过；`npm test` 615 通过 / 0 失败 / 1 跳过；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 Vite 动态导入与 chunk 体积提示）。
 - 遗留问题：尚未提交、推送和线上部署；上线后需要浏览器验收三张推荐卡是否滚动/高亮到对应区块，且普通知识树点击不残留推荐 intent。
 - 下一步：提交/推送 P1-3 → 用户手动部署 → 线上浏览器验收；通过后继续后续 P1 阶段。
+
+### 2026-08-29 Phase R：修复与收线（build:api 解阻塞 + CQRS 工作区落库 + V3 Sprint 1 接线）
+
+- 日期：2026-08-29
+- 任务：解除 build:api 阻塞；裁定并修复 10 个真实测试分歧；将约 200 个未提交文件按工作线分批提交；完成 V3 Sprint 1 收尾（StudentHome/TestSection 接线、旧分支清理）；文档收线。
+- 修改原因：test/today-plan-projection.test.js 的写回式 TS 加载器把转译产物写回源文件路径，剥离了 today-plan-projection.service.ts 全部类型注解导致 build:api 失败；新 CQRS provider 缺 @Injectable/注册导致 Nest DI 无法解析；exam-score-history parity 与 assessment-history projection 的失败均由测试 stub 与真实 builder 语义不符造成。
+- 修改文件：apps/api/src/study/today-plan-projection.service.ts（重建类型化源码）、study.module.ts（PracticeProjectionService 注册 + ExamScoreHistoryProjectionService 工厂 provider）、12 个 study 服务补 @Injectable（stage-assessment/dashboard/assessment-history/exam-score-history/today-plan/assessment-projection/practice-projection）、3 个 query 服务的默认参改 @Optional + 方法内兜底、test/today-plan-projection.test.js 重写加载器、15 个沙箱测试补 @nestjs/common stub、exam-score-history-legacy-parity（设 DATABASE_URL + 忠实快照 stub）、assessment-history-projection（忠实 where 过滤 + 摘要派生 stub）、apps/web StudentSections/StudentHome/TestSection/App.tsx 接线与旧分支删除、styles.css 新增布局样式、test/v3-section-wiring.test.js 新增、goal-progress/console-ui/p2-info/score-center 四个结构测试随行为迁移更新、docs/handoff 状态更新。
+- 数据库变化：无新增迁移；随本批提交 3 个既有未提交迁移（answer_receipts、user_knowledge_mastery_version、study_task_progress），均为增量可回滚。
+- API 变化：新增 GET /student-state；POST /practice-records 要求 Idempotency-Key 请求头（缺失 400）；/reports/overview 响应形状未变。
+- 参考方向：复用仓库内 stage-assessment-projection.test.js 的安全沙箱 CommonJS 加载模式替代写回式加载；DI 修复沿用 student-state-projection 已有的 @Optional 模式。
+- 测试结果：`npm test` 1006 项：1005 通过 / 0 失败 / 1 跳过；`npm run build:api`、`npm run build:web` 通过；无 DB 内存模式启动 StudyModule DI 解析通过且 /health 200；浏览器走查学生端首页（StudentHome 组合层）、测试中心（阶段测评入口 + 完整报告）、题库页均正常，5 项导航全局一致。
+- 截图或验证证据：走查为浏览器 DOM 快照核验；启动日志无 Nest 依赖解析错误。
+- 遗留问题：OverviewReportAdapter 与 /reports/overview 接线未做（Phase 2.8.5 第二步）；掌握度双口径灰度未切换；前端 mock 未删；/trial-progress 等三端点未废弃；docs/handoff/README.md 与 agent-context.md 中其余部分仍按旧基线表述。
+- 下一步：Phase 2.8.5 第二步（Adapter + 接线）或 V3 Sprint 2（前端切换 /student-state、删除 mockData、废弃三冗余端点）。
