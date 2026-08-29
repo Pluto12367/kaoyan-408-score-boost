@@ -130,6 +130,12 @@ enum EvidenceConfidence {
   LOW
 }
 
+enum AnswerReceiptStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
 model User {
   id                     String                        @id @default(cuid())
   email                  String?                       @unique
@@ -171,6 +177,26 @@ model User {
   knowledgeMasteries     UserKnowledgeMastery[]
   masterySnapshots       UserMasterySnapshot[]
   nodeQuests             UserNodeQuest[]
+  answerReceipts         AnswerReceipt[]
+  studyTaskProgresses    StudyTaskProgress[]
+}
+
+model AnswerReceipt {
+  id                String              @id @default(cuid())
+  userId            String
+  idempotencyKey    String
+  requestHash       String
+  hashVersion       String              @default("v1")
+  status            AnswerReceiptStatus @default(PENDING)
+  responseSnapshot  Json?
+  practiceRecordIds String[]            @default([])
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  user              User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, status, createdAt])
+  @@index([status, updatedAt])
 }
 
 model UserEvent {
@@ -584,6 +610,21 @@ model StudyTaskCompletion {
   @@index([userId, completedAt])
 }
 
+model StudyTaskProgress {
+  id                     String   @id @default(cuid())
+  userId                 String
+  taskId                 String
+  completedQuestionCount Int      @default(0)
+  correctCount           Int      @default(0)
+  minutesSpent           Int      @default(0)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId])
+  @@index([userId])
+}
+
 model StudyPlan {
   id               String      @id @default(cuid())
   userId           String
@@ -916,6 +957,7 @@ model UserKnowledgeMastery {
   nextReviewAt    DateTime?
   confidence      Float     @default(0.0)
   pinned          Boolean   @default(false)
+  version         Int       @default(0)
   updatedAt       DateTime  @updatedAt
   createdAt       DateTime  @default(now())
 
