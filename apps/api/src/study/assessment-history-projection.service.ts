@@ -4,6 +4,8 @@ import { AssessmentProjectionService } from './assessment-projection.service';
 
 interface PersistedAssessmentHistoryRow {
   id: string;
+  sessionId: string | null;
+  paperId: string | null;
   userId: string;
   title: string;
   submittedAt: Date;
@@ -30,6 +32,8 @@ export class AssessmentHistoryProjectionService {
       orderBy: { submittedAt: 'asc' },
       select: {
         id: true,
+        sessionId: true,
+        paperId: true,
         userId: true,
         title: true,
         submittedAt: true,
@@ -48,6 +52,8 @@ export class AssessmentHistoryProjectionService {
       .sort((left, right) => right.submittedAt.getTime() - left.submittedAt.getTime())
       .map((row) => ({
         id: row.id,
+        sessionId: row.sessionId ?? null,
+        paperId: row.paperId ?? null,
         title: row.title,
         submittedAt: row.submittedAt.toISOString(),
         score: row.score,

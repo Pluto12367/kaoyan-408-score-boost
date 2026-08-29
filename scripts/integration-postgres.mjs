@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { createHmac, randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { cp, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -3080,6 +3080,10 @@ async function waitForOverview(headers, predicate = () => true) {
 }
 
 async function postJson(url, body, headers = {}) {
+  // POST /practice-records requires an Idempotency-Key; each script submission is unique.
+  if (url.endsWith('/practice-records') && !headers['Idempotency-Key']) {
+    headers = { ...headers, 'Idempotency-Key': randomUUID() };
+  }
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json', ...headers },

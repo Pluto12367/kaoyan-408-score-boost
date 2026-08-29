@@ -2,6 +2,8 @@ import type { AssessmentHistorySnapshot } from './assessment-history.snapshot';
 
 export interface LegacyAssessmentHistoryItemDto {
   id: string;
+  sessionId?: string | null;
+  paperId?: string | null;
   title: string;
   submittedAt: string;
   score: number;

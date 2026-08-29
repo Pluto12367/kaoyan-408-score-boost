@@ -14,6 +14,8 @@
 
 export interface AssessmentHistoryItemSnapshot {
   id: string;
+  sessionId?: string | null;
+  paperId?: string | null;
   title: string;
   submittedAt: string;
   score: number;

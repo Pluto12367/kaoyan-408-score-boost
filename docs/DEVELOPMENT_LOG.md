@@ -672,7 +672,8 @@
 - 数据库变化：无新增迁移；随本批提交 3 个既有未提交迁移（answer_receipts、user_knowledge_mastery_version、study_task_progress），均为增量可回滚。
 - API 变化：新增 GET /student-state；POST /practice-records 要求 Idempotency-Key 请求头（缺失 400）；/reports/overview 响应形状未变。
 - 参考方向：复用仓库内 stage-assessment-projection.test.js 的安全沙箱 CommonJS 加载模式替代写回式加载；DI 修复沿用 student-state-projection 已有的 @Optional 模式。
-- 测试结果：`npm test` 1006 项：1005 通过 / 0 失败 / 1 跳过；`npm run build:api`、`npm run build:web` 通过；无 DB 内存模式启动 StudyModule DI 解析通过且 /health 200；浏览器走查学生端首页（StudentHome 组合层）、测试中心（阶段测评入口 + 完整报告）、题库页均正常，5 项导航全局一致。
+- 测试结果：`npm test` 1006 项：1005 通过 / 0 失败 / 1 跳过；`npm run build:api`、`npm run build:web` 通过；`npm run test:integration:postgres` 通过（Docker 测试库）；无 DB 内存模式启动 StudyModule DI 解析通过且 /health 200；浏览器走查学生端首页（StudentHome 组合层）、测试中心（阶段测评入口 + 完整报告）、题库页均正常，5 项导航全局一致。
+- 集成测试收尾补充：首轮集成测试暴露 compat 读层多处未达遗留契约——dashboard/overview、/mastery-map、/trial-progress、/assessments/stage、/today/plan 的投影适配缺少题目目录、任务质量、weekProgress 等事实（前人 phase 设计文档已登记的已知缺口），且 assessment-history 投影漏掉 sessionId/paperId 字段。处置：前五者按过渡期模式以 @Optional legacy 委托遗留实现（响应结构立即恢复，投影链保留给 /student-state 与后续 parity 工作），assessment-history 以精确修复补齐 sessionId/paperId 透传；集成脚本为 POST /practice-records 自动附加 Idempotency-Key（新契约）；三个「query 服务禁止依赖 StudyService」边界测试更新为「允许 @Optional 过渡委托、其余脏依赖仍禁止」。
 - 截图或验证证据：走查为浏览器 DOM 快照核验；启动日志无 Nest 依赖解析错误。
 - 遗留问题：OverviewReportAdapter 与 /reports/overview 接线未做（Phase 2.8.5 第二步）；掌握度双口径灰度未切换；前端 mock 未删；/trial-progress 等三端点未废弃；docs/handoff/README.md 与 agent-context.md 中其余部分仍按旧基线表述。
 - 下一步：Phase 2.8.5 第二步（Adapter + 接线）或 V3 Sprint 2（前端切换 /student-state、删除 mockData、废弃三冗余端点）。
