@@ -2,6 +2,9 @@ import { API_BASE_URL, fetchWithAuth } from '../client';
 import type { ConfidenceLevel, MistakeReason } from '@kaoyan408/shared';
 import type { PracticeSetResult, StageAssessmentResult, DiagnosticInput, DiagnosticProfile } from '../types';
 
+const ANSWER_PENDING_RETRY_MS = 500;
+const ANSWER_PENDING_MAX_RETRIES = 5;
+
 export interface VariantRetestProgress {
   originalQuestionId: string;
   consecutiveCorrect: number;
@@ -34,13 +37,29 @@ export async function submitPracticeAnswer(input: {
   answerModified?: boolean;
   variantQuestionId?: string;
 }): Promise<PracticeAnswerResult> {
-  const response = await fetchWithAuth(`${API_BASE_URL}/practice-records`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(input),
-  });
+  const idempotencyKey = createAnswerIdempotencyKey();
+  let response: Response | null = null;
+  for (let attempt = 0; attempt <= ANSWER_PENDING_MAX_RETRIES; attempt += 1) {
+    response = await fetchWithAuth(`${API_BASE_URL}/practice-records`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(input),
+    });
+    if (response.status !== 425 || attempt === ANSWER_PENDING_MAX_RETRIES) break;
+    await waitForAnswerPendingRetry();
+  }
+  if (!response) throw new Error('Practice submission failed before request was sent');
   if (!response.ok) throw new Error(`Practice submission failed with ${response.status}`);
   return response.json() as Promise<PracticeAnswerResult>;
+}
+
+function createAnswerIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  return `answer-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function waitForAnswerPendingRetry(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ANSWER_PENDING_RETRY_MS));
 }
 
 export async function submitPracticeSet(input: {
