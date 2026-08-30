@@ -23,6 +23,7 @@ export function useAuth() {
   const [sessionUser, setSessionUser] = useState<UserProfile | null>(() => loadStoredAuthSession()?.user ?? null);
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authStatus, setAuthStatus] = useState('请登录后同步学习记录。');
+  const [lastAuthAction, setLastAuthAction] = useState<'login' | 'registered' | null>(null);
 
   // Restore session on mount
   useEffect(() => {
@@ -122,6 +123,7 @@ export function useAuth() {
         ? await registerAccount({ inviteCode, email, password, name })
         : await loginAccount({ email, password });
       applyAuthenticatedSession(session, `${roleLabel[session.user.role]} ${session.user.name} 已登录。`);
+      setLastAuthAction(authMode === 'register' ? 'registered' : 'login');
       formElement.reset();
     } catch (error) {
       setAuthStatus(error instanceof Error ? error.message : '登录失败，请稍后重试。');
@@ -170,6 +172,7 @@ export function useAuth() {
     handleLogout,
     applyAuthenticatedSession,
     clearAccountSession,
+    lastAuthAction,
   };
 }
 

@@ -14,6 +14,7 @@ import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts
 import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
 import { AccountPanel } from './features/auth/AccountPanel';
 import { AuthExperience } from './features/auth/AuthExperience';
+import { OnboardingFlow } from './features/onboarding/OnboardingFlow';
 import { StudentSections } from './features/student/StudentSections';
 import { StudentLoopGuide } from './features/student/StudentLoopGuide';
 import {
@@ -114,7 +115,7 @@ export function App() {
   const {
     authSession, sessionUser, authMode, authStatus,
     setAuthSession, setSessionUser, setAuthMode, setAuthStatus,
-    handleRoleSwitch, handleAccountSubmit, handlePasswordChangeSubmit, handleLogout,
+    handleRoleSwitch, handleAccountSubmit, handlePasswordChangeSubmit, handleLogout, lastAuthAction,
   } = useAuth();
 
   const authKey = authSession?.accessToken ?? authSession?.token;
@@ -146,6 +147,7 @@ export function App() {
   });
   const [lastSyncAt, setLastSyncAt] = useState<string | undefined>();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [activationDismissed, setActivationDismissed] = useState(false);
   const [todayPlan, setTodayPlan] = useState<TodayPlanType | null>(null);
   const [todayPlanLoading, setTodayPlanLoading] = useState(false);
   const [todayPlanError, setTodayPlanError] = useState('');
@@ -1272,6 +1274,15 @@ paperId: paper.id,
       : dashboardOverview.overview.data?.source;
   const hasAuthenticatedSession = Boolean(authSession?.refreshToken || authSession?.accessToken || authSession?.token || sessionUser);
   const shouldShowAuthGate = !hasAuthenticatedSession || Boolean(sessionUser?.mustChangePassword);
+  const shouldShowRegistrationActivation = lastAuthAction === 'registered' && sessionUser?.role === 'student' && !activationDismissed;
+
+  useEffect(() => {
+    if (!sessionUser) setActivationDismissed(false);
+  }, [sessionUser]);
+
+  if (shouldShowRegistrationActivation) {
+    return <OnboardingFlow userName={sessionUser?.name ?? ''} onEnterDashboard={() => setActivationDismissed(true)} />;
+  }
 
   if (shouldShowAuthGate) {
     return (
