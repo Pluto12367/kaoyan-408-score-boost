@@ -58,6 +58,10 @@ import { LearningSessionRepository } from './learning-session.repository';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { KnowledgePointRepository } from './knowledge-point.repository';
 import { AssessmentHistoryRepository, type PersistedAssessmentHistoryItem } from './assessment-history.repository';
+import type { RecommendationItem } from '@kaoyan408/shared';
+import { RecommendationService } from './recommendation.service';
+import { bridgeKnowledgePointIds, buildPracticeSetCopy } from './practice-set-recommendation.adapter';
+import { buildReviewResourcesDto } from './review-resources-recommendation.adapter';
 import { PaperRepository } from './paper.repository';
 import { SystemConfigRepository } from './system-config.repository';
 import { ReviewScheduleRepository, scheduleKey, type ReviewAttemptState } from './review-schedule.repository';
@@ -139,6 +143,7 @@ export class StudyService implements OnModuleInit {
     private readonly prisma?: PrismaService,
     @Optional() private readonly answerReceipts?: AnswerReceiptRepository,
     @Optional() private readonly masterySummaryProjection?: MasterySummaryProjectionService,
+    @Optional() private readonly recommendation?: RecommendationService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -2468,7 +2473,19 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  getRecommendedPracticeSet(userId = this.student.id) {
+  async getRecommendedPracticeSet(userId = this.student.id) {
+    // Sprint 3.3：DB 模式走 Adapter → RecommendationService → Student State SoT；内存演示模式保留 legacy 计算。
+    if (!process.env.DATABASE_URL) {
+      return this.getRecommendedPracticeSetLegacy(userId);
+    }
+    if (!this.recommendation) {
+      return this.getRecommendedPracticeSetLegacy(userId);
+    }
+    return this.getRecommendedPracticeSetFromState(userId);
+  }
+
+  private getRecommendedPracticeSetLegacy(userId = this.student.id) {
+
     this.ensureNodeMasteryFresh();
     const report = this.getOverviewReport(userId);
     const stage = this.getStudent(userId).stage ?? '强化';
@@ -2527,9 +2544,92 @@ export class StudyService implements OnModuleInit {
       estimatedMinutes: Math.max(10, Math.round(questions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
       questions: toStudentQuestions(questions),
     };
+
   }
 
-  getRecommendedReviewResources(userId = this.student.id): ReviewResourceRecommendation {
+  private async getRecommendedPracticeSetFromState(userId: string) {
+    if (!this.recommendation) {
+      return this.getRecommendedPracticeSetLegacy(userId);
+    }
+    this.ensureNodeMasteryFresh();
+    const { result, nodeById, accuracyRateByNode, overallAccuracyRate } = await this.recommendation.runRecommendationForUser(userId, { availableMinutes: 60 });
+    const stage = this.getStudent(userId).stage ?? '强化';
+    const knowledgeItems = result.items.filter((item) => item.kind === 'KNOWLEDGE');
+    const weakKnowledgeItems = knowledgeItems.filter((item) => item.facts.mastery < 0.45);
+    const questionSet = result.items.find((item): item is Extract<RecommendationItem, { kind: 'QUESTION_SET' }> => item.kind === 'QUESTION_SET');
+    const weakNodeIds = weakKnowledgeItems.map((item) => item.knowledgeNodeId);
+    const fallbackNodeIds = this.generatePlan(userId).dailyTasks.map((task) => task.knowledgePointId);
+    // 灰度/节点口径契约：knowledgePointIds 字段承载节点 id（与 legacy 节点模式一致）
+    const knowledgePointIds = [...new Set(weakNodeIds)].slice(0, 4);
+    let matchingQuestions: Question[] = [];
+    const nodeQuestionIds = new Set(weakNodeIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []));
+    matchingQuestions = this.questions.filter((question) => nodeQuestionIds.has(question.id));
+    if (matchingQuestions.length === 0) {
+      const sourceIds = weakNodeIds.length ? weakNodeIds : fallbackNodeIds.slice(0, 4);
+      knowledgePointIds.splice(0, knowledgePointIds.length, ...sourceIds.slice(0, 4));
+      const fallbackNodeQuestionIds = new Set(knowledgePointIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []));
+      matchingQuestions = this.questions.filter((question) => fallbackNodeQuestionIds.has(question.id));
+      if (matchingQuestions.length === 0) {
+        matchingQuestions = this.questions.filter((question) =>
+          question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
+        );
+      }
+    }
+    if (matchingQuestions.length === 0) {
+      knowledgePointIds.push(...this.questions.flatMap((question) => question.knowledgePointIds).slice(0, 2));
+      matchingQuestions = this.questions.filter((question) =>
+        question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
+      );
+    }
+    const questionCount = stage === '冲刺' ? 20 : questionSet?.questionCount ?? 12;
+    const questions = dedupeQuestionsByStem(matchingQuestions).slice(0, Math.min(questionCount, matchingQuestions.length));
+    const topWeak = weakKnowledgeItems[0];
+    const topWeakPoint = topWeak ? {
+      title: nodeById.get(topWeak.knowledgeNodeId)?.name ?? topWeak.knowledgeNodeId,
+      accuracyRate: accuracyRateByNode[topWeak.knowledgeNodeId] ?? 0,
+    } : null;
+    const copy = buildPracticeSetCopy({ stage, overallAccuracyRate, questionSetFocus: questionSet?.focus ?? null, topWeakPoint });
+
+    return {
+      id: `practice-set-${todayKey()}`,
+      userId,
+      title: copy.title,
+      stage,
+      focus: copy.focus,
+      reason: copy.reason,
+      knowledgePointIds,
+      questionCount: questions.length,
+      estimatedMinutes: Math.max(10, Math.round(questions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
+      questions: toStudentQuestions(questions),
+    };
+  }
+
+  private async getKpIdsByNodeId(nodeIds: string[]): Promise<Record<string, string[]>> {
+    if (!this.prisma || nodeIds.length === 0) return {};
+    const rows = await this.prisma.knowledgePointNodeMap.findMany({
+      where: { knowledgeNodeId: { in: nodeIds }, mappingType: 'PRIMARY' },
+      select: { knowledgePointId: true, knowledgeNodeId: true },
+    });
+    const map: Record<string, string[]> = {};
+    for (const row of rows) {
+      (map[row.knowledgeNodeId] ??= []).push(row.knowledgePointId);
+    }
+    return map;
+  }
+
+  async getRecommendedReviewResources(userId = this.student.id): Promise<ReviewResourceRecommendation> {
+    // Sprint 3.3：DB 模式走 Adapter → RecommendationService → Student State SoT；内存演示模式保留 legacy 计算。
+    if (!process.env.DATABASE_URL) {
+      return this.getRecommendedReviewResourcesLegacy(userId);
+    }
+    if (!this.recommendation) {
+      return this.getRecommendedReviewResourcesLegacy(userId);
+    }
+    return this.getRecommendedReviewResourcesFromState(userId);
+  }
+
+  private getRecommendedReviewResourcesLegacy(userId = this.student.id): ReviewResourceRecommendation {
+
     const report = this.getOverviewReport(userId);
     const masteryMap = this.getMasteryMap(userId);
     const wrongQuestions = this.listWrongQuestions(userId);
@@ -2616,6 +2716,43 @@ export class StudyService implements OnModuleInit {
       weakPointCount: report.weakPoints.length,
       items,
     };
+
+  }
+
+  private async getRecommendedReviewResourcesFromState(userId: string): Promise<ReviewResourceRecommendation> {
+    if (!this.recommendation) {
+      return this.getRecommendedReviewResourcesLegacy(userId);
+    }
+    const { result, nodeById, accuracyRateByNode } = await this.recommendation.runRecommendationForUser(userId, { availableMinutes: 60 });
+    const knowledgeItems = result.items.filter((item) => item.kind === 'KNOWLEDGE');
+    const weakKnowledgeItems = knowledgeItems.filter((item) => item.facts.mastery < 0.45);
+    const nodeIds = weakKnowledgeItems.map((item) => item.knowledgeNodeId);
+
+    const resourcePoints = weakKnowledgeItems.slice(0, 3).map((item) => {
+      const node = nodeById.get(item.knowledgeNodeId);
+      return {
+        knowledgePointId: item.knowledgeNodeId,
+        title: node?.name ?? item.knowledgeNodeId,
+        subject: node?.subject ?? '408',
+        chapter: '高频章节',
+        accuracyRate: accuracyRateByNode[item.knowledgeNodeId] ?? 70,
+      };
+    });
+    const wrongQuestions = this.listWrongQuestions(userId).map((item) => ({
+      knowledgePointId: item.knowledgePointId,
+      wrongCount: item.wrongCount,
+      latestMistakeReason: item.latestMistakeReason ?? null,
+    }));
+    const fallbackKp = this.knowledgePoints[0];
+    return buildReviewResourcesDto({
+      userId,
+      source: 'postgresql',
+      generatedAt: new Date().toISOString(),
+      weakPointCount: weakKnowledgeItems.length,
+      resourcePoints,
+      wrongQuestions,
+      fallbackPoint: fallbackKp ? { knowledgePointId: fallbackKp.id, title: fallbackKp.title, subject: fallbackKp.subject, chapter: fallbackKp.chapter, accuracyRate: 70 } : null,
+    });
   }
 
   async submitPracticeSet(practiceSetId: string, input: {

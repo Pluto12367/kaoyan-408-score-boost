@@ -78,6 +78,8 @@ export class RecommendationService {
     result: ReturnType<typeof runRecommendation>;
     nodeById: Map<string, { id: string; name: string; subject: string; importance: number; difficulty: number }>;
     breakdownByNode: Map<string, Record<string, number>>;
+    accuracyRateByNode: Record<string, number>;
+    overallAccuracyRate: number;
     user: UserGoalFacts | null;
     daysToExam: number;
   }> {
@@ -177,7 +179,14 @@ export class RecommendationService {
       );
     }
 
-    return { result, nodeById, breakdownByNode, user: user ? {
+    const accuracyRateByNode: Record<string, number> = {};
+    for (const nodeState of nodeStates) {
+      accuracyRateByNode[nodeState.knowledgeNodeId] = Math.round((nodeState.accuracy ?? 0) * 100);
+    }
+    const totalAttempts = nodeStates.reduce((sum, nodeState) => sum + nodeState.attempts, 0);
+    const totalCorrect = nodeStates.reduce((sum, nodeState) => sum + nodeState.correctCount, 0);
+    const overallAccuracyRate = totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 55;
+    return { result, nodeById, breakdownByNode, accuracyRateByNode, overallAccuracyRate, user: user ? {
       targetScore: user.targetScore,
       currentScore: user.currentScore,
       remainingDays: user.remainingDays,
