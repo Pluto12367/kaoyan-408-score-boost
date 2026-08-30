@@ -21,6 +21,7 @@ import {
 } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { todayKey } from '../study/study-date';
+import { RecommendationService } from '../study/recommendation.service';
 import {
   archiveScoreCenterPlans,
   createScoreCenterPlan,
@@ -51,29 +52,14 @@ import {
   type DbClient,
 } from './repository';
 
-const MODEL_VERSION = 'score-center-v1';
 const SCORE_SUBJECT_NAME_BY_CODE: Record<string, string> = {
   DS: '数据结构',
   CO: '计算机组成原理',
   OS: '操作系统',
   CN: '计算机网络',
 };
-const ACTION_LABELS: Record<RecommendationAction, string> = {
-  LEARN: '新学',
-  REVIEW: '复习',
-  PRACTICE: '练习',
-  WRONG_QUESTION: '错题重做',
-  MOCK: '模拟测试',
-};
-
 function clampDifficulty(value: number): 1 | 2 | 3 | 4 | 5 {
   return Math.min(5, Math.max(1, Math.round(value))) as 1 | 2 | 3 | 4 | 5;
-}
-
-function priorityLabel(score: number): string {
-  if (score >= 70) return '高';
-  if (score >= 45) return '中';
-  return '低';
 }
 
 function toMasteryState(row: {
@@ -98,7 +84,10 @@ function toMasteryState(row: {
 
 @Injectable()
 export class ScoreCenterService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly recommendation: RecommendationService,
+  ) {}
 
   get enabled() {
     return Boolean(process.env.DATABASE_URL);
@@ -469,129 +458,9 @@ export class ScoreCenterService {
     userId: string,
     input: { targetExamDate: Date; availableMinutes: 30 | 60 | 120 | 180 },
   ) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    const scheduledDate = todayKey();
-    const daysToExam = Math.max(
-      0,
-      Math.ceil((startOfDay(input.targetExamDate).getTime() - Date.now()) / 86_400_000),
-    );
-
-    const [nodes, snapshots, masteries, relations] = await Promise.all([
-      loadEvidenceNodes(this.prisma),
-      loadLatestFrequencySnapshots(this.prisma),
-      loadMasteries(this.prisma, userId),
-      loadKnowledgeRelations(this.prisma),
-    ]);
-    const snapshotByNode = new Map(snapshots.map((snapshot) => [snapshot.knowledgeNodeId, snapshot]));
-    const masteryByNode = new Map(masteries.map((mastery) => [mastery.knowledgeNodeId, mastery]));
-    const nodeById = new Map(nodes.map((node) => [node.id, node]));
-    const prerequisiteByNode = new Map<string, string[]>();
-    const prerequisiteMastery: Record<string, number> = {};
-    for (const relation of relations) {
-      const list = prerequisiteByNode.get(relation.fromId) ?? [];
-      list.push(relation.toId);
-      prerequisiteByNode.set(relation.fromId, list);
-    }
-
-    const candidates: PriorityCandidate[] = [];
-    const breakdownByNode = new Map<string, Record<string, number>>();
-    for (const node of nodes) {
-      const snapshot = snapshotByNode.get(node.id);
-      if (!snapshot) continue;
-      const mastery = masteryByNode.get(node.id);
-      const userState: UserKnowledgeState | undefined = mastery
-        ? {
-            ...toMasteryState(mastery),
-            retention: mastery.retention,
-            pinned: mastery.pinned,
-          }
-        : undefined;
-      const evidence: ExamEvidence = {
-        knowledgePointId: node.id,
-        importance: node.importance,
-        difficulty: node.difficulty,
-        recent3Y: { frequency: snapshot.recent3Frequency },
-        recent5Y: {
-          frequency: snapshot.recent5Frequency,
-          primaryScore: snapshot.primaryScore5y,
-        },
-        allTimeEvidence: { frequency: snapshot.allTimeEvidence },
-        trend: { direction: snapshot.trendDirection, delta: snapshot.trendDelta },
-        evidenceConfidence: snapshot.evidenceConfidence,
-      };
-      const priority = calculatePriority(evidence, userState, { daysToExam });
-      breakdownByNode.set(node.id, priority.breakdown);
-      const prerequisites = prerequisiteByNode.get(node.id) ?? [];
-      for (const prerequisiteId of prerequisites) {
-        const prerequisiteMasteryValue = masteryByNode.get(prerequisiteId)?.mastery;
-        if (prerequisiteMasteryValue != null) {
-          prerequisiteMastery[prerequisiteId] = prerequisiteMasteryValue;
-        }
-      }
-      candidates.push({
-        knowledgePointId: node.id,
-        subject: node.subject,
-        difficulty: node.difficulty,
-        mastery: userState?.mastery ?? 0.5,
-        recentAccuracy: userState?.recentAccuracy ?? 0.55,
-        recentWrongCount: userState?.wrongCount ?? 0,
-        forgetting: userState?.retention != null ? Math.max(0, 1 - userState.retention) : 0.5,
-        retention: mastery?.retention ?? null,
-        lastReviewedAt: mastery?.lastReviewedAt ?? null,
-        score: priority.score,
-        reasonCodes: priority.reasons,
-        prerequisites,
-        pinned: mastery?.pinned ?? false,
-      });
-    }
-
-    const drafts = composeDailyPlan({
-      candidates,
-      availableMinutes: input.availableMinutes,
-      daysToExam,
-      prerequisiteMastery,
-    });
-
-    const plan = await this.prisma.$transaction(async (tx) => {
-      await archiveScoreCenterPlans(tx, userId);
-      return createScoreCenterPlan(
-        tx,
-        userId,
-        {
-          targetScore: user?.targetScore ?? 115,
-          remainingDays: user?.remainingDays ?? daysToExam,
-          dailyHours: user?.dailyHours ?? 3.5,
-          modelVersion: MODEL_VERSION,
-          targetExamDate: input.targetExamDate,
-          availableMinutes: input.availableMinutes,
-          scheduledDate,
-        },
-        drafts.map((draft, index) => {
-          const node = nodeById.get(draft.knowledgePointId);
-          return {
-            knowledgePointId: draft.knowledgePointId,
-            knowledgeNodeId: draft.knowledgePointId,
-            subject: node?.subject ?? '',
-            chapter: '',
-            title: node?.name ?? draft.knowledgePointId,
-            mode: ACTION_LABELS[draft.action],
-            minutes: draft.estimatedMinutes,
-            questionCount: draft.action === 'MOCK' ? 30 : 8,
-            scheduledDate,
-            priority: priorityLabel(draft.score),
-            reason: draft.reasonCodes.join('、'),
-            nextAction: ACTION_LABELS[draft.action],
-            status: 'pending',
-            priorityScore: draft.score,
-            recommendationAction: draft.action,
-            reasonCodes: draft.reasonCodes as unknown as Prisma.InputJsonValue,
-            scoreBreakdown: breakdownByNode.get(draft.knowledgePointId) ?? {},
-            generatedRank: index + 1,
-          };
-        }),
-      );
-    });
-
+    // Sprint 3.2：推荐计算迁移至 RecommendationService（shared 引擎唯一入口），
+    // 本方法仅保留响应 DTO 组装（toPlanDto），端点 URL 与返回结构不变。
+    const plan = await this.recommendation.generateDailyPlanFromState(userId, input);
     return this.toPlanDto(plan);
   }
 
