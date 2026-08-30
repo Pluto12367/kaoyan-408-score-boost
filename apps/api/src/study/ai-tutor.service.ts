@@ -20,9 +20,9 @@ import {
   buildContextualCoachSystemPrompt,
   buildContextualCoachUserPrompt,
   buildTemplateContextualCoach,
-  parseContextualCoachJson,
 } from './contextual-coach.prompt';
 import type { ContextualCoachContext, ContextualCoachDraft } from './contextual-coach.types';
+import { normalizeContextualCoachModelResponse } from './contextual-coach-normalizer';
 
 export interface AiTutorResult<T> {
   draft: T;
@@ -30,6 +30,8 @@ export interface AiTutorResult<T> {
   prompt: string;
   rawResponse?: string;
   fallbackReason?: string;
+  durationMs?: number;
+  errorType?: string;
 }
 
 // AI 答疑编排：构造提示词 -> 调用 DeepSeek -> 解析 JSON -> 记录 AiTutorLog。
@@ -134,13 +136,23 @@ export class AiTutorService {
     context: ContextualCoachContext,
     message?: string,
   ): Promise<AiTutorResult<ContextualCoachDraft>> {
+    const startedAt = Date.now();
     if (!this.client) {
-      return {
+      const result = {
         draft: buildTemplateContextualCoach(context, message),
         source: 'contextual-coach-template',
         prompt: '',
         fallbackReason: 'AI unavailable',
+        durationMs: Date.now() - startedAt,
       };
+      this.logContextualCoachObservation({
+        userId,
+        context,
+        source: result.source,
+        fallbackReason: result.fallbackReason,
+        durationMs: result.durationMs,
+      });
+      return result;
     }
     const prompt = `${buildContextualCoachSystemPrompt()}\n\n${buildContextualCoachUserPrompt(context, message)}`;
     const questionId = context.context.type === 'question' || context.context.type === 'wrong_question'
@@ -154,22 +166,97 @@ export class AiTutorService {
         ],
         jsonMode: true,
       });
-      const draft = parseContextualCoachJson(content);
+      const normalized = normalizeContextualCoachModelResponse(
+        content,
+        buildTemplateContextualCoach(context, message),
+      );
       await this.logRepository.create({ userId, questionId, prompt, response: content });
-      return { draft, source: model, prompt, rawResponse: content };
+      const result = {
+        draft: normalized.draft,
+        source: normalized.fallbackReason ? 'contextual-coach-template' : model,
+        prompt,
+        rawResponse: content,
+        ...(normalized.fallbackReason ? { fallbackReason: normalized.fallbackReason } : {}),
+        durationMs: Date.now() - startedAt,
+        ...(normalized.fallbackReason ? { errorType: 'model_output' } : {}),
+      };
+      this.logContextualCoachObservation({
+        userId,
+        context,
+        source: result.source,
+        fallbackReason: result.fallbackReason,
+        durationMs: result.durationMs,
+        errorType: result.errorType,
+      });
+      return result;
     } catch (error) {
+      const errorType = describeErrorType(error);
+      const fallbackReason = contextualFallbackReason(error);
       await this.logRepository.create({
         userId,
         questionId,
         prompt,
         response: `ERROR: ${describeError(error)}`,
       });
-      throw error;
+      const durationMs = Date.now() - startedAt;
+      this.logContextualCoachObservation({
+        userId,
+        context,
+        source: 'contextual-coach-template',
+        fallbackReason,
+        errorType,
+        durationMs,
+      });
+      return {
+        draft: buildTemplateContextualCoach(context, message),
+        source: 'contextual-coach-template',
+        prompt,
+        fallbackReason,
+        durationMs,
+        errorType,
+      };
     }
+  }
+
+  private logContextualCoachObservation(input: {
+    userId: string;
+    context: ContextualCoachContext;
+    source: string;
+    fallbackReason?: string;
+    errorType?: string;
+    durationMs: number;
+  }): void {
+    this.logger.log(JSON.stringify({
+      event: 'contextual_coach.completed',
+      userId: input.userId,
+      contextType: input.context.context.type,
+      source: input.source,
+      fallback: Boolean(input.fallbackReason),
+      ...(input.fallbackReason ? { fallbackReason: input.fallbackReason } : {}),
+      ...(input.errorType ? { errorType: input.errorType } : {}),
+      durationMs: input.durationMs,
+    }));
   }
 }
 
 function describeError(error: unknown): string {
   if (error instanceof ChatCompletionError) return `${error.kind}: ${error.message}`;
   return error instanceof Error ? error.message : String(error);
+}
+
+function describeErrorType(error: unknown): string {
+  if (error instanceof ChatCompletionError) return error.kind;
+  return 'unknown';
+}
+
+function contextualFallbackReason(error: unknown): string {
+  if (!(error instanceof ChatCompletionError)) return 'provider_error';
+  switch (error.kind) {
+    case 'timeout': return 'provider_timeout';
+    case 'rate-limited': return 'provider_rate_limited';
+    case 'http': return 'provider_http_error';
+    case 'network': return 'provider_network_error';
+    case 'invalid-response': return 'provider_invalid_response';
+    default: return 'provider_error';
+  }
 }

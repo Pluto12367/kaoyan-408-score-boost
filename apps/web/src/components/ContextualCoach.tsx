@@ -9,10 +9,6 @@ interface ContextualCoachProps {
   prompt?: string;
 }
 
-function isRealModelSource(source: string): boolean {
-  return source.startsWith('deepseek');
-}
-
 export function ContextualCoach({ request, title = 'Contextual AI Coach', prompt = '基于当前学习事实，给我一个可执行的复盘建议。' }: ContextualCoachProps) {
   const [message, setMessage] = useState(request.message ?? '');
   const [response, setResponse] = useState<ContextualCoachResponse | null>(null);
@@ -28,7 +24,7 @@ export function ContextualCoach({ request, title = 'Contextual AI Coach', prompt
       setResponse(await requestContextualCoach(input));
     } catch (requestError) {
       setResponse(null);
-      setError(requestError instanceof Error ? requestError.message : 'AI 教练请求失败，请稍后重试。');
+      setError('AI 教练暂时无法响应，请稍后重试。');
     } finally {
       setLoading(false);
     }
@@ -39,7 +35,7 @@ export function ContextualCoach({ request, title = 'Contextual AI Coach', prompt
       <div className="panel-heading">
         <div>
           <p className="eyebrow">AI 教练</p>
-          <h3>{response && isRealModelSource(response.source) ? 'DeepSeek Contextual Coach' : title}</h3>
+          <h3>{title}</h3>
         </div>
         <button type="button" className="secondary-action" onClick={() => void handleSubmit()} disabled={loading}>
           <Brain size={18} /> {loading ? '整理中...' : '开始辅导'}
@@ -59,7 +55,8 @@ export function ContextualCoach({ request, title = 'Contextual AI Coach', prompt
           <Send size={16} /> 提问
         </button>
       </div>
-      {error ? <p className="task-status" role="alert">AI 教练请求失败：{error}</p> : null}
+      {loading ? <p className="task-status" role="status">正在整理辅导内容...</p> : null}
+      {error ? <p className="task-status" role="alert">{error}</p> : null}
       {response ? (
         <div className="follow-up-result">
           <article><strong>当前结论</strong><p>{response.summary}</p></article>
@@ -73,7 +70,10 @@ export function ContextualCoach({ request, title = 'Contextual AI Coach', prompt
             ))}
           </div>
           <article><strong>下一步</strong><ul>{response.nextActions.map((action) => <li key={action}>{action}</li>)}</ul></article>
-          <p className="task-status">来源：{response.source}{response.fallbackReason ? ` · ${response.fallbackReason}` : ''}</p>
+          <div className="task-status" aria-label="AI 回答状态">
+            <p>来源：{response.source}</p>
+            {response.fallbackReason ? <p>当前回答使用备用方案。原因：{response.fallbackReason}</p> : null}
+          </div>
         </div>
       ) : null}
     </section>

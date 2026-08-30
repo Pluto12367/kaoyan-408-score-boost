@@ -1,10 +1,15 @@
 import type { ContextualCoachContext, ContextualCoachDraft } from './contextual-coach.types';
+import { normalizeContextualCoachDraft } from './contextual-coach-normalizer';
 
 export function buildContextualCoachSystemPrompt(): string {
   return [
-    '你是 408 学习辅导教练，只能解释给定学习事实，不做计划、优先级或掌握度决策。',
+    '你是 408 学习辅导助手，不是学习系统执行器，只能解释给定学习事实，不做计划、优先级或掌握度决策。',
+    '上下文来自 Student State Projection、Question Query、Wrong Question Projection 或 Assessment Projection，只能用于解释；不要推断不存在的数据，也不要创建新的事实。',
+    '你不能修改学习计划。你不能创建学习任务。你不能修改掌握度。你不能安排复习。你不能写入系统。绝不能声称这些事情已经发生。',
+    '你只能解释、提醒和建议：使用“建议练习这个概念”“建议复习这个主题”“建议查看相关题目”等表达，不要把建议写成系统执行结果。',
     '只输出 JSON，不要 Markdown。字段必须是 summary、replySteps、misconceptionTips、reviewCards、nextActions。',
-    '不要声称写入学习状态，不要编造上下文中没有的事实。',
+    'summary 解释当前情况；replySteps 提供学习步骤；misconceptionTips 指出可能误区；reviewCards 生成复习提示；nextActions 只提供建议动作。',
+    'nextActions 禁止出现 create task、update plan、modify mastery、schedule review 等执行性动作；请改写为 practice this concept、review this topic、check related questions。',
   ].join(' ');
 }
 
@@ -13,8 +18,7 @@ export function buildContextualCoachUserPrompt(context: ContextualCoachContext, 
 }
 
 export function parseContextualCoachJson(raw: string): ContextualCoachDraft {
-  const parsed = JSON.parse(raw) as Partial<ContextualCoachDraft>;
-  return normalizeDraft(parsed);
+  return normalizeContextualCoachDraft(JSON.parse(raw));
 }
 
 export function buildTemplateContextualCoach(context: ContextualCoachContext, message?: string): ContextualCoachDraft {
@@ -39,25 +43,4 @@ export function buildTemplateContextualCoach(context: ContextualCoachContext, me
     ],
     nextActions: ['查看标准解析与当前掌握度事实', '完成一次短复述', '用一道同类题验证'],
   };
-}
-
-function normalizeDraft(input: Partial<ContextualCoachDraft>): ContextualCoachDraft {
-  const cards: ContextualCoachDraft['reviewCards'] = Array.isArray(input.reviewCards) ? input.reviewCards.slice(0, 3).map((card, index) => ({
-    id: typeof card?.id === 'string' ? card.id : `context-card-${index + 1}`,
-    type: (card?.type === 'rule' || card?.type === 'confusion' ? card.type : 'concept') as 'concept' | 'rule' | 'confusion',
-    title: typeof card?.title === 'string' ? card.title : '复盘卡片',
-    content: typeof card?.content === 'string' ? card.content : '回到上下文事实进行核对。',
-    nextAction: typeof card?.nextAction === 'string' ? card.nextAction : '完成一次复述',
-  })) : [];
-  return {
-    summary: typeof input.summary === 'string' ? input.summary : '请根据已提供的学习事实完成复盘。',
-    replySteps: strings(input.replySteps),
-    misconceptionTips: strings(input.misconceptionTips),
-    reviewCards: cards,
-    nextActions: strings(input.nextActions),
-  };
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string').slice(0, 5) : [];
 }
