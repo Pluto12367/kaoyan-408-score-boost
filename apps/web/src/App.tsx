@@ -4,7 +4,6 @@ import { ThemeToggle } from './components/ThemeToggle';
 import { ErrorReasonSelector } from './components/ErrorReasonSelector';
 import { OverlayDialog } from './components/OverlayDialog';
 import { sectionFallback } from './components/sectionFallback';
-import { BookOpenCheck, Brain, ShieldCheck, Target } from 'lucide-react';
 import {
   RoleNavigation,
   StudentBottomNav,
@@ -14,6 +13,7 @@ import { useRoleSectionNavigation, withTimeout } from './features/navigation/use
 import { AdminLayout, StudentLayout, TeacherLayout } from './layouts/RoleLayouts';
 import { useAdminWorkspaceActions } from './features/admin/useAdminWorkspaceActions';
 import { AccountPanel } from './features/auth/AccountPanel';
+import { AuthExperience } from './features/auth/AuthExperience';
 import { StudentSections } from './features/student/StudentSections';
 import { StudentLoopGuide } from './features/student/StudentLoopGuide';
 import {
@@ -1275,43 +1275,19 @@ paperId: paper.id,
 
   if (shouldShowAuthGate) {
     return (
-      <main className="app-shell auth-shell auth-shell-redesign">
-        <section className="auth-gate">
-          <div className="auth-brand">
-            <div className="auth-brand-row">
-              <span className="auth-orb" aria-hidden="true">408</span>
-              <div>
-                <p className="eyebrow">408 SCORE BOOST</p>
-                <p className="auth-orb-caption">计算机考研 408 提分系统</p>
-              </div>
-            </div>
-            <h1>计算机考研 408 提分系统</h1>
-            <p className="auth-tagline">从入学诊断到模拟考试，四科薄弱点一清二楚</p>
-            <p>登录后同步学习计划、题库训练、错题复盘、学情分析和 AI 辅助，让备考路径更清楚。</p>
-            <div className="auth-feature-grid" aria-label="系统能力">
-              <span><BookOpenCheck size={16} /><b>题库训练</b><small>按薄弱点精准组题</small></span>
-              <span><ShieldCheck size={16} /><b>错题复盘</b><small>错因分类，变式重练</small></span>
-              <span><Target size={16} /><b>学情分析</b><small>四科掌握度实时可视化</small></span>
-              <span><Brain size={16} /><b>AI 辅助</b><small>四层提示拆解解题思路</small></span>
-            </div>
-            <p className="auth-role-copy">学生 / 教师 / 管理员均可进入对应工作台。</p>
-            <p className="auth-trust">面向计算机考研 408 考生的个性化提分系统</p>
-          </div>
-          <AccountPanel
-            user={sessionUser}
-            hasRefreshToken={Boolean(authSession?.refreshToken)}
-            authMode={authMode}
-            status={authStatus}
-            staticDemoMode={isStaticDemoMode()}
-            showDemoRoles={isStaticDemoMode() || import.meta.env.DEV}
-            onSubmit={handleAccountSubmit}
-            onPasswordChangeSubmit={handlePasswordChangeSubmit}
-            onToggleMode={() => setAuthMode((current) => current === 'login' ? 'register' : 'login')}
-            onLogout={() => void handleLogout()}
-            onRoleSwitch={(role) => void handleRoleSwitch(role)}
-          />
-        </section>
-      </main>
+      <AuthExperience
+        user={sessionUser}
+        hasRefreshToken={Boolean(authSession?.refreshToken)}
+        authMode={authMode}
+        status={authStatus}
+        staticDemoMode={isStaticDemoMode()}
+        showDemoRoles={isStaticDemoMode() || import.meta.env.DEV}
+        onSubmit={handleAccountSubmit}
+        onPasswordChangeSubmit={handlePasswordChangeSubmit}
+        onToggleMode={() => setAuthMode((current) => current === 'login' ? 'register' : 'login')}
+        onLogout={() => void handleLogout()}
+        onRoleSwitch={(role) => void handleRoleSwitch(role)}
+      />
     );
   }
 

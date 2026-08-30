@@ -4,26 +4,23 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('auth brand row wraps the 408 orb with the product name', async () => {
+test('auth gate delegates to the focused product experience', async () => {
   const app = await source('apps/web/src/App.tsx');
-  assert.match(app, /auth-brand-row/);
+  assert.match(app, /AuthExperience/);
+  assert.doesNotMatch(app, /auth-brand-row/);
 });
 
-test('auth feature tags carry lucide icons and keep the feature grid class', async () => {
-  const app = await source('apps/web/src/App.tsx');
-  assert.match(app, /auth-feature-grid/);
-  assert.match(app, /<BookOpenCheck size=\{16\} \/><b>题库训练<\/b><small>按薄弱点精准组题<\/small>/);
-  assert.match(app, /<ShieldCheck size=\{16\} \/><b>错题复盘<\/b><small>错因分类，变式重练<\/small>/);
-  assert.match(app, /<Target size=\{16\} \/><b>学情分析<\/b><small>四科掌握度实时可视化<\/small>/);
-  assert.match(app, /<Brain size=\{16\} \/><b>AI 辅助<\/b><small>四层提示拆解解题思路<\/small>/);
+test('auth hero presents product metrics and the AI learning visual', async () => {
+  const hero = await source('apps/web/src/features/auth/LoginHero.tsx');
+  assert.match(hero, /408 OS/);
+  assert.match(hero, /StatsCard/);
+  assert.match(hero, /AIVisual/);
 });
 
-test('auth brand adds tagline and trust copy', async () => {
-  const app = await source('apps/web/src/App.tsx');
-  assert.match(app, /auth-tagline/);
-  assert.match(app, /从入学诊断到模拟考试，四科薄弱点一清二楚/);
-  assert.match(app, /auth-trust/);
-  assert.match(app, /面向计算机考研 408 考生的个性化提分系统/);
+test('auth hero positions the product as an AI learning operating system', async () => {
+  const hero = await source('apps/web/src/features/auth/LoginHero.tsx');
+  assert.match(hero, /AI 驱动的 408 学习操作系统/);
+  assert.match(hero, /基于 Student State 与 AI 推荐引擎/);
 });
 
 test('styles define tagline and trust copy', async () => {

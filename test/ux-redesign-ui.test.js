@@ -57,14 +57,15 @@ test('student dashboard drives route and lower sections from real data props ins
   assert.match(launchpad, /掌握度趋势/);
 });
 
-test('auth gate uses the redesigned entry shell and role value proposition', async () => {
+test('auth gate uses the dedicated AI learning product experience', async () => {
   const app = await source('apps/web/src/App.tsx');
-  const styles = await source('apps/web/src/styles.css');
+  const hero = await source('apps/web/src/features/auth/LoginHero.tsx');
+  const styles = await source('apps/web/src/features/auth/auth-experience.css');
 
-  assert.match(app, /auth-feature-grid/);
-  assert.match(app, /学生 \/ 教师 \/ 管理员/);
-  assert.match(styles, /auth-shell-redesign/);
-  assert.match(styles, /auth-orb/);
+  assert.match(app, /AuthExperience/);
+  assert.match(hero, /AI 驱动的 408 学习操作系统/);
+  assert.match(styles, /auth-experience-layout/);
+  assert.match(styles, /auth-login-card/);
 });
 
 test('auth gate overrides the workspace two-column shell on desktop', async () => {
