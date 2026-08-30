@@ -142,3 +142,32 @@ node --test test/<file>       # 单套件
 2. 跑一遍 `npm test` + `build:api` 确认基线（1038/1037/0/1）。
 3. Sprint 3.4 已完成；先阅读 commit `09ab2f4` 与本节技术债务，不要重复实现 Learning Loop。
 4. 等待项目所有者确认状态文档提交后再开始下一阶段；Sprint 3.5 不自动开始，不 push。
+
+## 13. Sprint 3.5.4 Stabilization 最新状态
+
+当前 HEAD：`1287007`（`feat(ai): integrate contextual coach across learning scenarios`）。
+
+Sprint 3.5.3 Contextual AI Coach 已完成并提交，包含：
+
+- `ContextualCoachContextAssembler`、`ContextualCoachService` 和 `/ai/contextual-coach`。
+- `question`、`wrong_question`、`knowledge_node`、`assessment` 四类上下文。
+- 前端统一 `ContextualCoach` 组件及四个业务场景接入。
+- 旧 `/ai/tutor-reply`、`/ai/follow-up` 和 `TutorPanel` 保持兼容。
+
+Sprint 3.5.4 稳定性验证结果：
+
+- `contextual-coach-integration.test.js`：6/6 通过。
+- `contextual-coach-context.test.js`：5/5 通过。
+- `contextual-coach-api.test.js`：5/5 通过。
+- `contextual-coach-ui.test.js`：4/4 通过。
+- `npm run build:api`：通过。
+- `npm run build:web`：TypeScript 检查通过；Vite/esbuild 阶段因本机 `spawn EPERM` 失败，未修改 vite/esbuild 配置。
+- `git diff --check`：通过。
+
+本轮新增稳定性测试：`test/contextual-coach-integration.test.js`。测试通过实际 Controller → ContextualCoachService → ContextualCoachContextAssembler → AiTutorService 链路验证认证用户、四类上下文、assessment fallback、无记录状态和模板 fallback；未涉及 StudyPlan、StudyTask、mastery 或 ReviewSchedule 写入。
+
+架构结论：Contextual Coach 仍是只读解释层，不调用 RecommendationService，不修改 Student State；旧 AI Tutor API 保持可用。
+
+当前 Sprint：Sprint 3.5.4 Stabilization 已完成，文档提交待确认。Sprint 3.6 尚未开始。
+
+已知风险：`build:web` 的 Windows Node/esbuild `spawn EPERM` 环境问题；AI 真实 Key 路径尚未在本地稳定性测试中覆盖。Sprint 3.4 的多实例 Learning Loop 幂等技术债务继续保留，不在本阶段修复。

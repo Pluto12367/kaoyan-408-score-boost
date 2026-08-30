@@ -2,17 +2,17 @@
 
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
-> 最后更新：2026-08-30（Sprint 3.4 closeout）
+> 最后更新：2026-08-30（Sprint 3.5.4 stabilization）
 
 ---
 
 ## 1. 当前阶段与目标
 
 - **分支**：`feature/v3-product-refactor`
-- **HEAD**：`09ab2f4` feat(api): integrate learning loop trigger after task completion
-- **当前 Sprint**：Sprint 3.4 Learning Loop Integration
-- **状态**：Sprint 3.4 Completed（commit `09ab2f4`）；全量测试受本机 Node `spawn EPERM` 阻断
-- **一句话目标**：完成「答题事件 → Student State 更新 → 任务达标判断 → RecommendationService 生成次日推荐计划（StudyPlan source='score-center'）→ plan.generated 事件」的学习闭环自动化。
+- **HEAD**：`1287007` feat(ai): integrate contextual coach across learning scenarios
+- **当前 Sprint**：Sprint 3.5.4 Contextual Coach Stabilization
+- **状态**：Sprint 3.5.3 已完成并提交（`1287007`）；Sprint 3.5.4 稳定性验证完成，文档待提交；`build:web` 的 Vite/esbuild 受本机 `spawn EPERM` 阻断
+- **一句话目标**：稳定验证 Contextual AI Coach 的四类上下文、旧 Tutor API 兼容性、认证用户边界和显式 fallback；Sprint 3.6 尚未开始。
 
 ---
 
@@ -28,12 +28,14 @@
 | Sprint 3.2（Daily Plan Integration，generateDailyPlan 委托引擎，18 字段 parity） | Done | `3528d75` |
 | Sprint 3.3（Legacy 推荐迁移：practice-sets / review-resources → 引擎+adapter，ID 契约修正） | Done | `8512895` |
 | Sprint 3.4（Learning Loop Integration：任务完成/阶段测验触发次日计划、幂等事件、Today/Tomorrow 语义修复） | Done | `09ab2f4` |
+| Sprint 3.5.3（Contextual AI Coach：后端统一上下文 + 前端四场景接入） | Done | `1287007` |
+| Sprint 3.5.4（Contextual Coach Stabilization） | Done（文档待提交） | — |
 
 ---
 
 ## 3. 当前进行中
 
-**当前：Sprint 3.4 已完成并提交，Sprint 3.5 尚未开始。**
+**当前：Sprint 3.5.4 稳定性验证完成，等待文档提交；Sprint 3.6 尚未开始。**
 
 已完成内容：
 
@@ -42,6 +44,24 @@
 3. 写入 `plan.generated` UserEvent，并按 `learning-loop:{userId}:{scheduledDate}` 幂等。
 4. AnswerReceipt 成功重放不进入进度、任务完成或 Learning Loop 触发链。
 5. 触发失败仅记录 warning，不影响答题事务、PracticeRecord 或 StudyTaskCompletion。
+
+Sprint 3.5.3 Contextual AI Coach 已完成：
+
+1. 新增 `/ai/contextual-coach`，ContextAssembler 只读组装 Student State 和场景上下文。
+2. 支持 `question`、`wrong_question`、`knowledge_node`、`assessment` 四类 context。
+3. 前端通过统一 `ContextualCoach` 接入错题、知识节点、测评和答题结果外围。
+4. 保留 `/ai/tutor-reply`、`/ai/follow-up` 与 `TutorPanel` 兼容路径。
+
+Sprint 3.5.4 Stabilization 验证：
+
+- `contextual-coach-integration.test.js`：6/6。
+- `contextual-coach-context.test.js`：5/5。
+- `contextual-coach-api.test.js`：5/5。
+- `contextual-coach-ui.test.js`：4/4。
+- `npm run build:api`：通过。
+- `npm run build:web`：TypeScript 通过；Vite/esbuild 因本机 `spawn EPERM` 失败，未修改构建配置。
+
+当前未解决的环境问题不属于业务代码失败；Sprint 3.6 不自动开始。
 
 ---
 
@@ -65,7 +85,7 @@
 
 ## 5. First Next Task
 
-**Sprint 3.4 closeout：等待用户确认后提交本次状态文档；Sprint 3.5 不自动开始。**
+**Sprint 3.5.4 closeout：等待用户确认后提交本次状态文档；Sprint 3.6 不自动开始。**
 
 已完成验收：
 
