@@ -35,6 +35,7 @@ test('StudentStateReminderQueryService builds compatible reminders from snapshot
     'learningSession.count',
     'practiceRecord.findMany',
     'studyTaskCompletion.count',
+    'studyTaskCompletion.findMany',
     'wrongQuestionReview.count',
   ]);
   assert.equal(result.userId, 'u-1');
@@ -124,6 +125,52 @@ test('StudentStateReminderQueryService sends complete empty signals to the adapt
   });
 });
 
+test('R1: study task completions feed the habit streak calculation', async () => {
+  const { StudentStateReminderQueryService } = require('../apps/api/src/study/student-state-reminder-query.service.ts');
+  const { ActivityProjectionService } = require('../apps/api/src/study/activity-projection.service.ts');
+  const realProjection = new ActivityProjectionService();
+  const capturedInputs = [];
+  const activityProjection = {
+    buildSnapshot(input) {
+      capturedInputs.push(input);
+      return realProjection.buildSnapshot(input);
+    },
+  };
+  const service = new StudentStateReminderQueryService(
+    { async getSnapshot() { return emptySnapshot(); } },
+    createReadOnlyPrisma([], [], {
+      practiceRecords: [
+        // 练习只出现在 3 天前：修复前 trailing streak 为 0（后两天无活跃信号）
+        { submittedAt: new Date('2026-08-21T01:00:00.000Z') },
+      ],
+      taskCompletions: [
+        // 任务完成发生在昨天与今天：修复后两天成为“活跃日”
+        { completedDate: '2026-08-23' },
+        { completedDate: '2026-08-24' },
+      ],
+    }),
+    activityProjection,
+  );
+
+  await withDatabaseUrl(() => service.getStudyRemindersCompat('u-r1', new Date('2026-08-24T08:30:00.000Z')));
+
+  // 1) 7 天窗口内的 StudyTaskCompletion 事实被传入活动投影（SoT 参与计算）
+  assert.equal(capturedInputs.length, 1);
+  assert.deepEqual(capturedInputs[0].taskCompletions, [
+    { completedDate: '2026-08-23' },
+    { completedDate: '2026-08-24' },
+  ]);
+
+  // 2) streak 由 0（仅练习时）提升为 2（昨天+今天因任务完成而活跃）
+  const previousBehavior = realProjection.buildSnapshot({
+    ...capturedInputs[0],
+    taskCompletions: [],
+  });
+  assert.equal(previousBehavior.streakDays, 0, 'without completions the trailing streak must be 0');
+  const currentBehavior = realProjection.buildSnapshot(capturedInputs[0]);
+  assert.equal(currentBehavior.streakDays, 2, 'task completions must extend the habit streak');
+});
+
 function createReadOnlyPrisma(readCalls, writeCalls, options = {}) {
   const write = (name) => async () => {
     writeCalls.push(name);
@@ -146,6 +193,7 @@ function createReadOnlyPrisma(readCalls, writeCalls, options = {}) {
     },
     studyTaskCompletion: {
       count: read('studyTaskCompletion.count', options.completedTaskCount ?? 1),
+      findMany: read('studyTaskCompletion.findMany', options.taskCompletions ?? []),
       create: write('studyTaskCompletion.create'),
       update: write('studyTaskCompletion.update'),
       upsert: write('studyTaskCompletion.upsert'),

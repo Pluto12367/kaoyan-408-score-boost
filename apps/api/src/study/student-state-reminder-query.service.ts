@@ -55,24 +55,36 @@ export class StudentStateReminderQueryService {
       return { streakDays: 0, todayPracticeCount: 0 };
     }
 
+    const dates = lastNDatesEndingAt(asOf, 7);
     const windowStart = new Date(asOf);
     windowStart.setUTCDate(windowStart.getUTCDate() - 6);
     windowStart.setUTCHours(0, 0, 0, 0);
-    const rows = await this.prisma.practiceRecord.findMany({
-      where: {
-        userId,
-        submittedAt: {
-          gte: windowStart,
-          lte: asOf,
+    const [rows, taskCompletions] = await Promise.all([
+      this.prisma.practiceRecord.findMany({
+        where: {
+          userId,
+          submittedAt: {
+            gte: windowStart,
+            lte: asOf,
+          },
         },
-      },
-      select: { submittedAt: true },
-      orderBy: { submittedAt: 'desc' },
-    });
+        select: { submittedAt: true },
+        orderBy: { submittedAt: 'desc' },
+      }),
+      // R1（Sprint 2）：habit streak 与 legacy 学习日历同口径——
+      // StudyTaskCompletion 与练习一样参与“活跃日”判定。
+      this.prisma.studyTaskCompletion.findMany({
+        where: {
+          userId,
+          completedDate: { in: dates },
+        },
+        select: { completedDate: true },
+      }),
+    ]);
     const activity = this.activityProjection.buildSnapshot({
-      dates: lastNDatesEndingAt(asOf, 7),
+      dates,
       practiceRecords: rows,
-      taskCompletions: [],
+      taskCompletions,
     });
 
     return {
