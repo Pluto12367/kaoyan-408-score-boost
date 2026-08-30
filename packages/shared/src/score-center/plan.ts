@@ -1,4 +1,7 @@
-import type { PriorityReasonCode } from './types';
+import type { PriorityReasonCode, RecommendationAction } from './types';
+
+// RecommendationAction 的唯一定义在 types.ts（Sprint 3.1 上移），此处保持导出兼容。
+export type { RecommendationAction };
 
 export type PriorityCandidate = {
   knowledgePointId: string;
@@ -16,8 +19,6 @@ export type PriorityCandidate = {
   pinned?: boolean;
 };
 
-export type RecommendationAction = 'LEARN' | 'REVIEW' | 'PRACTICE' | 'WRONG_QUESTION' | 'MOCK';
-
 export type RecommendationDraft = {
   knowledgePointId: string;
   score: number;
@@ -31,7 +32,8 @@ const FOUNDATION_LEARN_RATIO = 0.4;
 const COOLDOWN_SCORE_FACTOR = 0.55;
 const COOLDOWN_HOURS = 36;
 
-function classifyAction(candidate: PriorityCandidate, daysToExam: number): RecommendationAction {
+// Sprint 3.1：行动分类器导出为 Recommendation Engine 的公共构件（算法不变）。
+export function classifyAction(candidate: PriorityCandidate, daysToExam: number): RecommendationAction {
   if (candidate.recentWrongCount >= 2) return 'WRONG_QUESTION';
   if (candidate.forgetting >= 0.55) return 'REVIEW';
   if (candidate.mastery < 0.45) return 'LEARN';
@@ -40,7 +42,7 @@ function classifyAction(candidate: PriorityCandidate, daysToExam: number): Recom
   return 'PRACTICE';
 }
 
-function estimateMinutes(action: RecommendationAction, difficulty: number): number {
+export function estimateMinutes(action: RecommendationAction, difficulty: number): number {
   if (action === 'REVIEW') return difficulty >= 4 ? 20 : 15;
   if (action === 'WRONG_QUESTION') return difficulty >= 4 ? 30 : 20;
   if (action === 'LEARN') return difficulty >= 4 ? 35 : 20;
@@ -48,14 +50,14 @@ function estimateMinutes(action: RecommendationAction, difficulty: number): numb
   return difficulty >= 4 ? 30 : 20;
 }
 
-function cooldownScore(candidate: PriorityCandidate): number {
+export function cooldownScore(candidate: PriorityCandidate, now: Date): number {
   if (
     candidate.recentWrongCount === 0
     && candidate.retention != null
     && candidate.retention >= 0.85
     && candidate.lastReviewedAt
   ) {
-    const hoursSinceReview = (Date.now() - candidate.lastReviewedAt.getTime()) / 3_600_000;
+    const hoursSinceReview = (now.getTime() - candidate.lastReviewedAt.getTime()) / 3_600_000;
     if (hoursSinceReview >= 0 && hoursSinceReview <= COOLDOWN_HOURS) {
       return candidate.score * COOLDOWN_SCORE_FACTOR;
     }
@@ -66,6 +68,7 @@ function cooldownScore(candidate: PriorityCandidate): number {
 function toDraft(
   candidate: PriorityCandidate,
   daysToExam: number,
+  now: Date,
   replacedByPrerequisiteOf?: string,
 ): RecommendationDraft {
   const action = classifyAction(candidate, daysToExam);
@@ -75,7 +78,7 @@ function toDraft(
   }
   return {
     knowledgePointId: candidate.knowledgePointId,
-    score: Math.round(cooldownScore(candidate)),
+    score: Math.round(cooldownScore(candidate, now)),
     action,
     estimatedMinutes: estimateMinutes(action, candidate.difficulty),
     reasonCodes,
@@ -88,7 +91,10 @@ export function composeDailyPlan(input: {
   availableMinutes: 30 | 60 | 120 | 180;
   daysToExam: number;
   prerequisiteMastery?: Record<string, number>;
+  // Sprint 3.1 确定性注入：冷却计算的时间来源；缺省 new Date() 保持旧行为。
+  now?: Date;
 }): RecommendationDraft[] {
+  const now = input.now ?? new Date();
   const candidateById = new Map(input.candidates.map((candidate) => [candidate.knowledgePointId, candidate]));
   const prerequisiteMastery = input.prerequisiteMastery ?? {};
 
@@ -101,9 +107,9 @@ export function composeDailyPlan(input: {
       }
     }
     if (unmet && candidateById.has(unmet.id)) {
-      return toDraft(candidateById.get(unmet.id)!, input.daysToExam, candidate.knowledgePointId);
+      return toDraft(candidateById.get(unmet.id)!, input.daysToExam, now, candidate.knowledgePointId);
     }
-    return toDraft(candidate, input.daysToExam);
+    return toDraft(candidate, input.daysToExam, now);
   };
 
   const used = new Set<string>();
