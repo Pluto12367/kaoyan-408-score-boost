@@ -74,8 +74,8 @@ export function useStudentProgressData(userId: string, enabled: boolean, authKey
     [loadResource],
   );
   const refreshMasteryMap = useCallback(
-    () => loadResource('掌握度地图', fetchMasteryMap, createMockMasteryMap, setMasteryMap),
-    [loadResource],
+    () => loadResource('掌握度地图', () => fetchMasteryMap(userId), createMockMasteryMap, setMasteryMap),
+    [loadResource, userId],
   );
   const refreshLearningProfile = useCallback(
     () => loadResource('学习档案', () => fetchLearningProfile(userId), createMockLearningProfile, setLearningProfile),

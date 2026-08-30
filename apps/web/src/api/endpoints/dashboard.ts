@@ -1,5 +1,13 @@
 import { API_BASE_URL, fetchWithAuth, authenticatedFetch } from '../client';
+import {
+  buildKnowledgePointIndex,
+  buildNodeMasteryMap,
+  type KnowledgeCatalog,
+  type NodeMasteryRow,
+} from '@kaoyan408/shared';
 import type { FeedbackDraft } from '@kaoyan408/shared';
+import { getKnowledgeCatalog } from '../../features/knowledge-catalog/catalogData';
+import { fetchMyMastery, type MyNodeMastery } from './score-center';
 import type {
   DashboardOverview,
   TrialProgress,
@@ -51,10 +59,44 @@ export async function fetchSprintPlan(): Promise<SprintPlan> {
   return response.json() as Promise<SprintPlan>;
 }
 
-export async function fetchMasteryMap(): Promise<MasteryMap> {
-  const response = await fetchWithAuth(`${API_BASE_URL}/mastery-map`);
-  if (!response.ok) throw new Error(`Mastery map request failed with ${response.status}`);
-  return response.json() as Promise<MasteryMap>;
+// Sprint 2：掌握度地图前端数据源切换——由唯一事实源 UserKnowledgeMastery
+// （GET /knowledge/mastery）组装；节点分组复用知识图谱静态目录（catalogData，
+// 即 408-codex-handoff 权威树的前端打包版）；展示层复用 shared buildNodeMasteryMap，
+// 产出与旧掌握度地图端点 DTO 逐字段兼容的形状（前端 MasteryPoint 的
+// knowledgePointId 字段在此链路承载 knowledgeNodeId——shared 既有约定）。
+export function buildMasteryMapFromState(
+  userId: string,
+  mastery: MyNodeMastery,
+  catalog: KnowledgeCatalog = getKnowledgeCatalog(),
+): MasteryMap {
+  const index = buildKnowledgePointIndex(catalog);
+  const rows: NodeMasteryRow[] = mastery.items.map((item) => {
+    const entry = index[item.knowledgeNodeId];
+    return {
+      knowledgeNodeId: item.knowledgeNodeId,
+      subject: (entry?.subjectName ?? '未分类') as NodeMasteryRow['subject'],
+      chapter: entry?.chapterName ?? '',
+      title: entry ? entry.point.name : item.knowledgeNodeId,
+      importance: entry?.point.importance ?? 3,
+      frequency: entry?.point.evidence?.recent5Frequency ?? 0,
+      mastery: item.mastery,
+      attempts: item.attempts,
+      correctCount: item.correctCount,
+      wrongCount: item.wrongCount,
+      status: item.status,
+    };
+  });
+  const subjectNames = Object.values(catalog).map((subject) => subject.name);
+  return buildNodeMasteryMap({
+    userId,
+    rows,
+    subjects: subjectNames,
+    generatedAt: mastery.generatedAt,
+  });
+}
+
+export async function fetchMasteryMap(userId: string): Promise<MasteryMap> {
+  return buildMasteryMapFromState(userId, await fetchMyMastery());
 }
 
 export async function fetchLearningProfile(userId: string): Promise<LearningProfile> {
