@@ -1,0 +1,84 @@
+{
+  "appUrl": "http://43.128.30.191/",
+  "pass": 15,
+  "fail": 0,
+  "checks": [
+    {
+      "name": "login-form-submit",
+      "ok": true,
+      "detail": "login form submitted"
+    },
+    {
+      "name": "login-dashboard",
+      "ok": true,
+      "detail": "student workspace loaded"
+    },
+    {
+      "name": "today-plan-nav-click",
+      "ok": true,
+      "detail": "navigate to today plan"
+    },
+    {
+      "name": "today-plan",
+      "ok": true,
+      "detail": "{\"hasTodayPlan\":true,\"hasTask\":true,\"primaryButtons\":1}"
+    },
+    {
+      "name": "practice-session-launch",
+      "ok": true,
+      "detail": "practice-session-ready"
+    },
+    {
+      "name": "reason-prompt-submit",
+      "ok": true,
+      "detail": "reason prompt submitted"
+    },
+    {
+      "name": "practice-session",
+      "ok": true,
+      "detail": "{\"hasFeedback\":true,\"optionCount\":4}"
+    },
+    {
+      "name": "wrong-book",
+      "ok": true,
+      "detail": "{\"hasWrongBook\":true,\"hasDetailAction\":true,\"hasRedoAction\":true}"
+    },
+    {
+      "name": "wrong-detail-open-click",
+      "ok": true,
+      "detail": "wrong detail action clicked"
+    },
+    {
+      "name": "wrong-detail",
+      "ok": true,
+      "detail": "{\"hasAnalysis\":true,\"hasEvidence\":true}"
+    },
+    {
+      "name": "wrong-redo-click",
+      "ok": true,
+      "detail": "wrong redo action clicked"
+    },
+    {
+      "name": "wrong-redo",
+      "ok": true,
+      "detail": "redo practice opened"
+    },
+    {
+      "name": "knowledge-catalog-nav-click",
+      "ok": true,
+      "detail": "408知识图谱 navigation clicked"
+    },
+    {
+      "name": "knowledge-catalog",
+      "ok": true,
+      "detail": "{\"hasCatalog\":true,\"hasSearch\":true,\"pointRows\":0}"
+    },
+    {
+      "name": "no-console-errors",
+      "ok": true,
+      "detail": "[]"
+    }
+  ],
+  "consoleErrors": [],
+  "outDir": "D:\\计算机考研提分系统\\assets\\p0-student-loop-check-after-deploy"
+}

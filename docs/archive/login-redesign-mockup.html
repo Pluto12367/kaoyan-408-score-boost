@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>408 考研提分系统 · 登录页重设计预览</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+<style>
+/* ========== Reset & Base ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
+body {
+  font-family: 'Inter', 'Microsoft YaHei', 'PingFang SC', sans-serif;
+  color: #fff;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: #0a0e1a;
+}
+/* ========== Page Container ========== */
+.page {
+  width: 1440px;
+  height: 900px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(37,99,235,0.30), transparent 38%),
+    radial-gradient(circle at 76% 72%, rgba(20,184,166,0.22), transparent 36%),
+    radial-gradient(circle at 50% 100%, rgba(99,102,241,0.12), transparent 50%),
+    linear-gradient(145deg, #061122 0%, #0f1f37 45%, #142845 100%);
+}
+/* ========== Grid Overlay ========== */
+.page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+  z-index: 0;
+}
+/* ========== Left Panel ========== */
+.left {
+  position: relative;
+  z-index: 1;
+  padding: 60px 56px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+/* ========== Top Brand ========== */
+.brand-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.orb {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, rgba(37,99,235,0.85), rgba(13,148,136,0.55));
+  border: 1px solid rgba(125,211,252,0.35);
+  box-shadow: 0 0 0 1px rgba(56,189,248,0.12), 0 12px 40px rgba(37,99,235,0.35);
+  font-size: 22px;
+  font-weight: 900;
+  color: #eff6ff;
+  position: relative;
+}
+.orb::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 22px;
+  border: 1px solid rgba(56,189,248,0.15);
+}
+.brand-text h2 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: rgba(191,219,254,0.8);
+  margin: 0;
+}
+.brand-text p {
+  font-size: 12px;
+  color: rgba(191,219,254,0.5);
+  margin: 1px 0 0;
+}
+/* ========== Hero Section ========== */
+.hero {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 20px;
+  max-width: 540px;
+}
+.hero h1 {
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  background: linear-gradient(135deg, #ffffff 40%, #93c5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero .tagline {
+  font-size: 18px;
+  line-height: 1.6;
+  color: rgba(203,213,225,0.9);
+  font-weight: 500;
+}
+.hero .tagline span {
+  color: #7dd3fc;
+  font-weight: 700;
+}
+/* ========== Subject Cards ========== */
+.subject-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+.subject-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(191,219,254,0.12);
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s;
+}
+.subject-card:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(191,219,254,0.25);
+  transform: translateY(-1px);
+}
+.subject-dot {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+.subject-dot.ds { background: rgba(37,99,235,0.3); color: #93c5fd; }
+.subject-dot.co { background: rgba(139,92,246,0.3); color: #c4b5fd; }
+.subject-dot.os { background: rgba(16,185,129,0.3); color: #6ee7b7; }
+.subject-dot.cn { background: rgba(245,158,11,0.3); color: #fcd34d; }
+.subject-info { flex: 1; min-width: 0; }
+.subject-info .name { font-size: 14px; font-weight: 700; color: #f1f5f9; }
+.subject-info .meta { font-size: 12px; color: rgba(148,163,184,0.8); margin-top: 1px; }
+.subject-info .score { font-size: 13px; font-weight: 700; color: #7dd3fc; }
+/* ========== Learning Path ========== */
+.path-section {
+  margin-top: 8px;
+}
+.path-section .path-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(148,163,184,0.7);
+  letter-spacing: 1px;
+  margin-bottom: 12px;
+}
+.path-steps {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(191,219,254,0.08);
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(203,213,225,0.7);
+  white-space: nowrap;
+}
+.step.active {
+  background: rgba(37,99,235,0.15);
+  border-color: rgba(56,189,248,0.3);
+  color: #7dd3fc;
+}
+.step.done {
+  color: rgba(203,213,225,0.5);
+}
+.step-arrow {
+  color: rgba(148,163,184,0.3);
+  font-size: 16px;
+  margin: 0 2px;
+}
+/* ========== Bottom Stats ========== */
+.bottom-stats {
+  display: flex;
+  gap: 32px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(191,219,254,0.08);
+}
+.stat-item {
+  display: grid;
+  gap: 2px;
+}
+.stat-item .num {
+  font-size: 22px;
+  font-weight: 800;
+  color: #e0f2fe;
+}
+.stat-item .label {
+  font-size: 12px;
+  color: rgba(148,163,184,0.7);
+}
+/* ========== Right Panel ========== */
+.right {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+}
+/* ========== Login Card ========== */
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 36px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.06);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.3);
+}
+.login-card .card-title {
+  font-size: 22px;
+  font-weight: 800;
+  margin-bottom: 4px;
+  color: #f1f5f9;
+}
+.login-card .card-subtitle {
+  font-size: 14px;
+  color: rgba(148,163,184,0.8);
+  margin-bottom: 28px;
+}
+/* ========== Segmented Toggle ========== */
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  margin-bottom: 24px;
+}
+.segmented button {
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(148,163,184,0.7);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.segmented button.active {
+  background: rgba(37,99,235,0.5);
+  color: #e0f2fe;
+  box-shadow: 0 2px 8px rgba(37,99,235,0.2);
+}
+/* ========== Form Fields ========== */
+.field {
+  margin-bottom: 16px;
+}
+.field label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(203,213,225,0.7);
+  margin-bottom: 6px;
+}
+.field input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  color: #f1f5f9;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.2s;
+}
+.field input::placeholder { color: rgba(148,163,184,0.4); }
+.field input:focus {
+  border-color: rgba(56,189,248,0.4);
+  background: rgba(255,255,255,0.06);
+  box-shadow: 0 0 0 3px rgba(56,189,248,0.08);
+}
+/* ========== Submit Button ========== */
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #0d9488);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgba(37,99,235,0.3);
+}
+.btn-primary:active { transform: translateY(0); }
+/* ========== Secondary Link ========== */
+.secondary-link {
+  display: block;
+  text-align: center;
+  margin-top: 14px;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  color: rgba(148,163,184,0.6);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.secondary-link:hover { color: rgba(203,213,225,0.8); }
+/* ========== Divider ========== */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 16px;
+}
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.06);
+}
+.divider span {
+  font-size: 12px;
+  color: rgba(148,163,184,0.4);
+  white-space: nowrap;
+}
+/* ========== Demo Buttons ========== */
+.demo-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.demo-btn {
+  padding: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  color: rgba(148,163,184,0.6);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.demo-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: rgba(203,213,225,0.8);
+  border-color: rgba(255,255,255,0.12);
+}
+/* ========== Status Bar ========== */
+.status-bar {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.05);
+  font-size: 12px;
+  color: rgba(148,163,184,0.6);
+  text-align: center;
+}
+/* ========== Floating Orbs ========== */
+.floating-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.floating-orb.o1 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(37,99,235,0.12), transparent 70%);
+  top: -80px; right: -60px;
+}
+.floating-orb.o2 {
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(20,184,166,0.10), transparent 70%);
+  bottom: 40px; right: 120px;
+}
+.floating-orb.o3 {
+  width: 160px; height: 160px;
+  background: radial-gradient(circle, rgba(99,102,241,0.08), transparent 70%);
+  top: 50%; left: -40px;
+}
+/* ========== Responsive ========== */
+@media (max-width: 1080px) {
+  .page { width: 100%; height: auto; min-height: 100vh; grid-template-columns: 1fr; }
+  .left { padding: 40px 32px; }
+  .hero h1 { font-size: 36px; }
+  .right { padding: 0 32px 40px; }
+  .login-card { max-width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <!-- Floating Background Orbs -->
+  <div class="floating-orb o1"></div>
+  <div class="floating-orb o2"></div>
+  <div class="floating-orb o3"></div>
+
+  <!-- ===== LEFT PANEL ===== -->
+  <div class="left">
+    <!-- Brand Top -->
+    <div class="brand-top">
+      <div class="orb">408</div>
+      <div class="brand-text">
+        <h2>408 SCORE BOOST</h2>
+        <p>计算机考研 · AI 提分系统</p>
+      </div>
+    </div>
+
+    <!-- Hero -->
+    <div class="hero">
+      <h1>你的 408 上岸计划<br>从今天开始</h1>
+      <p class="tagline">
+        AI 已分析 <span>260+ 知识点</span> · <span>12000+ 道真题</span> · 
+        覆盖四科全部考纲
+      </p>
+
+      <!-- Subject Cards -->
+      <div class="subject-grid">
+        <div class="subject-card">
+          <div class="subject-dot ds">DS</div>
+          <div class="subject-info">
+            <div class="name">数据结构</div>
+            <div class="meta">87 个知识点 · 86 个高频考点</div>
+          </div>
+          <div class="score">45分</div>
+        </div>
+        <div class="subject-card">
+          <div class="subject-dot co">CO</div>
+          <div class="subject-info">
+            <div class="name">计算机组成原理</div>
+            <div class="meta">82 个知识点 · 74 个高频考点</div>
+          </div>
+          <div class="score">45分</div>
+        </div>
+        <div class="subject-card">
+          <div class="subject-dot os">OS</div>
+          <div class="subject-info">
+            <div class="name">操作系统</div>
+            <div class="meta">64 个知识点 · 58 个高频考点</div>
+          </div>
+          <div class="score">35分</div>
+        </div>
+        <div class="subject-card">
+          <div class="subject-dot cn">CN</div>
+          <div class="subject-info">
+            <div class="name">计算机网络</div>
+            <div class="meta">52 个知识点 · 43 个高频考点</div>
+          </div>
+          <div class="score">25分</div>
+        </div>
+      </div>
+
+      <!-- Learning Path -->
+      <div class="path-section">
+        <div class="path-label">学 习 路 径</div>
+        <div class="path-steps">
+          <div class="step done">📋 入学诊断</div>
+          <span class="step-arrow">▸</span>
+          <div class="step active">🎯 精准训练</div>
+          <span class="step-arrow">▸</span>
+          <div class="step">🔄 错题闭环</div>
+          <span class="step-arrow">▸</span>
+          <div class="step">🏆 提分上岸</div>
+        </div>
+        <div style="margin-top: 8px; font-size: 13px; color: rgba(148,163,184,0.6);">
+          AI 会根据你的入学诊断结果，自动生成今日学习计划
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Stats -->
+    <div class="bottom-stats">
+      <div class="stat-item">
+        <div class="num">87%</div>
+        <div class="label">学员平均提分率</div>
+      </div>
+      <div class="stat-item">
+        <div class="num">260+</div>
+        <div class="label">AI 覆盖知识点</div>
+      </div>
+      <div class="stat-item">
+        <div class="num">4科</div>
+        <div class="label">408 全科覆盖</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT PANEL ===== -->
+  <div class="right">
+    <div class="login-card">
+      <div class="card-title">开始学习</div>
+      <div class="card-subtitle">登录后同步学习进度，继续提分之旅</div>
+
+      <!-- Segmented Switch -->
+      <div class="segmented" role="tablist" aria-label="登录或注册">
+        <button role="tab" class="active" aria-selected="true">登录</button>
+        <button role="tab">注册</button>
+      </div>
+
+      <!-- Login Form -->
+      <div class="field">
+        <label>邮箱地址</label>
+        <input type="email" placeholder="请输入邮箱" />
+      </div>
+      <div class="field">
+        <label>密码</label>
+        <input type="password" placeholder="请输入密码" />
+      </div>
+
+      <button class="btn-primary">登录 · 进入学习</button>
+
+      <button class="secondary-link">还没有账号？注册新账号</button>
+
+      <!-- Demo Divider -->
+      <div class="divider"><span>演示体验</span></div>
+
+      <div class="demo-row">
+        <button class="demo-btn">🎓 学生</button>
+        <button class="demo-btn">👨‍🏫 教师</button>
+        <button class="demo-btn">⚙️ 管理员</button>
+      </div>
+
+      <!-- Status -->
+      <div class="status-bar">登录后同步学习记录 · 四科薄弱点一目了然</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,61 @@
+{
+  "appUrl": "http://43.128.30.191/",
+  "checks": [
+    {
+      "name": "login-form-submit",
+      "ok": true,
+      "detail": "login form found and submitted"
+    },
+    {
+      "name": "dashboard-loaded",
+      "ok": true,
+      "detail": "dashboard overview rendered after login"
+    },
+    {
+      "name": "quest-badge-rendered",
+      "ok": true,
+      "detail": "quest badges=0"
+    },
+    {
+      "name": "quest-node-drawer-opens",
+      "ok": true,
+      "detail": "Cache基本原理 row clicked"
+    },
+    {
+      "name": "drawer-quest-section",
+      "ok": true,
+      "detail": "{\"hasQuestSection\":true,\"questText\":\"节点闯关\\n闯关状态\\n进行中\\n开始闯关\",\"hasStartQuest\":true,\"hasQuestionBank\":true,\"bankItems\":20}"
+    },
+    {
+      "name": "drawer-quest-bank-available",
+      "ok": true,
+      "detail": "linked questions=20"
+    },
+    {
+      "name": "quest-start-clicked",
+      "ok": true,
+      "detail": "开始闯关 clicked"
+    },
+    {
+      "name": "quest-practice-opens",
+      "ok": true,
+      "detail": "{\"hasOptions\":true,\"status\":\"已开始闯关：Cache基本原理。答完 20 题后回到详情页结算正确率。\",\"progress\":\"第 1 / 20 题\"}"
+    },
+    {
+      "name": "quest-questions-answered",
+      "ok": true,
+      "detail": "{\"answered\":20,\"total\":20}"
+    },
+    {
+      "name": "quest-settle-button-ready",
+      "ok": true,
+      "detail": "{\"hasCompleteQuest\":true,\"questText\":\"节点闯关\\n闯关状态\\n进行中\\n完成闯关并结算\"}"
+    },
+    {
+      "name": "quest-settle-clicked",
+      "ok": true,
+      "detail": "完成闯关并结算 clicked"
+    }
+  ],
+  "fatal": "Error: Timed out waiting for quest settlement status"
+}

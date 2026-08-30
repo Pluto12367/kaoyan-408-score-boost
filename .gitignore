@@ -14,3 +14,7 @@ packages/*/dist/
 backups/
 .worktrees/
 .superpowers/
+# Local runtime/debug artifacts (Git Boundary Cleanup 2026-08-29)
+/var/
+/assets/deep-interactions-check/
+/assets/full-student-check/

@@ -1,0 +1,98 @@
+{
+  "package": "408-codex-handoff",
+  "generatedAt": "2026-08-07",
+  "authoritativeKnowledgeTree": "data/408/knowledge-tree-408-v2.json",
+  "exactExamMappingYears": [
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "historicalEvidenceYears": [
+    2009,
+    2021
+  ],
+  "files": [
+    {
+      "path": "CODEX-FIRST-PROMPT.md",
+      "sizeBytes": 1603,
+      "sha256": "8b07d5b2d50a18a32e50baf1def25c594f1b74274f809f13e0451f2705032806"
+    },
+    {
+      "path": "README-CODEX.md",
+      "sizeBytes": 2534,
+      "sha256": "ab1648924c2fb8cdd2daf713c361f8cbba8c7ba6ba32f2b17909c9d8097b12ff"
+    },
+    {
+      "path": "data/408/408-2009-2021-historical-question-index.json",
+      "sizeBytes": 222451,
+      "sha256": "e506ab9a969a15cdb95ef23509b11151a636fd16706d955e5cbf334ec108a7d2"
+    },
+    {
+      "path": "data/408/exam-mapping/408-2022-question-knowledge-map.json",
+      "sizeBytes": 30139,
+      "sha256": "3eaddfdcd1d27ae629eca92dd21a9f1173451ed3d53d130ad8b6f1c77aaf3651"
+    },
+    {
+      "path": "data/408/exam-mapping/408-2023-question-knowledge-map.json",
+      "sizeBytes": 30059,
+      "sha256": "5c97e7a46c3867042d7dee2ccdc26b7670d9836b8776cde077ecf41256d2c89c"
+    },
+    {
+      "path": "data/408/exam-mapping/408-2024-question-knowledge-map.json",
+      "sizeBytes": 29697,
+      "sha256": "c5bddac7c30703fd1932bc534b8b19f4d786f1c0b7d12d5c487335931d7c865e"
+    },
+    {
+      "path": "data/408/exam-mapping/408-2025-question-knowledge-map.json",
+      "sizeBytes": 29651,
+      "sha256": "0f827f4f5af8c67ef16ce8d7248cc0b503c90fa7d20ea4da6f6641c0d4b25d9f"
+    },
+    {
+      "path": "data/408/exam-mapping/408-2026-question-knowledge-map.json",
+      "sizeBytes": 30505,
+      "sha256": "f2b39965b415b2f023840f205fa991382777351ed63d2f3ed8bfe7f9fda37069"
+    },
+    {
+      "path": "data/408/frequency-model-v2.json",
+      "sizeBytes": 1037554,
+      "sha256": "02cdc81ebb4b94788efd2995e0595d3010faf4b8edd025785d4ed8baf0ce2542"
+    },
+    {
+      "path": "data/408/gap-resolution-v2.json",
+      "sizeBytes": 7835,
+      "sha256": "2f64b55219f26e00e3a4dc4590378fa6b4e1bdf718bd041176f5d34fae94e0af"
+    },
+    {
+      "path": "data/408/historical-tag-evidence-2009-2025.json",
+      "sizeBytes": 31249,
+      "sha256": "cbd68e9d95029c069b5ed485f0d809ba75cea2dcf9f29cbe1d4a1bf44427930d"
+    },
+    {
+      "path": "data/408/knowledge-tree-408-v2.json",
+      "sizeBytes": 953758,
+      "sha256": "a2ca56550e00972ede7fb3e291ee26e0646ba615a4d291e9c60e444e3cffa5a2"
+    },
+    {
+      "path": "docs/reference/408/priority-score-prototype.ts",
+      "sizeBytes": 3891,
+      "sha256": "02bac707e4cd095de77d5bedbdc1231ae703d7c40e30feef8725a0a5e9089259"
+    },
+    {
+      "path": "docs/reference/408/user-learning-model-prototype.types.ts",
+      "sizeBytes": 1035,
+      "sha256": "0eaf089b0c29a9f1dde82cd972051cd153fda3e93aed564c41dff3656ceaecc7"
+    },
+    {
+      "path": "docs/superpowers/plans/2026-08-07-today-score-center.md",
+      "sizeBytes": 46808,
+      "sha256": "82c60e8398452b01e97b4538efe220791e17f79d6a35243e0929d215c78ccedb"
+    },
+    {
+      "path": "docs/superpowers/specs/2026-08-07-today-score-center-design.md",
+      "sizeBytes": 11416,
+      "sha256": "79cde21d7f5d1e221a98b7e25d176c16107acc9a08fb8073898fbd437e61de36"
+    }
+  ]
+}
