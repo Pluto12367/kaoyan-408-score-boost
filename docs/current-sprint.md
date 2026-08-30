@@ -2,17 +2,17 @@
 
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
-> 最后更新：2026-08-30（Sprint 3.5.4 stabilization）
+> 最后更新：2026-08-30（Sprint 3.6 closeout）
 
 ---
 
 ## 1. 当前阶段与目标
 
 - **分支**：`feature/v3-product-refactor`
-- **HEAD**：`1287007` feat(ai): integrate contextual coach across learning scenarios
-- **当前 Sprint**：Sprint 3.5.4 Contextual Coach Stabilization
-- **状态**：Sprint 3.5.3 已完成并提交（`1287007`）；Sprint 3.5.4 稳定性验证完成，文档待提交；`build:web` 的 Vite/esbuild 受本机 `spawn EPERM` 阻断
-- **一句话目标**：稳定验证 Contextual AI Coach 的四类上下文、旧 Tutor API 兼容性、认证用户边界和显式 fallback；Sprint 3.6 尚未开始。
+- **HEAD**：`0613efe` feat(ai): stabilize contextual coach quality and observability
+- **当前 Sprint**：Sprint 3.6 Contextual AI Coach Quality Stabilization
+- **状态**：Sprint 3.6 已完成并提交；`build:web` 的 Vite/esbuild 仍受本机 `spawn EPERM` 阻断
+- **一句话目标**：完成 Contextual AI Coach 的结构化输出稳定性、Prompt Guardrail、Evaluation、Observability 与前端 fallback 展示。
 
 ---
 
@@ -30,12 +30,13 @@
 | Sprint 3.4（Learning Loop Integration：任务完成/阶段测验触发次日计划、幂等事件、Today/Tomorrow 语义修复） | Done | `09ab2f4` |
 | Sprint 3.5.3（Contextual AI Coach：后端统一上下文 + 前端四场景接入） | Done | `1287007` |
 | Sprint 3.5.4（Contextual Coach Stabilization） | Done（文档待提交） | — |
+| Sprint 3.6（Contextual AI Coach quality and observability） | Completed | `0613efe` |
 
 ---
 
 ## 3. 当前进行中
 
-**当前：Sprint 3.5.4 稳定性验证完成，等待文档提交；Sprint 3.6 尚未开始。**
+**当前：Sprint 3.6 已完成并提交，等待后续 Sprint 规划。**
 
 已完成内容：
 
@@ -63,6 +64,14 @@ Sprint 3.5.4 Stabilization 验证：
 
 当前未解决的环境问题不属于业务代码失败；Sprint 3.6 不自动开始。
 
+Sprint 3.6 已完成内容：
+
+1. Contextual Coach response normalization：JSON 解析、字段校验、默认值补全、多余字段剔除和 fallback。
+2. Prompt Guardrail：限制 AI 仅解释、提醒和建议，不得声称修改计划、任务、掌握度或复习安排。
+3. Evaluation Tests：覆盖正常输出、缺失字段、类型错误、非法 JSON、多余字段、unsafe content 和四类 Context。
+4. Observability：记录 source、fallbackReason、errorType、durationMs，并保留 provider fallback。
+5. Frontend fallback 展示：直接展示后端 source/fallbackReason，网络错误使用用户友好提示。
+
 ---
 
 ## 4. 未提交文件归属
@@ -85,7 +94,7 @@ Sprint 3.5.4 Stabilization 验证：
 
 ## 5. First Next Task
 
-**Sprint 3.5.4 closeout：等待用户确认后提交本次状态文档；Sprint 3.6 不自动开始。**
+**Sprint 3.6 closeout 已完成；下一步等待新的 Sprint 规划，不自动进入 Sprint 3.7。**
 
 已完成验收：
 
@@ -93,7 +102,7 @@ Sprint 3.5.4 Stabilization 验证：
 2. AnswerReceipt replay 路径已隔离，不重复生成计划或事件。
 3. Today/Tomorrow 查询语义已验证，今日完成后可提前生成明日计划。
 
-验收完成：Sprint 3.4 commit `09ab2f4` 已落库；验证结果和剩余技术债务见 handoff 文档。
+验收完成：Sprint 3.6 commit `0613efe` 已落库；验证结果和剩余技术债务见 `docs/handoff/2026-08-30-v3-sprint3.6-handoff.md`。
 
 ---
 
