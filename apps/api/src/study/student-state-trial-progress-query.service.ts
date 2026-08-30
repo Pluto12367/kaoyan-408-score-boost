@@ -1,28 +1,27 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { StudentStateProjectionService } from './student-state-projection.service';
 import {
   buildTrialProgressDto,
   type TrialProgressDto,
 } from './student-state-trial-progress.adapter';
-import { StudyService } from './study.service';
 
-// 过渡期兼容层：遗留 /trial-progress 契约未被投影链完整覆盖前，委托遗留实现。
+// Sprint 2 迁移原则：旧接口 → Adapter → Student State。
+// GET /trial-progress 的遗留契约由 buildTrialProgressDto 从 StudentStateSnapshot
+// + SoT 计数（StudyTaskCompletion / LearningSession / WrongQuestionReview /
+// FeedbackSubmission）导出，Phase R 的 legacy 委托已移除（语义等价性由
+// student-state-trial-progress-* 契约测试与集成脚本的 feedback 里程碑断言验证）。
 @Injectable()
 export class StudentStateTrialProgressQueryService {
   constructor(
     private readonly studentStateProjection: StudentStateProjectionService,
     private readonly prisma: PrismaService,
-    @Optional() private readonly legacy?: StudyService,
   ) {}
 
   async getTrialProgressCompat(
     userId: string,
     generatedAt: Date | string = new Date(),
   ): Promise<TrialProgressDto> {
-    if (this.legacy) {
-      return (await this.legacy.getTrialProgress(userId)) as TrialProgressDto;
-    }
     const asOf = toDate(generatedAt);
     const snapshot = await this.studentStateProjection.getSnapshot(userId, asOf);
     const counts = await this.getSupplementalCounts(userId);
