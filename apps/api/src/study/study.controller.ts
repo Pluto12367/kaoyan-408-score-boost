@@ -30,6 +30,8 @@ import { RoleGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfile } from '@kaoyan408/shared';
+import { ContextualCoachService } from './contextual-coach.service';
+import type { ContextualCoachRequest } from './contextual-coach.types';
 
 @Controller()
 export class StudyController {
@@ -47,6 +49,7 @@ export class StudyController {
     private readonly stageAssessmentQuery: StageAssessmentQueryService,
     private readonly assessmentHistoryQuery: AssessmentHistoryQueryService,
     private readonly examScoreHistoryQuery: ExamScoreHistoryQueryService,
+    private readonly contextualCoachService: ContextualCoachService,
   ) {}
 
   // ---- Student endpoints (require student+ auth) ----
@@ -267,6 +270,17 @@ export class StudyController {
     @Body() input: { questionId: string; message?: string; mode?: AiTutorFollowUpMode },
   ) {
     return this.studyService.createAiFollowUp({ ...input, userId: user.id });
+  }
+
+  @Post('ai/contextual-coach')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  createContextualCoach(
+    @CurrentUser() user: UserProfile,
+    @Body() input: ContextualCoachRequest & { userId?: string },
+  ) {
+    if (input && 'userId' in input) throw new BadRequestException('userId is not allowed in request body');
+    return this.contextualCoachService.contextualCoach(user.id, input);
   }
 
   @Post('practice-records')

@@ -1,5 +1,5 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
-import type { TutorReply, AiFollowUp } from '../types';
+import type { ContextualCoachRequest, ContextualCoachResponse, TutorReply, AiFollowUp } from '../types';
 
 export async function requestTutorReply(input: {
   questionId: string; selectedAnswer?: string; prompt?: string;
@@ -23,4 +23,14 @@ export async function requestAiFollowUp(input: {
   });
   if (!response.ok) throw new Error(`AI follow-up request failed with ${response.status}`);
   return response.json() as Promise<AiFollowUp>;
+}
+
+export async function requestContextualCoach(input: ContextualCoachRequest): Promise<ContextualCoachResponse> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/ai/contextual-coach`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw new Error(`Contextual coach request failed with ${response.status}`);
+  return response.json() as Promise<ContextualCoachResponse>;
 }

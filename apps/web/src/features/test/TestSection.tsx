@@ -21,6 +21,7 @@ import type {
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
+import { ContextualCoach } from '../../components/ContextualCoach';
 import { sectionFallback } from '../../components/sectionFallback';
 
 const ReportWorkspace = lazy(() => import('../report/ReportWorkspace').then((m) => ({ default: m.ReportWorkspace })));
@@ -83,6 +84,13 @@ export function TestSection(props: TestSectionProps) {
             onNavigate={props.onNavigate}
           />
         </Suspense>
+        {props.stageResult ? (
+          <ContextualCoach
+            request={{ contextType: 'assessment', assessmentId: props.stageResult.id }}
+            title="测评结果 Contextual AI Coach"
+            prompt="请结合这次测评的薄弱项和错题方向，给出下一步学习建议。"
+          />
+        ) : null}
       </section>
 
       <section className="panel test-section-report" aria-label="提分报告">

@@ -29,6 +29,7 @@ import type {
   WrongQuestionSummary,
 } from '../../api';
 import { ModuleUnavailable } from '../../components/ModuleResourceState';
+import { ContextualCoach } from '../../components/ContextualCoach';
 import { sectionFallback } from '../../components/sectionFallback';
 import { isMockAllowed } from '../../api/env';
 import type { ModuleResource } from '../../hooks/moduleResource';
@@ -289,6 +290,19 @@ export function StudentSections(props: StudentSectionsProps) {
                   onRetryPracticeSet={props.onRetryPracticeSet}
                 />
               </Suspense>
+              {props.practiceAnswerResult ? (
+                <ContextualCoach
+                  request={{
+                    contextType: 'question',
+                    questionId: props.currentQuestion.id,
+                    ...(props.practiceAnswerResult.selectedAnswer
+                      ? { selectedAnswer: props.practiceAnswerResult.selectedAnswer }
+                      : {}),
+                  }}
+                  title="题目 Contextual AI Coach"
+                  prompt="请解释当前题目的考点、易错原因和下一步学习建议。"
+                />
+              ) : null}
               <WeaknessReportPanel report={report} />
             </section>
             <ReviewResourcesPanel resources={props.reviewResources} onRetry={props.onRetryReviewResources} />

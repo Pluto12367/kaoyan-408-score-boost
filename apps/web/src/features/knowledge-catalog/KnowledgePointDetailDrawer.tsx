@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { buildKnowledgeEvidenceSummary } from '@kaoyan408/shared';
 import type { CatalogFirstScreenActionType, CatalogPointContext } from '@kaoyan408/shared';
 import { OverlayDialog } from '../../components/OverlayDialog';
+import { ContextualCoach } from '../../components/ContextualCoach';
 import type { KnowledgeDetail, NodeMasterySummary, NodeQuestStatus } from '../../api/endpoints/score-center';
 import { ALL_TIME_EVIDENCE_LABEL, MASTERY_STATUS_LABELS, NO_FREQUENCY_LABEL, QUEST_STATUS_LABELS, TREND_LABELS } from './constants';
 
@@ -195,6 +196,12 @@ export function KnowledgePointDetailDrawer({
             <p className="catalog-drawer-empty">{NO_FREQUENCY_LABEL}</p>
           )}
         </section>
+
+        <ContextualCoach
+          request={{ contextType: 'knowledge_node', knowledgeNodeId: point.id }}
+          title="知识节点 Contextual AI Coach"
+          prompt="这个知识点为什么容易薄弱？请结合掌握度和学习证据给出复习方式。"
+        />
 
         <section
           ref={masterySectionRef}

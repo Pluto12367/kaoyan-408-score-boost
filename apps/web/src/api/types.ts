@@ -694,6 +694,25 @@ export interface TutorReply {
   source: string;
 }
 
+export type ContextualCoachRequest =
+  | { contextType: 'question'; questionId: string; selectedAnswer?: string; message?: string }
+  | { contextType: 'wrong_question'; questionId: string; message?: string }
+  | { contextType: 'knowledge_node'; knowledgeNodeId: string; message?: string }
+  | { contextType: 'assessment'; assessmentId?: string; message?: string };
+
+export interface ContextualCoachResponse {
+  contextType: ContextualCoachRequest['contextType'];
+  contextId: string | null;
+  summary: string;
+  replySteps: string[];
+  misconceptionTips: string[];
+  reviewCards: Array<{ id: string; type: 'concept' | 'rule' | 'confusion'; title: string; content: string; nextAction: string }>;
+  nextActions: string[];
+  source: string;
+  assembledAt: string;
+  fallbackReason?: string;
+}
+
 export interface AiFollowUp {
   id: string;
   userId: string;

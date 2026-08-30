@@ -16,6 +16,13 @@ import {
 } from '@kaoyan408/shared';
 import { ChatCompletionError, DeepSeekClient } from './deepseek-client';
 import { AiTutorLogRepository } from './ai-tutor-log.repository';
+import {
+  buildContextualCoachSystemPrompt,
+  buildContextualCoachUserPrompt,
+  buildTemplateContextualCoach,
+  parseContextualCoachJson,
+} from './contextual-coach.prompt';
+import type { ContextualCoachContext, ContextualCoachDraft } from './contextual-coach.types';
 
 export interface AiTutorResult<T> {
   draft: T;
@@ -115,6 +122,45 @@ export class AiTutorService {
       await this.logRepository.create({
         userId: context.userId,
         questionId: context.questionId,
+        prompt,
+        response: `ERROR: ${describeError(error)}`,
+      });
+      throw error;
+    }
+  }
+
+  async contextualCoach(
+    userId: string,
+    context: ContextualCoachContext,
+    message?: string,
+  ): Promise<AiTutorResult<ContextualCoachDraft>> {
+    if (!this.client) {
+      return {
+        draft: buildTemplateContextualCoach(context, message),
+        source: 'contextual-coach-template',
+        prompt: '',
+        fallbackReason: 'AI unavailable',
+      };
+    }
+    const prompt = `${buildContextualCoachSystemPrompt()}\n\n${buildContextualCoachUserPrompt(context, message)}`;
+    const questionId = context.context.type === 'question' || context.context.type === 'wrong_question'
+      ? context.context.id
+      : null;
+    try {
+      const { content, model } = await this.client.chatCompletions({
+        messages: [
+          { role: 'system', content: buildContextualCoachSystemPrompt() },
+          { role: 'user', content: buildContextualCoachUserPrompt(context, message) },
+        ],
+        jsonMode: true,
+      });
+      const draft = parseContextualCoachJson(content);
+      await this.logRepository.create({ userId, questionId, prompt, response: content });
+      return { draft, source: model, prompt, rawResponse: content };
+    } catch (error) {
+      await this.logRepository.create({
+        userId,
+        questionId,
         prompt,
         response: `ERROR: ${describeError(error)}`,
       });
