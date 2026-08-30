@@ -89,6 +89,7 @@ import {
 import { computePracticeRecordRequestHash, PRACTICE_RECORD_HASH_VERSION } from './answer-request-hash';
 import { ScoreCenterService } from '../score-center/service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LearningLoopTriggerService } from './learning-loop-trigger.service';
 import {
   loadActiveAtomicNodeCatalog,
   loadLatestFrequencySnapshots,
@@ -144,6 +145,7 @@ export class StudyService implements OnModuleInit {
     @Optional() private readonly answerReceipts?: AnswerReceiptRepository,
     @Optional() private readonly masterySummaryProjection?: MasterySummaryProjectionService,
     @Optional() private readonly recommendation?: RecommendationService,
+    @Optional() private readonly learningLoopTrigger?: LearningLoopTriggerService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -154,6 +156,18 @@ export class StudyService implements OnModuleInit {
         `User event ${type} recording failed`,
         error instanceof Error ? error.message : String(error),
       );
+    }
+  }
+
+  private async triggerLearningLoop(userId: string, input: Parameters<LearningLoopTriggerService['maybeGenerateLearningLoopPlan']>[1]) {
+    try {
+      return await this.learningLoopTrigger?.maybeGenerateLearningLoopPlan(userId, input);
+    } catch (error) {
+      this.logger.warn(
+        `Learning loop trigger failed for ${userId}`,
+        error instanceof Error ? error.message : String(error),
+      );
+      return undefined;
     }
   }
 
@@ -3235,7 +3249,12 @@ export class StudyService implements OnModuleInit {
     const task = scheduledTask ?? plan.dailyTasks.find((item) => item.id === taskId);
     if (!task) {
       const scoreCenterCompleted = await this.scoreCenterService?.completeTask(taskId, userId, input);
-      if (scoreCenterCompleted) return scoreCenterCompleted;
+      if (scoreCenterCompleted) {
+        await this.triggerLearningLoop(userId, {
+          triggerType: 'task.complete', sourceId: taskId,
+        });
+        return scoreCenterCompleted;
+      }
       throw new BadRequestException(`Study task ${taskId} was not found`);
     }
     if (scheduledTask?.status === 'completed') {
@@ -3331,6 +3350,12 @@ export class StudyService implements OnModuleInit {
         }
       }
     }
+
+    await this.triggerLearningLoop(userId, {
+      triggerType: 'task.complete',
+      sourceId: taskId,
+      scheduledDate: (task as { scheduledDate?: string }).scheduledDate,
+    });
 
     return {
       ...task,
@@ -4338,6 +4363,13 @@ export class StudyService implements OnModuleInit {
           );
           synchronizationWarnings.push('assessment_history');
         }
+      }
+
+      if (session.type === 'stage_assessment') {
+        await this.triggerLearningLoop(userId, {
+          triggerType: 'stage_assessment',
+          sourceId: sessionId,
+        });
       }
 
       const correctCount = records.filter((r) => r.correct).length;

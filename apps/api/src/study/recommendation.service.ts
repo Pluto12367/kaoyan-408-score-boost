@@ -201,8 +201,9 @@ export class RecommendationService {
    */
   async generateDailyPlanFromState(
     userId: string,
-    input: { targetExamDate: Date; availableMinutes: 30 | 60 | 120 | 180 },
+    input: { targetExamDate: Date; availableMinutes: 30 | 60 | 120 | 180; scheduledDate?: string },
   ): Promise<PrismaValidationPlan> {
+    const scheduledDate = input.scheduledDate ?? todayKey();
     const { result, nodeById, breakdownByNode, user, daysToExam } = await this.runRecommendationForUser(userId, {
       availableMinutes: input.availableMinutes,
       targetExamDate: input.targetExamDate,
@@ -220,7 +221,7 @@ export class RecommendationService {
         mode: ACTION_LABELS[draft.action] ?? draft.action,
         minutes: draft.estimatedMinutes,
         questionCount: draft.action === 'MOCK' ? 30 : 8,
-        scheduledDate: todayKey(),
+        scheduledDate,
         priority: priorityLabel(draft.score),
         reason: draft.reasonCodes.join('、'),
         nextAction: ACTION_LABELS[draft.action] ?? draft.action,
@@ -242,7 +243,7 @@ export class RecommendationService {
         modelVersion: MODEL_VERSION,
         targetExamDate: input.targetExamDate,
         availableMinutes: input.availableMinutes,
-        scheduledDate: todayKey(),
+        scheduledDate,
       }, enrichedTasks);
     });
   }

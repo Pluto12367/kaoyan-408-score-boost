@@ -20,4 +20,18 @@ export class UserEventRepository {
       },
     });
   }
+
+  async hasTriggerKey(userId: string, triggerKey: string) {
+    if (!this.enabled) return false;
+    const events = await this.prisma.userEvent.findMany({
+      where: { userId, type: 'plan.generated' },
+      select: { payload: true },
+    });
+    return events.some((event) => (
+      event.payload !== null
+      && typeof event.payload === 'object'
+      && !Array.isArray(event.payload)
+      && (event.payload as { triggerKey?: unknown }).triggerKey === triggerKey
+    ));
+  }
 }

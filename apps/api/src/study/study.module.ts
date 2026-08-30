@@ -47,6 +47,8 @@ import { AdminUserRepository } from './admin-user.repository';
 import { FeedbackRepository } from './feedback.repository';
 import { UserEventRepository } from './user-event.repository';
 import { ScoreCenterModule } from '../score-center/score-center.module';
+import { LearningLoopTriggerService } from './learning-loop-trigger.service';
+import { LearningLoopRepository } from './learning-loop.repository';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule],
@@ -55,6 +57,6 @@ import { ScoreCenterModule } from '../score-center/score-center.module';
     provide: ExamScoreHistoryProjectionService,
     useFactory: (sessions: LearningSessionRepository, practiceRecords: PracticeRecordRepository) =>
       new ExamScoreHistoryProjectionService({ sessions, practiceRecords }),    inject: [LearningSessionRepository, PracticeRecordRepository],
-  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
+  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
 })
 export class StudyModule {}

@@ -487,7 +487,11 @@ export async function createScoreCenterPlan(
 
 export async function loadTodayScoreCenterPlan(db: DbClient, userId: string, scheduledDate: string) {
   return db.studyPlan.findFirst({
-    where: { userId, source: 'score-center', status: 'ACTIVE' },
+    where: {
+      userId,
+      source: 'score-center',
+      tasks: { some: { scheduledDate } },
+    },
     include: {
       tasks: {
         where: { scheduledDate },
