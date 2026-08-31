@@ -16,6 +16,7 @@ export type StudentActionSource =
   | 'today-plan'
   | 'review-due'
   | 'wrong-summary'
+  | 'wrong-summary-fallback'
   | 'mastery-map'
   | 'knowledge'
   | 'assessment'
@@ -40,7 +41,7 @@ type ActionBase<T extends StudentActionType, D extends StudentActionDestination,
 export type StudentAction =
   | ActionBase<'today_task', 'home' | 'practice' | 'review' | 'test', 'today-plan', { taskId: string; knowledgeNodeId?: string; questionId?: string }>
   | ActionBase<'review_due', 'review', 'review-due', { questionId: string }>
-  | ActionBase<'redo_wrong_question', 'practice' | 'review', 'wrong-summary', { questionId: string }>
+  | ActionBase<'redo_wrong_question', 'practice' | 'review', 'wrong-summary' | 'wrong-summary-fallback', { questionId: string }>
   | ActionBase<'practice_recommended', 'practice', 'mastery-map' | 'training', { questionId: string; knowledgeNodeId?: string; taskId?: string } | { questionId?: string; knowledgeNodeId: string; taskId?: string } | { questionId?: string; knowledgeNodeId?: string; taskId: string }>
   | ActionBase<'knowledge_explore', 'knowledge', 'knowledge' | 'mastery-map', { knowledgeNodeId: string }>
   | ActionBase<'knowledge_quest', 'knowledge' | 'practice', 'knowledge', { knowledgeNodeId: string; questionIds?: string[] }>
@@ -60,7 +61,7 @@ const ACTION_TYPES = new Set<StudentActionType>([
 
 const DESTINATIONS = new Set<StudentActionDestination>(['home', 'practice', 'knowledge', 'review', 'test', 'ai']);
 const SOURCES = new Set<StudentActionSource>([
-  'today-plan', 'review-due', 'wrong-summary', 'mastery-map', 'knowledge',
+  'today-plan', 'review-due', 'wrong-summary', 'wrong-summary-fallback', 'mastery-map', 'knowledge',
   'assessment', 'session', 'training', 'report', 'coach',
 ]);
 
@@ -94,7 +95,7 @@ function matchesActionBoundary(type: StudentActionType, destination: StudentActi
   switch (type) {
     case 'today_task': return destination === 'home' || destination === 'practice' || destination === 'review' || destination === 'test' ? source === 'today-plan' : false;
     case 'review_due': return destination === 'review' && source === 'review-due';
-    case 'redo_wrong_question': return (destination === 'practice' || destination === 'review') && source === 'wrong-summary';
+    case 'redo_wrong_question': return (destination === 'practice' || destination === 'review') && (source === 'wrong-summary' || source === 'wrong-summary-fallback');
     case 'practice_recommended': return destination === 'practice' && (source === 'mastery-map' || source === 'training');
     case 'knowledge_explore': return destination === 'knowledge' && (source === 'knowledge' || source === 'mastery-map');
     case 'knowledge_quest': return (destination === 'knowledge' || destination === 'practice') && source === 'knowledge';

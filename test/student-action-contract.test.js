@@ -29,6 +29,7 @@ test('StudentAction contract accepts representative actions and rejects invalid 
 
   for (const action of validActions) assert.equal(isStudentAction(action), true);
   assert.equal(isStudentAction({ ...validActions[0], destination: 'home', priority: '高' }), true, 'today task may use home and source priority string');
+  assert.equal(isStudentAction({ id: 'a-review-fallback', type: 'redo_wrong_question', title: 'Fallback review', destination: 'review', source: 'wrong-summary-fallback', context: { questionId: 'question-fallback' } }), true, 'review fallback keeps its lower-authority source');
   assert.equal(isStudentAction({ ...validActions[0], priority: false }), false, 'priority must remain a primitive number or string');
   assert.equal(isStudentAction({ ...validActions[0], context: {} }), false, 'required ID must be present');
   assert.equal(isStudentAction({ id: 'unknown', title: 'Unknown' }), false, 'field-only object must be rejected');
