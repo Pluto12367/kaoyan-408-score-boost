@@ -2,17 +2,17 @@
 
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
-> 最后更新：2026-08-30（Sprint 3.6 closeout）
+> 最后更新：2026-08-31（Sprint 4 formal closeout）
 
 ---
 
 ## 1. 当前阶段与目标
 
 - **分支**：`feature/v3-product-refactor`
-- **HEAD**：`0613efe` feat(ai): stabilize contextual coach quality and observability
-- **当前 Sprint**：Sprint 3.6 Contextual AI Coach Quality Stabilization
-- **状态**：Sprint 3.6 已完成并提交；`build:web` 的 Vite/esbuild 仍受本机 `spawn EPERM` 阻断
-- **一句话目标**：完成 Contextual AI Coach 的结构化输出稳定性、Prompt Guardrail、Evaluation、Observability 与前端 fallback 展示。
+- **HEAD**：`19a15ed` feat(web): add reusable design system primitives
+- **当前 Sprint**：Sprint 4 AI Training Room Formal Closeout
+- **状态**：Sprint 4 已完成并通过 Release Re-Verification；Phase 5 尚未开始
+- **一句话目标**：完成 Sprint 4 状态封板，保留其他工作线供后续独立处理。
 
 ---
 
@@ -31,12 +31,41 @@
 | Sprint 3.5.3（Contextual AI Coach：后端统一上下文 + 前端四场景接入） | Done | `1287007` |
 | Sprint 3.5.4（Contextual Coach Stabilization） | Done（文档待提交） | — |
 | Sprint 3.6（Contextual AI Coach quality and observability） | Completed | `0613efe` |
+| Phase 1（408 OS Design System primitives） | Done | `19a15ed` |
+| Sprint 4（AI Training Room） | Completed / Release Ready | `b493438` → `19a15ed` |
 
 ---
 
 ## 3. 当前进行中
 
-**当前：Sprint 3.6 已完成并提交，等待后续 Sprint 规划。**
+**当前：Sprint 4 已完成 Formal Closeout；Phase 5 尚未开始。**
+
+Sprint 4 Release Re-Verification 已完成：
+
+1. Training Room 实现提交为 `b493438`；随后 `19a15ed` 独立提交 Design System primitives，使当前 HEAD 的 Training Room 依赖闭包完整。实际 Git 历史为 `b493438` → `19a15ed` → `HEAD`。
+2. Clean checkout source closure：PASS；Training Room 所需的 `GlassCard`、`SurfaceCard`、`ProgressRing`、`EmptyState` 及其入口文件均已进入 Git 历史。
+3. TypeScript：PASS；此前 `components/ui` 缺失导致的 TS2307 已解决。
+4. Training Room UI：6/6 PASS；Design System UI：4/4 PASS。
+5. `git show --check`：PASS。
+6. Vite/esbuild full bundle 在当前 Windows 环境因 `spawn EPERM` 受阻；这是子进程环境限制，不是 source/module-resolution 失败。
+
+Sprint 4 Formal Closeout 状态：
+
+- Implementation：COMPLETE
+- Design System Dependency Closure：COMPLETE
+- Git Boundary：COMPLETE
+- Clean Checkout Source Closure：PASS
+- Targeted Tests：PASS
+- Documentation：SYNCED
+- Release Status：READY
+- Phase 5：NOT STARTED
+
+已知 V2 → V3 migration debt，单独清理，不属于 Sprint 4：
+
+- `student-learning-console-ui.test.js`
+- `today-score-center-ui.test.js`
+- `v3-section-wiring.test.js`
+- `wrong-question-evidence.test.js`
 
 已完成内容：
 
@@ -88,13 +117,15 @@ Sprint 3.6 已完成内容：
 
 规则：**Sprint Agent 禁止修改、禁止提交、禁止格式化、禁止删除**这些文件；提交时一律按清单精确 `git add`，不使用 `git add -A`。
 
+Sprint 4 已提交；当前 working tree 中仍有其他未提交工作线，均不属于 Sprint 4，包括 Knowledge Galaxy、Review Center/Smart Review、`StudentSections.tsx` 的后续修改、其他前端组件、测试、文档及上述主题文件。它们必须保持各自归属，后续单独审查和提交。
+
 另：文档类未提交新增允许随文档任务提交：`docs/handoff/2026-08-30-v3-sprint3-handoff.md`、`docs/current-sprint.md`（本文件）。
 
 ---
 
 ## 5. First Next Task
 
-**Sprint 3.6 closeout 已完成；下一步等待新的 Sprint 规划，不自动进入 Sprint 3.7。**
+**下一步需单独确认 Phase 5 规划；在用户确认前不开始实现。**
 
 已完成验收：
 
