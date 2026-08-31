@@ -28,6 +28,8 @@ test('StudentAction contract accepts representative actions and rejects invalid 
   const { isStudentAction } = await loadModule('apps/web/src/features/student/actions/studentAction.ts');
 
   for (const action of validActions) assert.equal(isStudentAction(action), true);
+  assert.equal(isStudentAction({ ...validActions[0], destination: 'home', priority: '高' }), true, 'today task may use home and source priority string');
+  assert.equal(isStudentAction({ ...validActions[0], priority: false }), false, 'priority must remain a primitive number or string');
   assert.equal(isStudentAction({ ...validActions[0], context: {} }), false, 'required ID must be present');
   assert.equal(isStudentAction({ id: 'unknown', title: 'Unknown' }), false, 'field-only object must be rejected');
   assert.equal(isStudentAction({ ...validActions[0], context: { taskId: () => 'task-1' } }), false, 'function values are not IDs');

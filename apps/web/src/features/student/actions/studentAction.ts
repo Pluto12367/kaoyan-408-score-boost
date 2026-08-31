@@ -33,12 +33,12 @@ type ActionBase<T extends StudentActionType, D extends StudentActionDestination,
   destination: D;
   source: S;
   reason?: string;
-  priority?: number;
+  priority?: number | string;
   context: C;
 };
 
 export type StudentAction =
-  | ActionBase<'today_task', 'practice' | 'review' | 'test', 'today-plan', { taskId: string; knowledgeNodeId?: string; questionId?: string }>
+  | ActionBase<'today_task', 'home' | 'practice' | 'review' | 'test', 'today-plan', { taskId: string; knowledgeNodeId?: string; questionId?: string }>
   | ActionBase<'review_due', 'review', 'review-due', { questionId: string }>
   | ActionBase<'redo_wrong_question', 'practice' | 'review', 'wrong-summary', { questionId: string }>
   | ActionBase<'practice_recommended', 'practice', 'mastery-map' | 'training', { questionId: string; knowledgeNodeId?: string; taskId?: string } | { questionId?: string; knowledgeNodeId: string; taskId?: string } | { questionId?: string; knowledgeNodeId?: string; taskId: string }>
@@ -92,7 +92,7 @@ function matchesActionBoundary(type: StudentActionType, destination: StudentActi
   if (type === 'coach_explain') return destination === 'ai' && source === 'coach';
   if (destination === 'ai' || source === 'coach') return false;
   switch (type) {
-    case 'today_task': return destination === 'practice' || destination === 'review' || destination === 'test' ? source === 'today-plan' : false;
+    case 'today_task': return destination === 'home' || destination === 'practice' || destination === 'review' || destination === 'test' ? source === 'today-plan' : false;
     case 'review_due': return destination === 'review' && source === 'review-due';
     case 'redo_wrong_question': return (destination === 'practice' || destination === 'review') && source === 'wrong-summary';
     case 'practice_recommended': return destination === 'practice' && (source === 'mastery-map' || source === 'training');
@@ -115,7 +115,7 @@ export function isStudentAction(value: unknown): value is StudentAction {
     || !SOURCES.has(value.source as StudentActionSource)
     || !matchesActionBoundary(value.type as StudentActionType, value.destination as StudentActionDestination, value.source as StudentActionSource)
     || (value.reason !== undefined && typeof value.reason !== 'string')
-    || (value.priority !== undefined && typeof value.priority !== 'number')
+    || (value.priority !== undefined && typeof value.priority !== 'number' && typeof value.priority !== 'string')
     || !isRecord(value.context)
     || !isPureData(value.context)) return false;
 
