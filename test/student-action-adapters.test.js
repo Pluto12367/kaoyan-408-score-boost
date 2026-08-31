@@ -40,6 +40,14 @@ async function loadReportAdapter() {
   return compileModule('apps/web/src/features/student/actions/adapters/reportActionAdapter.ts');
 }
 
+async function loadSessionAdapter() {
+  return compileModule('apps/web/src/features/student/actions/adapters/sessionActionAdapter.ts');
+}
+
+async function loadTrainingAdapter() {
+  return compileModule('apps/web/src/features/student/actions/adapters/trainingActionAdapter.ts');
+}
+
 function task(overrides = {}) {
   return {
     id: 'task-1', knowledgePointId: 'kp-1', subject: '数据结构', chapter: '树',
@@ -474,4 +482,135 @@ test('Report: unknown action text remains unstructured', async () => {
     id: 'report:weekly-summary', type: 'open_report', title: '查看学习报告',
     destination: 'test', source: 'report', context: { reportId: 'report:weekly-summary' },
   }]);
+});
+
+function session(overrides = {}) {
+  return {
+    id: 'session-1', type: 'practice_set', resourceId: 'practice-set-1',
+    questionIds: ['question-1', 'question-2'], questions: [], answers: {},
+    markedQuestions: [], currentIndex: 0, revision: 2, totalQuestions: 2,
+    answeredCount: 1, startedAt: '2026-08-31T08:00:00.000Z',
+    lastActiveAt: '2026-08-31T08:10:00.000Z', totalActiveMs: 600000,
+    completed: false, progressRate: 50, ...overrides,
+  };
+}
+
+test('Session: resumable session produces a practice continue action', async () => {
+  const { buildContinueSessionAction } = await loadSessionAdapter();
+
+  assert.deepEqual(buildContinueSessionAction(session()), {
+    id: 'continue-session:session-1', type: 'continue_session', title: '继续练习',
+    destination: 'practice', source: 'session', context: { sessionId: 'session-1' },
+  });
+});
+
+test('Session: completed, non-resumable, and missing-ID sessions are excluded', async () => {
+  const { buildContinueSessionAction } = await loadSessionAdapter();
+
+  assert.equal(buildContinueSessionAction(session({ completed: true })), null);
+  assert.equal(buildContinueSessionAction(session({ questionIds: [], totalQuestions: 0 })), null);
+  assert.equal(buildContinueSessionAction(session({ id: '  ' })), null);
+});
+
+test('Session: preserves the exact session ID in action context', async () => {
+  const { buildContinueSessionAction } = await loadSessionAdapter();
+  const result = buildContinueSessionAction(session({ id: 'session-real-408-17' }));
+
+  assert.equal(result.context.sessionId, 'session-real-408-17');
+  assert.equal(result.id, 'continue-session:session-real-408-17');
+});
+
+test('Training: string-only next actions remain display text', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'practice-set-1', source: 'practice_set', nextActions: ['先复盘错题', '继续保持'],
+  }), []);
+});
+
+test('Training: explicit practice context produces a practice action with real IDs', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'practice-set-1', source: 'practice_set', nextActions: ['去练习'],
+    questionId: 'question-real-1', knowledgeNodeId: 'node-real-1', taskId: 'task-real-1',
+  }), [{
+    id: 'training-practice:practice-set-1', type: 'practice_recommended', title: '开始训练',
+    destination: 'practice', source: 'training',
+    context: { questionId: 'question-real-1', knowledgeNodeId: 'node-real-1', taskId: 'task-real-1' },
+  }]);
+});
+
+test('Training: does not recalculate mastery or recommendation from presentation data', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'stage-assessment-1', source: 'stage_assessment',
+    nextActions: ['推荐掌握度最低的知识点'], mastery: 0.2, recommendationPriority: 99,
+  }), []);
+});
+
+test('Training: generic question context cannot produce a review-due action', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'training-1', source: 'practice_set', actionType: 'review_due', questionId: 'generic-question-1',
+  }), []);
+});
+
+test('Training: explicit review-due question context produces a review-due action', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'training-1', source: 'practice_set', actionType: 'review_due', reviewDueQuestionId: 'due-question-1',
+  }), [{
+    id: 'training-review-due:training-1', type: 'review_due', title: '开始复习',
+    destination: 'review', source: 'review-due', context: { questionId: 'due-question-1' },
+  }]);
+});
+
+test('Training: generic question context cannot produce a wrong-question action', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'training-1', source: 'practice_set', actionType: 'redo_wrong_question', questionId: 'generic-question-1',
+  }), []);
+});
+
+test('Training: explicit wrong-question context produces a wrong-question action', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'training-1', source: 'practice_set', actionType: 'redo_wrong_question', wrongQuestionId: 'wrong-question-1',
+  }), [{
+    id: 'training-redo-wrong-question:training-1', type: 'redo_wrong_question', title: '重做错题',
+    destination: 'practice', source: 'wrong-summary', context: { questionId: 'wrong-question-1' },
+  }]);
+});
+
+test('Training: stage assessment source context cannot identify an open report', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'stage-assessment-1', source: 'stage_assessment', actionType: 'open_report',
+  }), []);
+});
+
+test('Training: explicit report context does not invent an assessment ID', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'stage-assessment-1', source: 'stage_assessment', actionType: 'open_report', reportId: 'report-real-1',
+  }), [{
+    id: 'training-report:stage-assessment-1', type: 'open_report', title: '查看训练报告',
+    destination: 'test', source: 'report', context: { reportId: 'report-real-1' },
+  }]);
+});
+
+test('Training: unknown action types produce no action', async () => {
+  const { buildTrainingActions } = await loadTrainingAdapter();
+
+  assert.deepEqual(buildTrainingActions({
+    sourceId: 'training-1', source: 'practice_set', actionType: 'unknown_action', questionId: 'question-1',
+  }), []);
 });
