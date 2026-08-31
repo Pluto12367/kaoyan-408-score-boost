@@ -48,6 +48,22 @@ async function loadTrainingAdapter() {
   return compileModule('apps/web/src/features/student/actions/adapters/trainingActionAdapter.ts');
 }
 
+async function loadActionCandidates() {
+  return compileModule('apps/web/src/features/student/actions/actionCandidates.ts');
+}
+
+async function loadCanonicalNextAction() {
+  return compileModule('apps/web/src/features/student/actions/canonicalNextAction.ts');
+}
+
+function action(overrides = {}) {
+  return {
+    id: 'action-1', type: 'practice_recommended', title: '开始练习',
+    destination: 'practice', source: 'training', context: { taskId: 'task-1' },
+    ...overrides,
+  };
+}
+
 function task(overrides = {}) {
   return {
     id: 'task-1', knowledgePointId: 'kp-1', subject: '数据结构', chapter: '树',
@@ -613,4 +629,91 @@ test('Training: unknown action types produce no action', async () => {
   assert.deepEqual(buildTrainingActions({
     sourceId: 'training-1', source: 'practice_set', actionType: 'unknown_action', questionId: 'question-1',
   }), []);
+});
+
+test('Canonical: a resumable session wins over every later source', async () => {
+  const { buildStudentActionCandidates } = await loadActionCandidates();
+  const { selectCanonicalNextAction } = await loadCanonicalNextAction();
+  const sessionAction = action({
+    id: 'session-action', type: 'continue_session', title: '继续练习', source: 'session',
+    context: { sessionId: 'session-1' },
+  });
+
+  const candidates = buildStudentActionCandidates({
+    session: [sessionAction],
+    todayAction: action({ id: 'today-action', type: 'today_task', source: 'today-plan', context: { taskId: 'task-2' } }),
+    review: [action({ id: 'review-action', type: 'review_due', source: 'review-due', context: { questionId: 'question-1' } })],
+  });
+
+  assert.equal(selectCanonicalNextAction(candidates), sessionAction);
+});
+
+test('Canonical: today action wins when there is no resumable session', async () => {
+  const { buildStudentActionCandidates } = await loadActionCandidates();
+  const { selectCanonicalNextAction } = await loadCanonicalNextAction();
+  const todayAction = action({ id: 'today-action', type: 'today_task', source: 'today-plan', context: { taskId: 'task-2' } });
+
+  const candidates = buildStudentActionCandidates({
+    session: [],
+    todayAction,
+    review: [action({ id: 'review-action', type: 'review_due', source: 'review-due', context: { questionId: 'question-1' } })],
+  });
+
+  assert.equal(selectCanonicalNextAction(candidates), todayAction);
+});
+
+test('Canonical: due review beats a server priority wrong-question action', async () => {
+  const { buildStudentActionCandidates } = await loadActionCandidates();
+  const { selectCanonicalNextAction } = await loadCanonicalNextAction();
+  const dueReview = action({ id: 'due-review', type: 'review_due', source: 'review-due', context: { questionId: 'due-1' } });
+  const priorityRedo = action({ id: 'priority-redo', type: 'redo_wrong_question', source: 'wrong-summary', context: { questionId: 'redo-1' } });
+
+  const candidates = buildStudentActionCandidates({
+    todayAction: null, review: [dueReview], wrongQuestion: [priorityRedo],
+  });
+
+  assert.equal(selectCanonicalNextAction(candidates), dueReview);
+});
+
+test('Canonical: a server priority wrong-question action beats a report action', async () => {
+  const { buildStudentActionCandidates } = await loadActionCandidates();
+  const { selectCanonicalNextAction } = await loadCanonicalNextAction();
+  const priorityRedo = action({ id: 'priority-redo', type: 'redo_wrong_question', source: 'wrong-summary', context: { questionId: 'redo-1' } });
+  const report = action({ id: 'report-action', type: 'open_report', source: 'report', context: { reportId: 'report-1' } });
+
+  const candidates = buildStudentActionCandidates({
+    todayAction: null, wrongQuestion: [priorityRedo], report: [report],
+  });
+
+  assert.equal(selectCanonicalNextAction(candidates), priorityRedo);
+});
+
+test('Canonical: no valid non-coach candidate returns null', async () => {
+  const { buildStudentActionCandidates } = await loadActionCandidates();
+  const { selectCanonicalNextAction } = await loadCanonicalNextAction();
+  const coachAction = action({ id: 'coach-action', type: 'coach_explain', destination: 'ai', source: 'coach', context: { questionId: 'question-1' } });
+
+  const candidates = buildStudentActionCandidates({ todayAction: null, coach: [coachAction] });
+
+  assert.equal(selectCanonicalNextAction(candidates), null);
+});
+
+test('Candidates: deduplicate IDs, preserve source order, and ignore numeric priority across buckets', async () => {
+  const { buildStudentActionCandidates } = await loadActionCandidates();
+  const { selectCanonicalNextAction } = await loadCanonicalNextAction();
+  const firstReview = action({ id: 'review-first', title: '源内第一个', priority: 1, type: 'review_due', source: 'review-due', context: { questionId: 'question-1' } });
+  const secondReview = action({ id: 'review-second', title: '源内第二个', priority: 99, type: 'review_due', source: 'review-due', context: { questionId: 'question-2' } });
+  const duplicate = action({ id: 'review-first', title: '重复动作', priority: 100, type: 'redo_wrong_question', source: 'wrong-summary', context: { questionId: 'question-3' } });
+  const report = action({ id: 'report-action', type: 'open_report', source: 'report', context: { reportId: 'report-1' } });
+
+  const candidates = buildStudentActionCandidates({
+    todayAction: null,
+    review: [firstReview, secondReview],
+    wrongQuestion: [duplicate],
+    report: [report],
+  });
+
+  assert.deepEqual(candidates.review.map((candidate) => candidate.id), ['review-first', 'review-second']);
+  assert.deepEqual(candidates.wrongQuestion, []);
+  assert.equal(selectCanonicalNextAction(candidates), firstReview);
 });
