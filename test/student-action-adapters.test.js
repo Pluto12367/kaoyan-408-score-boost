@@ -28,6 +28,10 @@ async function loadReviewAdapter() {
   return compileModule('apps/web/src/features/student/actions/adapters/reviewActionAdapter.ts');
 }
 
+async function loadKnowledgeAdapter() {
+  return compileModule('apps/web/src/features/student/actions/adapters/knowledgeActionAdapter.ts');
+}
+
 function task(overrides = {}) {
   return {
     id: 'task-1', knowledgePointId: 'kp-1', subject: '数据结构', chapter: '树',
@@ -189,4 +193,155 @@ test('Wrong: duplicate question IDs keep the due occurrence', async () => {
 test('Wrong: review adapter does not call a risk or priority engine', async () => {
   const source = await readFile(new URL('../apps/web/src/features/student/actions/adapters/reviewActionAdapter.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /wrongReviewPriority|buildWrongReviewPriority|rankWrongReviewItems|scoreWrongQuestion/);
+});
+
+function catalogContext(nodeId, title) {
+  return {
+    point: { id: nodeId, name: title },
+    subjectCode: 'DS', subjectName: '数据结构', chapterId: 'chapter-1', chapterName: '树',
+    sectionId: 'section-1', sectionName: '二叉树',
+  };
+}
+
+test('Knowledge: creates an explore action for the selected catalog node', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({ nodeId: 'node-selected', title: '二叉树遍历' });
+
+  assert.deepEqual(result, [{
+    id: 'knowledge-explore:node-selected', type: 'knowledge_explore', title: '二叉树遍历',
+    destination: 'knowledge', source: 'knowledge', context: { knowledgeNodeId: 'node-selected' },
+  }]);
+});
+
+test('Knowledge: creates an explore action for each prerequisite context ID', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    nodeId: 'node-selected', title: '二叉树遍历',
+    prerequisiteContexts: [catalogContext('node-prerequisite', '树的基本概念')],
+  });
+
+  assert.deepEqual(result.at(-1), {
+    id: 'knowledge-explore:node-prerequisite', type: 'knowledge_explore', title: '树的基本概念',
+    destination: 'knowledge', source: 'knowledge', context: { knowledgeNodeId: 'node-prerequisite' },
+  });
+});
+
+test('Knowledge: creates an explore action for each related context ID', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    nodeId: 'node-selected', title: '二叉树遍历',
+    relatedContexts: [catalogContext('node-related', '二叉树性质')],
+  });
+
+  assert.deepEqual(result.at(-1), {
+    id: 'knowledge-explore:node-related', type: 'knowledge_explore', title: '二叉树性质',
+    destination: 'knowledge', source: 'knowledge', context: { knowledgeNodeId: 'node-related' },
+  });
+});
+
+test('Knowledge: retains selected node and related question IDs for practice', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    nodeId: 'node-selected', title: '二叉树遍历', relatedQuestionIds: ['question-related'],
+  });
+
+  assert.deepEqual(result.at(-1), {
+    id: 'knowledge-practice:node-selected:question-related', type: 'practice_recommended', title: '二叉树遍历',
+    destination: 'practice', source: 'training', context: { knowledgeNodeId: 'node-selected', questionId: 'question-related' },
+  });
+});
+
+test('Knowledge: retains exact catalog quest question IDs', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    nodeId: 'node-selected', title: '二叉树遍历', questQuestionIds: ['quest-2', 'quest-1'],
+  });
+
+  assert.deepEqual(result.at(-1), {
+    id: 'knowledge-quest:node-selected', type: 'knowledge_quest', title: '二叉树遍历',
+    destination: 'practice', source: 'knowledge', context: { knowledgeNodeId: 'node-selected', questionIds: ['quest-2', 'quest-1'] },
+  });
+});
+
+test('Knowledge: deduplicates valid quest question IDs in source order', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    nodeId: 'node-selected', title: '二叉树遍历',
+    questQuestionIds: ['quest-2', 'quest-1', 'quest-2', 'quest-3', 'quest-1'],
+  });
+
+  assert.deepEqual(result.at(-1).context.questionIds, ['quest-2', 'quest-1', 'quest-3']);
+});
+
+test('Knowledge: missing node ID produces no executable action', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    title: '二叉树遍历',
+    prerequisiteContexts: [catalogContext('node-prerequisite', '树的基本概念')],
+    relatedContexts: [catalogContext('node-related', '二叉树性质')],
+    relatedQuestionIds: ['question-related'], questQuestionIds: ['quest-1'],
+  });
+
+  assert.deepEqual(result, []);
+});
+
+test('Knowledge: skips invalid nested node and question IDs', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    nodeId: 'node-selected', title: '二叉树遍历',
+    prerequisiteContexts: [catalogContext('', '空 ID'), catalogContext('   ', '空白 ID'), catalogContext(42, '数字 ID')],
+    relatedContexts: [catalogContext(null, '空值 ID'), catalogContext('node-related', '二叉树性质')],
+    relatedQuestionIds: ['', '   ', 42, 'question-related'],
+    questQuestionIds: ['', '   ', 42, 'quest-valid'],
+  });
+
+  assert.deepEqual(result, [
+    {
+      id: 'knowledge-explore:node-selected', type: 'knowledge_explore', title: '二叉树遍历',
+      destination: 'knowledge', source: 'knowledge', context: { knowledgeNodeId: 'node-selected' },
+    },
+    {
+      id: 'knowledge-explore:node-related', type: 'knowledge_explore', title: '二叉树性质',
+      destination: 'knowledge', source: 'knowledge', context: { knowledgeNodeId: 'node-related' },
+    },
+    {
+      id: 'knowledge-practice:node-selected:question-related', type: 'practice_recommended', title: '二叉树遍历',
+      destination: 'practice', source: 'training', context: { knowledgeNodeId: 'node-selected', questionId: 'question-related' },
+    },
+    {
+      id: 'knowledge-quest:node-selected', type: 'knowledge_quest', title: '二叉树遍历',
+      destination: 'practice', source: 'knowledge', context: { knowledgeNodeId: 'node-selected', questionIds: ['quest-valid'] },
+    },
+  ]);
+});
+
+test('Knowledge: deduplicates by real ID with selected-node authority and source order', async () => {
+  const { buildKnowledgeActions } = await loadKnowledgeAdapter();
+  const result = buildKnowledgeActions({
+    nodeId: 'node-selected', title: '二叉树遍历',
+    prerequisiteContexts: [
+      catalogContext('node-selected', '不应替换选中节点标题'),
+      catalogContext('node-prerequisite', '树的基本概念'),
+      catalogContext('node-prerequisite', '重复前置知识'),
+    ],
+    relatedContexts: [
+      catalogContext('node-prerequisite', '重复相关知识'),
+      catalogContext('node-related', '二叉树性质'),
+    ],
+    relatedQuestionIds: ['question-1', 'question-1', 'question-2'],
+  });
+
+  assert.deepEqual(result.map((action) => action.id), [
+    'knowledge-explore:node-selected',
+    'knowledge-explore:node-prerequisite',
+    'knowledge-explore:node-related',
+    'knowledge-practice:node-selected:question-1',
+    'knowledge-practice:node-selected:question-2',
+  ]);
+  assert.equal(result[0].title, '二叉树遍历');
+});
+
+test('Knowledge: adapter source remains free of navigation, mastery, and fetch calls', async () => {
+  const source = await readFile(new URL('../apps/web/src/features/student/actions/adapters/knowledgeActionAdapter.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /fetchMyMastery|fetchKnowledgeDetail|onNavigate|navigate\s*\(|fetch\s*\(/);
 });
