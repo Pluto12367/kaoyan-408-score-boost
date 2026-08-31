@@ -42,6 +42,7 @@ import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { SessionView } from '../../api/endpoints/sessions';
 import { deriveTodayTaskNextStep, type TodayPlanTask, type TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
+import './student-learning-experience.css';
 
 const StudentLaunchpad = lazy(() => import('../onboarding/StudentLaunchpad').then((m) => ({ default: m.StudentLaunchpad })));
 const StudyPlanOverview = lazy(() => import('../plan/StudyPlanOverview').then((m) => ({ default: m.StudyPlanOverview })));
@@ -160,7 +161,7 @@ export function StudentSections(props: StudentSectionsProps) {
   );
 
   return (
-    <>
+    <div className="student-workspace-sections">
       {visibleSection === 'dashboard' ? (
         studentOverviewReady ? (
           <Suspense fallback={sectionFallback('学习总览')}>
@@ -360,6 +361,6 @@ export function StudentSections(props: StudentSectionsProps) {
           <ModuleUnavailable title="错题复盘" resource={overviewResource} onRetry={onRetryOverview} />
         )
       ) : null}
-    </>
+    </div>
   );
 }

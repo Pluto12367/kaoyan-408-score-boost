@@ -1,0 +1,63 @@
+/* Shared visual layer for the student workspace. Business markup and data remain unchanged. */
+.student-workspace-sections > .panel,
+.student-workspace-sections .test-section > .panel,
+.student-workspace-sections .report-workspace > .report-tabs,
+.student-workspace-sections .tutor-panel { border: 1px solid rgba(112,95,235,.12); border-radius: 20px; background: rgba(255,255,255,.84); box-shadow: 0 16px 42px rgba(42,34,91,.06); }
+.student-workspace-sections .panel-heading { padding-bottom: 18px; border-bottom: 1px solid rgba(48,41,93,.06); }
+.student-workspace-sections .panel-heading h3 { color: #27243b; letter-spacing: -.02em; }
+.student-workspace-sections .eyebrow { color: #746bb0; letter-spacing: .08em; }
+
+/* Mistake review: make the next action and review queue scannable. */
+.student-workspace-sections #wrong-book { overflow: hidden; }
+.student-workspace-sections .wrong-summary-grid { gap: 12px; }
+.student-workspace-sections .wrong-summary-grid article { border: 1px solid #eeeafa; border-radius: 14px; background: linear-gradient(145deg,#fff,#f8f7ff); box-shadow: none; }
+.student-workspace-sections .wrong-summary-grid strong { color: #332b78; font-size: 28px; }
+.student-workspace-sections .wrong-loop-panel { gap: 12px; }
+.student-workspace-sections .wrong-loop-panel article { border: 1px solid #eeeafa; border-radius: 14px; background: #fff; box-shadow: none; }
+.student-workspace-sections .wrong-today-task-panel { border: 0; border-radius: 16px; background: linear-gradient(135deg,#f0edff,#fbfaff); box-shadow: none; }
+.student-workspace-sections .wrong-filter-bar { gap: 10px; padding: 14px; border: 1px solid #efedf7; border-radius: 15px; background: #faf9ff; }
+.student-workspace-sections .wrong-filter-bar label { gap: 5px; color: #79758b; }
+.student-workspace-sections .wrong-filter-bar select,
+.student-workspace-sections .catalog-search { min-height: 40px; border-color: #e6e2f3; border-radius: 10px; background: #fff; }
+.student-workspace-sections .wrong-row { border: 1px solid #ece9f5; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgba(52,42,105,.04); }
+.student-workspace-sections .wrong-row:hover { border-color: #cfc7ff; box-shadow: 0 12px 30px rgba(89,74,191,.1); }
+.student-workspace-sections .wrong-row-next-actions { border-top-color: #efedf7; }
+
+/* Test and report: elevate conclusions and keep tabs quiet. */
+.student-workspace-sections .test-section { gap: 20px; }
+.student-workspace-sections .test-section-entry { overflow: hidden; background: radial-gradient(circle at 92% 14%,rgba(161,145,255,.24),transparent 25%),rgba(255,255,255,.86); }
+.student-workspace-sections .report-workspace { display: grid; gap: 16px; }
+.student-workspace-sections .report-workspace > .report-tabs { display: flex; gap: 6px; padding: 8px; box-shadow: none; }
+.student-workspace-sections .report-tab { border: 0; border-radius: 10px; color: #807b93; background: transparent; }
+.student-workspace-sections .report-tab.active { color: #5547bf; background: #eeebff; box-shadow: none; }
+.student-workspace-sections .report-workspace .panel { border-color: #eeeaf8; border-radius: 16px; box-shadow: none; }
+
+/* Knowledge catalog: retain its data density while making the first decision easier. */
+.student-workspace-sections #knowledge-catalog { overflow: hidden; }
+.student-workspace-sections .catalog-first-screen { border: 0; border-radius: 16px; background: linear-gradient(145deg,#f1efff,#fff); }
+.student-workspace-sections .catalog-first-screen-card { border-color: rgba(108,92,231,.12); border-radius: 14px; box-shadow: none; }
+.student-workspace-sections .catalog-filter-bar { border: 1px solid #efedf7; border-radius: 15px; background: #faf9ff; }
+.student-workspace-sections .catalog-toggle { border-radius: 10px; }
+.student-workspace-sections .catalog-summary { border-color: #eeeaf8; border-radius: 14px; background: #fff; }
+
+/* Plan and tutor surfaces share the same quiet glass treatment. */
+.student-workspace-sections #plan,
+.student-workspace-sections .student-home-score-center-card { overflow: hidden; }
+.student-workspace-sections .week-plan-strip { gap: 8px; }
+.student-workspace-sections .week-plan-strip article { border: 1px solid #eeeaf8; border-radius: 12px; background: #fff; }
+.student-workspace-sections .task-card { border: 1px solid #eeeaf8; border-radius: 15px; box-shadow: none; }
+.student-workspace-sections .task-card.focused { border-color: #8b7cf0; box-shadow: 0 10px 28px rgba(108,92,231,.12); }
+.student-workspace-sections .tutor-panel { overflow: hidden; }
+.student-workspace-sections .tutor-quick-mode { border-color: #e7e3f4; border-radius: 10px; background: #faf9ff; }
+.student-workspace-sections .tutor-prompt-row { border-color: #e5e1f1; border-radius: 14px; background: #fff; }
+.student-workspace-sections .tutor-result,
+.student-workspace-sections .follow-up-result { border-radius: 16px; background: linear-gradient(145deg,#f2efff,#fff); }
+
+@media (max-width: 680px) {
+  .student-workspace-sections .panel-heading { align-items: flex-start; }
+  .student-workspace-sections .wrong-summary-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .student-workspace-sections .wrong-filter-bar { grid-template-columns: 1fr 1fr; }
+  .student-workspace-sections .wrong-filter-bar label:last-of-type { grid-column: 1 / -1; }
+  .student-workspace-sections .report-workspace > .report-tabs { overflow-x: auto; justify-content: flex-start; }
+  .student-workspace-sections .report-tab { flex: 0 0 auto; }
+}
