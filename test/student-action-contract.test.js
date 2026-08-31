@@ -35,6 +35,9 @@ test('StudentAction contract accepts representative actions and rejects invalid 
   assert.equal(isStudentAction({ ...validActions[0], context: { taskId: 'task-1', repository: { get: () => null } } }), false, 'repository values must be rejected');
   assert.equal(isStudentAction({ ...validActions[0], context: { taskId: 'task-1', persistence: { table: 'tasks' } } }), false, 'persistence values must be rejected');
   assert.equal(isStudentAction({ ...validActions[0], context: { taskId: 'task-1', nested: { ok: true } } }), true, 'plain data extensions are allowed');
+  assert.equal(isStudentAction({ ...validActions[0], destination: 'ai' }), false, 'only coach_explain may target ai');
+  assert.equal(isStudentAction({ ...validActions[0], source: 'assessment' }), false, 'today_task cannot use assessment source');
+  assert.equal(isStudentAction({ ...validActions[2], source: 'coach' }), false, 'knowledge_explore cannot use coach source');
 
   const source = await readFile(new URL('../apps/web/src/features/student/actions/studentAction.ts', import.meta.url), 'utf8');
   for (const forbidden of ['api/', 'React', 'Callback', 'Repository', 'Prisma', 'localStorage', 'fetch(']) {

@@ -88,6 +88,24 @@ function isPureData(value: unknown, seen = new Set<unknown>()): boolean {
   });
 }
 
+function matchesActionBoundary(type: StudentActionType, destination: StudentActionDestination, source: StudentActionSource): boolean {
+  if (type === 'coach_explain') return destination === 'ai' && source === 'coach';
+  if (destination === 'ai' || source === 'coach') return false;
+  switch (type) {
+    case 'today_task': return destination === 'practice' || destination === 'review' || destination === 'test' ? source === 'today-plan' : false;
+    case 'review_due': return destination === 'review' && source === 'review-due';
+    case 'redo_wrong_question': return (destination === 'practice' || destination === 'review') && source === 'wrong-summary';
+    case 'practice_recommended': return destination === 'practice' && (source === 'mastery-map' || source === 'training');
+    case 'knowledge_explore': return destination === 'knowledge' && (source === 'knowledge' || source === 'mastery-map');
+    case 'knowledge_quest': return (destination === 'knowledge' || destination === 'practice') && source === 'knowledge';
+    case 'assessment_review': return (destination === 'review' || destination === 'test') && source === 'assessment';
+    case 'assessment_wrong_questions': return (destination === 'review' || destination === 'practice') && source === 'assessment';
+    case 'assessment_practice': return (destination === 'practice' || destination === 'test') && source === 'assessment';
+    case 'continue_session': return (destination === 'practice' || destination === 'test') && source === 'session';
+    case 'open_report': return (destination === 'home' || destination === 'review') && (source === 'report' || source === 'assessment');
+  }
+}
+
 export function isStudentAction(value: unknown): value is StudentAction {
   if (!isRecord(value)
     || !isNonEmptyString(value.id)
@@ -95,6 +113,7 @@ export function isStudentAction(value: unknown): value is StudentAction {
     || !isNonEmptyString(value.title)
     || !DESTINATIONS.has(value.destination as StudentActionDestination)
     || !SOURCES.has(value.source as StudentActionSource)
+    || !matchesActionBoundary(value.type as StudentActionType, value.destination as StudentActionDestination, value.source as StudentActionSource)
     || (value.reason !== undefined && typeof value.reason !== 'string')
     || (value.priority !== undefined && typeof value.priority !== 'number')
     || !isRecord(value.context)
