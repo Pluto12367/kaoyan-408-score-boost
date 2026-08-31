@@ -104,6 +104,7 @@ function matchesActionBoundary(type: StudentActionType, destination: StudentActi
     case 'continue_session': return (destination === 'practice' || destination === 'test') && source === 'session';
     case 'open_report': return (destination === 'home' || destination === 'review') && (source === 'report' || source === 'assessment');
   }
+  return false;
 }
 
 export function isStudentAction(value: unknown): value is StudentAction {
