@@ -136,4 +136,5 @@ export function isStudentAction(value: unknown): value is StudentAction {
     case 'open_report': return hasId(context, 'reportId') || hasId(context, 'assessmentId');
     case 'coach_explain': return hasId(context, 'questionId') || hasId(context, 'knowledgeNodeId') || hasId(context, 'wrongQuestionId') || hasId(context, 'assessmentId');
   }
+  return false;
 }
