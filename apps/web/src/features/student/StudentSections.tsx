@@ -37,12 +37,17 @@ import type { RoleSection } from '../../layouts/RoleNavigation';
 import { ReviewResourcesPanel } from '../report/ReviewResourcesPanel';
 import { WeaknessReportPanel } from '../report/WeaknessReportPanel';
 import { LearningProfileCard } from '../dashboard/LearningProfileCard';
+import { TrainingHero } from '../practice/training-room/TrainingHero';
+import { TrainingProgress } from '../practice/training-room/TrainingProgress';
+import { TrainingSummary } from '../practice/training-room/TrainingSummary';
+import { buildTrainingRoomViewModel } from '../practice/training-room/trainingRoomViewModel';
 import { StudentHome } from './home/StudentHome';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { SessionView } from '../../api/endpoints/sessions';
 import { deriveTodayTaskNextStep, type TodayPlanTask, type TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
 import './student-learning-experience.css';
+import '../practice/training-room/training-room.css';
 
 const StudentLaunchpad = lazy(() => import('../onboarding/StudentLaunchpad').then((m) => ({ default: m.StudentLaunchpad })));
 const StudyPlanOverview = lazy(() => import('../plan/StudyPlanOverview').then((m) => ({ default: m.StudyPlanOverview })));
@@ -159,6 +164,30 @@ export function StudentSections(props: StudentSectionsProps) {
     || launchedQuestionTask?.status === 'completed'
     || launchedQuestionTask?.progress?.reachedTarget,
   );
+  const practiceSet = props.practiceSet.data;
+  const trainingSource = launchedQuestionTask
+    ? 'today_task' as const
+    : practiceSet
+      ? 'practice_set' as const
+      : 'question_bank' as const;
+  const trainingModel = buildTrainingRoomViewModel({
+    source: trainingSource,
+    title: launchedQuestionTask?.title ?? practiceSet?.title ?? '题库训练',
+    target: launchedQuestionTask
+      ? `${launchedQuestionTask.subject} · ${launchedQuestionTask.chapter}`
+      : practiceSet?.focus ?? report.weakPoints[0]?.title,
+    estimatedMinutes: launchedQuestionTask?.minutes ?? practiceSet?.estimatedMinutes,
+    questionProgress: props.currentQuestionProgress,
+    result: props.practiceSetResult
+      ? {
+          completed: true,
+          totalQuestions: props.practiceSetResult.totalQuestions,
+          correctCount: props.practiceSetResult.correctCount,
+          accuracyRate: props.practiceSetResult.accuracyRate,
+          nextActions: props.practiceSetResult.nextActions,
+        }
+      : null,
+  });
 
   return (
     <div className="student-workspace-sections">
@@ -262,8 +291,13 @@ export function StudentSections(props: StudentSectionsProps) {
 
       {visibleSection === 'question' ? (
         studentOverviewReady ? (
-          hasQuestions ? <>
-            <section className="two-column student-section student-section-question">
+          hasQuestions ? (
+            <div className="training-room-page" data-testid="training-room-page">
+              <div className="training-room-overview">
+                <TrainingHero model={trainingModel} />
+                <TrainingProgress model={trainingModel} />
+              </div>
+              <section className="two-column student-section student-section-question training-room-question">
               <Suspense fallback={sectionFallback('题库训练')}>
                 <PracticePanel
                   question={props.currentQuestion}
@@ -305,9 +339,11 @@ export function StudentSections(props: StudentSectionsProps) {
                 />
               ) : null}
               <WeaknessReportPanel report={report} />
-            </section>
-            <ReviewResourcesPanel resources={props.reviewResources} onRetry={props.onRetryReviewResources} />
-          </> : (
+              </section>
+              <TrainingSummary model={trainingModel} />
+              <ReviewResourcesPanel resources={props.reviewResources} onRetry={props.onRetryReviewResources} />
+            </div>
+          ) : (
             <div className="panel">
               <div className="panel-heading"><div><p className="eyebrow">题库训练</p><h3>暂无可用题目</h3></div></div>
               <p className="empty-state">题库暂未就绪，请先完成入学诊断，或等待教研更新题目后重试。</p>

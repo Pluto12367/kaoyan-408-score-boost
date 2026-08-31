@@ -17,6 +17,8 @@ import { AuthExperience } from './features/auth/AuthExperience';
 import { OnboardingFlow } from './features/onboarding/OnboardingFlow';
 import { StudentSections } from './features/student/StudentSections';
 import { StudentLoopGuide } from './features/student/StudentLoopGuide';
+import { TrainingHero } from './features/practice/training-room/TrainingHero';
+import { buildTrainingRoomViewModel } from './features/practice/training-room/trainingRoomViewModel';
 import {
   advanceQuestion,
   advanceQuestionByCurrentId,
@@ -408,6 +410,35 @@ export function App() {
     : learningSessionType === 'stage_assessment'
       ? stageAssessment.estimatedMinutes
       : 180;
+  const sessionTrainingSource = learningSessionType === 'practice_set'
+    ? 'practice_set' as const
+    : learningSessionType === 'stage_assessment'
+      ? 'stage_assessment' as const
+      : 'paper' as const;
+  const sessionTrainingModel = buildTrainingRoomViewModel({
+    source: sessionTrainingSource,
+    title: learningSessionType === 'practice_set'
+      ? studentLearning.practiceSet.data?.title
+      : learningSessionType === 'stage_assessment'
+        ? stageAssessment.title
+        : latestPaper?.title,
+    target: learningSessionType === 'practice_set'
+      ? studentLearning.practiceSet.data?.focus
+      : learningSessionType === 'stage_assessment'
+        ? stageAssessment.focusKnowledgePoints[0]?.title
+        : latestPaper?.paperType,
+    estimatedMinutes: learningSessionType === 'practice_set'
+      ? studentLearning.practiceSet.data?.estimatedMinutes
+      : learningSessionType === 'stage_assessment'
+        ? stageAssessment.estimatedMinutes
+        : latestPaper?.estimatedMinutes,
+    sessionProgress: resumedLearningSession
+      ? {
+          currentIndex: resumedLearningSession.currentIndex,
+          totalQuestions: resumedLearningSession.totalQuestions,
+        }
+      : null,
+  });
   const activePracticeQuestions = todayTaskLaunchContext?.destination === 'question'
     ? todayTaskLaunchContext.questionIds?.length
       ? questions.filter((question) => todayTaskLaunchContext.questionIds!.includes(question.id))
@@ -1557,6 +1588,9 @@ paperId: paper.id,
       </section>
       {learningSessionType ? (
         <div className="exam-workspace-overlay">
+          <div className="training-room-session-intro">
+            <TrainingHero model={sessionTrainingModel} />
+          </div>
           <Suspense fallback={sectionFallback('考试界面')}>
           <ExamSession
             sessionType={learningSessionType}
