@@ -20,7 +20,7 @@ const validActions = [
   { id: 'a-today', type: 'today_task', title: 'Today', destination: 'practice', source: 'today-plan', context: { taskId: 'task-1' } },
   { id: 'a-review', type: 'review_due', title: 'Review', destination: 'review', source: 'review-due', context: { questionId: 'question-1' } },
   { id: 'a-knowledge', type: 'knowledge_explore', title: 'Explore', destination: 'knowledge', source: 'knowledge', context: { knowledgeNodeId: 'node-1' } },
-  { id: 'a-assessment', type: 'assessment_review', title: 'Assessment review', destination: 'review', source: 'assessment', context: { assessmentId: 'assessment-1', questionId: 'question-1' } },
+  { id: 'a-assessment', type: 'assessment_review', title: 'Assessment review', destination: 'test', source: 'assessment', context: { assessmentId: 'assessment-1', questionId: 'question-1' } },
   { id: 'a-session', type: 'continue_session', title: 'Continue', destination: 'practice', source: 'session', context: { sessionId: 'session-1' } },
 ];
 
@@ -41,6 +41,8 @@ test('StudentAction contract accepts representative actions and rejects invalid 
   assert.equal(isStudentAction({ ...validActions[0], destination: 'ai' }), false, 'only coach_explain may target ai');
   assert.equal(isStudentAction({ ...validActions[0], source: 'assessment' }), false, 'today_task cannot use assessment source');
   assert.equal(isStudentAction({ ...validActions[2], source: 'coach' }), false, 'knowledge_explore cannot use coach source');
+  assert.equal(isStudentAction({ ...validActions[3], destination: 'review' }), false, 'assessment review must target test');
+  assert.equal(isStudentAction({ id: 'a-report', type: 'open_report', title: 'Report', destination: 'home', source: 'report', context: { reportId: 'report-1' } }), false, 'reports must target test');
 
   const source = await readFile(new URL('../apps/web/src/features/student/actions/studentAction.ts', import.meta.url), 'utf8');
   for (const forbidden of ['api/', 'React', 'Callback', 'Repository', 'Prisma', 'localStorage', 'fetch(']) {

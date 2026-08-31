@@ -45,11 +45,11 @@ export type StudentAction =
   | ActionBase<'practice_recommended', 'practice', 'mastery-map' | 'training', { questionId: string; knowledgeNodeId?: string; taskId?: string } | { questionId?: string; knowledgeNodeId: string; taskId?: string } | { questionId?: string; knowledgeNodeId?: string; taskId: string }>
   | ActionBase<'knowledge_explore', 'knowledge', 'knowledge' | 'mastery-map', { knowledgeNodeId: string }>
   | ActionBase<'knowledge_quest', 'knowledge' | 'practice', 'knowledge', { knowledgeNodeId: string; questionIds?: string[] }>
-  | ActionBase<'assessment_review', 'review' | 'test', 'assessment', { assessmentId: string; questionId?: string }>
+  | ActionBase<'assessment_review', 'test', 'assessment', { assessmentId: string; questionId?: string }>
   | ActionBase<'assessment_wrong_questions', 'review' | 'practice', 'assessment', { assessmentId: string; questionId?: string }>
   | ActionBase<'assessment_practice', 'practice' | 'test', 'assessment', { assessmentId: string; questionId?: string }>
   | ActionBase<'continue_session', 'practice' | 'test', 'session', { sessionId: string }>
-  | ActionBase<'open_report', 'home' | 'review', 'report' | 'assessment', { reportId: string; assessmentId?: string } | { reportId?: string; assessmentId: string }>
+  | ActionBase<'open_report', 'test', 'report' | 'assessment', { reportId: string; assessmentId?: string } | { reportId?: string; assessmentId: string }>
   | ActionBase<'coach_explain', 'ai', 'coach', { questionId: string; knowledgeNodeId?: string; wrongQuestionId?: string; assessmentId?: string } | { questionId?: string; knowledgeNodeId: string; wrongQuestionId?: string; assessmentId?: string } | { questionId?: string; knowledgeNodeId?: string; wrongQuestionId: string; assessmentId?: string } | { questionId?: string; knowledgeNodeId?: string; wrongQuestionId?: string; assessmentId: string }>;
 
 const ACTION_TYPES = new Set<StudentActionType>([
@@ -99,11 +99,11 @@ function matchesActionBoundary(type: StudentActionType, destination: StudentActi
     case 'practice_recommended': return destination === 'practice' && (source === 'mastery-map' || source === 'training');
     case 'knowledge_explore': return destination === 'knowledge' && (source === 'knowledge' || source === 'mastery-map');
     case 'knowledge_quest': return (destination === 'knowledge' || destination === 'practice') && source === 'knowledge';
-    case 'assessment_review': return (destination === 'review' || destination === 'test') && source === 'assessment';
+    case 'assessment_review': return destination === 'test' && source === 'assessment';
     case 'assessment_wrong_questions': return (destination === 'review' || destination === 'practice') && source === 'assessment';
     case 'assessment_practice': return (destination === 'practice' || destination === 'test') && source === 'assessment';
     case 'continue_session': return (destination === 'practice' || destination === 'test') && source === 'session';
-    case 'open_report': return (destination === 'home' || destination === 'review') && (source === 'report' || source === 'assessment');
+    case 'open_report': return destination === 'test' && (source === 'report' || source === 'assessment');
   }
   return false;
 }

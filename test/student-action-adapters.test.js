@@ -32,6 +32,14 @@ async function loadKnowledgeAdapter() {
   return compileModule('apps/web/src/features/student/actions/adapters/knowledgeActionAdapter.ts');
 }
 
+async function loadAssessmentAdapter() {
+  return compileModule('apps/web/src/features/student/actions/adapters/assessmentActionAdapter.ts');
+}
+
+async function loadReportAdapter() {
+  return compileModule('apps/web/src/features/student/actions/adapters/reportActionAdapter.ts');
+}
+
 function task(overrides = {}) {
   return {
     id: 'task-1', knowledgePointId: 'kp-1', subject: '数据结构', chapter: '树',
@@ -344,4 +352,126 @@ test('Knowledge: deduplicates by real ID with selected-node authority and source
 test('Knowledge: adapter source remains free of navigation, mastery, and fetch calls', async () => {
   const source = await readFile(new URL('../apps/web/src/features/student/actions/adapters/knowledgeActionAdapter.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /fetchMyMastery|fetchKnowledgeDetail|onNavigate|navigate\s*\(|fetch\s*\(/);
+});
+
+function assessmentResult(overrides = {}) {
+  return {
+    id: 'assessment-1', userId: 'u-1', submittedAt: '2026-08-31T08:00:00.000Z',
+    totalQuestions: 2, correctCount: 1, score: 50,
+    adjustment: { previousStage: '基础', stage: '强化', planPhase: '巩固', scoreBand: '待提升', message: '补强错题' },
+    reviewItems: [{
+      questionId: 'assessment-question-1', stem: '二叉树遍历题', knowledgePointId: 'kp-tree',
+      knowledgePointTitle: '二叉树遍历', mistakeReason: '概念混淆',
+    }],
+    nextActions: ['先复盘错题'],
+    ...overrides,
+  };
+}
+
+function practiceSetResult(overrides = {}) {
+  return {
+    id: 'practice-result-1', practiceSetId: 'practice-set-1', userId: 'u-1',
+    submittedAt: '2026-08-31T08:00:00.000Z', totalQuestions: 1, correctCount: 0, accuracyRate: 0,
+    results: [{
+      questionId: 'practice-question-1', stem: '缓存题', correct: false, mistakeReason: '概念混淆',
+    }],
+    nextActions: ['回顾缓存映射'],
+    ...overrides,
+  };
+}
+
+test('Assessment: report action keeps the real assessment ID', async () => {
+  const { buildAssessmentActions } = await loadAssessmentAdapter();
+  const result = buildAssessmentActions(assessmentResult());
+
+  assert.deepEqual(result.find((action) => action.type === 'open_report'), {
+    id: 'assessment-report:assessment-1', type: 'open_report', title: '查看阶段测评报告',
+    destination: 'test', source: 'assessment', context: { reportId: 'assessment:assessment-1', assessmentId: 'assessment-1' },
+  });
+});
+
+test('Assessment: wrong-question action keeps the real question ID', async () => {
+  const { buildAssessmentActions } = await loadAssessmentAdapter();
+  const result = buildAssessmentActions(assessmentResult());
+
+  assert.deepEqual(result.find((action) => action.type === 'assessment_wrong_questions'), {
+    id: 'assessment-wrong-question:assessment-1:assessment-question-1', type: 'assessment_wrong_questions', title: '二叉树遍历题',
+    destination: 'review', source: 'assessment', reason: '概念混淆',
+    context: { assessmentId: 'assessment-1', questionId: 'assessment-question-1' },
+  });
+});
+
+test('Assessment: missing assessment ID produces no actions', async () => {
+  const { buildAssessmentActions } = await loadAssessmentAdapter();
+
+  assert.deepEqual(buildAssessmentActions(assessmentResult({ id: '' })), []);
+});
+
+test('Assessment: practice action is distinct from review actions', async () => {
+  const { buildAssessmentActions } = await loadAssessmentAdapter();
+  const result = buildAssessmentActions(assessmentResult());
+
+  assert.deepEqual(result.find((action) => action.type === 'assessment_practice'), {
+    id: 'assessment-practice:assessment-1', type: 'assessment_practice', title: '进行针对性练习',
+    destination: 'practice', source: 'assessment', context: { assessmentId: 'assessment-1' },
+  });
+});
+
+test('Assessment: multiple review items remain separately addressable', async () => {
+  const { buildAssessmentActions } = await loadAssessmentAdapter();
+  const result = buildAssessmentActions(assessmentResult({ reviewItems: [
+    { questionId: 'question-a', stem: '题目 A', knowledgePointId: 'kp-a', knowledgePointTitle: 'A', mistakeReason: null },
+    { questionId: 'question-b', stem: '题目 B', knowledgePointId: 'kp-b', knowledgePointTitle: 'B', mistakeReason: '审题问题' },
+  ] }));
+
+  assert.deepEqual(result.filter((action) => action.type === 'assessment_wrong_questions').map((action) => action.context.questionId), ['question-a', 'question-b']);
+});
+
+test('Assessment: a practice set without real question IDs does not invent an assessment ID', async () => {
+  const { buildPracticeSetActions } = await loadAssessmentAdapter();
+  const result = buildPracticeSetActions(practiceSetResult({ id: '', results: [], nextActions: ['去练习'] }));
+
+  assert.deepEqual(result, []);
+});
+
+test('Assessment: an explicit practice result question maps safely', async () => {
+  const { buildPracticeSetActions } = await loadAssessmentAdapter();
+  const result = buildPracticeSetActions(practiceSetResult());
+
+  assert.deepEqual(result, [{
+    id: 'practice-result-question:practice-question-1', type: 'practice_recommended', title: '缓存题',
+    destination: 'practice', source: 'training', reason: '概念混淆', context: { questionId: 'practice-question-1' },
+  }]);
+});
+
+test('Report: known explicit action targets map to test, review, and practice', async () => {
+  const { buildReportActions } = await loadReportAdapter();
+  const result = buildReportActions({
+    scopeKey: ' weekly-summary ',
+    insights: [
+      { action: '查看测评报告', assessmentId: 'assessment-1' },
+      { action: '查看测评报告' },
+      { action: '去错题本', assessmentId: 'assessment-1', questionId: 'report-question-1' },
+      { action: '去练习薄弱点', assessmentId: 'assessment-1', questionId: 'report-question-2' },
+    ],
+  });
+
+  assert.deepEqual(result.map((action) => [action.type, action.destination, action.context]), [
+    ['open_report', 'test', { reportId: 'report:weekly-summary' }],
+    ['assessment_review', 'test', { assessmentId: 'assessment-1' }],
+    ['assessment_wrong_questions', 'review', { assessmentId: 'assessment-1', questionId: 'report-question-1' }],
+    ['assessment_practice', 'practice', { assessmentId: 'assessment-1', questionId: 'report-question-2' }],
+  ]);
+});
+
+test('Report: unknown action text remains unstructured', async () => {
+  const { buildReportActions } = await loadReportAdapter();
+  const result = buildReportActions({
+    scopeKey: 'weekly-summary', insights: [{ action: '开始阶段测评', assessmentId: 'assessment-1', questionId: 'question-1' }],
+  });
+
+  assert.deepEqual(result, [{
+    id: 'report:weekly-summary', type: 'open_report', title: '查看学习报告',
+    destination: 'test', source: 'report', context: { reportId: 'report:weekly-summary' },
+  }]);
 });
