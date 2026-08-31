@@ -65,7 +65,7 @@ interface TestSectionProps {
 // V3 测试中心：顶部为阶段测评入口，下方保留完整提分报告工作台。
 export function TestSection(props: TestSectionProps) {
   return (
-    <div className="test-section">
+    <div className="test-section student-section student-section-test">
       <section className="panel test-section-entry" aria-label="阶段测评入口">
         <div className="panel-heading">
           <div>

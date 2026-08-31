@@ -155,7 +155,7 @@ export function MistakeWorkspace({ wrongQuestions, initialKnowledgePointId, summ
   }
 
   return (
-    <section id="wrong-book" className="panel">
+    <section id="wrong-book" className="panel student-section student-section-wrong-book">
       <div className="panel-heading">
         <div><p className="eyebrow">错题本</p><h3>自动收集需要回炉的题目</h3></div>
         <span>{summaryData?.pendingCount ?? wrongQuestions.length} 道待复盘</span>

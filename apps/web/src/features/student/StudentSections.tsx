@@ -263,7 +263,7 @@ export function StudentSections(props: StudentSectionsProps) {
       {visibleSection === 'question' ? (
         studentOverviewReady ? (
           hasQuestions ? <>
-            <section className="two-column">
+            <section className="two-column student-section student-section-question">
               <Suspense fallback={sectionFallback('题库训练')}>
                 <PracticePanel
                   question={props.currentQuestion}
