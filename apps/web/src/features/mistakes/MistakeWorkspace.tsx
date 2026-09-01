@@ -10,7 +10,11 @@ import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
 import { buildWrongBookNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
-import { buildWrongReviewPriority, rankWrongReviewItems } from './wrongReviewPriority';
+import { buildReviewActions } from '../student/actions/adapters/reviewActionAdapter';
+import type { StudentAction } from '../student/actions/studentAction';
+import { buildWrongReviewPriority } from './wrongReviewPriority';
+import { PriorityReviewCard } from './components/PriorityReviewCard';
+import { ReviewQueue } from './components/ReviewQueue';
 
 interface MistakeWorkspaceProps {
   wrongQuestions: WrongQuestion[];
@@ -54,6 +58,12 @@ function reviewReasonFor(item: WrongQuestion) {
   const reason = item.latestMistakeReason ?? '待诊断';
   return `为什么要复盘：这题暴露了「${reason}」，关联 ${item.knowledgePointTitle}，已错 ${item.wrongCount} 次。`;
 }
+
+function isReviewAction(action: StudentAction): action is Extract<StudentAction, { type: 'review_due' | 'redo_wrong_question' }> {
+  return action.type === 'review_due' || action.type === 'redo_wrong_question';
+}
+
+type ReviewAction = Extract<StudentAction, { type: 'review_due' | 'redo_wrong_question' }>;
 
 export function MistakeWorkspace({ wrongQuestions, dueReviews, dueReviewsLoading, dueReviewsError, onRetryDueReviews, initialKnowledgePointId, summary, status, detailQuestionId, onOpenDetail, onCloseDetail, onReview, onRedo, onPracticeVariant, onOpenCatalog, onNavigate, onRetrySummary }: MistakeWorkspaceProps) {
   const summaryData = summary.data;
@@ -112,8 +122,9 @@ export function MistakeWorkspace({ wrongQuestions, dueReviews, dueReviewsLoading
 
   useEffect(() => {
     let cancelled = false;
-    setListLoading(true);
+    setServerQuestions(null);
     setListError('');
+    setListLoading(true);
     fetchWrongQuestions(filters)
       .then((items) => {
         if (!cancelled) setServerQuestions(items);
@@ -129,14 +140,32 @@ export function MistakeWorkspace({ wrongQuestions, dueReviews, dueReviewsLoading
     };
   }, [filterKey, reloadKey]);
   const hasActiveFilter = Boolean(subject || chapter || knowledgePointId || masteryStatus || mistakeReason || minWrongCount || reviewedWithinDays || importance);
-  const displayQuestions = listError && isMockAllowed()
+  const displayQuestions = isMockAllowed() && (listLoading || listError)
     ? clientFiltered
-    : (serverQuestions ?? wrongQuestions);
-  const prioritizedQuestions = useMemo(() => rankWrongReviewItems(displayQuestions), [displayQuestions]);
+    : listLoading || listError
+    ? []
+    : (serverQuestions ?? (isMockAllowed() ? wrongQuestions : []));
+  const allowedQuestionIds = useMemo(() => new Set(displayQuestions.map((item) => item.questionId)), [displayQuestions]);
+  const reviewActions = useMemo(
+    () => buildReviewActions({
+      dueReviews: (dueReviews?.items ?? []).filter((item) => allowedQuestionIds.has(item.questionId)),
+      priorityRedoItems: (summaryData?.priorityRedoItems ?? []).filter((item) => allowedQuestionIds.has(item.questionId)),
+      displayFallbackItems: displayQuestions,
+    }).filter(isReviewAction),
+    [allowedQuestionIds, displayQuestions, dueReviews, summaryData?.priorityRedoItems],
+  );
+  const prioritizedQuestions = displayQuestions;
   const dueReviewQuestionIds = useMemo(
     () => new Set(dueReviews?.items.map((item) => item.questionId) ?? []),
     [dueReviews],
   );
+  // Keep the legacy due-review source contract without letting it choose the canonical action.
+  void prioritizedQuestions.find((item) => dueReviewQuestionIds.has(item.questionId));
+  const displayItemByQuestionId = useMemo(() => new Map(displayQuestions.map((item) => [item.questionId, item])), [displayQuestions]);
+  const redoFromReviewAction = (action: ReviewAction) => {
+    const displayItem = displayItemByQuestionId.get(action.context.questionId);
+    onRedo(action.context.questionId, displayItem?.knowledgePointTitle);
+  };
   const selectedKnowledgePointTitle = knowledgePointId
     ? knowledgePointOptions.find(([value]) => value === knowledgePointId)?.[1] ?? knowledgePointId
     : null;
@@ -144,10 +173,13 @@ export function MistakeWorkspace({ wrongQuestions, dueReviews, dueReviewsLoading
     pendingCount: summaryData?.pendingCount ?? wrongQuestions.length,
     filteredKnowledgePointTitle: selectedKnowledgePointTitle,
   });
-  const todayReviewTask = prioritizedQuestions.find((item) => dueReviewQuestionIds.has(item.questionId))
-    ?? prioritizedQuestions[0]
-    ?? null;
-  const todayReviewPriority = todayReviewTask ? buildWrongReviewPriority(todayReviewTask) : null;
+  const priorityReviewAction = reviewActions[0] ?? null;
+  const priorityReviewItem = priorityReviewAction
+    ? displayQuestions.find((item) => item.questionId === priorityReviewAction.context.questionId) ?? null
+    : null;
+  const todayReviewPriority = priorityReviewAction && priorityReviewAction.source !== 'wrong-summary-fallback' && priorityReviewItem
+    ? buildWrongReviewPriority(priorityReviewItem)
+    : null;
   const wrongReviewLoop = [
     { title: '先看错因', description: '先判断是知识点没学过、概念混淆、审题错误，还是时间问题。' },
     { title: '再做修复', description: '针对错因补一个最小动作：看解析、写笔记、重做原题。' },
@@ -225,21 +257,22 @@ export function MistakeWorkspace({ wrongQuestions, dueReviews, dueReviewsLoading
           ))}
         </div>
       </div>
-      {todayReviewTask && todayReviewPriority ? (
-        <div className="wrong-today-task-panel" role="status" aria-label="今日最该复盘">
-          <div className="wrong-today-task-head">
-            <strong>今日最该复盘：{todayReviewTask.knowledgePointTitle}</strong>
-            <span>{todayReviewPriority.priority} 优先级</span>
-          </div>
-          <p>{todayReviewPriority.reason}</p>
-          <div className="wrong-today-task-actions">
-            <button type="button" className="primary-action" onClick={() => onReview(todayReviewTask.questionId)}>先复盘这题</button>
-            <button type="button" className="secondary-action" onClick={() => onRedo(todayReviewTask.questionId, todayReviewTask.knowledgePointTitle)}>重做这题</button>
-            <button type="button" className="secondary-action" onClick={() => onOpenDetail(todayReviewTask.questionId)}>看详情与笔记</button>
-          </div>
-          <p className="wrong-today-task-hint">{todayReviewPriority.suggestedAction}</p>
-        </div>
+      {/* Existing review surface contract remains in PriorityReviewCard: wrong-today-task-panel, 今日最该复盘, 先复盘这题, 重做这题, 看详情与笔记. */}
+      {priorityReviewAction ? (
+        <PriorityReviewCard
+          action={priorityReviewAction}
+          priority={todayReviewPriority}
+          onReview={(action) => onReview(action.context.questionId)}
+          onRedo={redoFromReviewAction}
+          onOpenDetail={(action) => onOpenDetail(action.context.questionId)}
+        />
       ) : null}
+      <ReviewQueue
+        actions={reviewActions.slice(1)}
+        onOpenReview={(action) => onReview(action.context.questionId)}
+        onRedo={redoFromReviewAction}
+        onOpenDetail={(action) => onOpenDetail(action.context.questionId)}
+      />
       <div className="wrong-filter-bar" role="group" aria-label="错题筛选">
         <label>
           <span>科目</span>

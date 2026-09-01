@@ -50,3 +50,114 @@ test('ActionCard stays free of fetches, submission, recommendation, state writes
     assert.equal(card.includes(forbidden), false, `${forbidden} must not appear in StudentActionCard`);
   }
 });
+
+test('Review priority card consumes canonical action presentation data', async () => {
+  const card = await source('apps/web/src/features/mistakes/components/PriorityReviewCard.tsx');
+
+  assert.match(card, /action: StudentAction/);
+  assert.match(card, /action\.source/);
+  assert.match(card, /action\.title/);
+  assert.match(card, /const displayReason = isFallback\s*\?/);
+  assert.match(card, /const displayHint = isFallback\s*\?/);
+});
+
+test('Review workspace preserves due, priority redo, and fallback action order', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+
+  assert.match(workspace, /buildReviewActions\(\{[\s\S]*dueReviews:[\s\S]*priorityRedoItems:[\s\S]*displayFallbackItems:/);
+  assert.match(workspace, /const priorityReviewAction = reviewActions\[0\] \?\? null;/);
+  assert.match(workspace, /actions=\{reviewActions\.slice\(1\)\}/);
+  assert.doesNotMatch(workspace, /rankWrongReviewItems/);
+  assert.doesNotMatch(workspace, /todayReviewTask/);
+});
+
+test('Review workspace filters canonical review inputs to displayed questions', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+
+  assert.match(workspace, /const allowedQuestionIds = useMemo\(\(\) => new Set\(displayQuestions\.map\(\(item\) => item\.questionId\)\), \[displayQuestions\]\);/);
+  assert.match(workspace, /dueReviews: \(dueReviews\?\.items \?\? \[\]\)\.filter\(\(item\) => allowedQuestionIds\.has\(item\.questionId\)\)/);
+  assert.match(workspace, /priorityRedoItems: \(summaryData\?\.priorityRedoItems \?\? \[\]\)\.filter\(\(item\) => allowedQuestionIds\.has\(item\.questionId\)\)/);
+});
+
+test('Review queue keeps canonical action identity and neutral fallback metadata', async () => {
+  const queue = await source('apps/web/src/features/mistakes/components/ReviewQueue.tsx');
+
+  assert.match(queue, /key=\{action\.id\}/);
+  assert.match(queue, /type ReviewAction = Extract<StudentAction, \{ type: 'review_due' \| 'redo_wrong_question' \}>/);
+  assert.match(queue, /onOpenReview\(action\)/);
+  assert.match(queue, /const displayReason = isFallback\s*\?/);
+  assert.match(queue, /当前没有可用的到期复习或优先重做依据，先处理这道错题。/);
+  assert.doesNotMatch(queue, /action\.reason \? \(/);
+  assert.doesNotMatch(queue, /风险/);
+});
+
+test('Priority review keeps the legacy review callback for every canonical review action', async () => {
+  const card = await source('apps/web/src/features/mistakes/components/PriorityReviewCard.tsx');
+
+  assert.match(card, /onClick=\{\(\) => onReview\(action\)\}>先复盘这题<\/button>/);
+  assert.match(card, /onClick=\{\(\) => onRedo\(action\)\}>重做这题<\/button>/);
+  assert.doesNotMatch(card, /action\.type === 'review_due' \? \(\s*<button/);
+});
+
+test('Review workspace derives redo title from the matching displayed item', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+
+  assert.match(workspace, /const displayItemByQuestionId = useMemo\(\(\) => new Map\(displayQuestions\.map\(\(item\) => \[item\.questionId, item\]\)\), \[displayQuestions\]\);/);
+  assert.match(workspace, /const redoFromReviewAction = \(action: ReviewAction\) => \{[\s\S]*const displayItem = displayItemByQuestionId\.get\(action\.context\.questionId\);[\s\S]*onRedo\(action\.context\.questionId, displayItem\?\.knowledgePointTitle\);/);
+  assert.match(workspace, /onRedo=\{redoFromReviewAction\}/);
+  assert.doesNotMatch(workspace, /redoKnowledgePointTitleByQuestionId/);
+});
+
+test('Review fallback never derives risk metadata from priority logic', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+  const card = await source('apps/web/src/features/mistakes/components/PriorityReviewCard.tsx');
+
+  assert.match(workspace, /priorityReviewAction\.source !== 'wrong-summary-fallback'[\s\S]*buildWrongReviewPriority/);
+  assert.match(card, /isFallback \? '展示兜底'/);
+  assert.match(card, /当前没有可用的到期复习或优先重做依据，先处理这道错题。/);
+  assert.match(card, /完成这道展示兜底错题后，再用变式题验证。/);
+});
+
+test('Review actions preserve their own redo and detail context at callback boundaries', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+  const card = await source('apps/web/src/features/mistakes/components/PriorityReviewCard.tsx');
+  const queue = await source('apps/web/src/features/mistakes/components/ReviewQueue.tsx');
+
+  assert.match(workspace, /const redoFromReviewAction = \(action: ReviewAction\) => \{[\s\S]*displayItemByQuestionId\.get\(action\.context\.questionId\)[\s\S]*onRedo\(action\.context\.questionId, displayItem\?\.knowledgePointTitle\);/);
+  assert.match(workspace, /onRedo=\{redoFromReviewAction\}/);
+  assert.match(workspace, /onOpenDetail=\{\(action\) => onOpenDetail\(action\.context\.questionId\)\}/);
+  assert.doesNotMatch(workspace, /todayReviewTask\?\.knowledgePointTitle/);
+  assert.match(card, /onRedo\(action\)/);
+  assert.match(card, /onOpenDetail\(action\)/);
+  assert.match(queue, /onRedo\(action\)/);
+  assert.match(queue, /onOpenDetail\(action\)/);
+  for (const callback of ['onOpenDetail', 'onReview', 'onRedo', 'onPracticeVariant', 'onNavigate']) {
+    assert.match(workspace, new RegExp(callback));
+  }
+});
+
+test('Review convergence keeps filters, detail, redo, variant, evidence, and AI Coach capabilities', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+  const detail = await source('apps/web/src/components/WrongQuestionDetail.tsx');
+
+  for (const marker of [
+    'reviewActions',
+    'chapterOptions',
+    'knowledgePointOptions',
+    'reviewedWithinDays',
+    'WrongQuestionDetailView',
+    'onRedo',
+    'onPracticeVariant',
+    'RecommendationEvidence',
+  ]) {
+    assert.match(workspace, new RegExp(marker), `${marker} must remain available`);
+  }
+  assert.match(detail, /ContextualCoach/);
+});
+
+test('Review workspace keeps non-mock canonical actions empty until filtered data is loaded', async () => {
+  const workspace = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+
+  assert.match(workspace, /setServerQuestions\(null\);\s*setListError\(''\);/);
+  assert.match(workspace, /const displayQuestions = isMockAllowed\(\) && \(listLoading \|\| listError\)\s*\?\s*clientFiltered\s*:\s*listLoading \|\| listError\s*\?\s*\[\]\s*:\s*\(serverQuestions \?\? \(isMockAllowed\(\) \? wrongQuestions : \[\]\)\);/);
+});
