@@ -24,6 +24,23 @@ const validActions = [
   { id: 'a-session', type: 'continue_session', title: 'Continue', destination: 'practice', source: 'session', context: { sessionId: 'session-1' } },
 ];
 
+const allVariantActions = [
+  validActions[0],
+  validActions[1],
+  { id: 'a-redo', type: 'redo_wrong_question', title: 'Redo', destination: 'practice', source: 'wrong-summary', context: { questionId: 'question-2' } },
+  { id: 'a-practice-question', type: 'practice_recommended', title: 'Practice question', destination: 'practice', source: 'training', context: { questionId: 'question-3' } },
+  { id: 'a-practice-node', type: 'practice_recommended', title: 'Practice node', destination: 'practice', source: 'mastery-map', context: { knowledgeNodeId: 'node-2' } },
+  { id: 'a-practice-task', type: 'practice_recommended', title: 'Practice task', destination: 'practice', source: 'training', context: { taskId: 'task-2' } },
+  validActions[2],
+  { id: 'a-quest', type: 'knowledge_quest', title: 'Quest', destination: 'knowledge', source: 'knowledge', context: { knowledgeNodeId: 'node-3', questionIds: ['question-4', 'question-5'] } },
+  validActions[3],
+  { id: 'a-assessment-wrong', type: 'assessment_wrong_questions', title: 'Assessment wrong questions', destination: 'review', source: 'assessment', context: { assessmentId: 'assessment-2', questionId: 'question-6' } },
+  { id: 'a-assessment-practice', type: 'assessment_practice', title: 'Assessment practice', destination: 'practice', source: 'assessment', context: { assessmentId: 'assessment-3' } },
+  validActions[4],
+  { id: 'a-report', type: 'open_report', title: 'Report', destination: 'test', source: 'report', context: { reportId: 'report-1', assessmentId: 'assessment-4' } },
+  { id: 'a-coach', type: 'coach_explain', title: 'Coach', destination: 'ai', source: 'coach', context: { questionId: 'question-7', knowledgeNodeId: 'node-4', wrongQuestionId: 'wrong-1', assessmentId: 'assessment-5' } },
+];
+
 const pureActionModules = [
   'apps/web/src/features/student/actions/studentAction.ts',
   'apps/web/src/features/student/actions/studentActionDestination.ts',
@@ -63,6 +80,66 @@ test('StudentAction contract accepts representative actions and rejects invalid 
   for (const forbidden of ['api/', 'React', 'Callback', 'Repository', 'Prisma', 'localStorage', 'fetch(']) {
     assert.equal(source.includes(forbidden), false, `${forbidden} must not be imported or referenced`);
   }
+});
+
+test('StudentAction context validation covers every discriminated variant', async () => {
+  const { isStudentAction } = await loadModule('apps/web/src/features/student/actions/studentAction.ts');
+
+  for (const action of allVariantActions) {
+    assert.equal(isStudentAction(action), true, `${action.type} should accept its valid context`);
+  }
+
+  const requiredContextCases = [
+    [allVariantActions[0], {}],
+    [allVariantActions[1], {}],
+    [allVariantActions[2], { questionId: null }],
+    [allVariantActions[3], {}],
+    [allVariantActions[6], {}],
+    [allVariantActions[7], {}],
+    [allVariantActions[8], {}],
+    [allVariantActions[9], {}],
+    [allVariantActions[10], {}],
+    [allVariantActions[11], {}],
+    [allVariantActions[12], {}],
+    [allVariantActions[13], {}],
+  ];
+  for (const [action, context] of requiredContextCases) {
+    assert.equal(isStudentAction({ ...action, context }), false, `${action.type} must reject a missing required context ID`);
+  }
+
+  const invalidRequiredIds = [
+    [allVariantActions[0], { taskId: null }],
+    [allVariantActions[1], { questionId: 42 }],
+    [allVariantActions[2], { questionId: {} }],
+    [allVariantActions[6], { knowledgeNodeId: '' }],
+    [allVariantActions[8], { assessmentId: false }],
+    [allVariantActions[11], { sessionId: [] }],
+  ];
+  for (const [action, context] of invalidRequiredIds) {
+    assert.equal(isStudentAction({ ...action, context }), false, `${action.type} must reject an invalid required context ID`);
+  }
+
+  const invalidOptionalIds = [
+    [allVariantActions[0], { taskId: 'task-1', knowledgeNodeId: null }],
+    [allVariantActions[0], { taskId: 'task-1', questionId: 42 }],
+    [allVariantActions[3], { questionId: 'question-3', knowledgeNodeId: {} }],
+    [allVariantActions[4], { knowledgeNodeId: 'node-2', taskId: false }],
+    [allVariantActions[5], { taskId: 'task-2', questionId: [] }],
+    [allVariantActions[7], { knowledgeNodeId: 'node-3', questionIds: null }],
+    [allVariantActions[8], { assessmentId: 'assessment-1', questionId: true }],
+    [allVariantActions[12], { reportId: 'report-1', assessmentId: 42 }],
+    [allVariantActions[13], { knowledgeNodeId: 'node-4', questionId: 42 }],
+    [allVariantActions[13], { questionId: 'question-7', wrongQuestionId: null }],
+    [allVariantActions[13], { questionId: 'question-7', assessmentId: {} }],
+  ];
+  for (const [action, context] of invalidOptionalIds) {
+    assert.equal(isStudentAction({ ...action, context }), false, `${action.type} must reject a wrongly typed optional context field`);
+  }
+
+  assert.equal(isStudentAction({ ...allVariantActions[7], context: { knowledgeNodeId: 'node-3', questionIds: 'question-4' } }), false, 'questionIds must be an array');
+  assert.equal(isStudentAction({ ...allVariantActions[7], context: { knowledgeNodeId: 'node-3', questionIds: [42] } }), false, 'questionIds must contain only strings');
+  assert.equal(isStudentAction({ ...allVariantActions[7], context: { knowledgeNodeId: 'node-3', questionIds: [] } }), true, 'an empty questionIds array is valid');
+  assert.equal(isStudentAction({ ...allVariantActions[0], context: null }), false, 'context must reject null');
 });
 
 test('pure action modules keep API and state boundaries out of runtime action data', async () => {

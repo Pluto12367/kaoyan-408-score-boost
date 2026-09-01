@@ -77,6 +77,32 @@ function hasId(context: Record<string, unknown>, key: string): boolean {
   return isNonEmptyString(context[key]);
 }
 
+function hasOptionalId(context: Record<string, unknown>, key: string): boolean {
+  return !Object.prototype.hasOwnProperty.call(context, key) || isNonEmptyString(context[key]);
+}
+
+function hasOptionalStringArray(context: Record<string, unknown>, key: string): boolean {
+  return !Object.prototype.hasOwnProperty.call(context, key)
+    || Array.isArray(context[key]) && context[key].every((item) => isNonEmptyString(item));
+}
+
+function hasAnyId(context: Record<string, unknown>, keys: readonly string[]): boolean {
+  return keys.some((key) => hasId(context, key));
+}
+
+function isValidContext(
+  context: Record<string, unknown>,
+  requiredIds: readonly string[],
+  anyRequiredIds: readonly string[] = [],
+  optionalIds: readonly string[] = [],
+  optionalStringArrays: readonly string[] = [],
+): boolean {
+  return requiredIds.every((key) => hasId(context, key))
+    && (anyRequiredIds.length === 0 || hasAnyId(context, anyRequiredIds))
+    && optionalIds.every((key) => hasOptionalId(context, key))
+    && optionalStringArrays.every((key) => hasOptionalStringArray(context, key));
+}
+
 function isPureData(value: unknown, seen = new Set<unknown>()): boolean {
   if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return true;
   if (typeof value !== 'object' || seen.has(value)) return false;
@@ -84,7 +110,7 @@ function isPureData(value: unknown, seen = new Set<unknown>()): boolean {
   seen.add(value);
   if (Array.isArray(value)) return value.every((item) => isPureData(item, seen));
   return Object.entries(value).every(([key, item]) => {
-    if (/api|client|repo|repository|persistence|prisma|database|service/i.test(key)) return false;
+    if (/^(api|client|repo|repository|persistence|prisma|database|service)$/i.test(key)) return false;
     return isPureData(item, seen);
   });
 }
@@ -123,18 +149,18 @@ export function isStudentAction(value: unknown): value is StudentAction {
 
   const context = value.context;
   switch (value.type) {
-    case 'today_task': return hasId(context, 'taskId');
+    case 'today_task': return isValidContext(context, ['taskId'], [], ['knowledgeNodeId', 'questionId']);
     case 'review_due':
-    case 'redo_wrong_question': return hasId(context, 'questionId');
-    case 'practice_recommended': return hasId(context, 'questionId') || hasId(context, 'knowledgeNodeId') || hasId(context, 'taskId');
-    case 'knowledge_explore':
-    case 'knowledge_quest': return hasId(context, 'knowledgeNodeId');
+    case 'redo_wrong_question': return isValidContext(context, ['questionId']);
+    case 'practice_recommended': return isValidContext(context, [], ['questionId', 'knowledgeNodeId', 'taskId'], ['questionId', 'knowledgeNodeId', 'taskId']);
+    case 'knowledge_explore': return isValidContext(context, ['knowledgeNodeId']);
+    case 'knowledge_quest': return isValidContext(context, ['knowledgeNodeId'], [], [], ['questionIds']);
     case 'assessment_review':
     case 'assessment_wrong_questions':
-    case 'assessment_practice': return hasId(context, 'assessmentId');
-    case 'continue_session': return hasId(context, 'sessionId');
-    case 'open_report': return hasId(context, 'reportId') || hasId(context, 'assessmentId');
-    case 'coach_explain': return hasId(context, 'questionId') || hasId(context, 'knowledgeNodeId') || hasId(context, 'wrongQuestionId') || hasId(context, 'assessmentId');
+    case 'assessment_practice': return isValidContext(context, ['assessmentId'], [], ['questionId']);
+    case 'continue_session': return isValidContext(context, ['sessionId']);
+    case 'open_report': return isValidContext(context, [], ['reportId', 'assessmentId'], ['reportId', 'assessmentId']);
+    case 'coach_explain': return isValidContext(context, [], ['questionId', 'knowledgeNodeId', 'wrongQuestionId', 'assessmentId'], ['questionId', 'knowledgeNodeId', 'wrongQuestionId', 'assessmentId']);
   }
   return false;
 }
