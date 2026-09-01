@@ -1,6 +1,9 @@
 import { ClipboardCheck, RefreshCw } from 'lucide-react';
 import type { StageAssessment, StageAssessmentResult } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import { buildAssessmentActions } from '../student/actions/adapters/assessmentActionAdapter';
+import { toCommandDescriptor, type StudentActionCommandDescriptor } from '../student/actions/studentActionCommand';
+import type { StudentAction } from '../student/actions/studentAction';
 
 interface StageAssessmentPanelProps {
   assessment: StageAssessment;
@@ -8,18 +11,21 @@ interface StageAssessmentPanelProps {
   status: string;
   onSubmit: () => void;
   onGenerate?: () => void;
-  onNavigate?: (section: RoleSection) => void;
+  onNavigate?: (section: RoleSection, command?: StudentActionCommandDescriptor) => void;
 }
+
+type AssessmentActionType = Extract<StudentAction['type'], 'assessment_review' | 'assessment_wrong_questions' | 'assessment_practice' | 'open_report'>;
 
 const resultActions: Array<{
   label: string;
   detail: string;
   target: RoleSection;
+  studentActionType?: AssessmentActionType;
 }> = [
-  { label: '去错题本复盘', detail: '先处理本次暴露的错误与混淆点。', target: 'wrong-book' },
-  { label: '去专项训练', detail: '用相近题型巩固薄弱知识点。', target: 'question' },
+  { label: '去错题本复盘', detail: '先处理本次暴露的错误与混淆点。', target: 'wrong-book', studentActionType: 'assessment_wrong_questions' },
+  { label: '去专项训练', detail: '用相近题型巩固薄弱知识点。', target: 'question', studentActionType: 'assessment_practice' },
   { label: '回到今日计划', detail: '把测评后的任务接回今天安排。', target: 'plan' },
-  { label: '查看学习报告', detail: '确认分数变化和下一步方向。', target: 'report' },
+  { label: '查看学习报告', detail: '确认分数变化和下一步方向。', target: 'report', studentActionType: 'open_report' },
 ];
 
 function buildAssessmentVerdict(result: StageAssessmentResult) {
@@ -29,6 +35,13 @@ function buildAssessmentVerdict(result: StageAssessmentResult) {
 }
 
 export function StageAssessmentPanel({ assessment, result, status, onSubmit, onGenerate, onNavigate }: StageAssessmentPanelProps) {
+  const assessmentActions = result ? buildAssessmentActions(result) : [];
+  const assessmentReviewAction = assessmentActions.find(
+    (action): action is Extract<StudentAction, { type: 'assessment_review' }> => action.type === 'assessment_review',
+  );
+  const assessmentId = assessmentReviewAction?.context.assessmentId ?? result?.id ?? null;
+  const assessmentActionByType = new Map(assessmentActions.map((action) => [action.type, action]));
+
   return (
     <section id="assessment" className="panel assessment-panel">
       <div className="panel-heading">
@@ -50,7 +63,11 @@ export function StageAssessmentPanel({ assessment, result, status, onSubmit, onG
         <button type="button" onClick={onSubmit}><ClipboardCheck size={18} /> 开始阶段测评</button>
       </div>
       {result ? (
-        <div className="assessment-result">
+        <div
+          className="assessment-result"
+          data-assessment-id={assessmentId}
+          data-assessment-action-types={assessmentActions.map((action) => action.type).join(' ')}
+        >
           <strong>本次得分 {result.score} / 100</strong>
           <div className="assessment-action-panel">
             <article>
@@ -62,18 +79,25 @@ export function StageAssessmentPanel({ assessment, result, status, onSubmit, onG
               <p>本次答对 {result.correctCount}/{result.totalQuestions} 题，需复盘 {result.reviewItems.length} 项。先把测评暴露的问题转成练习、复盘和报告证据。</p>
             </article>
             <div className="assessment-action-grid">
-              {resultActions.map((action) => (
-                <button
-                  key={action.target}
-                  type="button"
-                  className="secondary-action assessment-action-button"
-                  onClick={() => onNavigate?.(action.target)}
-                  disabled={!onNavigate}
-                >
-                  <strong>{action.label}</strong>
-                  <span>{action.detail}</span>
-                </button>
-              ))}
+              {resultActions.map((action) => {
+                const mappedAction = action.studentActionType
+                  ? assessmentActionByType.get(action.studentActionType)
+                  : undefined;
+                return (
+                  <button
+                    key={action.target}
+                    type="button"
+                    className="secondary-action assessment-action-button"
+                    data-action-type={mappedAction?.type}
+                    data-action-id={mappedAction?.id}
+                    onClick={() => onNavigate?.(action.target, mappedAction ? toCommandDescriptor(mappedAction) ?? undefined : undefined)}
+                    disabled={!onNavigate}
+                  >
+                    <strong>{action.label}</strong>
+                    <span>{action.detail}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
           <p>{result.adjustment.message}</p>

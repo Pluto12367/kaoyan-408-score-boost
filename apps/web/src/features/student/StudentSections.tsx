@@ -41,9 +41,19 @@ import { TrainingHero } from '../practice/training-room/TrainingHero';
 import { TrainingProgress } from '../practice/training-room/TrainingProgress';
 import { TrainingSummary } from '../practice/training-room/TrainingSummary';
 import { buildTrainingRoomViewModel } from '../practice/training-room/trainingRoomViewModel';
+import { buildStudentActionCandidates } from './actions/actionCandidates';
+import { buildAssessmentActions } from './actions/adapters/assessmentActionAdapter';
+import { buildReviewActions } from './actions/adapters/reviewActionAdapter';
+import { buildTrainingActions } from './actions/adapters/trainingActionAdapter';
+import { buildTodayAction } from './actions/adapters/todayActionAdapter';
+import { selectCanonicalNextAction } from './actions/canonicalNextAction';
+import type { StudentActionCommandDescriptor } from './actions/studentActionCommand';
+import { toCommandDescriptor } from './actions/studentActionCommand';
+import type { StudentAction } from './actions/studentAction';
 import { StudentHome } from './home/StudentHome';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
+import type { DueReviewsResponse } from '../../api/endpoints/review';
 import type { SessionView } from '../../api/endpoints/sessions';
 import { deriveTodayTaskNextStep, type TodayPlanTask, type TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
 import './student-learning-experience.css';
@@ -79,6 +89,10 @@ export interface StudentSectionsProps {
   practiceSet: ModuleResource<PracticeSet>;
   practiceSetResult: PracticeSetResult | null;
   wrongQuestionSummary: ModuleResource<WrongQuestionSummary>;
+  dueReviews?: DueReviewsResponse | null;
+  dueReviewsLoading?: boolean;
+  dueReviewsError?: string;
+  onRetryDueReviews?: () => void;
   showOnboarding: boolean;
   todayPlan: TodayPlanType | null;
   todayPlanLoading: boolean;
@@ -111,11 +125,11 @@ export interface StudentSectionsProps {
   aiFollowUp: AiFollowUp | null;
   tutorStatus: string;
   tutorFailed: boolean;
-  onNavigate: (section: RoleSection) => void;
+  onNavigate: (section: RoleSection, command?: StudentActionCommandDescriptor) => void;
   onLaunchTodayTask: (task: TodayPlanTask) => void;
   onRetryTodayPlan: () => void;
   onOnboardingComplete: (result: Awaited<ReturnType<typeof import('../../api/endpoints/onboarding').completeOnboarding>>) => void;
-  onOpenReview: (questionId: string) => void;
+  onOpenReview: (questionId: string, command?: StudentActionCommandDescriptor) => void;
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
   onRetryStageReport: () => void;
@@ -137,7 +151,7 @@ export interface StudentSectionsProps {
   onRetryPracticeSet: () => void;
   onOpenDetail: (questionId: string) => void;
   onCloseDetail: () => void;
-  onOpenCatalog?: (nodeId: string) => void;
+  onOpenCatalog?: (nodeId: string, command?: StudentActionCommandDescriptor) => void;
   onReviewWrongQuestion: (questionId: string) => void;
   onRetryWrongQuestionSummary: () => void;
   onRedo: (questionId: string, knowledgePointTitle?: string) => void;
@@ -148,6 +162,7 @@ export interface StudentSectionsProps {
 
 export function StudentSections(props: StudentSectionsProps) {
   const { visibleSection, studentOverviewReady, overviewResource, onRetryOverview, report, questions } = props;
+  const dueReviews = props.dueReviews ?? null;
   const hasQuestions = questions.length > 0;
   const launchedQuestionTask = props.todayTaskLaunchContext?.destination === 'question'
     ? props.todayPlan?.priorityTasks.find((task) => task.id === props.todayTaskLaunchContext?.taskId) ?? null
@@ -170,6 +185,15 @@ export function StudentSections(props: StudentSectionsProps) {
     : practiceSet
       ? 'practice_set' as const
       : 'question_bank' as const;
+  const trainingActions = props.practiceSetResult
+    ? buildTrainingActions({
+      sourceId: props.practiceSetResult.practiceSetId,
+      source: trainingSource,
+      nextActions: props.practiceSetResult.nextActions,
+      questionId: props.practiceSetResult.results[0]?.questionId,
+      taskId: launchedQuestionTask?.id,
+    })
+    : [];
   const trainingModel = buildTrainingRoomViewModel({
     source: trainingSource,
     title: launchedQuestionTask?.title ?? practiceSet?.title ?? '题库训练',
@@ -185,9 +209,92 @@ export function StudentSections(props: StudentSectionsProps) {
           correctCount: props.practiceSetResult.correctCount,
           accuracyRate: props.practiceSetResult.accuracyRate,
           nextActions: props.practiceSetResult.nextActions,
+          actions: trainingActions,
         }
       : null,
   });
+  const reviewActions = buildReviewActions({
+    dueReviews: dueReviews?.items ?? [],
+    priorityRedoItems: props.wrongQuestionSummary.data?.priorityRedoItems ?? [],
+    displayFallbackItems: props.wrongQuestions,
+  });
+  const canonicalAction = selectCanonicalNextAction(buildStudentActionCandidates({
+    todayAction: props.todayPlan ? buildTodayAction(props.todayPlan) : null,
+    review: reviewActions.filter((action) => action.type === 'review_due'),
+    wrongQuestion: reviewActions.filter((action) => action.type === 'redo_wrong_question'),
+    assessment: buildAssessmentActions(props.stageResult),
+  }));
+  const onSelectCanonicalAction = (action: StudentAction) => {
+    const command = toCommandDescriptor(action);
+    if (!command) {
+      if (action.type === 'coach_explain') props.onNavigate('ai');
+      return;
+    }
+
+    switch (action.type) {
+      case 'today_task': {
+        if (command.kind !== 'today') return;
+        const task = props.todayPlan?.priorityTasks.find((item) => item.id === action.context.taskId && item.id === command.taskId);
+        if (task) props.onLaunchTodayTask(task);
+        return;
+      }
+      case 'review_due':
+        if (command.kind === 'review') props.onOpenReview(action.context.questionId, command);
+        return;
+      case 'redo_wrong_question':
+        if (command.kind === 'redo') props.onRedo(action.context.questionId);
+        return;
+      case 'practice_recommended':
+        if (command.kind === 'practice') props.onNavigate(command.section, command);
+        return;
+      case 'knowledge_explore':
+        if (command.kind !== 'catalog-node') return;
+        if (props.onOpenCatalog) props.onOpenCatalog(action.context.knowledgeNodeId, command);
+        else props.onNavigate('knowledge-catalog', command);
+        return;
+      case 'knowledge_quest':
+        if (command.kind !== 'quest') return;
+        props.onNavigate(
+          action.destination === 'practice' ? 'question' : 'knowledge-catalog',
+          action.context.questionIds !== undefined ? { ...command, questionIds: action.context.questionIds } : command,
+        );
+        return;
+      case 'assessment_review':
+        if (command.kind === 'assessment' && command.assessmentId === action.context.assessmentId) {
+          props.onNavigate('test', { ...command, assessmentId: action.context.assessmentId });
+        }
+        return;
+      case 'assessment_wrong_questions':
+        if (command.kind !== 'assessment' || command.assessmentId !== action.context.assessmentId) return;
+        const assessmentCommand = {
+          ...command,
+          assessmentId: action.context.assessmentId,
+          ...(action.context.questionId !== undefined ? { questionId: action.context.questionId } : {}),
+        };
+        if (action.context.questionId) props.onOpenReview(action.context.questionId, assessmentCommand);
+        else props.onNavigate('wrong-book', assessmentCommand);
+        return;
+      case 'assessment_practice':
+        if (command.kind === 'assessment' && command.assessmentId === action.context.assessmentId) {
+          props.onNavigate('question', { ...command, assessmentId: action.context.assessmentId });
+        }
+        return;
+      case 'continue_session':
+        if (command.kind === 'session-resume' && command.sessionId === action.context.sessionId) {
+          props.onNavigate(command.section, { ...command, sessionId: action.context.sessionId });
+        }
+        return;
+      case 'open_report':
+        if (command.kind === 'report') {
+          props.onNavigate('test', {
+            ...command,
+            ...(action.context.reportId !== undefined ? { reportId: action.context.reportId } : {}),
+            ...(action.context.assessmentId !== undefined ? { assessmentId: action.context.assessmentId } : {}),
+          });
+        }
+        return;
+    }
+  };
 
   return (
     <div className="student-workspace-sections">
@@ -201,6 +308,10 @@ export function StudentSections(props: StudentSectionsProps) {
                 todayPlan={props.todayPlan}
                 todayPlanLoading={props.todayPlanLoading}
                 todayPlanError={props.todayPlanError}
+                dueReviews={dueReviews}
+                dueReviewsLoading={props.dueReviewsLoading}
+                dueReviewsError={props.dueReviewsError}
+                onRetryDueReviews={props.onRetryDueReviews}
                 wrongQuestionSummary={props.wrongQuestionSummary.data}
                 masteryMap={props.masteryMap}
                 learningCalendar={props.learningCalendar}
@@ -209,6 +320,8 @@ export function StudentSections(props: StudentSectionsProps) {
                 onLaunchTodayTask={props.onLaunchTodayTask}
                 onRefreshTodayPlan={props.onRetryTodayPlan}
                 onOpenReview={props.onOpenReview}
+                canonicalAction={canonicalAction}
+                onSelectCanonicalAction={onSelectCanonicalAction}
               />
               {!props.todayPlan && isMockAllowed() ? (
                 <Suspense fallback={sectionFallback('学习计划')}>
@@ -340,7 +453,7 @@ export function StudentSections(props: StudentSectionsProps) {
               ) : null}
               <WeaknessReportPanel report={report} />
               </section>
-              <TrainingSummary model={trainingModel} />
+              <TrainingSummary model={trainingModel} onSelectAction={onSelectCanonicalAction} />
               <ReviewResourcesPanel resources={props.reviewResources} onRetry={props.onRetryReviewResources} />
             </div>
           ) : (
@@ -377,6 +490,10 @@ export function StudentSections(props: StudentSectionsProps) {
           <Suspense fallback={sectionFallback('错题复盘')}>
             <MistakeWorkspace
               wrongQuestions={props.wrongQuestions}
+              dueReviews={dueReviews}
+              dueReviewsLoading={props.dueReviewsLoading}
+              dueReviewsError={props.dueReviewsError}
+              onRetryDueReviews={props.onRetryDueReviews}
               initialKnowledgePointId={props.todayTaskLaunchContext?.destination === 'wrong-book'
                 ? props.todayTaskLaunchContext.knowledgePointId
                 : undefined}

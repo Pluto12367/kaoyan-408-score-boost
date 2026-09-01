@@ -43,6 +43,7 @@ import { useRoleWorkspaceData } from './hooks/useRoleWorkspaceData';
 import { ModuleUnavailable } from './components/ModuleResourceState';
 import type { SessionView } from './api/endpoints/sessions';
 import type { PracticeAnswerResult } from './api/endpoints/practice';
+import { fetchDueReviews, type DueReviewsResponse } from './api/endpoints/review';
 import { isMockAllowed } from './api/env';
 import { trackEvent } from './api/events';
 import { fetchOnboardingStatus, fetchTodayPlan, startTask, type TodayPlan as TodayPlanType } from './api/endpoints/onboarding';
@@ -97,6 +98,7 @@ import {
   createInitialPaperSession,
 } from './constants';
 import { isStudentOverviewReady, resolveSessionQuestions, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
+import type { StudentActionCommandDescriptor } from './features/student/actions/studentActionCommand';
 
 // Phase 3.3: route/section-level code splitting — heavy workspaces load on demand.
 // Student section workspaces live in features/student/StudentSections (Phase 3.4).
@@ -153,6 +155,9 @@ export function App() {
   const [todayPlan, setTodayPlan] = useState<TodayPlanType | null>(null);
   const [todayPlanLoading, setTodayPlanLoading] = useState(false);
   const [todayPlanError, setTodayPlanError] = useState('');
+  const [dueReviews, setDueReviews] = useState<DueReviewsResponse | null>(null);
+  const [dueReviewsLoading, setDueReviewsLoading] = useState(false);
+  const [dueReviewsError, setDueReviewsError] = useState('');
   const [todayTaskLaunchContext, setTodayTaskLaunchContext] = useState<TodayTaskLaunchContext | null>(null);
   const [todayTaskLaunchingId, setTodayTaskLaunchingId] = useState<string | null>(null);
   const [todayTaskLaunchError, setTodayTaskLaunchError] = useState('');
@@ -250,6 +255,25 @@ export function App() {
   } = studentLearning;
   const { activeSection, setActiveSection, visibleSection, resetSectionForRole } = useRoleSectionNavigation(sessionUser?.role);
 
+  function handleStudentNavigate(section: RoleSection, command?: StudentActionCommandDescriptor) {
+    if (command?.kind === 'quest' && command.questionIds?.length) {
+      setQuestContext((current) => ({
+        nodeId: command.knowledgeNodeId,
+        title: current?.nodeId === command.knowledgeNodeId ? current.title : '',
+        questionIds: [...command.questionIds!],
+      }));
+      setQuestResults([]);
+      setQuestState(null);
+      setQuestError('');
+    }
+    if (command?.kind === 'assessment'
+      && command.assessmentId === stageResult?.id
+      && command.questionId) {
+      setDetailQuestionId(command.questionId);
+    }
+    setActiveSection(section);
+  }
+
   useEffect(() => {
     if (todayTaskLaunchContext && activeSection !== todayTaskLaunchContext.destination) {
       setTodayTaskLaunchContext(null);
@@ -335,6 +359,16 @@ export function App() {
       .finally(() => setTodayPlanLoading(false));
   }, [authKey, onboardingChecked, showOnboarding, studentDataEnabled]);
 
+  useEffect(() => {
+    if (!studentDataEnabled || !authKey || isStaticDemoMode()) {
+      setDueReviews(null);
+      setDueReviewsError('');
+      setDueReviewsLoading(false);
+      return;
+    }
+    void refreshDueReviews();
+  }, [authKey, studentDataEnabled]);
+
   async function handleOnboardingComplete(result: Awaited<ReturnType<typeof import('./api/endpoints/onboarding').completeOnboarding>>) {
     setShowOnboarding(false);
     setTodayPlanError('');
@@ -355,6 +389,18 @@ export function App() {
       setTodayPlanError(error instanceof Error ? error.message : '今日计划更新失败，请重试。');
     } finally {
       setTodayPlanLoading(false);
+    }
+  }
+
+  async function refreshDueReviews() {
+    setDueReviewsLoading(true);
+    setDueReviewsError('');
+    try {
+      setDueReviews(await fetchDueReviews());
+    } catch (error) {
+      setDueReviewsError(error instanceof Error ? error.message : '到期复习加载失败，请重试。');
+    } finally {
+      setDueReviewsLoading(false);
     }
   }
 
@@ -805,6 +851,7 @@ export function App() {
       await refreshSprintPlan();
       await refreshMasteryMap();
       await refreshWrongQuestionSummary();
+      await refreshDueReviews();
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -1403,6 +1450,10 @@ paperId: paper.id,
             practiceSet={studentLearning.practiceSet}
             practiceSetResult={practiceSetResult}
             wrongQuestionSummary={studentLearning.wrongQuestionSummary}
+            dueReviews={dueReviews}
+            dueReviewsLoading={dueReviewsLoading}
+            dueReviewsError={dueReviewsError}
+            onRetryDueReviews={refreshDueReviews}
             showOnboarding={showOnboarding}
             todayPlan={todayPlan}
             todayPlanLoading={todayPlanLoading}
@@ -1438,11 +1489,12 @@ paperId: paper.id,
             aiFollowUp={aiFollowUp}
             tutorStatus={tutorStatus}
             tutorFailed={tutorFailed}
-            onNavigate={setActiveSection}
+            onNavigate={handleStudentNavigate}
             onLaunchTodayTask={handleLaunchTodayTask}
             onRetryTodayPlan={refreshTodayPlan}
             onOnboardingComplete={handleOnboardingComplete}
-            onOpenReview={(questionId) => {
+            onOpenReview={(questionId, command) => {
+              if (command?.kind === 'assessment' && command.assessmentId !== stageResult?.id) return;
               setDetailQuestionId(questionId);
               setActiveSection('wrong-book');
             }}
@@ -1704,6 +1756,7 @@ paperId: paper.id,
               refreshStudyReminders(),
               refreshMasteryMap(),
               refreshWrongQuestionSummary(),
+              refreshDueReviews(),
             ]);
           }}
         />

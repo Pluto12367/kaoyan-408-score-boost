@@ -2,7 +2,10 @@ import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../../api';
 import type { RoleSection } from '../../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../../api/endpoints/onboarding';
+import type { DueReviewsResponse } from '../../../api/endpoints/review';
 import type { TodayPlanTask } from '../../onboarding/todayLearningRoute';
+import type { StudentAction } from '../actions/studentAction';
+import { StudentActionCard } from '../actions/StudentActionCard';
 import { useDashboardViewModel } from './useDashboardViewModel';
 import { DashboardHero } from './components/DashboardHero';
 import { StudentStateCard } from './components/StudentStateCard';
@@ -20,6 +23,10 @@ interface StudentHomeProps {
   todayPlan: TodayPlanType | null;
   todayPlanLoading: boolean;
   todayPlanError: string;
+  dueReviews?: DueReviewsResponse | null;
+  dueReviewsLoading?: boolean;
+  dueReviewsError?: string;
+  onRetryDueReviews?: () => void;
   wrongQuestionSummary: WrongQuestionSummary | null;
   masteryMap: MasteryMap | null;
   learningCalendar: LearningCalendar;
@@ -28,6 +35,8 @@ interface StudentHomeProps {
   onLaunchTodayTask: (task: TodayPlanTask) => void;
   onRefreshTodayPlan: () => void;
   onOpenReview?: (questionId: string) => void;
+  canonicalAction: StudentAction | null;
+  onSelectCanonicalAction: (action: StudentAction) => void;
 }
 
 export function StudentHome({
@@ -36,6 +45,10 @@ export function StudentHome({
   todayPlan,
   todayPlanLoading,
   todayPlanError,
+  dueReviews,
+  dueReviewsLoading,
+  dueReviewsError,
+  onRetryDueReviews,
   wrongQuestionSummary,
   masteryMap,
   learningCalendar,
@@ -44,6 +57,8 @@ export function StudentHome({
   onLaunchTodayTask,
   onRefreshTodayPlan,
   onOpenReview,
+  canonicalAction,
+  onSelectCanonicalAction,
 }: StudentHomeProps) {
   const model = useDashboardViewModel({ student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar });
   const openCoach = () => onNavigate('ai');
@@ -54,6 +69,11 @@ export function StudentHome({
       <div className="dashboard-main-grid">
         <div className="dashboard-primary-column">
           <StudentStateCard model={model} onNavigate={() => onNavigate('knowledge-catalog')} />
+          {canonicalAction ? (
+            <section className="dashboard-canonical-action-region" aria-label="首页核心行动">
+              <StudentActionCard action={canonicalAction} onSelect={onSelectCanonicalAction} />
+            </section>
+          ) : null}
           <TodayMission model={model} loading={todayPlanLoading} error={todayPlanError} onLaunch={onLaunchTodayTask} onRefresh={onRefreshTodayPlan} />
           {todayPlan ? (
             <details className="dashboard-plan-details">
@@ -64,6 +84,10 @@ export function StudentHome({
                   student={student}
                   focusTaskId={planFocusTaskId}
                   onRefresh={async () => { onRefreshTodayPlan(); }}
+                  dueReviews={dueReviews}
+                  dueReviewsLoading={dueReviewsLoading}
+                  dueReviewsError={dueReviewsError}
+                  onRetryDueReviews={onRetryDueReviews}
                   onOpenReview={onOpenReview}
                   onNavigate={onNavigate}
                 />
@@ -74,7 +98,9 @@ export function StudentHome({
         </div>
         <div className="dashboard-secondary-column">
           <AIInsightCard model={model} onNavigate={openCoach} />
-          <QuickActions onNavigate={onNavigate} />
+          <aside className="dashboard-secondary-actions" aria-label="次要快捷入口">
+            <QuickActions onNavigate={onNavigate} />
+          </aside>
           <div className="dashboard-streak-strip"><strong>{learningCalendar.streakDays}</strong><span>天连续学习<br /><small>今日 {learningCalendar.today.practiceCount} 次练习</small></span></div>
         </div>
       </div>
