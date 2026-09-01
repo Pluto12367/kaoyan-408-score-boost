@@ -161,3 +161,48 @@ test('Review workspace keeps non-mock canonical actions empty until filtered dat
   assert.match(workspace, /setServerQuestions\(null\);\s*setListError\(''\);/);
   assert.match(workspace, /const displayQuestions = isMockAllowed\(\) && \(listLoading \|\| listError\)\s*\?\s*clientFiltered\s*:\s*listLoading \|\| listError\s*\?\s*\[\]\s*:\s*\(serverQuestions \?\? \(isMockAllowed\(\) \? wrongQuestions : \[\]\)\);/);
 });
+
+test('Knowledge node action exposes its knowledge node ID at the catalog boundary', async () => {
+  const catalog = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+
+  assert.match(catalog, /buildKnowledgeActions/);
+  assert.match(catalog, /const nodeAction = knowledgeActions\.find\(\(action\) => action\.type === 'knowledge_explore'\)/);
+  assert.match(catalog, /nodeAction\?\.type === 'knowledge_explore' \? nodeAction\.context\.knowledgeNodeId/);
+});
+
+test('Knowledge related practice action keeps both its question ID and node ID', async () => {
+  const catalog = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+
+  assert.match(catalog, /relatedQuestionIds: detail\?\.relatedQuestions\.map\(\(question\) => question\.id\)/);
+  assert.match(catalog, /candidate\.type === 'practice_recommended' && candidate\.context\.questionId === questionId/);
+  assert.match(catalog, /action\.context\.knowledgeNodeId/);
+  assert.match(catalog, /onPracticeQuestion\?\.\(action\.context\.questionId, action\.title/);
+});
+
+test('Knowledge quest action keeps its node ID and exact question ID list', async () => {
+  const catalog = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+
+  assert.match(catalog, /const questAction = knowledgeActions\.find\(\(action\) => action\.type === 'knowledge_quest'\)/);
+  assert.match(catalog, /onStartQuest\?\.\([\s\S]*questAction\.context\.knowledgeNodeId,[\s\S]*questAction\.title,[\s\S]*questAction\.context\.questionIds/);
+});
+
+test('Knowledge catalog preserves focus and existing catalog callbacks while using action context', async () => {
+  const catalog = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+
+  for (const marker of ['focusNodeId', 'onPracticeQuestion', 'onStartQuest', 'onCompleteQuest', 'onNavigate']) {
+    assert.match(catalog, new RegExp(marker), `${marker} must remain available`);
+  }
+  assert.match(
+    catalog,
+    /onSelectPoint=\{\(point\) => \{[\s\S]*setSelectedActionType\(null\)[\s\S]*setSelectedPointId\(point\.id\)/,
+  );
+  assert.match(catalog, /focusNodeId/);
+});
+
+test('Knowledge catalog keeps one mastery request and does not add a second fetch path', async () => {
+  const catalog = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+
+  assert.match(catalog, /buildKnowledgeActions/);
+  assert.equal((catalog.match(/fetchMyMastery\(/g) ?? []).length, 1);
+  assert.doesNotMatch(catalog, /fetchKnowledgeDetail\([\s\S]*fetchMyMastery\(/);
+});

@@ -27,6 +27,7 @@ import { getKnowledgeCatalog } from './catalogData';
 import { SUBJECT_NAMES, SUBJECT_ORDER } from './constants';
 import { KnowledgePointDetailDrawer } from './KnowledgePointDetailDrawer';
 import { KnowledgeTree, type ExpansionCommand } from './KnowledgeTree';
+import { buildKnowledgeActions } from '../student/actions/adapters/knowledgeActionAdapter';
 
 export function KnowledgeCatalog({
   onNavigate,
@@ -134,6 +135,34 @@ export function KnowledgeCatalog({
     () => (selectedContext ? resolveKnowledgePointRefs(pointIndex, selectedContext.point.relatedPoints) : []),
     [selectedContext, pointIndex],
   );
+  const knowledgeActions = useMemo(
+    () => buildKnowledgeActions({
+      nodeId: selectedContext?.point.id,
+      title: selectedContext?.point.name ?? '',
+      prerequisiteContexts,
+      relatedContexts,
+      relatedQuestionIds: detail?.relatedQuestions.map((question) => question.id),
+      questQuestionIds: detail?.relatedQuestions.map((question) => question.id),
+    }),
+    [detail?.relatedQuestions, prerequisiteContexts, relatedContexts, selectedContext],
+  );
+  const nodeAction = knowledgeActions.find((action) => action.type === 'knowledge_explore');
+  const handlePracticeQuestion = (questionId: string, title: string) => {
+    const action = knowledgeActions.find(
+      (candidate) => candidate.type === 'practice_recommended' && candidate.context.questionId === questionId,
+    );
+    if (!action || action.type !== 'practice_recommended' || !action.context.knowledgeNodeId || !action.context.questionId) return;
+    onPracticeQuestion?.(action.context.questionId, action.title || title);
+  };
+  const questAction = knowledgeActions.find((action) => action.type === 'knowledge_quest');
+  const handleStartQuest = () => {
+    if (!questAction || questAction.type !== 'knowledge_quest') return;
+    onStartQuest?.(
+      questAction.context.knowledgeNodeId,
+      questAction.title,
+      questAction.context.questionIds ?? [],
+    );
+  };
 
   const subject = catalog[active];
   const summary = useMemo(() => summarizeSubject(subject), [subject]);
@@ -169,7 +198,12 @@ export function KnowledgeCatalog({
   const collapseAll = () => setExpansion((previous) => ({ version: previous.version + 1, mode: 'collapse' }));
 
   return (
-    <section id="knowledge-catalog" className="panel" data-testid="knowledge-catalog">
+    <section
+      id="knowledge-catalog"
+      className="panel"
+      data-testid="knowledge-catalog"
+      data-knowledge-node-id={nodeAction?.type === 'knowledge_explore' ? nodeAction.context.knowledgeNodeId : undefined}
+    >
       <div className="panel-heading">
         <div>
           <p className="eyebrow">408 知识图谱</p>
@@ -313,15 +347,8 @@ export function KnowledgeCatalog({
         questBestAccuracy={questState?.knowledgeNodeId === selectedPointId ? questState.bestAccuracy : undefined}
         questContext={questContext && questState?.knowledgeNodeId === selectedPointId}
         questError={questError}
-        onPracticeQuestion={onPracticeQuestion}
-        onStartQuest={() => {
-          if (!selectedContext || !detail) return;
-          onStartQuest?.(
-            selectedContext.point.id,
-            selectedContext.point.name,
-            detail.relatedQuestions.map((question) => question.id),
-          );
-        }}
+        onPracticeQuestion={handlePracticeQuestion}
+        onStartQuest={handleStartQuest}
         onCompleteQuest={onCompleteQuest}
         onNavigate={() => onNavigate?.('question')}
       />
