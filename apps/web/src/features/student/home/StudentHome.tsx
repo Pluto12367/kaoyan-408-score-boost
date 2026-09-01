@@ -2,6 +2,7 @@ import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../../api';
 import type { RoleSection } from '../../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../../api/endpoints/onboarding';
+import type { DueReviewsResponse } from '../../../api/endpoints/review';
 import type { TodayPlanTask } from '../../onboarding/todayLearningRoute';
 import { useDashboardViewModel } from './useDashboardViewModel';
 import { DashboardHero } from './components/DashboardHero';
@@ -20,6 +21,10 @@ interface StudentHomeProps {
   todayPlan: TodayPlanType | null;
   todayPlanLoading: boolean;
   todayPlanError: string;
+  dueReviews?: DueReviewsResponse | null;
+  dueReviewsLoading?: boolean;
+  dueReviewsError?: string;
+  onRetryDueReviews?: () => void;
   wrongQuestionSummary: WrongQuestionSummary | null;
   masteryMap: MasteryMap | null;
   learningCalendar: LearningCalendar;
@@ -36,6 +41,10 @@ export function StudentHome({
   todayPlan,
   todayPlanLoading,
   todayPlanError,
+  dueReviews,
+  dueReviewsLoading,
+  dueReviewsError,
+  onRetryDueReviews,
   wrongQuestionSummary,
   masteryMap,
   learningCalendar,
@@ -64,6 +73,10 @@ export function StudentHome({
                   student={student}
                   focusTaskId={planFocusTaskId}
                   onRefresh={async () => { onRefreshTodayPlan(); }}
+                  dueReviews={dueReviews}
+                  dueReviewsLoading={dueReviewsLoading}
+                  dueReviewsError={dueReviewsError}
+                  onRetryDueReviews={onRetryDueReviews}
                   onOpenReview={onOpenReview}
                   onNavigate={onNavigate}
                 />

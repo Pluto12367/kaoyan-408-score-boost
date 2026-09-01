@@ -44,6 +44,7 @@ import { buildTrainingRoomViewModel } from '../practice/training-room/trainingRo
 import { StudentHome } from './home/StudentHome';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
+import type { DueReviewsResponse } from '../../api/endpoints/review';
 import type { SessionView } from '../../api/endpoints/sessions';
 import { deriveTodayTaskNextStep, type TodayPlanTask, type TodayTaskLaunchContext } from '../onboarding/todayLearningRoute';
 import './student-learning-experience.css';
@@ -79,6 +80,10 @@ export interface StudentSectionsProps {
   practiceSet: ModuleResource<PracticeSet>;
   practiceSetResult: PracticeSetResult | null;
   wrongQuestionSummary: ModuleResource<WrongQuestionSummary>;
+  dueReviews?: DueReviewsResponse | null;
+  dueReviewsLoading?: boolean;
+  dueReviewsError?: string;
+  onRetryDueReviews?: () => void;
   showOnboarding: boolean;
   todayPlan: TodayPlanType | null;
   todayPlanLoading: boolean;
@@ -148,6 +153,7 @@ export interface StudentSectionsProps {
 
 export function StudentSections(props: StudentSectionsProps) {
   const { visibleSection, studentOverviewReady, overviewResource, onRetryOverview, report, questions } = props;
+  const dueReviews = props.dueReviews ?? null;
   const hasQuestions = questions.length > 0;
   const launchedQuestionTask = props.todayTaskLaunchContext?.destination === 'question'
     ? props.todayPlan?.priorityTasks.find((task) => task.id === props.todayTaskLaunchContext?.taskId) ?? null
@@ -201,6 +207,10 @@ export function StudentSections(props: StudentSectionsProps) {
                 todayPlan={props.todayPlan}
                 todayPlanLoading={props.todayPlanLoading}
                 todayPlanError={props.todayPlanError}
+                dueReviews={dueReviews}
+                dueReviewsLoading={props.dueReviewsLoading}
+                dueReviewsError={props.dueReviewsError}
+                onRetryDueReviews={props.onRetryDueReviews}
                 wrongQuestionSummary={props.wrongQuestionSummary.data}
                 masteryMap={props.masteryMap}
                 learningCalendar={props.learningCalendar}
@@ -377,6 +387,10 @@ export function StudentSections(props: StudentSectionsProps) {
           <Suspense fallback={sectionFallback('错题复盘')}>
             <MistakeWorkspace
               wrongQuestions={props.wrongQuestions}
+              dueReviews={dueReviews}
+              dueReviewsLoading={props.dueReviewsLoading}
+              dueReviewsError={props.dueReviewsError}
+              onRetryDueReviews={props.onRetryDueReviews}
               initialKnowledgePointId={props.todayTaskLaunchContext?.destination === 'wrong-book'
                 ? props.todayTaskLaunchContext.knowledgePointId
                 : undefined}

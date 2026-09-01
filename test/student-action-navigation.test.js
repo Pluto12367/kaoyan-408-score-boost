@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 
+async function readSource(path) {
+  return readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+}
+
 async function loadModule(path, dependencies = {}) {
-  const source = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+  const source = await readSource(path);
   const output = ts.transpileModule(source, {
     fileName: path,
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -196,4 +200,70 @@ test('maps session resume by session ID and leaves coach explain at its existing
     source: 'coach',
     context: { questionId: 'question-1' },
   })), null);
+});
+
+test('loads due reviews through the existing endpoint at the App boundary', async () => {
+  const source = await readSource('apps/web/src/App.tsx');
+
+  assert.match(source, /import\s*\{\s*fetchDueReviews,\s*type DueReviewsResponse\s*\}\s*from '\.\/api\/endpoints\/review';/);
+  assert.match(source, /fetchDueReviews\(\)/);
+  assert.match(source, /<StudentSections[\s\S]*?dueReviews=\{dueReviews\}/);
+});
+
+test('passes the existing due review response from StudentSections to both Home and Review', async () => {
+  const source = await readSource('apps/web/src/features/student/StudentSections.tsx');
+
+  assert.match(source, /import type \{ DueReviewsResponse \} from '..\/..\/api\/endpoints\/review';/);
+  assert.match(source, /dueReviews\?: DueReviewsResponse \| null;/);
+  assert.match(source, /const dueReviews = props\.dueReviews \?\? null;/);
+  assert.match(source, /<StudentHome[\s\S]*?dueReviews=\{dueReviews\}/);
+  assert.match(source, /<MistakeWorkspace[\s\S]*?dueReviews=\{dueReviews\}/);
+});
+
+test('passes the shared due review resource from StudentHome to TodayPlan', async () => {
+  const source = await readSource('apps/web/src/features/student/home/StudentHome.tsx');
+
+  assert.match(source, /import type \{ DueReviewsResponse \} from '..\/..\/..\/api\/endpoints\/review';/);
+  assert.match(source, /dueReviews\?: DueReviewsResponse \| null;/);
+  assert.match(source, /<TodayPlan[\s\S]*?dueReviews=\{dueReviews\}/);
+});
+
+test('uses the supplied due review resource in TodayPlan and only fetches as a compatibility fallback', async () => {
+  const source = await readSource('apps/web/src/components/TodayPlan.tsx');
+
+  assert.match(source, /dueReviews: suppliedDueReviews/);
+  assert.match(source, /const usesSuppliedDueReviews = suppliedDueReviews !== undefined;/);
+  assert.match(source, /const dueReviewItems = suppliedDueReviews\?\.items \?\? fallbackDueReviews;/);
+  assert.match(source, /if \(usesSuppliedDueReviews\) \{\s*onRetryDueReviews\?\.\(\);/);
+  assert.match(source, /if \(!usesSuppliedDueReviews\) \{\s*loadDueReviews\(\);/);
+});
+
+test('uses supplied due review items in MistakeWorkspace priority selection', async () => {
+  const source = await readSource('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+
+  assert.match(source, /MistakeWorkspace\(\{[\s\S]*?dueReviews,[\s\S]*?dueReviewsLoading,[\s\S]*?dueReviewsError,[\s\S]*?onRetryDueReviews,/);
+  assert.match(source, /const dueReviewQuestionIds = useMemo\([\s\S]*?dueReviews\?\.items/);
+  assert.match(source, /prioritizedQuestions\.find\(\(item\) => dueReviewQuestionIds\.has\(item\.questionId\)\)/);
+  assert.match(source, /onClick=\{onRetryDueReviews\}/);
+});
+
+test('keeps protected files outside the Task 10 source boundary', () => {
+  const task10Files = [
+    'apps/web/src/App.tsx',
+    'apps/web/src/features/student/StudentSections.tsx',
+    'apps/web/src/features/student/home/StudentHome.tsx',
+    'apps/web/src/components/TodayPlan.tsx',
+    'apps/web/src/features/mistakes/MistakeWorkspace.tsx',
+    'test/student-action-navigation.test.js',
+  ];
+  const protectedFiles = new Set([
+    'apps/web/src/components/ExamSession.tsx',
+    'apps/web/src/features/practice/PracticePanel.tsx',
+    'apps/web/src/hooks/usePracticeSession.ts',
+    'apps/web/src/styles.css',
+    'apps/web/src/theme-optimizations.css',
+    'apps/web/src/theme/themePreference.ts',
+  ]);
+
+  assert.equal(task10Files.some((path) => protectedFiles.has(path)), false);
 });

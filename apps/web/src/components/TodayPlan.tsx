@@ -9,7 +9,7 @@ import {
   startTask,
   type TodayPlan as TodayPlanType,
 } from '../api/endpoints/onboarding';
-import { fetchDueReviews, type DueReviewItem } from '../api/endpoints/review';
+import { fetchDueReviews, type DueReviewItem, type DueReviewsResponse } from '../api/endpoints/review';
 import { validateTaskCompletionDraft, type TaskCompletionDraft } from '../features/plan/taskCompletionDraft';
 import { GoalProgressInsight } from '../features/student/GoalProgressInsight';
 import { buildPlanNextLearningStep, NextLearningStepCard } from '../features/student/NextLearningStepCard';
@@ -21,6 +21,10 @@ interface Props {
   student?: UserProfile | null;
   focusTaskId?: string | null;
   onRefresh: () => Promise<void>;
+  dueReviews?: DueReviewsResponse | null;
+  dueReviewsLoading?: boolean;
+  dueReviewsError?: string;
+  onRetryDueReviews?: () => void;
   onOpenReview?: (questionId: string) => void;
   onNavigate: (section: RoleSection) => void;
 }
@@ -32,13 +36,27 @@ function getTaskStatusLabel(task: TodayPlanType['priorityTasks'][number]) {
   return '待开始';
 }
 
-export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpenReview, onNavigate }: Props) {
-  const [dueReviews, setDueReviews] = useState<DueReviewItem[]>([]);
-  const [dueReviewError, setDueReviewError] = useState('');
+export function TodayPlan({
+  plan,
+  student = null,
+  focusTaskId,
+  onRefresh,
+  dueReviews: suppliedDueReviews,
+  dueReviewsLoading = false,
+  dueReviewsError = '',
+  onRetryDueReviews,
+  onOpenReview,
+  onNavigate,
+}: Props) {
+  const usesSuppliedDueReviews = suppliedDueReviews !== undefined;
+  const [fallbackDueReviews, setFallbackDueReviews] = useState<DueReviewItem[]>([]);
+  const [fallbackDueReviewError, setFallbackDueReviewError] = useState('');
   const [actionError, setActionError] = useState('');
   const [activeActionTaskId, setActiveActionTaskId] = useState<string | null>(null);
   const [completionDrafts, setCompletionDrafts] = useState<Record<string, TaskCompletionDraft>>({});
   const [rescheduleDates, setRescheduleDates] = useState<Record<string, string>>({});
+  const dueReviewItems = suppliedDueReviews?.items ?? fallbackDueReviews;
+  const dueReviewError = usesSuppliedDueReviews ? dueReviewsError : fallbackDueReviewError;
 
   useEffect(() => {
     if (!focusTaskId) return;
@@ -47,15 +65,21 @@ export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpen
   }, [focusTaskId]);
 
   function loadDueReviews() {
-    setDueReviewError('');
+    if (usesSuppliedDueReviews) {
+      onRetryDueReviews?.();
+      return;
+    }
+    setFallbackDueReviewError('');
     fetchDueReviews()
-      .then((r) => setDueReviews(r.items))
-      .catch(() => setDueReviewError('到期复习加载失败，请重试。'));
+      .then((r) => setFallbackDueReviews(r.items))
+      .catch(() => setFallbackDueReviewError('到期复习加载失败，请重试。'));
   }
 
   useEffect(() => {
-    loadDueReviews();
-  }, [plan.generatedAt]);
+    if (!usesSuppliedDueReviews) {
+      loadDueReviews();
+    }
+  }, [plan.generatedAt, usesSuppliedDueReviews]);
   async function handleComplete(taskId: string) {
     const task = plan.priorityTasks.find((item) => item.id === taskId);
     if (!task) return;
@@ -305,10 +329,10 @@ export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpen
       {actionError ? <div className="module-error"><span>{actionError}</span></div> : null}
 
       {/* Due reviews */}
-      {dueReviews.length > 0 ? (
+      {dueReviewItems.length > 0 ? (
         <div className="due-reviews">
-          <h4><RotateCcw size={16} /> 到期复习 ({dueReviews.length})</h4>
-          {dueReviews.slice(0, 3).map((item) => (
+          <h4><RotateCcw size={16} /> 到期复习 ({dueReviewItems.length})</h4>
+          {dueReviewItems.slice(0, 3).map((item) => (
             <div key={item.questionId} className={`review-row stability-${item.stability}`}>
               <div>
                 <strong>{item.knowledgePointTitle}</strong>
@@ -328,10 +352,11 @@ export function TodayPlan({ plan, student = null, focusTaskId, onRefresh, onOpen
         </div>
       ) : null}
 
+      {dueReviewsLoading ? <p className="task-status">正在加载到期复习...</p> : null}
       {dueReviewError ? (
         <div className="module-error">
           <span>{dueReviewError}</span>
-          <button type="button" className="secondary-action" onClick={loadDueReviews}>重新加载</button>
+          <button type="button" className="secondary-action" disabled={dueReviewsLoading} onClick={loadDueReviews}>重新加载</button>
         </div>
       ) : null}
 
