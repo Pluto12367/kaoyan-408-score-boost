@@ -24,6 +24,21 @@ const validActions = [
   { id: 'a-session', type: 'continue_session', title: 'Continue', destination: 'practice', source: 'session', context: { sessionId: 'session-1' } },
 ];
 
+const pureActionModules = [
+  'apps/web/src/features/student/actions/studentAction.ts',
+  'apps/web/src/features/student/actions/studentActionDestination.ts',
+  'apps/web/src/features/student/actions/studentActionCommand.ts',
+  'apps/web/src/features/student/actions/actionCandidates.ts',
+  'apps/web/src/features/student/actions/canonicalNextAction.ts',
+  'apps/web/src/features/student/actions/adapters/todayActionAdapter.ts',
+  'apps/web/src/features/student/actions/adapters/reviewActionAdapter.ts',
+  'apps/web/src/features/student/actions/adapters/knowledgeActionAdapter.ts',
+  'apps/web/src/features/student/actions/adapters/assessmentActionAdapter.ts',
+  'apps/web/src/features/student/actions/adapters/reportActionAdapter.ts',
+  'apps/web/src/features/student/actions/adapters/sessionActionAdapter.ts',
+  'apps/web/src/features/student/actions/adapters/trainingActionAdapter.ts',
+];
+
 test('StudentAction contract accepts representative actions and rejects invalid boundaries', async () => {
   const { isStudentAction } = await loadModule('apps/web/src/features/student/actions/studentAction.ts');
 
@@ -47,5 +62,26 @@ test('StudentAction contract accepts representative actions and rejects invalid 
   const source = await readFile(new URL('../apps/web/src/features/student/actions/studentAction.ts', import.meta.url), 'utf8');
   for (const forbidden of ['api/', 'React', 'Callback', 'Repository', 'Prisma', 'localStorage', 'fetch(']) {
     assert.equal(source.includes(forbidden), false, `${forbidden} must not be imported or referenced`);
+  }
+});
+
+test('pure action modules keep API and state boundaries out of runtime action data', async () => {
+  for (const path of pureActionModules) {
+    const source = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+    const runtimeImports = (source.match(/^\s*import(?!\s+type\b)[^\n]*$/gm) ?? []).join('\n');
+
+    assert.doesNotMatch(runtimeImports, /api(?:\/|['"])/i, `${path} must not have a runtime API import`);
+    for (const forbidden of [
+      /\bRecommendationService\b/i,
+      /\bStudentState(?:Store|Service|Repository|Writer)?\b/i,
+      /\b(?:write|save|persist|update)StudentState\b/i,
+      /\b(?:build|calculate|compute|derive|rank|score)(?:Mastery|ReviewPriority|WrongReviewPriority)\b/i,
+      /\bfetch\s*\(/i,
+      /\blocalStorage\b/i,
+      /\buse(?:State|Effect|Reducer|Callback|Memo)\b/i,
+      /\bon(?:Click|Navigate|Select|Review|Redo|Practice)\b/i,
+    ]) {
+      assert.doesNotMatch(source, forbidden, `${path} must remain a pure action data module`);
+    }
   }
 });

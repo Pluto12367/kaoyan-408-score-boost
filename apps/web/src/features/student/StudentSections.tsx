@@ -47,6 +47,8 @@ import { buildReviewActions } from './actions/adapters/reviewActionAdapter';
 import { buildTrainingActions } from './actions/adapters/trainingActionAdapter';
 import { buildTodayAction } from './actions/adapters/todayActionAdapter';
 import { selectCanonicalNextAction } from './actions/canonicalNextAction';
+import type { StudentActionCommandDescriptor } from './actions/studentActionCommand';
+import { toCommandDescriptor } from './actions/studentActionCommand';
 import type { StudentAction } from './actions/studentAction';
 import { StudentHome } from './home/StudentHome';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
@@ -123,11 +125,11 @@ export interface StudentSectionsProps {
   aiFollowUp: AiFollowUp | null;
   tutorStatus: string;
   tutorFailed: boolean;
-  onNavigate: (section: RoleSection) => void;
+  onNavigate: (section: RoleSection, command?: StudentActionCommandDescriptor) => void;
   onLaunchTodayTask: (task: TodayPlanTask) => void;
   onRetryTodayPlan: () => void;
   onOnboardingComplete: (result: Awaited<ReturnType<typeof import('../../api/endpoints/onboarding').completeOnboarding>>) => void;
-  onOpenReview: (questionId: string) => void;
+  onOpenReview: (questionId: string, command?: StudentActionCommandDescriptor) => void;
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
   onRetryStageReport: () => void;
@@ -149,7 +151,7 @@ export interface StudentSectionsProps {
   onRetryPracticeSet: () => void;
   onOpenDetail: (questionId: string) => void;
   onCloseDetail: () => void;
-  onOpenCatalog?: (nodeId: string) => void;
+  onOpenCatalog?: (nodeId: string, command?: StudentActionCommandDescriptor) => void;
   onReviewWrongQuestion: (questionId: string) => void;
   onRetryWrongQuestionSummary: () => void;
   onRedo: (questionId: string, knowledgePointTitle?: string) => void;
@@ -223,46 +225,73 @@ export function StudentSections(props: StudentSectionsProps) {
     assessment: buildAssessmentActions(props.stageResult),
   }));
   const onSelectCanonicalAction = (action: StudentAction) => {
+    const command = toCommandDescriptor(action);
+    if (!command) {
+      if (action.type === 'coach_explain') props.onNavigate('ai');
+      return;
+    }
+
     switch (action.type) {
       case 'today_task': {
-        const task = props.todayPlan?.priorityTasks.find((item) => item.id === action.context.taskId);
+        if (command.kind !== 'today') return;
+        const task = props.todayPlan?.priorityTasks.find((item) => item.id === action.context.taskId && item.id === command.taskId);
         if (task) props.onLaunchTodayTask(task);
         return;
       }
       case 'review_due':
-        props.onOpenReview(action.context.questionId);
+        if (command.kind === 'review') props.onOpenReview(action.context.questionId, command);
         return;
       case 'redo_wrong_question':
-        props.onRedo(action.context.questionId);
+        if (command.kind === 'redo') props.onRedo(action.context.questionId);
         return;
       case 'practice_recommended':
-        props.onNavigate('question');
+        if (command.kind === 'practice') props.onNavigate(command.section, command);
         return;
       case 'knowledge_explore':
-        if (props.onOpenCatalog) props.onOpenCatalog(action.context.knowledgeNodeId);
-        else props.onNavigate('knowledge-catalog');
+        if (command.kind !== 'catalog-node') return;
+        if (props.onOpenCatalog) props.onOpenCatalog(action.context.knowledgeNodeId, command);
+        else props.onNavigate('knowledge-catalog', command);
         return;
       case 'knowledge_quest':
-        props.onNavigate(action.destination === 'practice' ? 'question' : 'knowledge-catalog');
+        if (command.kind !== 'quest') return;
+        props.onNavigate(
+          action.destination === 'practice' ? 'question' : 'knowledge-catalog',
+          action.context.questionIds !== undefined ? { ...command, questionIds: action.context.questionIds } : command,
+        );
         return;
       case 'assessment_review':
-        props.onNavigate('test');
+        if (command.kind === 'assessment' && command.assessmentId === action.context.assessmentId) {
+          props.onNavigate('test', { ...command, assessmentId: action.context.assessmentId });
+        }
         return;
       case 'assessment_wrong_questions':
-        if (action.context.questionId) props.onOpenReview(action.context.questionId);
-        else props.onNavigate('wrong-book');
+        if (command.kind !== 'assessment' || command.assessmentId !== action.context.assessmentId) return;
+        const assessmentCommand = {
+          ...command,
+          assessmentId: action.context.assessmentId,
+          ...(action.context.questionId !== undefined ? { questionId: action.context.questionId } : {}),
+        };
+        if (action.context.questionId) props.onOpenReview(action.context.questionId, assessmentCommand);
+        else props.onNavigate('wrong-book', assessmentCommand);
         return;
       case 'assessment_practice':
-        props.onNavigate('question');
+        if (command.kind === 'assessment' && command.assessmentId === action.context.assessmentId) {
+          props.onNavigate('question', { ...command, assessmentId: action.context.assessmentId });
+        }
         return;
       case 'continue_session':
-        props.onNavigate(action.destination === 'test' ? 'test' : 'question');
+        if (command.kind === 'session-resume' && command.sessionId === action.context.sessionId) {
+          props.onNavigate(command.section, { ...command, sessionId: action.context.sessionId });
+        }
         return;
       case 'open_report':
-        props.onNavigate('test');
-        return;
-      case 'coach_explain':
-        props.onNavigate('ai');
+        if (command.kind === 'report') {
+          props.onNavigate('test', {
+            ...command,
+            ...(action.context.reportId !== undefined ? { reportId: action.context.reportId } : {}),
+            ...(action.context.assessmentId !== undefined ? { assessmentId: action.context.assessmentId } : {}),
+          });
+        }
         return;
     }
   };

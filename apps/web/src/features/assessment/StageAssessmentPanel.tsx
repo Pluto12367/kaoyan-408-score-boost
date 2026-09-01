@@ -2,6 +2,7 @@ import { ClipboardCheck, RefreshCw } from 'lucide-react';
 import type { StageAssessment, StageAssessmentResult } from '../../api';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { buildAssessmentActions } from '../student/actions/adapters/assessmentActionAdapter';
+import { toCommandDescriptor, type StudentActionCommandDescriptor } from '../student/actions/studentActionCommand';
 import type { StudentAction } from '../student/actions/studentAction';
 
 interface StageAssessmentPanelProps {
@@ -10,7 +11,7 @@ interface StageAssessmentPanelProps {
   status: string;
   onSubmit: () => void;
   onGenerate?: () => void;
-  onNavigate?: (section: RoleSection) => void;
+  onNavigate?: (section: RoleSection, command?: StudentActionCommandDescriptor) => void;
 }
 
 type AssessmentActionType = Extract<StudentAction['type'], 'assessment_review' | 'assessment_wrong_questions' | 'assessment_practice' | 'open_report'>;
@@ -89,7 +90,7 @@ export function StageAssessmentPanel({ assessment, result, status, onSubmit, onG
                     className="secondary-action assessment-action-button"
                     data-action-type={mappedAction?.type}
                     data-action-id={mappedAction?.id}
-                    onClick={() => onNavigate?.(action.target)}
+                    onClick={() => onNavigate?.(action.target, mappedAction ? toCommandDescriptor(mappedAction) ?? undefined : undefined)}
                     disabled={!onNavigate}
                   >
                     <strong>{action.label}</strong>

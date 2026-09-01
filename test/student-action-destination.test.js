@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import ts from 'typescript';
 
+const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+
 async function loadModule(path, dependencies = {}) {
   const source = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
   const output = ts.transpileModule(source, {
@@ -96,4 +98,18 @@ test('loads the destination mapping without React or API runtime dependencies', 
     assert.equal(source.includes(forbidden), false, `${forbidden} must not be referenced`);
   }
   await loadModule('apps/web/src/features/student/actions/studentActionDestination.ts');
+});
+
+test('destination and command ports expose only canonical navigation descriptors', async () => {
+  const destination = await source('apps/web/src/features/student/actions/studentActionDestination.ts');
+  const command = await source('apps/web/src/features/student/actions/studentActionCommand.ts');
+
+  for (const [path, moduleSource] of [
+    ['studentActionDestination.ts', destination],
+    ['studentActionCommand.ts', command],
+  ]) {
+    assert.doesNotMatch(moduleSource, /fetch\s*\(|localStorage|RecommendationService|StudentState|Prisma/i, `${path} must stay a navigation-only port`);
+    assert.doesNotMatch(moduleSource, /on(?:Click|Navigate|Select)\s*[:=]/, `${path} must not carry React callbacks`);
+  }
+  assert.doesNotMatch(command, /section:\s*['"](?:plan|score-center|report)['"]/, 'commands must use canonical RoleSection values');
 });

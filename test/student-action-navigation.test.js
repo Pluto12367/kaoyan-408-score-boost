@@ -247,23 +247,38 @@ test('uses supplied due review items in MistakeWorkspace priority selection', as
   assert.match(source, /onClick=\{onRetryDueReviews\}/);
 });
 
-test('keeps protected files outside the Task 10 source boundary', () => {
-  const task10Files = [
-    'apps/web/src/App.tsx',
-    'apps/web/src/features/student/StudentSections.tsx',
-    'apps/web/src/features/student/home/StudentHome.tsx',
-    'apps/web/src/components/TodayPlan.tsx',
-    'apps/web/src/features/mistakes/MistakeWorkspace.tsx',
-    'test/student-action-navigation.test.js',
-  ];
-  const protectedFiles = new Set([
+test('keeps protected practice, session, theme, shared, and backend files outside the action-spine boundary', async () => {
+  const protectedPaths = [
     'apps/web/src/components/ExamSession.tsx',
     'apps/web/src/features/practice/PracticePanel.tsx',
     'apps/web/src/hooks/usePracticeSession.ts',
     'apps/web/src/styles.css',
     'apps/web/src/theme-optimizations.css',
     'apps/web/src/theme/themePreference.ts',
-  ]);
+    'packages/shared/src/learning.ts',
+    'apps/api/src/main.ts',
+  ];
 
-  assert.equal(task10Files.some((path) => protectedFiles.has(path)), false);
+  for (const path of protectedPaths) {
+    const source = await readSource(path);
+    assert.doesNotMatch(source, /StudentAction|canonicalAction|actionCandidates|studentAction/, `${path} must remain outside the action-spine boundary`);
+  }
+});
+
+test('keeps exact action context at the StudentSections command composition boundary', async () => {
+  const source = await readSource('apps/web/src/features/student/StudentSections.tsx');
+
+  assert.match(source, /const onSelectCanonicalAction = \(action: StudentAction\) => \{/);
+  assert.match(source, /const command = toCommandDescriptor\(action\);[\s\S]*if \(!command\) \{[\s\S]*if \(action\.type === 'coach_explain'\) props\.onNavigate\('ai'\);[\s\S]*return;[\s\S]*\}/);
+  assert.match(source, /case 'today_task':[\s\S]*action\.context\.taskId[\s\S]*props\.onLaunchTodayTask/);
+  assert.match(source, /case 'review_due':[\s\S]*props\.onOpenReview\(action\.context\.questionId,\s*command\)/);
+  assert.match(source, /case 'redo_wrong_question':[\s\S]*props\.onRedo\(action\.context\.questionId\)/);
+  assert.match(source, /case 'practice_recommended':[\s\S]*action\.context\.(?:questionId|knowledgeNodeId|taskId)/);
+  assert.match(source, /case 'knowledge_explore':[\s\S]*action\.context\.knowledgeNodeId/);
+  assert.match(source, /case 'knowledge_quest':[\s\S]*action\.context\.questionIds/);
+  assert.match(source, /case 'assessment_review':[\s\S]*action\.context\.assessmentId/);
+  assert.match(source, /case 'assessment_wrong_questions':[\s\S]*action\.context\.assessmentId/);
+  assert.match(source, /case 'assessment_practice':[\s\S]*action\.context\.assessmentId/);
+  assert.match(source, /case 'open_report':[\s\S]*action\.context\.reportId/);
+  assert.match(source, /case 'continue_session':[\s\S]*action\.context\.sessionId/);
 });

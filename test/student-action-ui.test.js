@@ -285,7 +285,7 @@ test('Stage assessment keeps legacy plan and report aliases on the existing navi
   assert.match(panel, /data-action-type=\{mappedAction\?\.type\}/);
   assert.match(panel, /target: 'plan'/);
   assert.match(panel, /target: 'report'/);
-  assert.match(panel, /onNavigate\?\.\(action\.target\)/);
+  assert.match(panel, /onNavigate\?\.\(action\.target, mappedAction \? toCommandDescriptor\(mappedAction\) \?\? undefined : undefined\)/);
 });
 
 test('Stage assessment shared action descriptors stay free of React callbacks', async () => {
@@ -330,4 +330,23 @@ test('Session resume keeps the exact session ID and existing StudentSections cal
 
   assert.match(sessionAdapter, /context: \{ sessionId: session\.id \}/);
   assert.match(sections, /<StudentLaunchpad[\s\S]*onResumeSession=\{props\.onResumeSession\}/);
+});
+
+test('student entry surfaces converge on canonical CTA markers while preserving each action context', async () => {
+  const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
+  const review = await source('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
+  const knowledge = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+  const assessment = await source('apps/web/src/features/assessment/StageAssessmentPanel.tsx');
+  const training = await source('apps/web/src/features/practice/training-room/TrainingSummary.tsx');
+  const session = await source('apps/web/src/features/student/actions/adapters/sessionActionAdapter.ts');
+
+  assert.match(home, /canonicalAction: StudentAction \| null;[\s\S]*onSelectCanonicalAction: \(action: StudentAction\) => void;/);
+  assert.match(home, /<StudentActionCard[\s\S]*action=\{canonicalAction\}[\s\S]*onSelect=\{onSelectCanonicalAction\}/);
+  assert.match(review, /buildReviewActions\([\s\S]*reviewActions/);
+  assert.match(review, /onOpenReview=\{\(action\) => onReview\(action\.context\.questionId\)\}/);
+  assert.match(knowledge, /buildKnowledgeActions\([\s\S]*knowledgeNodeId/);
+  assert.match(knowledge, /onStartQuest\?\.\([\s\S]*questAction\.context\.knowledgeNodeId[\s\S]*questAction\.context\.questionIds/);
+  assert.match(assessment, /data-assessment-id=\{assessmentId\}[\s\S]*data-assessment-action-types=\{assessmentActions\.map/);
+  assert.match(training, /<StudentActionCard[\s\S]*action=\{action\}[\s\S]*onSelect=\{onSelectAction\}/);
+  assert.match(session, /context: \{ sessionId: session\.id \}/);
 });

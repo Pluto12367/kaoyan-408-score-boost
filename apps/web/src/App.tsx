@@ -98,6 +98,7 @@ import {
   createInitialPaperSession,
 } from './constants';
 import { isStudentOverviewReady, resolveSessionQuestions, shouldHydrateSessionFromOverview } from './studentSessionPolicy';
+import type { StudentActionCommandDescriptor } from './features/student/actions/studentActionCommand';
 
 // Phase 3.3: route/section-level code splitting — heavy workspaces load on demand.
 // Student section workspaces live in features/student/StudentSections (Phase 3.4).
@@ -253,6 +254,25 @@ export function App() {
     updateAssessmentHistory,
   } = studentLearning;
   const { activeSection, setActiveSection, visibleSection, resetSectionForRole } = useRoleSectionNavigation(sessionUser?.role);
+
+  function handleStudentNavigate(section: RoleSection, command?: StudentActionCommandDescriptor) {
+    if (command?.kind === 'quest' && command.questionIds?.length) {
+      setQuestContext((current) => ({
+        nodeId: command.knowledgeNodeId,
+        title: current?.nodeId === command.knowledgeNodeId ? current.title : '',
+        questionIds: [...command.questionIds!],
+      }));
+      setQuestResults([]);
+      setQuestState(null);
+      setQuestError('');
+    }
+    if (command?.kind === 'assessment'
+      && command.assessmentId === stageResult?.id
+      && command.questionId) {
+      setDetailQuestionId(command.questionId);
+    }
+    setActiveSection(section);
+  }
 
   useEffect(() => {
     if (todayTaskLaunchContext && activeSection !== todayTaskLaunchContext.destination) {
@@ -1468,11 +1488,12 @@ paperId: paper.id,
             aiFollowUp={aiFollowUp}
             tutorStatus={tutorStatus}
             tutorFailed={tutorFailed}
-            onNavigate={setActiveSection}
+            onNavigate={handleStudentNavigate}
             onLaunchTodayTask={handleLaunchTodayTask}
             onRetryTodayPlan={refreshTodayPlan}
             onOnboardingComplete={handleOnboardingComplete}
-            onOpenReview={(questionId) => {
+            onOpenReview={(questionId, command) => {
+              if (command?.kind === 'assessment' && command.assessmentId !== stageResult?.id) return;
               setDetailQuestionId(questionId);
               setActiveSection('wrong-book');
             }}

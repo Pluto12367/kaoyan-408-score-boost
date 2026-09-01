@@ -378,6 +378,25 @@ test('Knowledge: adapter source remains free of navigation, mastery, and fetch c
   assert.doesNotMatch(source, /fetchMyMastery|fetchKnowledgeDetail|onNavigate|navigate\s*\(|fetch\s*\(/);
 });
 
+test('all action adapters emit data-only contexts without network or recommendation calculations', async () => {
+  const paths = [
+    'apps/web/src/features/student/actions/adapters/todayActionAdapter.ts',
+    'apps/web/src/features/student/actions/adapters/reviewActionAdapter.ts',
+    'apps/web/src/features/student/actions/adapters/knowledgeActionAdapter.ts',
+    'apps/web/src/features/student/actions/adapters/assessmentActionAdapter.ts',
+    'apps/web/src/features/student/actions/adapters/reportActionAdapter.ts',
+    'apps/web/src/features/student/actions/adapters/sessionActionAdapter.ts',
+    'apps/web/src/features/student/actions/adapters/trainingActionAdapter.ts',
+  ];
+
+  for (const path of paths) {
+    const source = await readFile(new URL(`../${path}`, import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /fetch\s*\(|authenticatedFetch|localStorage|RecommendationService|StudentState|Prisma/i, `${path} must not perform I/O or state writes`);
+    assert.doesNotMatch(source, /(?:build|calculate|compute|derive|rank|score)(?:Mastery|ReviewPriority|WrongReviewPriority)/i, `${path} must consume existing evidence rather than recalculate it`);
+    assert.doesNotMatch(source, /on(?:Click|Navigate|Select|Review|Redo|Practice)\s*[:=]/, `${path} must not own React callbacks`);
+  }
+});
+
 function assessmentResult(overrides = {}) {
   return {
     id: 'assessment-1', userId: 'u-1', submittedAt: '2026-08-31T08:00:00.000Z',
