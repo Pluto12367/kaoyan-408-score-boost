@@ -23,6 +23,8 @@ import type { RoleSection } from '../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import { ContextualCoach } from '../../components/ContextualCoach';
 import { sectionFallback } from '../../components/sectionFallback';
+import { buildAssessmentActions } from '../student/actions/adapters/assessmentActionAdapter';
+import type { StudentAction } from '../student/actions/studentAction';
 
 const ReportWorkspace = lazy(() => import('../report/ReportWorkspace').then((m) => ({ default: m.ReportWorkspace })));
 const StageAssessmentPanel = lazy(() => import('../assessment/StageAssessmentPanel').then((m) => ({ default: m.StageAssessmentPanel })));
@@ -64,6 +66,11 @@ interface TestSectionProps {
 
 // V3 测试中心：顶部为阶段测评入口，下方保留完整提分报告工作台。
 export function TestSection(props: TestSectionProps) {
+  const assessmentActions = buildAssessmentActions(props.stageResult);
+  const assessmentAction = assessmentActions.find(
+    (action): action is Extract<StudentAction, { type: 'assessment_review' }> => action.type === 'assessment_review',
+  );
+
   return (
     <div className="test-section student-section student-section-test">
       <section className="panel test-section-entry" aria-label="阶段测评入口">
@@ -86,7 +93,7 @@ export function TestSection(props: TestSectionProps) {
         </Suspense>
         {props.stageResult ? (
           <ContextualCoach
-            request={{ contextType: 'assessment', assessmentId: props.stageResult.id }}
+            request={{ contextType: 'assessment', assessmentId: assessmentAction?.context.assessmentId ?? props.stageResult.id }}
             title="测评结果 Contextual AI Coach"
             prompt="请结合这次测评的薄弱项和错题方向，给出下一步学习建议。"
           />

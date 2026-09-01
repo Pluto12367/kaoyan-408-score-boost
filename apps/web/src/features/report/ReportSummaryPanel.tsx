@@ -7,6 +7,8 @@ import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
 import { buildReportNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
+import { buildReportActions } from '../student/actions/adapters/reportActionAdapter';
+import { toRoleSection } from '../student/actions/studentActionDestination';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -95,6 +97,16 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
     todayPlan: todayPlan ?? null,
     learningProfile: learningProfile ?? null,
   });
+  const reportActions = buildReportActions({
+    scopeKey: 'summary',
+    insights: learningInsights.map((insight) => ({ action: insight.action })),
+  });
+  const reportAction = reportActions.find((action) => action.type === 'open_report');
+  const mistakeAction = reportActions.find((action) => action.type === 'assessment_wrong_questions');
+  const practiceAction = reportActions.find((action) => action.type === 'assessment_practice');
+  const reportActionTarget = toRoleSection(reportAction?.destination ?? 'test');
+  const mistakeActionTarget = toRoleSection(mistakeAction?.destination ?? 'review');
+  const practiceActionTarget = toRoleSection(practiceAction?.destination ?? 'practice');
 
   const longTermWeakPoints = useMemo(() => {
     const weak = (masteryMap?.subjects ?? []).flatMap((subject) =>
@@ -113,7 +125,8 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
         ? `还有 ${wrongQuestionSummary?.pendingCount ?? stageReport?.wrong.pendingCount ?? 0} 道错题待复盘，先把丢分点变成可修复动作。`
         : '当前待复盘压力不高，保持错题复盘节奏即可。',
       action: '去错题本',
-      onClick: () => onNavigate('wrong-book'),
+      target: mistakeActionTarget,
+      onClick: () => onNavigate(mistakeActionTarget),
     },
     {
       title: '训练薄弱知识点',
@@ -121,7 +134,8 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
         ? `优先训练：${report.weakPoints[0].title}，对应 ${report.weakPoints[0].chapter}。`
         : '暂无明确薄弱点时，用推荐题组继续积累数据。',
       action: '去练习',
-      onClick: () => onNavigate('question'),
+      target: practiceActionTarget,
+      onClick: () => onNavigate(practiceActionTarget),
     },
     {
       title: '回到今日任务',
@@ -129,6 +143,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
         ? '把报告建议落到今天的任务里，完成后再回来观察掌握度变化。'
         : '暂无今日任务数据，先完成诊断或重新加载计划。完成入学诊断后，系统会为你生成唯一主行动。',
       action: '回到首页',
+      target: 'dashboard' as RoleSection,
       onClick: () => onNavigate('dashboard'),
     },
   ];
@@ -208,7 +223,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
 
       <NextLearningStepCard step={reportNextLearningStep} onNavigate={onNavigate} />
 
-      <div className="report-action-plan">
+      <div className="report-action-plan" data-report-action-target={reportActionTarget}>
         <div className="report-action-plan-head">
           <h4>下一步学习建议</h4>
           <span>报告不是终点，下一步要落到练习和复盘。</span>
@@ -225,7 +240,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
         />
         <div className="report-action-grid">
           {reportActionPlan.map((item) => (
-            <article key={item.title} className="report-action-card">
+            <article key={item.title} className="report-action-card" data-action-target={item.target}>
               <strong>{item.title}</strong>
               <p>{item.description}</p>
               <button type="button" className="secondary-action" onClick={item.onClick}>{item.action}</button>

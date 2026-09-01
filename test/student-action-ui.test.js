@@ -206,3 +206,14 @@ test('Knowledge catalog keeps one mastery request and does not add a second fetc
   assert.equal((catalog.match(/fetchMyMastery\(/g) ?? []).length, 1);
   assert.doesNotMatch(catalog, /fetchKnowledgeDetail\([\s\S]*fetchMyMastery\(/);
 });
+
+test('Assessment and report results consume structured action context without changing legacy edges', async () => {
+  const testSection = await source('apps/web/src/features/test/TestSection.tsx');
+  const reportPanel = await source('apps/web/src/features/report/ReportSummaryPanel.tsx');
+
+  assert.match(testSection, /const assessmentActions = buildAssessmentActions\(props\.stageResult\);[\s\S]*assessmentAction\?\.context\.assessmentId/);
+  assert.match(reportPanel, /const reportActions = buildReportActions\([\s\S]*scopeKey:[\s\S]*learningInsights/);
+  assert.match(reportPanel, /const mistakeAction = reportActions\.find\(\(action\) => action\.type === 'assessment_wrong_questions'\);[\s\S]*toRoleSection\(mistakeAction\?\.destination \?\? 'review'\)/);
+  assert.match(reportPanel, /const practiceAction = reportActions\.find\(\(action\) => action\.type === 'assessment_practice'\);[\s\S]*toRoleSection\(practiceAction\?\.destination \?\? 'practice'\)/);
+  assert.match(testSection, /request=\{\{ contextType: 'assessment', assessmentId: assessmentAction\?\.context\.assessmentId \?\? props\.stageResult\.id \}\}/);
+});
