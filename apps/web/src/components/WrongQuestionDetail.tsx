@@ -53,12 +53,9 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
     };
   }, [questionId]);
 
-  if (error) return <div className="panel"><p className="task-status">加载失败: {error}</p></div>;
-  if (!detail) return <div className="panel"><p className="task-status">加载中...</p></div>;
-
-  const rs = detail.reviewSchedule;
-  const latestAttempt = detail.attemptHistory[0];
-  const evidenceSummary = useMemo(() => buildKnowledgeEvidenceSummary({
+  const rs = detail?.reviewSchedule;
+  const latestAttempt = detail?.attemptHistory[0];
+  const evidenceSummary = useMemo(() => detail ? buildKnowledgeEvidenceSummary({
     point: {
       id: detail.questionId,
       name: detail.knowledgePointTitle,
@@ -98,10 +95,13 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
       score: null,
       summary: detail.reviewLayers.original.stem,
     }] : []),
-    relatedQuestionsCount: detail.similarQuestions.length,
-    prerequisiteCount: detail.reviewLayers.confusingConcepts.length,
-    relatedCount: detail.reviewLayers.variants.length + detail.reviewLayers.comprehensive.length,
-  }), [detail, examLinks, rs]);
+    relatedQuestionsCount: detail?.similarQuestions.length ?? 0,
+    prerequisiteCount: detail?.reviewLayers.confusingConcepts.length ?? 0,
+    relatedCount: (detail?.reviewLayers.variants.length ?? 0) + (detail?.reviewLayers.comprehensive.length ?? 0),
+  }) : null, [detail, examLinks, rs]);
+
+  if (error) return <div className="panel"><p className="task-status">加载失败: {error}</p></div>;
+  if (!detail) return <div className="panel"><p className="task-status">加载中...</p></div>;
 
   async function handleSaveNote() {
     setNoteSaving(true);
@@ -276,7 +276,7 @@ export function WrongQuestionDetailView({ questionId, onRedo, onPracticeVariant,
               <span>关联考点 <strong>{examLinks.summary.nodeCount}</strong> 个</span>
             </div>
             <div className="catalog-evidence-grid wrong-question-evidence-grid">
-              {evidenceSummary.cards.map((card) => (
+              {evidenceSummary?.cards.map((card) => (
                 <article key={card.title} className={`catalog-evidence-card catalog-evidence-tone-${card.tone}`}>
                   <strong>{card.title}</strong>
                   <p>{card.value}</p>
