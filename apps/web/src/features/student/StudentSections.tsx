@@ -41,6 +41,12 @@ import { TrainingHero } from '../practice/training-room/TrainingHero';
 import { TrainingProgress } from '../practice/training-room/TrainingProgress';
 import { TrainingSummary } from '../practice/training-room/TrainingSummary';
 import { buildTrainingRoomViewModel } from '../practice/training-room/trainingRoomViewModel';
+import { buildStudentActionCandidates } from './actions/actionCandidates';
+import { buildAssessmentActions } from './actions/adapters/assessmentActionAdapter';
+import { buildReviewActions } from './actions/adapters/reviewActionAdapter';
+import { buildTodayAction } from './actions/adapters/todayActionAdapter';
+import { selectCanonicalNextAction } from './actions/canonicalNextAction';
+import type { StudentAction } from './actions/studentAction';
 import { StudentHome } from './home/StudentHome';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
@@ -194,6 +200,61 @@ export function StudentSections(props: StudentSectionsProps) {
         }
       : null,
   });
+  const reviewActions = buildReviewActions({
+    dueReviews: dueReviews?.items ?? [],
+    priorityRedoItems: props.wrongQuestionSummary.data?.priorityRedoItems ?? [],
+    displayFallbackItems: props.wrongQuestions,
+  });
+  const canonicalAction = selectCanonicalNextAction(buildStudentActionCandidates({
+    todayAction: props.todayPlan ? buildTodayAction(props.todayPlan) : null,
+    review: reviewActions.filter((action) => action.type === 'review_due'),
+    wrongQuestion: reviewActions.filter((action) => action.type === 'redo_wrong_question'),
+    assessment: buildAssessmentActions(props.stageResult),
+  }));
+  const onSelectCanonicalAction = (action: StudentAction) => {
+    switch (action.type) {
+      case 'today_task': {
+        const task = props.todayPlan?.priorityTasks.find((item) => item.id === action.context.taskId);
+        if (task) props.onLaunchTodayTask(task);
+        return;
+      }
+      case 'review_due':
+        props.onOpenReview(action.context.questionId);
+        return;
+      case 'redo_wrong_question':
+        props.onRedo(action.context.questionId);
+        return;
+      case 'practice_recommended':
+        props.onNavigate('question');
+        return;
+      case 'knowledge_explore':
+        if (props.onOpenCatalog) props.onOpenCatalog(action.context.knowledgeNodeId);
+        else props.onNavigate('knowledge-catalog');
+        return;
+      case 'knowledge_quest':
+        props.onNavigate(action.destination === 'practice' ? 'question' : 'knowledge-catalog');
+        return;
+      case 'assessment_review':
+        props.onNavigate('test');
+        return;
+      case 'assessment_wrong_questions':
+        if (action.context.questionId) props.onOpenReview(action.context.questionId);
+        else props.onNavigate('wrong-book');
+        return;
+      case 'assessment_practice':
+        props.onNavigate('question');
+        return;
+      case 'continue_session':
+        props.onNavigate(action.destination === 'test' ? 'test' : 'question');
+        return;
+      case 'open_report':
+        props.onNavigate('test');
+        return;
+      case 'coach_explain':
+        props.onNavigate('ai');
+        return;
+    }
+  };
 
   return (
     <div className="student-workspace-sections">
@@ -219,6 +280,8 @@ export function StudentSections(props: StudentSectionsProps) {
                 onLaunchTodayTask={props.onLaunchTodayTask}
                 onRefreshTodayPlan={props.onRetryTodayPlan}
                 onOpenReview={props.onOpenReview}
+                canonicalAction={canonicalAction}
+                onSelectCanonicalAction={onSelectCanonicalAction}
               />
               {!props.todayPlan && isMockAllowed() ? (
                 <Suspense fallback={sectionFallback('学习计划')}>

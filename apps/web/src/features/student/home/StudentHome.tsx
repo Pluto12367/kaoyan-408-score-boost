@@ -4,6 +4,8 @@ import type { RoleSection } from '../../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../../api/endpoints/onboarding';
 import type { DueReviewsResponse } from '../../../api/endpoints/review';
 import type { TodayPlanTask } from '../../onboarding/todayLearningRoute';
+import type { StudentAction } from '../actions/studentAction';
+import { StudentActionCard } from '../actions/StudentActionCard';
 import { useDashboardViewModel } from './useDashboardViewModel';
 import { DashboardHero } from './components/DashboardHero';
 import { StudentStateCard } from './components/StudentStateCard';
@@ -33,6 +35,8 @@ interface StudentHomeProps {
   onLaunchTodayTask: (task: TodayPlanTask) => void;
   onRefreshTodayPlan: () => void;
   onOpenReview?: (questionId: string) => void;
+  canonicalAction: StudentAction | null;
+  onSelectCanonicalAction: (action: StudentAction) => void;
 }
 
 export function StudentHome({
@@ -53,6 +57,8 @@ export function StudentHome({
   onLaunchTodayTask,
   onRefreshTodayPlan,
   onOpenReview,
+  canonicalAction,
+  onSelectCanonicalAction,
 }: StudentHomeProps) {
   const model = useDashboardViewModel({ student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar });
   const openCoach = () => onNavigate('ai');
@@ -63,6 +69,9 @@ export function StudentHome({
       <div className="dashboard-main-grid">
         <div className="dashboard-primary-column">
           <StudentStateCard model={model} onNavigate={() => onNavigate('knowledge-catalog')} />
+          {canonicalAction ? (
+            <StudentActionCard action={canonicalAction} onSelect={onSelectCanonicalAction} />
+          ) : null}
           <TodayMission model={model} loading={todayPlanLoading} error={todayPlanError} onLaunch={onLaunchTodayTask} onRefresh={onRefreshTodayPlan} />
           {todayPlan ? (
             <details className="dashboard-plan-details">
