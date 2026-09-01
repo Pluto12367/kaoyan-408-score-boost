@@ -851,6 +851,7 @@ export function App() {
       await refreshSprintPlan();
       await refreshMasteryMap();
       await refreshWrongQuestionSummary();
+      await refreshDueReviews();
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -1755,6 +1756,7 @@ paperId: paper.id,
               refreshStudyReminders(),
               refreshMasteryMap(),
               refreshWrongQuestionSummary(),
+              refreshDueReviews(),
             ]);
           }}
         />
