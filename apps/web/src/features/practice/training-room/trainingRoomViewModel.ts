@@ -1,3 +1,5 @@
+import type { StudentAction } from '../../student/actions/studentAction';
+
 export type TrainingRoomSource = 'today_task' | 'practice_set' | 'stage_assessment' | 'paper' | 'question_bank';
 
 export interface TrainingRoomProgressInput {
@@ -16,6 +18,7 @@ export interface TrainingRoomResultInput {
   correctCount?: number;
   accuracyRate?: number;
   nextActions?: string[];
+  actions?: readonly StudentAction[];
 }
 
 export interface TrainingRoomViewModelInput {
@@ -40,6 +43,7 @@ export interface TrainingRoomResult {
   correctCount?: number;
   accuracyRate?: number;
   nextActions: string[];
+  actions?: StudentAction[];
 }
 
 export interface TrainingRoomViewModel {
@@ -86,6 +90,7 @@ export function buildTrainingRoomViewModel(input: TrainingRoomViewModelInput): T
         ...(input.result.correctCount == null ? {} : { correctCount: input.result.correctCount }),
         ...(input.result.accuracyRate == null ? {} : { accuracyRate: input.result.accuracyRate }),
         nextActions: [...(input.result.nextActions ?? [])],
+        ...(input.result.actions == null ? {} : { actions: [...input.result.actions] }),
       }
     : null;
 

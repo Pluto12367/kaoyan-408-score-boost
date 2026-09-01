@@ -44,6 +44,7 @@ import { buildTrainingRoomViewModel } from '../practice/training-room/trainingRo
 import { buildStudentActionCandidates } from './actions/actionCandidates';
 import { buildAssessmentActions } from './actions/adapters/assessmentActionAdapter';
 import { buildReviewActions } from './actions/adapters/reviewActionAdapter';
+import { buildTrainingActions } from './actions/adapters/trainingActionAdapter';
 import { buildTodayAction } from './actions/adapters/todayActionAdapter';
 import { selectCanonicalNextAction } from './actions/canonicalNextAction';
 import type { StudentAction } from './actions/studentAction';
@@ -182,6 +183,15 @@ export function StudentSections(props: StudentSectionsProps) {
     : practiceSet
       ? 'practice_set' as const
       : 'question_bank' as const;
+  const trainingActions = props.practiceSetResult
+    ? buildTrainingActions({
+      sourceId: props.practiceSetResult.practiceSetId,
+      source: trainingSource,
+      nextActions: props.practiceSetResult.nextActions,
+      questionId: props.practiceSetResult.results[0]?.questionId,
+      taskId: launchedQuestionTask?.id,
+    })
+    : [];
   const trainingModel = buildTrainingRoomViewModel({
     source: trainingSource,
     title: launchedQuestionTask?.title ?? practiceSet?.title ?? '题库训练',
@@ -197,6 +207,7 @@ export function StudentSections(props: StudentSectionsProps) {
           correctCount: props.practiceSetResult.correctCount,
           accuracyRate: props.practiceSetResult.accuracyRate,
           nextActions: props.practiceSetResult.nextActions,
+          actions: trainingActions,
         }
       : null,
   });
@@ -413,7 +424,7 @@ export function StudentSections(props: StudentSectionsProps) {
               ) : null}
               <WeaknessReportPanel report={report} />
               </section>
-              <TrainingSummary model={trainingModel} />
+              <TrainingSummary model={trainingModel} onSelectAction={onSelectCanonicalAction} />
               <ReviewResourcesPanel resources={props.reviewResources} onRetry={props.onRetryReviewResources} />
             </div>
           ) : (

@@ -217,3 +217,40 @@ test('Assessment and report results consume structured action context without ch
   assert.match(reportPanel, /const practiceAction = reportActions\.find\(\(action\) => action\.type === 'assessment_practice'\);[\s\S]*toRoleSection\(practiceAction\?\.destination \?\? 'practice'\)/);
   assert.match(testSection, /request=\{\{ contextType: 'assessment', assessmentId: assessmentAction\?\.context\.assessmentId \?\? props\.stageResult\.id \}\}/);
 });
+
+test('Training summary renders an explicit structured Training action', async () => {
+  const summary = await source('apps/web/src/features/practice/training-room/TrainingSummary.tsx');
+
+  assert.match(
+    summary,
+    /<StudentActionCard[\s\S]*?action=\{action\}[\s\S]*?onSelect=\{onSelectAction\}/,
+    'explicit Training actions should use the canonical action card',
+  );
+});
+
+test('Training summary keeps string-only next actions as text', async () => {
+  const summary = await source('apps/web/src/features/practice/training-room/TrainingSummary.tsx');
+
+  assert.match(
+    summary,
+    /const structuredActions = result\.actions \?\? \[\];[\s\S]*structuredActions\.map\(\(action\) => \([\s\S]*?<StudentActionCard[\s\S]*result\.nextActions\.map\(\(action\) => <li key=\{action\}>\{action\}<\/li>\)/,
+    'structured actions must not replace legacy string-only next-action text',
+  );
+});
+
+test('TrainingSummary stays presentation-only while rendering structured actions', async () => {
+  const summary = await source('apps/web/src/features/practice/training-room/TrainingSummary.tsx');
+
+  assert.match(summary, /StudentActionCard/, 'structured actions should be rendered by the summary');
+  for (const forbidden of ['fetch(', 'submit', 'useState', 'useEffect', 'localStorage', 'setState']) {
+    assert.equal(summary.includes(forbidden), false, `${forbidden} must not appear in TrainingSummary`);
+  }
+});
+
+test('Session resume keeps the exact session ID and existing StudentSections callback wiring', async () => {
+  const sessionAdapter = await source('apps/web/src/features/student/actions/adapters/sessionActionAdapter.ts');
+  const sections = await source('apps/web/src/features/student/StudentSections.tsx');
+
+  assert.match(sessionAdapter, /context: \{ sessionId: session\.id \}/);
+  assert.match(sections, /<StudentLaunchpad[\s\S]*onResumeSession=\{props\.onResumeSession\}/);
+});
