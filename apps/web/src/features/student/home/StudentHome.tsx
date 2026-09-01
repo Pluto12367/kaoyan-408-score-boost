@@ -70,7 +70,9 @@ export function StudentHome({
         <div className="dashboard-primary-column">
           <StudentStateCard model={model} onNavigate={() => onNavigate('knowledge-catalog')} />
           {canonicalAction ? (
-            <StudentActionCard action={canonicalAction} onSelect={onSelectCanonicalAction} />
+            <section className="dashboard-canonical-action-region" aria-label="首页核心行动">
+              <StudentActionCard action={canonicalAction} onSelect={onSelectCanonicalAction} />
+            </section>
           ) : null}
           <TodayMission model={model} loading={todayPlanLoading} error={todayPlanError} onLaunch={onLaunchTodayTask} onRefresh={onRefreshTodayPlan} />
           {todayPlan ? (
@@ -96,7 +98,9 @@ export function StudentHome({
         </div>
         <div className="dashboard-secondary-column">
           <AIInsightCard model={model} onNavigate={openCoach} />
-          <QuickActions onNavigate={onNavigate} />
+          <aside className="dashboard-secondary-actions" aria-label="次要快捷入口">
+            <QuickActions onNavigate={onNavigate} />
+          </aside>
           <div className="dashboard-streak-strip"><strong>{learningCalendar.streakDays}</strong><span>天连续学习<br /><small>今日 {learningCalendar.today.practiceCount} 次练习</small></span></div>
         </div>
       </div>

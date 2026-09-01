@@ -43,6 +43,52 @@ test('Home renders no primary action when the canonical action is null', async (
   assert.doesNotMatch(home, /canonicalActions/);
 });
 
+test('Home exposes exactly one named canonical action region', async () => {
+  const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
+
+  assert.equal((home.match(/dashboard-canonical-action-region/g) ?? []).length, 1);
+  assert.match(
+    home,
+    /<section className="dashboard-canonical-action-region" aria-label="首页核心行动">[\s\S]*?<StudentActionCard[\s\S]*?onSelect=\{onSelectCanonicalAction\}/,
+  );
+});
+
+test('QuickActions stays explicitly secondary to the canonical home action', async () => {
+  const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
+
+  assert.match(
+    home,
+    /<aside className="dashboard-secondary-actions" aria-label="次要快捷入口">[\s\S]*?<QuickActions onNavigate=\{onNavigate\} \/>[\s\S]*?<\/aside>/,
+  );
+});
+
+test('Home preserves the existing Today and Review callback names while grouping actions', async () => {
+  const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
+
+  assert.match(home, /dashboard-canonical-action-region/);
+  assert.match(home, /onLaunch=\{onLaunchTodayTask\}/);
+  assert.match(home, /onRefresh=\{onRefreshTodayPlan\}/);
+  assert.match(home, /onRetryDueReviews=\{onRetryDueReviews\}/);
+  assert.match(home, /onOpenReview=\{onOpenReview\}/);
+});
+
+test('Home keeps the legacy home components and imports available', async () => {
+  const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
+  const sections = await source('apps/web/src/features/student/StudentSections.tsx');
+  const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
+  const nextStep = await source('apps/web/src/features/student/NextLearningStepCard.tsx');
+
+  assert.match(home, /dashboard-canonical-action-region/);
+  for (const marker of ['DashboardHero', 'StudentStateCard', 'TodayMission', 'AIInsightCard', 'LearningTrend', 'QuickActions']) {
+    assert.match(home, new RegExp(marker), `${marker} must remain in StudentHome`);
+  }
+  assert.match(sections, /StudentLaunchpad/);
+  assert.match(sections, /StudyPlanOverview/);
+  assert.match(sections, /LearningProfileCard/);
+  assert.match(launchpad, /export function StudentLaunchpad/);
+  assert.match(nextStep, /export function NextLearningStepCard/);
+});
+
 test('ActionCard stays free of fetches, submission, recommendation, state writes, and providers', async () => {
   const card = await source('apps/web/src/features/student/actions/StudentActionCard.tsx');
 
