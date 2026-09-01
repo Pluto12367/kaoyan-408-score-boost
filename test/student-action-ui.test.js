@@ -264,6 +264,37 @@ test('Assessment and report results consume structured action context without ch
   assert.match(testSection, /request=\{\{ contextType: 'assessment', assessmentId: assessmentAction\?\.context\.assessmentId \?\? props\.stageResult\.id \}\}/);
 });
 
+test('Stage assessment results render distinct shared review, wrong-question, practice, and report semantics', async () => {
+  const panel = await source('apps/web/src/features/assessment/StageAssessmentPanel.tsx');
+
+  assert.match(panel, /const assessmentActions = result \? buildAssessmentActions\(result\) : \[\];/);
+  for (const type of ['assessment_review', 'assessment_wrong_questions', 'assessment_practice', 'open_report']) {
+    assert.match(panel, new RegExp(`'${type}'`), `${type} should remain a distinct assessment semantic`);
+  }
+});
+
+test('Stage assessment actions retain the exact result ID as assessment context', async () => {
+  const panel = await source('apps/web/src/features/assessment/StageAssessmentPanel.tsx');
+
+  assert.match(panel, /const assessmentId = assessmentReviewAction\?\.context\.assessmentId \?\? result\?\.id \?\? null;/);
+});
+
+test('Stage assessment keeps legacy plan and report aliases on the existing navigation edge', async () => {
+  const panel = await source('apps/web/src/features/assessment/StageAssessmentPanel.tsx');
+
+  assert.match(panel, /data-action-type=\{mappedAction\?\.type\}/);
+  assert.match(panel, /target: 'plan'/);
+  assert.match(panel, /target: 'report'/);
+  assert.match(panel, /onNavigate\?\.\(action\.target\)/);
+});
+
+test('Stage assessment shared action descriptors stay free of React callbacks', async () => {
+  const panel = await source('apps/web/src/features/assessment/StageAssessmentPanel.tsx');
+
+  assert.match(panel, /studentActionType\?: AssessmentActionType/);
+  assert.doesNotMatch(panel, /studentActionType[\s\S]{0,300}onClick/);
+});
+
 test('Training summary renders an explicit structured Training action', async () => {
   const summary = await source('apps/web/src/features/practice/training-room/TrainingSummary.tsx');
 
