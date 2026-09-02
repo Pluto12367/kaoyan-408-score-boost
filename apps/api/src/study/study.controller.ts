@@ -32,6 +32,7 @@ import { CurrentUser } from '../auth/current-user.decorator';
 import type { UserProfile } from '@kaoyan408/shared';
 import { ContextualCoachService } from './contextual-coach.service';
 import type { ContextualCoachRequest } from './contextual-coach.types';
+import { OverviewQueryService } from './overview-query.service';
 
 @Controller()
 export class StudyController {
@@ -50,6 +51,7 @@ export class StudyController {
     private readonly assessmentHistoryQuery: AssessmentHistoryQueryService,
     private readonly examScoreHistoryQuery: ExamScoreHistoryQueryService,
     private readonly contextualCoachService: ContextualCoachService,
+    private readonly overviewQuery: OverviewQueryService,
   ) {}
 
   // ---- Student endpoints (require student+ auth) ----
@@ -77,6 +79,21 @@ export class StudyController {
     @Query('userId') viewUserId?: string,
   ) {
     return this.dashboardQuery.getDashboardOverviewCompat(this.resolveUserId(user, viewUserId));
+  }
+
+  @Get('overview/canonical')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getCanonicalOverview(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('asOf') asOfValue?: string,
+  ) {
+    const asOf = asOfValue ? new Date(asOfValue) : new Date();
+    return this.overviewQuery.getCanonicalOverview(
+      this.resolveUserId(user, viewUserId),
+      Number.isNaN(asOf.getTime()) ? new Date() : asOf,
+    );
   }
 
   @Get('student-state')

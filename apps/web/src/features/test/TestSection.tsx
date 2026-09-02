@@ -8,6 +8,7 @@ import type {
 } from '@kaoyan408/shared';
 import type {
   AssessmentHistory,
+  CanonicalOverview,
   DashboardOverview,
   LearningProfile,
   MasteryMap,
@@ -44,6 +45,7 @@ interface TestSectionProps {
   plan: StudyPlan;
   wrongQuestionSummary: ModuleResource<WrongQuestionSummary>;
   todayPlan: TodayPlanType | null;
+  canonicalOverview?: CanonicalOverview | null;
   stageAssessment: DashboardOverview['stageAssessment'];
   stageResult: StageAssessmentResult | null;
   feedbackStatus: string;
@@ -117,6 +119,7 @@ export function TestSection(props: TestSectionProps) {
             plan={props.plan}
             wrongQuestionSummary={props.wrongQuestionSummary}
             todayPlan={props.todayPlan}
+            canonicalOverview={props.canonicalOverview}
             feedbackStatus={props.feedbackStatus}
             diagnosticStatus={props.diagnosticStatus}
             onRetryStageReport={props.onRetryStageReport}

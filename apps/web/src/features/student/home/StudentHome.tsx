@@ -1,5 +1,5 @@
 import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
-import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../../api';
+import type { CanonicalOverview, LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../../api';
 import type { RoleSection } from '../../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../../api/endpoints/onboarding';
 import type { DueReviewsResponse } from '../../../api/endpoints/review';
@@ -30,6 +30,8 @@ interface StudentHomeProps {
   wrongQuestionSummary: WrongQuestionSummary | null;
   masteryMap: MasteryMap | null;
   learningCalendar: LearningCalendar;
+  canonicalOverview?: CanonicalOverview | null;
+  canonicalOverviewError?: string;
   planFocusTaskId: string | null;
   onNavigate: (section: RoleSection) => void;
   onLaunchTodayTask: (task: TodayPlanTask) => void;
@@ -52,6 +54,8 @@ export function StudentHome({
   wrongQuestionSummary,
   masteryMap,
   learningCalendar,
+  canonicalOverview,
+  canonicalOverviewError,
   planFocusTaskId,
   onNavigate,
   onLaunchTodayTask,
@@ -60,11 +64,12 @@ export function StudentHome({
   canonicalAction,
   onSelectCanonicalAction,
 }: StudentHomeProps) {
-  const model = useDashboardViewModel({ student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar });
+  const model = useDashboardViewModel({ student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar, canonicalOverview });
   const openCoach = () => onNavigate('ai');
 
   return (
     <div className="student-home dashboard-home">
+      {canonicalOverviewError ? <p className="dashboard-muted" role="status">新版总览暂不可用，当前保留兼容视图：{canonicalOverviewError}</p> : null}
       <DashboardHero model={model} onNavigate={openCoach} />
       <div className="dashboard-main-grid">
         <div className="dashboard-primary-column">

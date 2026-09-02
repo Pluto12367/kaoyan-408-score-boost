@@ -10,6 +10,7 @@ import { getKnowledgeCatalog } from '../../features/knowledge-catalog/catalogDat
 import { fetchMyMastery, type MyNodeMastery } from './score-center';
 import type {
   DashboardOverview,
+  CanonicalOverview,
   TrialProgress,
   StudyReminders,
   SprintPlan,
@@ -39,6 +40,13 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   const response = await fetchWithAuth(`${API_BASE_URL}/dashboard/overview`);
   if (!response.ok) throw new Error(`Dashboard request failed with ${response.status}`);
   return response.json() as Promise<DashboardOverview>;
+}
+
+export async function fetchCanonicalOverview(asOf?: string): Promise<CanonicalOverview> {
+  const query = asOf ? `?asOf=${encodeURIComponent(asOf)}` : '';
+  const response = await fetchWithAuth(`${API_BASE_URL}/overview/canonical${query}`);
+  if (!response.ok) throw new Error(`Canonical overview request failed with ${response.status}`);
+  return response.json() as Promise<CanonicalOverview>;
 }
 
 export async function fetchTrialProgress(): Promise<TrialProgress> {

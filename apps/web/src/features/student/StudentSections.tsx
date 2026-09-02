@@ -11,6 +11,7 @@ import type {
   AiFollowUp,
   AssessmentHistory,
   DashboardOverview,
+  CanonicalOverview,
   GeneratedPaper,
   LearningCalendar,
   LearningProfile,
@@ -77,6 +78,8 @@ export interface StudentSectionsProps {
   plan: StudyPlan;
   wrongQuestions: WrongQuestion[];
   learningCalendar: LearningCalendar;
+  canonicalOverview?: CanonicalOverview | null;
+  canonicalOverviewError?: string;
   stageReport: StageReport | null;
   masteryMap: MasteryMap | null;
   masteryMapResource: ModuleResource<MasteryMap>;
@@ -315,6 +318,8 @@ export function StudentSections(props: StudentSectionsProps) {
                 wrongQuestionSummary={props.wrongQuestionSummary.data}
                 masteryMap={props.masteryMap}
                 learningCalendar={props.learningCalendar}
+                canonicalOverview={props.canonicalOverview}
+                canonicalOverviewError={props.canonicalOverviewError}
                 planFocusTaskId={props.planFocusTaskId}
                 onNavigate={props.onNavigate}
                 onLaunchTodayTask={props.onLaunchTodayTask}
@@ -377,6 +382,7 @@ export function StudentSections(props: StudentSectionsProps) {
               plan={props.plan}
               wrongQuestionSummary={props.wrongQuestionSummary}
               todayPlan={props.todayPlan}
+              canonicalOverview={props.canonicalOverview}
               stageAssessment={props.stageAssessment}
               stageResult={props.stageResult}
               feedbackStatus={props.feedbackStatus}

@@ -10,6 +10,7 @@ import type {
   StudyReminders,
   TrialProgress,
   WrongQuestionSummary,
+  CanonicalOverview,
 } from '../../api';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { ModuleResource } from '../../hooks/moduleResource';
@@ -51,6 +52,7 @@ interface ReportWorkspaceProps {
   learningCalendar?: LearningCalendar;
   wrongQuestionSummary: ModuleResource<WrongQuestionSummary>;
   todayPlan?: TodayPlanType | null;
+  canonicalOverview?: CanonicalOverview | null;
   feedbackStatus: string;
   diagnosticStatus: string;
   onRetryStageReport: () => void;
@@ -102,6 +104,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           learningProfile={props.learningProfile.data ?? null}
           wrongQuestionSummary={props.wrongQuestionSummary.data}
           todayPlan={props.todayPlan}
+          canonicalOverview={props.canonicalOverview}
           onRetry={props.onRetryStageReport}
           onNavigate={props.onNavigate}
         />
@@ -112,6 +115,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           masteryMap={props.masteryMapResource}
           student={props.student}
           report={props.report}
+          canonicalOverview={props.canonicalOverview}
           sections={['metrics']}
           onRetryTrial={props.onRetryTrial}
           onRetryReminders={props.onRetryReminders}
@@ -136,6 +140,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           masteryMap={props.masteryMapResource}
           student={props.student}
           report={props.report}
+          canonicalOverview={props.canonicalOverview}
           sections={['mastery']}
           onRetryTrial={props.onRetryTrial}
           onRetryReminders={props.onRetryReminders}

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { buildLearningInsights, estimatePredictedScore } from '@kaoyan408/shared';
 import type { StageReport, UserProfile, WeaknessReport } from '@kaoyan408/shared';
-import type { MasteryMap, LearningProfile } from '../../api';
+import type { CanonicalOverview, MasteryMap, LearningProfile } from '../../api';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
@@ -25,34 +25,47 @@ interface ReportSummaryPanelProps {
   learningProfile?: LearningProfile | null;
   wrongQuestionSummary?: { pendingCount: number } | null;
   todayPlan?: TodayPlanType | null;
+  canonicalOverview?: CanonicalOverview | null;
   onRetry: () => void;
   onNavigate: (section: RoleSection) => void;
 }
 
-export function ReportSummaryPanel({ student, report, stageReport, masteryMap, learningProfile = null, wrongQuestionSummary = null, todayPlan = null, onRetry, onNavigate }: ReportSummaryPanelProps) {
+export function ReportSummaryPanel({ student, report, stageReport, masteryMap, learningProfile = null, wrongQuestionSummary = null, todayPlan = null, canonicalOverview = null, onRetry, onNavigate }: ReportSummaryPanelProps) {
   const averageMastery = useMemo(() => {
+    if (canonicalOverview) return canonicalOverview.mastery.averageMastery;
     if (!masteryMap || masteryMap.subjects.length === 0) return null;
     const total = masteryMap.subjects.reduce((sum, subject) => sum + subject.averageMastery, 0);
     return Math.round(total / masteryMap.subjects.length);
-  }, [masteryMap]);
+  }, [canonicalOverview, masteryMap]);
 
-  const hasEnoughData = report.completionRate > 0
-    || report.weakPoints.length > 0
-    || (masteryMap?.subjects.some((subject) => subject.points.length > 0) ?? false);
+  const hasEnoughData = canonicalOverview
+    ? canonicalOverview.mastery.nodes.length > 0
+      || canonicalOverview.progress.last7d.sampleSize > 0
+      || canonicalOverview.weaknesses.practiceWeaknesses.length > 0
+    : report.completionRate > 0
+      || report.weakPoints.length > 0
+      || (masteryMap?.subjects.some((subject) => subject.points.length > 0) ?? false);
 
   const predicted = useMemo(() => {
     if (!hasEnoughData) return null;
+    const accuracyRate = canonicalOverview?.progress.last7d.current ?? (canonicalOverview ? null : report.accuracyRate);
+    const predictionMastery = canonicalOverview ? averageMastery : averageMastery ?? report.accuracyRate;
+    if (accuracyRate === null || predictionMastery === null) return null;
     return estimatePredictedScore({
       currentScore: student.currentScore ?? 0,
       targetScore: student.targetScore ?? 100,
-      accuracyRate: report.accuracyRate,
-      averageMastery: averageMastery ?? report.accuracyRate,
+      accuracyRate,
+      averageMastery: predictionMastery,
       remainingDays: student.remainingDays ?? 0,
       scoreTrend: stageReport?.assessmentTrend.delta ?? undefined,
     });
-  }, [averageMastery, hasEnoughData, report.accuracyRate, stageReport?.assessmentTrend.delta, student.currentScore, student.remainingDays, student.targetScore]);
+  }, [averageMastery, canonicalOverview, hasEnoughData, report.accuracyRate, stageReport?.assessmentTrend.delta, student.currentScore, student.remainingDays, student.targetScore]);
 
   const improvements: string[] = [];
+  if (canonicalOverview?.progress.last7d.status === 'up' && canonicalOverview.progress.last7d.current !== null && canonicalOverview.progress.last7d.baseline !== null) {
+    const delta = canonicalOverview.progress.last7d.delta ?? canonicalOverview.progress.last7d.current - canonicalOverview.progress.last7d.baseline;
+    improvements.push(`近 7 日正确率较基线提升 ${Math.round(delta * 10) / 10} 个百分点（${canonicalOverview.progress.last7d.sampleSize} 次练习）`);
+  }
   if (stageReport?.verdict === 'improved' && stageReport.accuracyDelta !== null) {
     improvements.push(`答题正确率较上一阶段提升 ${stageReport.accuracyDelta} 个百分点（基于练习记录）`);
   }
@@ -71,25 +84,37 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
   if (stageReport?.assessmentTrend.delta != null && stageReport.assessmentTrend.delta < 0) {
     risks.push(`最近测评较上次下降 ${Math.abs(stageReport.assessmentTrend.delta)} 分`);
   }
-  if (report.speedRisks.length > 0) {
-    risks.push(`${report.speedRisks.length} 个考点存在“耗时过长”风险，需限时训练`);
+  const speedRiskCount = canonicalOverview ? canonicalOverview.weaknesses.speedRisks.length : report.speedRisks.length;
+  if (speedRiskCount > 0) {
+    risks.push(`${speedRiskCount} 个考点存在“耗时过长”风险，需限时训练`);
   }
-  if ((stageReport?.wrong.pendingCount ?? 0) > 0) {
-    risks.push(`还有 ${stageReport?.wrong.pendingCount} 道错题待复盘`);
+  const pendingWrongCount = canonicalOverview
+    ? canonicalOverview.reviewStatus.pendingWrongQuestionCount
+    : stageReport?.wrong.pendingCount ?? 0;
+  if (pendingWrongCount > 0) {
+    risks.push(`还有 ${pendingWrongCount} 道错题待复盘`);
   }
   if (risks.length === 0) risks.push('当前无明显风险，保持现有节奏即可');
 
   const topMasteryWeakPoint = stageReport?.mastery.weakestPoints[0] ?? null;
-  const topTask = topMasteryWeakPoint
-    ? `优先补强「${topMasteryWeakPoint.title}」（掌握 ${topMasteryWeakPoint.masteryRate}%，基于掌握度地图）`
-    : report.weakPoints[0]
-      ? `优先补强「${report.weakPoints[0].title}」（${report.weakPoints[0].chapter}）：${report.weakPoints[0].suggestion}`
-      : stageReport?.nextAction
-        ? stageReport.nextAction
-        : '先完成今日推荐练习，积累数据后再生成建议';
-  const reportNextLearningStep = buildReportNextLearningStep(
+  const canonicalNodeWeakness = canonicalOverview?.weaknesses.nodeWeaknesses[0] ?? null;
+  const canonicalPracticeWeakness = canonicalOverview?.weaknesses.practiceWeaknesses[0] ?? null;
+  const topTask = canonicalOverview
+    ? canonicalNodeWeakness
+      ? `优先补强「${canonicalNodeWeakness.title}」（掌握 ${canonicalNodeWeakness.masteryRate}% · Node 掌握度）`
+      : canonicalPracticeWeakness
+        ? `优先训练「${canonicalPracticeWeakness.title}」（正确率 ${canonicalPracticeWeakness.accuracyRate}% · Point 练习表现）`
+        : '先完成今日推荐练习，积累数据后再生成建议'
+    : topMasteryWeakPoint
+      ? `优先补强「${topMasteryWeakPoint.title}」（掌握 ${topMasteryWeakPoint.masteryRate}%，基于掌握度地图）`
+      : report.weakPoints[0]
+        ? `优先补强「${report.weakPoints[0].title}」（${report.weakPoints[0].chapter}）：${report.weakPoints[0].suggestion}`
+        : stageReport?.nextAction
+          ? stageReport.nextAction
+          : '先完成今日推荐练习，积累数据后再生成建议';
+  const reportNextLearningStep = canonicalOverview ? null : buildReportNextLearningStep(
     report,
-    stageReport?.mastery.weakestPoints[0]?.title ?? null,
+    topMasteryWeakPoint?.title ?? null,
   );
   const learningInsights = buildLearningInsights({
     masteryMap,
@@ -97,9 +122,10 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
     todayPlan: todayPlan ?? null,
     learningProfile: learningProfile ?? null,
   });
+  const visibleLearningInsights = canonicalOverview ? [] : learningInsights;
   const reportActions = buildReportActions({
     scopeKey: 'summary',
-    insights: learningInsights.map((insight) => ({ action: insight.action })),
+    insights: visibleLearningInsights.map((insight) => ({ action: insight.action })),
   });
   const reportAction = reportActions.find((action) => action.type === 'open_report');
   const mistakeAction = reportActions.find((action) => action.type === 'assessment_wrong_questions');
@@ -109,6 +135,9 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
   const practiceActionTarget = toRoleSection(practiceAction?.destination ?? 'practice');
 
   const longTermWeakPoints = useMemo(() => {
+    if (canonicalOverview) {
+      return canonicalOverview.weaknesses.nodeWeaknesses.slice(0, 3).map((point) => ({ title: point.title, rate: `掌握 ${point.masteryRate}%` }));
+    }
     const weak = (masteryMap?.subjects ?? []).flatMap((subject) =>
       subject.points
         .filter((point) => point.status === 'weak')
@@ -116,13 +145,13 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
     );
     if (weak.length > 0) return weak.slice(0, 3);
     return report.weakPoints.slice(0, 3).map((point) => ({ title: point.title, rate: `正确率 ${point.accuracyRate}%` }));
-  }, [masteryMap, report.weakPoints]);
+  }, [canonicalOverview, masteryMap, report.weakPoints]);
 
   const reportActionPlan = [
     {
       title: '优先复盘错题',
-      description: (wrongQuestionSummary?.pendingCount ?? stageReport?.wrong.pendingCount ?? 0) > 0
-        ? `还有 ${wrongQuestionSummary?.pendingCount ?? stageReport?.wrong.pendingCount ?? 0} 道错题待复盘，先把丢分点变成可修复动作。`
+      description: pendingWrongCount > 0
+        ? `还有 ${pendingWrongCount} 道错题待复盘，先把丢分点变成可修复动作。`
         : '当前待复盘压力不高，保持错题复盘节奏即可。',
       action: '去错题本',
       target: mistakeActionTarget,
@@ -130,9 +159,15 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
     },
     {
       title: '训练薄弱知识点',
-      description: report.weakPoints[0]
-        ? `优先训练：${report.weakPoints[0].title}，对应 ${report.weakPoints[0].chapter}。`
-        : '暂无明确薄弱点时，用推荐题组继续积累数据。',
+      description: canonicalOverview
+        ? canonicalNodeWeakness
+          ? `优先补强：${canonicalNodeWeakness.title}（Node 掌握度 ${canonicalNodeWeakness.masteryRate}%）。`
+          : canonicalPracticeWeakness
+            ? `优先训练：${canonicalPracticeWeakness.title}（Point 正确率 ${canonicalPracticeWeakness.accuracyRate}%）。`
+            : '暂无明确薄弱点时，用推荐题组继续积累数据。'
+        : report.weakPoints[0]
+          ? `优先训练：${report.weakPoints[0].title}，对应 ${report.weakPoints[0].chapter}。`
+          : '暂无明确薄弱点时，用推荐题组继续积累数据。',
       action: '去练习',
       target: practiceActionTarget,
       onClick: () => onNavigate(practiceActionTarget),
@@ -192,13 +227,13 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
 
       <GoalProgressInsight
         student={student}
-        report={report}
+        report={canonicalOverview ? null : report}
         todayPlan={todayPlan}
         actionLabel="报告目标进度"
       />
 
       <section className="report-insight-grid" aria-label="报告学习洞察">
-        {learningInsights.map((insight) => {
+        {visibleLearningInsights.map((insight) => {
           const target: RoleSection = insight.action === '去错题本'
             ? 'wrong-book'
             : insight.action === '去练习薄弱点'
@@ -221,7 +256,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
         })}
       </section>
 
-      <NextLearningStepCard step={reportNextLearningStep} onNavigate={onNavigate} />
+      {reportNextLearningStep ? <NextLearningStepCard step={reportNextLearningStep} onNavigate={onNavigate} /> : null}
 
       <div className="report-action-plan" data-report-action-target={reportActionTarget}>
         <div className="report-action-plan-head">
@@ -230,10 +265,18 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
         </div>
         <RecommendationEvidence
           title="报告建议依据"
-          reason={report.weakPoints[0]
-            ? `当前最优先补强 ${report.weakPoints[0].title}`
-            : stageReport?.nextAction ?? '暂未形成稳定薄弱点，先继续完成今日练习。'}
-          evidence={`薄弱点 ${report.weakPoints.length} 个，待复盘错题 ${stageReport?.wrong.pendingCount ?? 0} 道，阶段趋势 ${stageReport ? verdictLabels[stageReport.verdict] : '待生成'}`}
+          reason={canonicalOverview
+            ? canonicalNodeWeakness
+              ? `当前最优先补强 ${canonicalNodeWeakness.title}`
+              : canonicalPracticeWeakness
+                ? `当前最优先训练 ${canonicalPracticeWeakness.title}`
+                : '暂未形成稳定薄弱点，先继续完成今日练习。'
+            : report.weakPoints[0]
+              ? `当前最优先补强 ${report.weakPoints[0].title}`
+              : stageReport?.nextAction ?? '暂未形成稳定薄弱点，先继续完成今日练习。'}
+          evidence={canonicalOverview
+            ? `Node 薄弱点 ${canonicalOverview.weaknesses.nodeWeaknesses.length} 个，Point 练习薄弱点 ${canonicalOverview.weaknesses.practiceWeaknesses.length} 个，待复盘错题 ${pendingWrongCount} 道，近 7 日趋势 ${canonicalOverview.progress.last7d.status}`
+            : `薄弱点 ${report.weakPoints.length} 个，待复盘错题 ${stageReport?.wrong.pendingCount ?? 0} 道，阶段趋势 ${stageReport ? verdictLabels[stageReport.verdict] : '待生成'}`}
           impact="完成建议动作后，掌握度、错题复盘数和阶段报告会随练习记录更新。"
           confidence={hasEnoughData ? (stageReport && stageReport.verdict !== 'insufficient' ? 'high' : 'medium') : 'low'}
           nextDataHint="多完成几组练习和一次阶段测评，报告建议会更有区分度。"

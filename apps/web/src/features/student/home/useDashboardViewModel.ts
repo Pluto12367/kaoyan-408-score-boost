@@ -1,5 +1,5 @@
 import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
-import type { LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../../api';
+import type { CanonicalOverview, LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../../api';
 import type { TodayPlan as TodayPlanType } from '../../../api/endpoints/onboarding';
 
 export interface DashboardSubjectViewModel {
@@ -65,9 +65,18 @@ export function useDashboardViewModel(input: {
   report: WeaknessReport;
   wrongQuestionSummary: WrongQuestionSummary | null;
   learningCalendar: LearningCalendar | null;
+  canonicalOverview?: CanonicalOverview | null;
 }): DashboardViewModel {
-  const { student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar } = input;
-  const masteryBySubject = new Map((masteryMap?.subjects ?? []).map((item) => [subjectId(item.subject), item.averageMastery]));
+  const { student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar, canonicalOverview } = input;
+  const canonicalMasteryBySubject = new Map<string, number[]>();
+  for (const node of canonicalOverview?.mastery.nodes ?? []) {
+    const values = canonicalMasteryBySubject.get(subjectId(node.subject)) ?? [];
+    if (node.masteryRate != null) values.push(node.masteryRate);
+    canonicalMasteryBySubject.set(subjectId(node.subject), values);
+  }
+  const masteryBySubject = canonicalOverview
+    ? new Map([...canonicalMasteryBySubject.entries()].map(([id, values]) => [id, values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null]))
+    : new Map((masteryMap?.subjects ?? []).map((item) => [subjectId(item.subject), item.averageMastery]));
   const subjects = SUBJECTS.map((subject) => {
     const value = masteryBySubject.get(subject.id);
     return {
@@ -104,7 +113,9 @@ export function useDashboardViewModel(input: {
     remainingDays: student.remainingDays ?? null,
     dailyHours: student.dailyHours ?? null,
     stage: student.stage ?? '基础阶段',
-    averageMastery: masteryMap?.subjects.length
+    averageMastery: canonicalOverview
+      ? canonicalOverview.mastery.averageMastery
+      : masteryMap?.subjects.length
       ? Math.round(masteryMap.subjects.reduce((sum, item) => sum + item.averageMastery, 0) / masteryMap.subjects.length)
       : null,
     subjects,
@@ -112,9 +123,13 @@ export function useDashboardViewModel(input: {
     completedTaskCount,
     totalTaskCount,
     completionRate,
-    weakPointTitle: masteryMap?.weakestPoints[0]?.title ?? report.weakPoints[0]?.title ?? null,
-    weakPointReason: report.weakPoints[0]?.suggestion ?? null,
-    pendingWrongCount: wrongQuestionSummary?.pendingCount ?? null,
+    weakPointTitle: canonicalOverview
+      ? canonicalOverview.weaknesses.nodeWeaknesses[0]?.title ?? null
+      : masteryMap?.weakestPoints[0]?.title ?? report.weakPoints[0]?.title ?? null,
+    weakPointReason: canonicalOverview
+      ? (canonicalOverview.weaknesses.nodeWeaknesses[0] ? '基于节点掌握度证据' : null)
+      : report.weakPoints[0]?.suggestion ?? null,
+    pendingWrongCount: canonicalOverview?.reviewStatus.pendingWrongQuestionCount ?? wrongQuestionSummary?.pendingCount ?? null,
     trend,
   };
 }

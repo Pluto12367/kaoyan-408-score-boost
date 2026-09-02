@@ -47,6 +47,31 @@ export interface DashboardOverview {
   plan: StudyPlan;
 }
 
+/** Canonical Overview v1 read model used by the migrated homepage summary. */
+export interface CanonicalOverview {
+  contractVersion: 'overview-report-v1';
+  userId: string;
+  asOf: string;
+  summary: {
+    goal: { targetScore: number | null; currentScore: number | null; remainingDays: number | null; studyStage: string | null; weakestSubject: string | null };
+    learningState: 'stable' | 'rising' | 'risky' | 'insufficient_data';
+  };
+  mastery: {
+    averageMastery: number | null;
+    nodes: Array<{ knowledgeNodeId: string; title: string; subject: string; masteryRate: number | null; status: 'untouched' | 'weak' | 'review' | 'mastered' }>;
+  };
+  weaknesses: {
+    nodeWeaknesses: Array<{ knowledgeNodeId: string; title: string; masteryRate: number; evidence: Array<{ kind: string; id: string }> }>;
+    practiceWeaknesses: Array<{ knowledgePointId: string; title: string; accuracyRate: number; evidence: Array<{ kind: string; id: string }> }>;
+    speedRisks: Array<{ knowledgePointId: string; title: string; evidence: Array<{ kind: string; id: string }> }>;
+  };
+  progress: {
+    last7d: { current: number | null; baseline: number | null; delta?: number | null; sampleSize: number; status: 'up' | 'down' | 'flat' | 'insufficient_data' };
+  };
+  reviewStatus: { pendingWrongQuestionCount: number; todayDueCount: number; overdueCount: number };
+  recommendedActions: Array<{ actionId: string; actionType: string; title: string; target?: { knowledgeNodeId?: string; knowledgePointId?: string; studyTaskId?: string }; evidence: Array<{ kind: string; id: string }>; status: string }>;
+}
+
 export interface LearningCalendar {
   days: LearningCalendarDay[];
   today: LearningCalendarDay;

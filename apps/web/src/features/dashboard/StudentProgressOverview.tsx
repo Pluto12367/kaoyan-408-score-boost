@@ -1,6 +1,6 @@
 import { estimatePredictedScore } from '@kaoyan408/shared';
 import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
-import type { MasteryMap, SprintPlan, StudyReminders, TrialProgress } from '../../api';
+import type { CanonicalOverview, MasteryMap, SprintPlan, StudyReminders, TrialProgress } from '../../api';
 import { masteryStatusLabel, priorityLabel } from '../../constants';
 import { ModuleResourceMeta, ModuleUnavailable } from '../../components/ModuleResourceState';
 import type { ModuleResource } from '../../hooks/moduleResource';
@@ -15,6 +15,7 @@ interface StudentProgressOverviewProps {
   masteryMap: ModuleResource<MasteryMap>;
   student: UserProfile;
   report: WeaknessReport;
+  canonicalOverview?: CanonicalOverview | null;
   sections?: ProgressSection[];
   onRetryTrial: () => void;
   onRetryReminders: () => void;
@@ -32,6 +33,7 @@ export function StudentProgressOverview({
   masteryMap,
   student,
   report,
+  canonicalOverview = null,
   sections = ALL_SECTIONS,
   onRetryTrial,
   onRetryReminders,
@@ -43,10 +45,29 @@ export function StudentProgressOverview({
   const reminders = studyReminders.data;
   const sprint = sprintPlan.data;
   const mastery = masteryMap.data;
-  const averageMastery = mastery && mastery.subjects.length
+  const averageMastery = canonicalOverview
+    ? canonicalOverview.mastery.averageMastery
+    : mastery && mastery.subjects.length
     ? Math.round(mastery.subjects.reduce((sum, subject) => sum + subject.averageMastery, 0) / mastery.subjects.length)
     : null;
-  const predicted = report.completionRate > 0 || report.weakPoints.length > 0
+  const canonicalAccuracy = canonicalOverview?.progress.last7d.current ?? null;
+  const hasCanonicalPredictionData = Boolean(
+    canonicalOverview
+      && canonicalOverview.progress.last7d.sampleSize > 0
+      && canonicalAccuracy !== null
+      && averageMastery !== null,
+  );
+  const predicted = canonicalOverview
+    ? hasCanonicalPredictionData
+      ? estimatePredictedScore({
+          currentScore: student.currentScore ?? 0,
+          targetScore: student.targetScore ?? 100,
+          accuracyRate: canonicalAccuracy as number,
+          averageMastery: averageMastery as number,
+          remainingDays: student.remainingDays ?? 0,
+        })
+      : null
+    : report.completionRate > 0 || report.weakPoints.length > 0
     ? estimatePredictedScore({
         currentScore: student.currentScore ?? 0,
         targetScore: student.targetScore ?? 100,
@@ -114,7 +135,27 @@ export function StudentProgressOverview({
         </div>
       </section> : <ModuleUnavailable title="七天冲刺计划" resource={sprintPlan} onRetry={onRetrySprint} />) : null}
 
-      {sections.includes('mastery') ? (mastery ? <section className="panel mastery-panel">
+      {sections.includes('mastery') ? (canonicalOverview ? <section className="panel mastery-panel">
+        <div className="panel-heading">
+          <div><p className="eyebrow">408 掌握度地图</p><h3>节点掌握度</h3></div>
+          <span>薄弱点 {canonicalOverview.weaknesses.nodeWeaknesses.length} 个</span>
+        </div>
+        <div className="mastery-subjects">
+          {canonicalOverview.mastery.nodes.length ? canonicalOverview.mastery.nodes.map((node) => (
+            <article key={node.knowledgeNodeId} className={`mastery-subject mastery-node status-${node.status}`}>
+              <header>
+                <div><strong>{node.title}</strong><span>{node.subject} · 掌握 {node.masteryRate ?? '--'}%</span></div>
+                <small>KnowledgeNode · {node.status}</small>
+              </header>
+              <div className="mastery-points">
+                <button type="button" onClick={() => onNavigate('knowledge-catalog')}>{masteryStatusLabel[node.status]}</button>
+              </div>
+            </article>
+          )) : (
+            <div className="mastery-empty"><strong>暂无知识点数据</strong><span>完成诊断与练习后会自动进入节点掌握度统计。</span></div>
+          )}
+        </div>
+      </section> : mastery ? <section className="panel mastery-panel">
         <div className="panel-heading">
           <div><p className="eyebrow">408 掌握度地图</p><h3>{mastery.title}</h3></div>
           <span>薄弱点 {mastery.weakestPoints.length} 个</span>
@@ -145,8 +186,8 @@ export function StudentProgressOverview({
 
       {sections.includes('metrics') ? <section id="dashboard" className="metrics-grid">
         <Metric title="目标分" value={`${student.targetScore ?? 0}`} caption={student.targetSchool ?? '目标院校未设置'} />
-        <Metric title="正确率" value={`${report.accuracyRate}%`} caption="近 20 次练习统计" />
-        <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
+        <Metric title="正确率" value={canonicalOverview ? (canonicalAccuracy === null ? '--' : `${canonicalAccuracy}%`) : `${report.accuracyRate}%`} caption={canonicalOverview ? `近 7 日 · ${canonicalOverview.progress.last7d.sampleSize} 次练习 · ${canonicalOverview.progress.last7d.status}` : '近 20 次练习统计'} />
+        <Metric title="预计提分空间" value={canonicalOverview ? '--' : `${report.estimatedGain} 分`} caption={canonicalOverview ? 'Canonical Overview 未定义该指标' : '基于薄弱点和目标分估算'} />
         <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
         <Metric title="预测分数" value={predicted ? `${predicted.minScore}–${predicted.maxScore} 分` : '--'} caption={predicted ? predicted.disclaimer : '完成练习后估算'} />
       </section> : null}

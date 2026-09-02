@@ -39,6 +39,7 @@ import {
 import { useStudentProgressData } from './hooks/useStudentProgressData';
 import { useStudentLearningData } from './hooks/useStudentLearningData';
 import { useDashboardOverviewData } from './hooks/useDashboardOverviewData';
+import { useCanonicalOverviewData } from './hooks/useCanonicalOverviewData';
 import { useRoleWorkspaceData } from './hooks/useRoleWorkspaceData';
 import { ModuleUnavailable } from './components/ModuleResourceState';
 import type { SessionView } from './api/endpoints/sessions';
@@ -125,6 +126,7 @@ export function App() {
   const authKey = authSession?.accessToken ?? authSession?.token;
   const studentDataEnabled = isStaticDemoMode() || sessionUser?.role === 'student';
   const dashboardOverview = useDashboardOverviewData(studentDataEnabled, authKey);
+  const canonicalOverview = useCanonicalOverviewData(studentDataEnabled && sessionUser?.role === 'student', authKey);
   const { setOverview, refreshOverview } = dashboardOverview;
   const overview = dashboardOverview.overview.data ?? createMockOverview();
   const studentOverviewReady = isStudentOverviewReady(
@@ -1438,6 +1440,8 @@ paperId: paper.id,
             plan={plan}
             wrongQuestions={wrongQuestions}
             learningCalendar={learningCalendar}
+            canonicalOverview={canonicalOverview.overview.data}
+            canonicalOverviewError={canonicalOverview.overview.error}
             stageReport={stageReport}
             masteryMap={studentProgress.masteryMap.data}
             masteryMapResource={studentProgress.masteryMap}
