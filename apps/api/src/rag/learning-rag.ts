@@ -61,11 +61,18 @@ export function rewriteQuery(query: string): RewrittenQuery {
   const trimmed = query.trim();
   const added = new Set<string>();
   const applied: string[] = [];
-  for (const rule of [...TERM_EXPANSIONS, ...COLLOQUIAL_RULES]) {
+  // Term expansions inject into the retrieval query. Colloquial rules are
+  // recorded for intent signalling only: v3.4 real-corpus evaluation showed
+  // generic words (概念/定义) pollute vector+keyword retrieval across a
+  // 1.3k-node corpus (every "XX定义" node gains affinity).
+  for (const rule of TERM_EXPANSIONS) {
     if (rule.pattern.test(trimmed)) {
       applied.push(rule.expansion);
       for (const term of rule.expansion.split(/\s+/)) added.add(term);
     }
+  }
+  for (const rule of COLLOQUIAL_RULES) {
+    if (rule.pattern.test(trimmed)) applied.push(rule.expansion);
   }
   for (const token of trimmed.split(/\s+/)) added.delete(token);
   const expanded = [trimmed, ...added].join(' ').replace(/\s+/g, ' ').trim();
