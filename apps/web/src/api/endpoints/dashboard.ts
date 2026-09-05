@@ -2,6 +2,7 @@ import { API_BASE_URL, fetchWithAuth, authenticatedFetch } from '../client';
 import {
   buildKnowledgePointIndex,
   buildNodeMasteryMap,
+  toLegacyMasteryMap,
   type KnowledgeCatalog,
   type NodeMasteryRow,
 } from '@kaoyan408/shared';
@@ -11,6 +12,7 @@ import { fetchMyMastery, type MyNodeMastery } from './score-center';
 import type {
   DashboardOverview,
   CanonicalOverview,
+  StudentContext,
   TrialProgress,
   StudyReminders,
   SprintPlan,
@@ -49,6 +51,14 @@ export async function fetchCanonicalOverview(asOf?: string): Promise<CanonicalOv
   return response.json() as Promise<CanonicalOverview>;
 }
 
+/** Canonical, read-only student context for summary consumers. */
+export async function fetchStudentContext(asOf?: string): Promise<StudentContext> {
+  const query = asOf ? `?asOf=${encodeURIComponent(asOf)}` : '';
+  const response = await fetchWithAuth(`${API_BASE_URL}/student-context${query}`);
+  if (!response.ok) throw new Error(`Student context request failed with ${response.status}`);
+  return response.json() as Promise<StudentContext>;
+}
+
 export async function fetchTrialProgress(): Promise<TrialProgress> {
   const response = await fetchWithAuth(`${API_BASE_URL}/trial-progress`);
   if (!response.ok) throw new Error(`Trial progress request failed with ${response.status}`);
@@ -70,8 +80,8 @@ export async function fetchSprintPlan(): Promise<SprintPlan> {
 // Sprint 2：掌握度地图前端数据源切换——由唯一事实源 UserKnowledgeMastery
 // （GET /knowledge/mastery）组装；节点分组复用知识图谱静态目录（catalogData，
 // 即 408-codex-handoff 权威树的前端打包版）；展示层复用 shared buildNodeMasteryMap，
-// 产出与旧掌握度地图端点 DTO 逐字段兼容的形状（前端 MasteryPoint 的
-// knowledgePointId 字段在此链路承载 knowledgeNodeId——shared 既有约定）。
+// 先构造 canonical node model，再在旧 dashboard 类型边界适配为
+// knowledgePointId，避免新链路内部继续伪装 Node ID。
 export function buildMasteryMapFromState(
   userId: string,
   mastery: MyNodeMastery,
@@ -95,12 +105,13 @@ export function buildMasteryMapFromState(
     };
   });
   const subjectNames = Object.values(catalog).map((subject) => subject.name);
-  return buildNodeMasteryMap({
+  const canonical = buildNodeMasteryMap({
     userId,
     rows,
     subjects: subjectNames,
     generatedAt: mastery.generatedAt,
   });
+  return toLegacyMasteryMap(canonical) as MasteryMap;
 }
 
 export async function fetchMasteryMap(userId: string): Promise<MasteryMap> {

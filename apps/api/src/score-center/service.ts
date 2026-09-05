@@ -22,6 +22,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { todayKey } from '../study/study-date';
 import { RecommendationService } from '../study/recommendation.service';
+import { toRecommendationTaskCompat } from '../study/recommendation-task.adapter';
 import {
   archiveScoreCenterPlans,
   createScoreCenterPlan,
@@ -139,9 +140,10 @@ export class ScoreCenterService {
     userId: string,
     questionId: string,
     input: { reviewedAt: Date; redoCorrect: boolean },
+    transaction?: Prisma.TransactionClient,
   ) {
     if (!this.enabled) return;
-    await this.prisma.$transaction(async (tx) => {
+    const apply = async (tx: Prisma.TransactionClient) => {
       const tags = await resolveKnowledgeNodesForQuestion(tx, questionId);
       const nodes = await loadActiveKnowledgeNodes(
         tx,
@@ -170,7 +172,9 @@ export class ScoreCenterService {
         const current = toMasteryState(saved);
         await saveMasterySnapshot(tx, userId, node.id, current, startOfUtcDay(input.reviewedAt));
       }
-    });
+    };
+    if (transaction) await apply(transaction);
+    else await this.prisma.$transaction(apply);
   }
 
   async getKnowledgeDetail(userId: string, knowledgePointId: string) {
@@ -509,6 +513,7 @@ export class ScoreCenterService {
       scoreBreakdown: Prisma.JsonValue;
       generatedRank: number | null;
       status: string;
+      action?: { id: string } | null;
     }>;
   }) {
     return {
@@ -523,7 +528,9 @@ export class ScoreCenterService {
         totalTasks: plan.tasks.length,
         totalMinutes: plan.tasks.reduce((sum, task) => sum + task.minutes, 0),
       },
-      items: plan.tasks.map((task) => ({
+      items: plan.tasks.map((task) => {
+        const compatibility = toRecommendationTaskCompat(task);
+        const item = {
         id: task.id,
         knowledgeNodeId: task.knowledgeNodeId,
         knowledgePointId: task.knowledgePointId,
@@ -536,7 +543,9 @@ export class ScoreCenterService {
         scoreBreakdown: task.scoreBreakdown ?? {},
         rank: task.generatedRank,
         status: task.status,
-      })),
+        };
+        return compatibility.actionId ? { ...item, actionId: compatibility.actionId } : item;
+      }),
     };
   }
 }

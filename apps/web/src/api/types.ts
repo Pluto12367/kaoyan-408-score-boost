@@ -72,6 +72,80 @@ export interface CanonicalOverview {
   recommendedActions: Array<{ actionId: string; actionType: string; title: string; target?: { knowledgeNodeId?: string; knowledgePointId?: string; studyTaskId?: string }; evidence: Array<{ kind: string; id: string }>; status: string }>;
 }
 
+/**
+ * Client-side representation of the backend StudentContext v1 read model.
+ * This is intentionally a read contract mirror; it contains no write fields
+ * or client-generated identity and is consumed through a StudentHome adapter.
+ */
+export type StudentContextTrendStatus = 'sufficient' | 'insufficient_data';
+
+export interface StudentContextTrend<T> {
+  window: string;
+  baseline: T | null;
+  sampleSize: number;
+  status: StudentContextTrendStatus;
+  value: T | null;
+}
+
+export interface StudentContextNode {
+  knowledgeNodeId: string;
+  subject: string;
+  chapter: string;
+  title: string;
+  mastery: number;
+  accuracy: number | null;
+  attempts: number;
+  wrongCount: number;
+  status: string;
+  updatedAt: string | null;
+}
+
+export interface StudentContext {
+  version: 'student-context-v1';
+  userId: string;
+  asOf: string;
+  freshness: { asOf: string; status: StudentContextTrendStatus; sources: Array<{ source: string; observedAt: string | null; status: 'available' | 'unavailable' }> };
+  profile: { userId: string; name: string | null; role: string | null; targetSchool: string | null; weakestSubject: string | null; diagnosis: string | null };
+  exam: { examYear: number | null; targetScore: number | null; currentScore: number | null; remainingDays: number | null; studyStage: string | null };
+  mastery: {
+    source: 'user_knowledge_mastery' | 'empty';
+    weakNodes: StudentContextNode[];
+    weakPoints: Array<{ knowledgePointId: string; subject: string; chapter: string; title: string; attempts: number; wrongCount: number; accuracy: number | null; latestAt: string | null }>;
+    improvingPoints: StudentContextNode[];
+    masteredPoints: StudentContextNode[];
+    lastUpdatedAt: string | null;
+  };
+  practice: {
+    source: 'practice_record' | 'empty';
+    recentAccuracy: StudentContextTrend<number>;
+    recentVolume: StudentContextTrend<number>;
+    subjectDistribution: { status: StudentContextTrendStatus; items: Array<{ subject: string; count: number; share: number }> };
+    totalCount: number;
+    latestSubmittedAt: string | null;
+  };
+  review: {
+    source: 'review_schedule' | 'empty';
+    dueCount: number;
+    overdueCount: number;
+    reviewedCount: number;
+    resolvedCount: number;
+    highRiskQuestions: Array<{ questionId: string; knowledgePointId: string | null; wrongCount: number; overdue: boolean; nextReviewAt: string | null; stability: string | null }>;
+    nextReviewAt: string | null;
+  };
+  plan: {
+    source: 'study_plan' | 'empty';
+    planId: string | null;
+    todayTasks: Array<{ studyTaskId: string; actionId: string | null; title: string; status: string; scheduledDate: string; completed: boolean; completedAt: string | null; knowledgePointId: string | null; knowledgeNodeId: string | null; minutes: number; questionCount: number }>;
+    completion: { completedCount: number; totalCount: number; rate: StudentContextTrend<number> };
+  };
+  momentum: {
+    studyStreak: number;
+    recentSessions: Array<{ learningSessionId: string; actionId: string | null; type: string; startedAt: string; lastActiveAt: string; completed: boolean }>;
+    activityTrend: StudentContextTrend<number>;
+  };
+  recommendationEvidence: Array<{ source: string; timestamp: string | null; knowledgeNodeId?: string; knowledgePointId?: string; actionId?: string; studyTaskId?: string; referenceId?: string }>;
+}
+
 export interface LearningCalendar {
   days: LearningCalendarDay[];
   today: LearningCalendarDay;
@@ -186,6 +260,8 @@ export interface PracticeSet {
   stage: string;
   focus: string;
   reason: string;
+  /** Canonical recommendation identity; kept separate from legacy Point IDs. */
+  knowledgeNodeIds?: string[];
   knowledgePointIds: string[];
   questionCount: number;
   estimatedMinutes: number;
@@ -231,6 +307,8 @@ export interface WrongQuestion {
   answer?: string;
   analysis?: string;
   knowledgePointId: string;
+  /** Explicit Point → Node mapping for mastery joins; may contain multiple nodes. */
+  knowledgeNodeIds?: string[];
   knowledgePointTitle: string;
   subject: string;
   chapter: string;

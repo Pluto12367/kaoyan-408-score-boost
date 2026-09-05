@@ -352,7 +352,7 @@ test('AgentModule wires the tool registry and an optional LLM boundary', async (
   assert.match(source, /StudyAgentToolRegistry/);
   assert.match(source, /'AGENT_LLM'/);
   assert.match(source, /createAgentLlmFromEnv/);
-  assert.match(source, /exports:\s*\[\s*StudyAgentService,\s*StudyPlannerService\s*\]/);
+  assert.match(source, /exports:\s*\[StudyAgentService,\s*StudyPlannerService,\s*DailyPlanningService,\s*ExamSimulatorService,\s*SupervisorAgentService\]/);
   // Read-model chain registered module-locally (no StudyModule export changes)
   assert.match(source, /StudentContextQueryService/);
   assert.match(source, /WrongQuestionQueryService/);
