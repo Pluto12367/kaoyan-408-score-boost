@@ -116,7 +116,7 @@ mastery 唯一写通道：ScoreCenterService ← 既有 practice 提交路径）
 
 1. **外部调度器未部署**：Daily Agent 以幂等端点交付；接入云函数/CI cron 或前端每日入口由部署侧决定（接口已稳）。
 2. **Coach Session 的 RuntimeState 存储**：单用户单会话语义（每用户一 key）；多设备并发写同一会话以最后写入为准——对学习伙伴场景可接受，未来如需多会话需契约演进。
-3. **题库-节点精确映射**：试卷 coverage 以 subject/优先级为粒度（真实但粗）；如需节点级精确映射，应工具化 `QuestionKnowledgeNodeTag` 读取（只读工具，增量项）。
+3. **题库-节点精确映射（已关闭，2026-09-06 增量 7c7b4ff）**：新增只读 `ExamQuestionRepository`（`QuestionKnowledgeNodeTag` 按 knowledgeNodeId 索引查询，仅 isCurrent 题、有界 take、学生安全投影）。Exam Simulator 生成时把检索节点+引擎优先节点的精确题与科目级候选合并去重、按节点 mastery 加权；DB 不可用时回退科目级路径（行为不变，测试钉死）。
 4. **Socratic 检查为规则判据**：理解度判定基于关键词/结构启发；接入 LLM 后可在 guard 框架内增强语义判定。
 5. **远程 LLM 链路**：与上期相同，协议层 stub 全覆盖，真实冒烟建议在配置 key 后执行。
 
