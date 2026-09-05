@@ -38,6 +38,15 @@ interface Props {
 
 const CONFIDENCE_LEVELS: ConfidenceLevel[] = ['确定', '不确定', '完全不会'];
 
+const OPTION_SHORTCUTS: Record<string, number> = {
+  '1': 0, '2': 1, '3': 2, '4': 3,
+  a: 0, b: 1, c: 2, d: 3,
+};
+
+function formatClockSec(totalSec: number) {
+  return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`;
+}
+
 export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, localMode = false, learningMode = false, onCheckAnswer, onExit, onSubmit }: Props) {
   const {
     session, saving, submitting, error, saveError, lastSavedAt,
@@ -93,6 +102,37 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
     }, 1000);
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [getActiveElapsedMs]);
+
+  // 键盘快捷键：选项/切题/标记。Escape 关闭弹窗或退出由 useOverlayDialog 统一处理。
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (showSubmitConfirm || !session || !currentQuestion) return;
+      const key = event.key.toLowerCase();
+      if (currentQuestion.type !== '综合题' && key in OPTION_SHORTCUTS) {
+        const optionIndex = OPTION_SHORTCUTS[key];
+        if (optionIndex < currentQuestion.options.length) {
+          event.preventDefault();
+          if (isLearningMode) { void handleLearningSelect(optionIndex); } else { handleSelectAnswer(optionIndex); }
+        }
+        return;
+      }
+      if (event.key === 'ArrowLeft' && currentIndex > 0) {
+        event.preventDefault();
+        goToQuestion(currentIndex - 1);
+      } else if (event.key === 'ArrowRight' && currentIndex < questionIds.length - 1) {
+        event.preventDefault();
+        goToQuestion(currentIndex + 1);
+      } else if (key === 'm') {
+        event.preventDefault();
+        toggleMark(currentQuestion.id);
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  });
 
   const remainingSec = Math.max(0, totalTimeSec - elapsedSec);
   const remainingMin = Math.floor(remainingSec / 60);
@@ -265,6 +305,10 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
 
   const timerClass = isLearningMode ? '' : remainingSec < 300 ? 'timer-danger' : remainingSec < 600 ? 'timer-warning' : '';
   const learningFeedbackForCurrent = currentQuestion ? learningFeedback[currentQuestion.id] : undefined;
+  const currentQuestionSec = currentQuestion
+    ? (session.answers[currentQuestion.id]?.timeSpentSec ?? 0)
+      + Math.max(0, Math.floor((getActiveElapsedMs() - questionStartedAtRef.current + questionTimeCarryMsRef.current) / 1000))
+    : 0;
 
   return (
     <div ref={sessionRootRef} className="exam-session" role="dialog" aria-modal="true" aria-label={`${sessionLabel}答题界面`}>
@@ -302,6 +346,20 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
         )}
       </header>
 
+      <div
+        className="exam-progress"
+        role="progressbar"
+        aria-label="答题进度"
+        aria-valuemin={0}
+        aria-valuemax={questionIds.length}
+        aria-valuenow={answeredCount}
+      >
+        <div
+          className="exam-progress-fill"
+          style={{ width: `${questionIds.length ? (answeredCount / questionIds.length) * 100 : 0}%` }}
+        />
+      </div>
+
       {submitError ? (
         <div className="module-error">
           <span>{submitError}</span>
@@ -316,6 +374,10 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
             <>
               <div className="question-header">
                 <span>第 {currentIndex + 1}/{questionIds.length} 题</span>
+                <span className="question-time-chip" aria-label="本题用时">
+                  本题 {formatClockSec(currentQuestionSec)}
+                  {currentQuestion.expectedTimeSec ? ` / 建议 ${formatClockSec(currentQuestion.expectedTimeSec)}` : ''}
+                </span>
                 <button
                   type="button"
                   className={session.markedQuestions.includes(currentQuestion.id) ? 'marked' : ''}
@@ -415,6 +477,7 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
                   下一题 <ChevronRight size={16} />
                 </button>
               </div>
+              <p className="shortcut-hint">快捷键：1-4 / A-D 选择选项，← → 切换题目，M 标记本题</p>
             </>
           ) : (
             <p className="empty-state">没有题目</p>
@@ -451,7 +514,17 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
       {/* Submit confirmation modal */}
       {showSubmitConfirm ? (
         <div ref={confirmOverlayRef} className="submit-confirm-overlay" role="dialog" aria-modal="true" aria-label="确认提交">
-          <div className="submit-confirm-panel">
+          <div
+            className="submit-confirm-panel"
+            onKeyDown={(event) => {
+              if (event.key !== 'Enter') return;
+              const target = event.target as HTMLElement | null;
+              if (!target || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON') return;
+              if (submitting || missingSubjectiveScores.length > 0) return;
+              event.preventDefault();
+              void handleSubmit();
+            }}
+          >
             <h3><AlertTriangle size={20} /> 确认提交{sessionLabel}</h3>
             {unansweredQuestions.length > 0 ? (
               <div className="unanswered-warning">
@@ -459,7 +532,17 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
                 <ul>
                   {unansweredQuestions.slice(0, 5).map((id) => {
                     const q = questions.find((q2) => q2.id === id);
-                    return <li key={id}>{q?.stem.slice(0, 30) ?? id}...</li>;
+                    return (
+                      <li key={id}>
+                        <button
+                          type="button"
+                          className="unanswered-jump"
+                          onClick={() => { setShowSubmitConfirm(false); goToQuestion(questionIds.indexOf(id)); }}
+                        >
+                          {q?.stem.slice(0, 30) ?? id}...
+                        </button>
+                      </li>
+                    );
                   })}
                   {unansweredQuestions.length > 5 ? <li>...还有 {unansweredQuestions.length - 5} 道</li> : null}
                 </ul>

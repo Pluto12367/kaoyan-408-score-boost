@@ -1,13 +1,14 @@
 /**
  * UI 主题偏好（方案 A 深色 / 方案 B 极简 / 方案 C 标准）
  *
+ * - 默认主题为 A 深色（深色科技感是学生端主视觉方向）。
  * - 选择持久化到 localStorage，刷新后保持上次选择。
  * - 通过 html[data-theme] 交给 CSS 变量级联，无业务逻辑依赖。
  */
 
 export type ThemeVariant = 'a' | 'b' | 'c';
 
-export const DEFAULT_THEME: ThemeVariant = 'c';
+export const DEFAULT_THEME: ThemeVariant = 'a';
 export const THEME_STORAGE_KEY = 'kaoyan408:theme';
 
 export interface ThemeOption {

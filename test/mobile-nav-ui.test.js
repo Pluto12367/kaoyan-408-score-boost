@@ -68,5 +68,5 @@ test('stage 6: mobile styles hide the student sidebar and show the bottom nav', 
   assert.match(styles, /\.sidebar-student \{\s*display: none/);
   assert.match(styles, /\.bottom-nav \{[\s\S]*?position: fixed/);
   // option tap target is at least 44px on mobile
-  assert.match(styles, /\.options button \{\s*background: #eef2ff;\s*color: #1e3a8a;\s*min-height: 44px;/);
+  assert.match(styles, /\.options button \{\s*background: var\(--primary-soft\);\s*color: var\(--primary-strong\);\s*min-height: 44px;/);
 });

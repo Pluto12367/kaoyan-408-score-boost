@@ -20,8 +20,8 @@ function fakeStorage(initial = {}) {
   };
 }
 
-test('theme: default theme is the standard paper-ink variant', () => {
-  assert.equal(DEFAULT_THEME, 'c');
+test('theme: default theme is the dark variant', () => {
+  assert.equal(DEFAULT_THEME, 'a');
   assert.ok(isThemeVariant(DEFAULT_THEME));
 });
 
@@ -49,10 +49,10 @@ test('theme: readStoredTheme validates stored values', () => {
   assert.equal(readStoredTheme(null), null);
 });
 
-test('theme: resolveInitialTheme falls back to the standard theme', () => {
-  assert.equal(resolveInitialTheme(null), 'c');
-  assert.equal(resolveInitialTheme(fakeStorage({})), 'c');
-  assert.equal(resolveInitialTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'garbage' })), 'c');
+test('theme: resolveInitialTheme falls back to the dark theme', () => {
+  assert.equal(resolveInitialTheme(null), 'a');
+  assert.equal(resolveInitialTheme(fakeStorage({})), 'a');
+  assert.equal(resolveInitialTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'garbage' })), 'a');
   assert.equal(resolveInitialTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'a' })), 'a');
   assert.equal(resolveInitialTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'b' })), 'b');
 });

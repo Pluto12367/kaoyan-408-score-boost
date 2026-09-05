@@ -134,9 +134,45 @@ export function PracticePanel({
               <span>正确答案：{answerLetter(answerResult.correctAnswer, question)}</span>
             ) : null}
           </div>
+          <div className="answer-result-actions">
+            {hasNextQuestion ? (
+              <button type="button" className="primary-action" onClick={onNextQuestion}>下一题</button>
+            ) : (
+              <span className="muted">当前题库已练完，可在下方开始专项练习或前往错题本。</span>
+            )}
+            {!hasNextQuestion && onRestartQuestionBank ? (
+              <button type="button" className="secondary-action" onClick={onRestartQuestionBank}>重新练习本组</button>
+            ) : null}
+          </div>
           {answerResult.knowledgePointTitle ? (
             <p className="answer-result-kp"><strong>核心考点</strong>{answerResult.knowledgePointTitle}</p>
           ) : null}
+          {answerResult.analysis ? (
+            <div className="answer-result-analysis"><strong>解析</strong><p>{answerResult.analysis}</p></div>
+          ) : (
+            <p className="muted">暂无标准解析，可稍后在错题本中查看或使用 AI 答疑。</p>
+          )}
+          {!answerResult.correct && answerResult.mistakeReason ? (
+            <p className="answer-result-reason"><strong>本次错因</strong>{answerResult.mistakeReason}</p>
+          ) : null}
+          {answerResult.correct
+            && answerResult.expectedTimeSec != null
+            && isSlowAnswer(answerResult.timeSpentSec, answerResult.expectedTimeSec) ? (
+              <p className="answer-result-speed"><strong>用时偏慢</strong>建议控制在 {answerResult.expectedTimeSec} 秒内，避免考场时间压力。</p>
+          ) : null}
+          <div className="answer-next-action-card">
+            <strong>下一步建议</strong>
+            <span>{answerNextAction}</span>
+          </div>
+          {taskContext ? (
+            <div className="task-progress-feedback">
+              <strong>今日任务反馈</strong>
+              <span>本题会计入今日任务进度，达标后系统会推荐下一步。</span>
+            </div>
+          ) : null}
+          <details className="answer-learning-details">
+            <summary>学习影响与推荐依据</summary>
+            <div>
           <div className="answer-impact-card">
             <strong>本次学习影响</strong>
             <p><span>知识点</span>{answerResult.knowledgePointTitle ?? '当前题目关联考点'}</p>
@@ -166,39 +202,8 @@ export function PracticePanel({
           {answerNextLearningStep && onNavigate ? (
             <NextLearningStepCard step={answerNextLearningStep} onNavigate={onNavigate} compact />
           ) : null}
-          {answerResult.analysis ? (
-            <div className="answer-result-analysis"><strong>解析</strong><p>{answerResult.analysis}</p></div>
-          ) : (
-            <p className="muted">暂无标准解析，可稍后在错题本中查看或使用 AI 答疑。</p>
-          )}
-          {!answerResult.correct && answerResult.mistakeReason ? (
-            <p className="answer-result-reason"><strong>本次错因</strong>{answerResult.mistakeReason}</p>
-          ) : null}
-          {answerResult.correct
-            && answerResult.expectedTimeSec != null
-            && isSlowAnswer(answerResult.timeSpentSec, answerResult.expectedTimeSec) ? (
-              <p className="answer-result-speed"><strong>用时偏慢</strong>建议控制在 {answerResult.expectedTimeSec} 秒内，避免考场时间压力。</p>
-            ) : null}
-          {taskContext ? (
-            <div className="task-progress-feedback">
-              <strong>今日任务反馈</strong>
-              <span>本题会计入今日任务进度，达标后系统会推荐下一步。</span>
             </div>
-          ) : null}
-          <div className="answer-next-action-card">
-            <strong>下一步建议</strong>
-            <span>{answerNextAction}</span>
-          </div>
-          <div className="answer-result-actions">
-            {hasNextQuestion ? (
-              <button type="button" className="primary-action" onClick={onNextQuestion}>下一题</button>
-            ) : (
-              <span className="muted">当前题库已练完，可在下方开始专项练习或前往错题本。</span>
-            )}
-            {!hasNextQuestion && onRestartQuestionBank ? (
-              <button type="button" className="secondary-action" onClick={onRestartQuestionBank}>重新练习本组</button>
-            ) : null}
-          </div>
+          </details>
           {showTaskNextStep && taskNextStep ? (
             <div className="today-task-next-step" role="status" aria-label="任务完成后的下一步">
               <strong>任务完成后的下一步</strong>
