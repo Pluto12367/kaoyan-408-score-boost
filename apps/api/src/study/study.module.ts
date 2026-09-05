@@ -48,6 +48,8 @@ import { FeedbackRepository } from './feedback.repository';
 import { UserEventRepository } from './user-event.repository';
 import { ScoreCenterModule } from '../score-center/score-center.module';
 import { RagModule } from '../rag/rag.module';
+import { CoachSessionRepository } from './coach-session.repository';
+import { LearningMemoryService } from '../agent/learning-memory.service';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
 import { LearningLoopRepository } from './learning-loop.repository';
 import { ContextualCoachService } from './contextual-coach.service';
@@ -75,6 +77,6 @@ import { StudentContextQueryService } from './student-context.query.service';
     provide: ExamScoreHistoryProjectionService,
     useFactory: (sessions: LearningSessionRepository, practiceRecords: PracticeRecordRepository) =>
       new ExamScoreHistoryProjectionService({ sessions, practiceRecords }),    inject: [LearningSessionRepository, PracticeRecordRepository],
-  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, CanonicalEventWriterService, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
+  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, CanonicalEventWriterService, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository, CoachSessionRepository, LearningMemoryService],
 })
 export class StudyModule {}

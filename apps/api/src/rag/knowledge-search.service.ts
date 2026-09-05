@@ -81,6 +81,8 @@ export class KnowledgeSearchService {
     }
 
     const startedAt = Date.now();
+    // Cache hit = a warm index served this search (no cold rebuild).
+    const cacheHit = this.indexPromise != null;
     const index = await this.ensureIndex();
     const topK = Math.max(1, Math.min(20, options?.topK ?? 5));
 
@@ -118,6 +120,7 @@ export class KnowledgeSearchService {
       resultCount: results.length,
       topScore: results[0]?.relevanceScore ?? null,
       durationMs: Date.now() - startedAt,
+      cacheHit,
     });
 
     return {

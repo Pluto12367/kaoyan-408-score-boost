@@ -14,8 +14,18 @@ export function buildContextualCoachSystemPrompt(): string {
   ].join(' ');
 }
 
-export function buildContextualCoachUserPrompt(context: ContextualCoachContext, message?: string): string {
-  return JSON.stringify({ context, learnerMessage: (message ?? '').trim().slice(0, 1000) });
+export function buildContextualCoachUserPrompt(
+  context: ContextualCoachContext,
+  message?: string,
+  sessionBrief?: string,
+  personalizationSections?: string,
+): string {
+  return JSON.stringify({
+    context,
+    learnerMessage: (message ?? '').trim().slice(0, 1000),
+    ...(sessionBrief ? { conversation: sessionBrief } : {}),
+    ...(personalizationSections ? { personalization: personalizationSections } : {}),
+  });
 }
 
 export function parseContextualCoachJson(raw: string): ContextualCoachDraft {

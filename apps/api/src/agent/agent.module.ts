@@ -30,6 +30,10 @@ import { AgentController } from './agent.controller';
 import { StudyAgentToolRegistry } from './agent-tools';
 import { StudyAgentService } from './study-agent.service';
 import { StudyPlannerService } from './study-planner.service';
+import { DailyPlanningService } from './daily-planning.service';
+import { ExamSimulatorService } from './exam-simulator.service';
+import { TutorService } from './tutor.service';
+import { SupervisorAgentService } from './supervisor.service';
 import { LearningMemoryService } from './learning-memory.service';
 import { createAgentLlmFromEnv } from './agent-llm';
 import type { AgentLlm } from './study-agent.service';
@@ -71,7 +75,11 @@ import type { AgentLlm } from './study-agent.service';
       inject: [StudyAgentToolRegistry, 'AGENT_LLM', LearningMemoryService, AiMetricsService],
     },
     StudyPlannerService,
+    DailyPlanningService,
+    ExamSimulatorService,
+    TutorService,
+    SupervisorAgentService,
   ],
-  exports: [StudyAgentService, StudyPlannerService],
+  exports: [StudyAgentService, StudyPlannerService, DailyPlanningService, ExamSimulatorService, SupervisorAgentService],
 })
 export class AgentModule {}

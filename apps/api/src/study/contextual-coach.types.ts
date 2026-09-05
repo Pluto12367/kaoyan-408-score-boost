@@ -1,10 +1,15 @@
 export type ContextualCoachContextType = 'question' | 'wrong_question' | 'knowledge_node' | 'assessment';
 
+/** PX-1: optional session continuity reference; absent = stateless single turn. */
+interface CoachSessionRef {
+  sessionId?: string;
+}
+
 export type ContextualCoachRequest =
-  | { contextType: 'question'; questionId: string; selectedAnswer?: string; message?: string }
-  | { contextType: 'wrong_question'; questionId: string; message?: string }
-  | { contextType: 'knowledge_node'; knowledgeNodeId: string; message?: string }
-  | { contextType: 'assessment'; assessmentId?: string; message?: string };
+  | ({ contextType: 'question'; questionId: string; selectedAnswer?: string; message?: string } & CoachSessionRef)
+  | ({ contextType: 'wrong_question'; questionId: string; message?: string } & CoachSessionRef)
+  | ({ contextType: 'knowledge_node'; knowledgeNodeId: string; message?: string } & CoachSessionRef)
+  | ({ contextType: 'assessment'; assessmentId?: string; message?: string } & CoachSessionRef);
 
 export interface ContextualCoachKnowledgeContext {
   source: string;
@@ -58,4 +63,12 @@ export interface ContextualCoachResponse extends ContextualCoachDraft {
   source: string;
   assembledAt: string;
   fallbackReason?: string;
+  /** PX-1: present when the session repository is enabled and the turn was tracked. */
+  sessionId?: string;
+  session?: {
+    summary: string;
+    goals: string[];
+    unresolvedIssues: string[];
+    compressions: number;
+  };
 }

@@ -141,6 +141,8 @@ export class AiTutorService {
     userId: string,
     context: ContextualCoachContext,
     message?: string,
+    sessionBrief?: string,
+    personalizationSections?: string,
   ): Promise<AiTutorResult<ContextualCoachDraft>> {
     const startedAt = Date.now();
     if (!this.client) {
@@ -160,7 +162,7 @@ export class AiTutorService {
       });
       return result;
     }
-    const prompt = `${buildContextualCoachSystemPrompt()}\n\n${buildContextualCoachUserPrompt(context, message)}`;
+    const prompt = `${buildContextualCoachSystemPrompt()}\n\n${buildContextualCoachUserPrompt(context, message, sessionBrief, personalizationSections)}`;
     const questionId = context.context.type === 'question' || context.context.type === 'wrong_question'
       ? context.context.id
       : null;
@@ -168,7 +170,7 @@ export class AiTutorService {
       const { content, model } = await this.client.chatCompletions({
         messages: [
           { role: 'system', content: buildContextualCoachSystemPrompt() },
-          { role: 'user', content: buildContextualCoachUserPrompt(context, message) },
+          { role: 'user', content: buildContextualCoachUserPrompt(context, message, sessionBrief, personalizationSections) },
         ],
         jsonMode: true,
       });

@@ -28,6 +28,8 @@ export interface RagSearchEvent {
   resultCount: number;
   topScore: number | null;
   durationMs: number;
+  /** True when a warm index served the search (no cold rebuild). */
+  cacheHit?: boolean;
 }
 
 export interface CoachResponseEvent {
@@ -35,6 +37,13 @@ export interface CoachResponseEvent {
   source: string;
   fallback: boolean;
   durationMs: number;
+}
+
+export interface EvaluationEvent {
+  at: number;
+  suite: string;
+  passed: boolean;
+  score: number;
 }
 
 const MAX_EVENTS = 5000;
@@ -45,6 +54,7 @@ export class AiMetricsService {
   private agentRuns: AgentRunEvent[] = [];
   private ragSearches: RagSearchEvent[] = [];
   private coachResponses: CoachResponseEvent[] = [];
+  private evaluations: EvaluationEvent[] = [];
 
   recordAgentRun(event: Omit<AgentRunEvent, 'at'> & { at?: number }): void {
     this.push(this.agentRuns, { at: event.at ?? Date.now(), ...event } as AgentRunEvent);
@@ -58,16 +68,22 @@ export class AiMetricsService {
     this.push(this.coachResponses, { at: event.at ?? Date.now(), ...event } as CoachResponseEvent);
   }
 
+  recordEvaluation(event: Omit<EvaluationEvent, 'at'> & { at?: number }): void {
+    this.push(this.evaluations, { at: event.at ?? Date.now(), ...event } as EvaluationEvent);
+  }
+
   snapshot(now: number = Date.now()): AiMetricsSnapshot {
     const since = now - WINDOW_MS;
     const agent = this.agentRuns.filter((event) => event.at >= since);
     const rag = this.ragSearches.filter((event) => event.at >= since);
     const coach = this.coachResponses.filter((event) => event.at >= since);
+    const evaluations = this.evaluations.filter((event) => event.at >= since);
 
     const agentLatencies = agent.map((event) => event.durationMs).sort((left, right) => left - right);
     const promptTokens = agent.reduce((sum, event) => sum + (event.promptTokens ?? 0), 0);
     const completionTokens = agent.reduce((sum, event) => sum + (event.completionTokens ?? 0), 0);
     const ragScores = rag.map((event) => event.topScore).filter((score): score is number => score != null);
+    const ragCacheHits = rag.filter((event) => event.cacheHit === true).length;
 
     return {
       window: { maxAgeMinutes: WINDOW_MS / 60000, eventCap: MAX_EVENTS },
@@ -87,11 +103,18 @@ export class AiMetricsService {
         hitRate: ratio(rag.filter((event) => event.available && event.resultCount > 0).length, rag.length),
         avgTopScore: avg(ragScores),
         avgLatencyMs: avg(rag.map((event) => event.durationMs)),
+        cacheHitRate: ratio(ragCacheHits, rag.length),
       },
       coach: {
         responses: coach.length,
         fallbackRate: ratio(coach.filter((event) => event.fallback).length, coach.length),
         avgLatencyMs: avg(coach.map((event) => event.durationMs)),
+      },
+      evaluation: {
+        runs: evaluations.length,
+        passRate: ratio(evaluations.filter((event) => event.passed).length, evaluations.length),
+        avgScore: avg(evaluations.map((event) => event.score)),
+        suites: [...new Set(evaluations.map((event) => event.suite))],
       },
     };
   }
@@ -100,6 +123,7 @@ export class AiMetricsService {
     this.agentRuns = [];
     this.ragSearches = [];
     this.coachResponses = [];
+    this.evaluations = [];
   }
 
   private push<T>(list: T[], event: T): void {
@@ -126,11 +150,18 @@ export interface AiMetricsSnapshot {
     hitRate: number;
     avgTopScore: number | null;
     avgLatencyMs: number | null;
+    cacheHitRate: number;
   };
   coach: {
     responses: number;
     fallbackRate: number;
     avgLatencyMs: number | null;
+  };
+  evaluation: {
+    runs: number;
+    passRate: number;
+    avgScore: number | null;
+    suites: string[];
   };
 }
 
