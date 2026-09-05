@@ -41,20 +41,48 @@ const NEUTRAL_MASTERY: MasteryState = {
   confidence: 0,
 };
 
+export const BRIDGE_KNOWLEDGE_TAG_SOURCE = 'bridge:knowledge-point-map';
+
+export type KnowledgeNodeResolution = {
+  knowledgeNodeId: string;
+  role: 'PRIMARY' | 'SECONDARY';
+  confidence: number;
+  taggedBy: string | null;
+  source: string | null;
+  origin: 'direct' | 'bridge' | 'map-fallback';
+};
+
 export function neutralMastery(): MasteryState {
   return { ...NEUTRAL_MASTERY };
 }
 
-export async function resolveKnowledgeNodesForQuestion(db: DbClient, questionId: string) {
+export async function resolveKnowledgeNodesForQuestion(db: DbClient, questionId: string): Promise<KnowledgeNodeResolution[]> {
   const direct = await db.questionKnowledgeNodeTag.findMany({
     where: { questionId },
-    select: { knowledgeNodeId: true, role: true },
+    select: { knowledgeNodeId: true, role: true, confidence: true, taggedBy: true, source: true },
   });
+
+  const toResolution = (tag: {
+    knowledgeNodeId: string;
+    role: string;
+    confidence?: number | null;
+    taggedBy?: string | null;
+    source?: string | null;
+  }, origin: KnowledgeNodeResolution['origin']): KnowledgeNodeResolution => ({
+    knowledgeNodeId: tag.knowledgeNodeId,
+    role: tag.role as 'PRIMARY' | 'SECONDARY',
+    confidence: tag.confidence ?? 0,
+    taggedBy: tag.taggedBy ?? null,
+    source: tag.source ?? null,
+    origin,
+  });
+
+  const trustedDirect = direct.filter((tag) => tag.source !== BRIDGE_KNOWLEDGE_TAG_SOURCE);
+  if (trustedDirect.length > 0) {
+    return trustedDirect.map((tag) => toResolution(tag, 'direct'));
+  }
   if (direct.length > 0) {
-    return direct.map((tag) => ({
-      knowledgeNodeId: tag.knowledgeNodeId,
-      role: tag.role as 'PRIMARY' | 'SECONDARY',
-    }));
+    return direct.map((tag) => toResolution(tag, 'bridge'));
   }
 
   // Fallback chain: Question -> QuestionKnowledgePoint -> KnowledgePoint -> KnowledgePointNodeMap.
@@ -64,14 +92,26 @@ export async function resolveKnowledgeNodesForQuestion(db: DbClient, questionId:
       knowledgePoint: {
         select: {
           nodeMaps: {
-            select: { knowledgeNodeId: true },
+            select: { knowledgeNodeId: true, confidence: true, taggedBy: true },
           },
         },
       },
     },
   });
-  const nodeIds = [...new Set(links.flatMap((link) => link.knowledgePoint.nodeMaps.map((map) => map.knowledgeNodeId)))];
-  return nodeIds.map((knowledgeNodeId) => ({ knowledgeNodeId, role: 'PRIMARY' as const }));
+  const nodeById = new Map<string, KnowledgeNodeResolution>();
+  for (const map of links.flatMap((link) => link.knowledgePoint.nodeMaps)) {
+    if (!nodeById.has(map.knowledgeNodeId)) {
+      nodeById.set(map.knowledgeNodeId, {
+        knowledgeNodeId: map.knowledgeNodeId,
+        role: 'PRIMARY',
+        confidence: map.confidence ?? 0,
+        taggedBy: map.taggedBy ?? null,
+        source: null,
+        origin: 'map-fallback',
+      });
+    }
+  }
+  return [...nodeById.values()];
 }
 
 export async function loadActiveKnowledgeNodes(db: DbClient, ids: string[]) {
@@ -486,7 +526,12 @@ export async function createScoreCenterPlan(
 }
 
 export async function loadTodayScoreCenterPlan(db: DbClient, userId: string, scheduledDate: string) {
-  return db.studyPlan.findFirst({
+  // The reverse RecommendationAction relation is present in the current
+  // schema. Keep this narrow cast until the generated Prisma client is
+  // regenerated in the deployment environment (the checked-in client may be
+  // older than the schema during offline verification).
+  const studyPlan = (db as DbClient & { studyPlan: any }).studyPlan;
+  return studyPlan.findFirst({
     where: {
       userId,
       source: 'score-center',
@@ -496,6 +541,7 @@ export async function loadTodayScoreCenterPlan(db: DbClient, userId: string, sch
       tasks: {
         where: { scheduledDate },
         orderBy: { generatedRank: 'asc' },
+        include: { action: { select: { id: true } } },
       },
     },
     orderBy: { createdAt: 'desc' },
