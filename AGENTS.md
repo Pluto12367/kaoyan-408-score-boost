@@ -50,6 +50,10 @@
 
 - 不自动提交、不自动推送、不自动创建分支；Git 写操作仅在用户明确要求时执行。
 
+### 10. 状态入口
+
+- 所有 Agent 开始工作前必须读取 `docs/current-sprint.md`（项目唯一常青状态入口：当前阶段、进行中任务、在途文件归属、地雷清单）。完成一个阶段后由当值 Agent 更新该文件。
+
 ## Open-source reference check before coding
 
 Before writing or modifying code in this repository, perform a lightweight open-source reference check.
