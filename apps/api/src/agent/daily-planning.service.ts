@@ -15,10 +15,14 @@
  * the only write goes through the canonical createStudyTask tool.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { deriveDifficultyAdjustment, type DifficultyAdjustment } from './adaptive-difficulty';
 import { validatePlan, type PlanDraftItem } from './plan-validator';
 import { StudyAgentToolRegistry } from './agent-tools';
+import { LearningSignalService } from '../adaptive/learning-signal.service';
+import { adaptRecommendation } from '../adaptive/adaptive-recommendation';
+import { detectLearningRisks, type LearningRisk } from '../adaptive/learning-risk';
+import { deriveLearningSignals } from '../adaptive/learning-signals';
 import { AiMetricsService } from '../ai-metrics/ai-metrics.service';
 
 export interface DailyPlanningInput {
@@ -35,6 +39,8 @@ export interface DailyStudyPlan {
   recommendedTasks: Array<{ title: string; knowledgeNodeId: string; action: string; minutes: number; score: number }>;
   reviewTasks: Array<{ title: string; questionId: string; wrongCount: number; overdue: boolean }>;
   riskAlerts: string[];
+  /** V4-4 adaptive layer output (strategy note, review card, adjustments). */
+  adaptive: { strategyNote: string; reviewCard: unknown; loadCapApplied: boolean; adjustedCount: number };
   execution: { executed: boolean; planId: string | null; taskCount: number; reason?: string };
   evidence: {
     recentAccuracyPercent: number | null;
@@ -52,7 +58,9 @@ export class DailyPlanningService {
 
   constructor(
     private readonly tools: StudyAgentToolRegistry,
-    private readonly metrics?: AiMetricsService,
+    // V4-4 adaptive layer dependencies (optional for legacy compositions).
+    @Optional() private readonly learningSignals?: LearningSignalService,
+    @Optional() private readonly metrics?: AiMetricsService,
   ) {}
 
   async generateDailyPlan(userId: string, input: DailyPlanningInput, now: Date = new Date()): Promise<DailyStudyPlan> {
@@ -76,6 +84,35 @@ export class DailyPlanningService {
     };
     const adjustment = deriveDifficultyAdjustment(evidence, baseMinutes);
 
+    // V4-4: signal/risk derivation + adaptive re-ranking facts.
+    const signalInput = {
+      asOf: now.toISOString(),
+      mastery: {
+        weakNodes: (context?.mastery?.weakNodes ?? []) as any[],
+        improvingNodes: (context?.mastery?.improvingPoints ?? []) as any[],
+        masteredNodes: (context?.mastery?.masteredPoints ?? []) as any[],
+      },
+      practice: {
+        recentAccuracy: context?.practice?.recentAccuracy ?? { status: 'insufficient_data', value: null },
+        totalCount: context?.practice?.totalCount ?? 0,
+        latestSubmittedAt: context?.practice?.latestSubmittedAt ?? null,
+      },
+      review: {
+        dueCount: evidence.dueCount,
+        overdueCount: evidence.overdueCount,
+        highRiskQuestions: (context?.review?.highRiskQuestions ?? []) as any[],
+      },
+      baseline: undefined,
+      plan: { completionRate: evidence.completionRate, openTaskCount: 0 },
+      momentum: {
+        studyStreak: context?.momentum?.studyStreak ?? 0,
+        isActiveToday: true,
+        activeDaysLast7: context?.momentum?.activityTrend?.value ?? 0,
+      },
+    };
+    const signalsForAdaptation = deriveLearningSignals(signalInput);
+    const adaptiveRisks: LearningRisk[] = detectLearningRisks(signalsForAdaptation);
+
     // Goals: derived from weak nodes and review pressure.
     const goals: string[] = [];
     const weakTitles = (context?.mastery?.weakNodes ?? []).slice(0, 2).map((node: { title?: string }) => String(node.title ?? '')).filter(Boolean);
@@ -87,6 +124,27 @@ export class DailyPlanningService {
     const previewResult = await this.tools.execute(userId, 'generateStudyPlan', { availableMinutes: adjustment.availableMinutes, scheduledDate: date }, now);
     steps.push({ tool: 'generateStudyPlan', ok: previewResult.ok, summary: previewResult.ok ? `draft generated at ${adjustment.availableMinutes} min` : `failed: ${previewResult.error}` });
     const draftItems: PlanDraftItem[] = previewResult.ok ? ((previewResult.data as { items?: PlanDraftItem[] }).items ?? []) : [];
+
+    // V4-4: adaptive re-ranking over the validated draft (risk boosts, exam
+    // proximity, overload cap). Engine order is preserved when no adaptive
+    // facts fire.
+    const reviewQueueForAdaptation = (context?.review?.highRiskQuestions ?? []) as Array<{ questionId?: string; wrongCount?: number; overdue?: boolean }>;
+    const adaptiveView = adaptRecommendation(draftItems, {
+      risks: adaptiveRisks.map((risk) => ({
+        type: risk.type,
+        severity: risk.severity,
+        knowledgeNodeId: risk.knowledgeNodeId,
+        evidence: risk.evidence,
+      })),
+      signals: signalsForAdaptation,
+      reviewQueue: reviewQueueForAdaptation.map((item: any) => ({
+        questionId: String(item.questionId ?? ''),
+        title: String(item.knowledgePointTitle ?? item.stem ?? item.questionId ?? ''),
+        wrongCount: Number(item.wrongCount ?? 0),
+        overdue: Boolean(item.overdue),
+      })),
+      examDaysRemaining: null,
+    });
 
     // Step 4: validation (capacity/duplicates/mastered/learn-limit).
     const masteredNodeIds = (context?.mastery?.masteredPoints ?? [])
@@ -136,15 +194,26 @@ export class DailyPlanningService {
       date,
       adjustment,
       goals,
-      recommendedTasks: validation.validItems.map((item) => ({
-        title: item.title,
-        knowledgeNodeId: item.knowledgeNodeId,
-        action: item.action,
-        minutes: item.estimatedMinutes,
-        score: item.score,
-      })),
+      recommendedTasks: adaptiveView.items
+        .filter((adaptiveItem) => validation.validItems.some((valid) => valid.knowledgeNodeId === adaptiveItem.knowledgeNodeId))
+        .map((adaptiveItem) => {
+          const valid = validation.validItems.find((item) => item.knowledgeNodeId === adaptiveItem.knowledgeNodeId)!;
+          return {
+            title: valid.title,
+            knowledgeNodeId: valid.knowledgeNodeId,
+            action: valid.action,
+            minutes: valid.estimatedMinutes,
+            score: adaptiveItem.adjustedScore,
+          };
+        }),
       reviewTasks,
       riskAlerts,
+      adaptive: {
+        strategyNote: adaptiveView.strategyNote,
+        reviewCard: adaptiveView.reviewCard,
+        loadCapApplied: adaptiveView.loadCapApplied,
+        adjustedCount: adaptiveView.items.filter((item) => item.adjustments.length > 0).length,
+      },
       execution,
       evidence: {
         recentAccuracyPercent: evidence.recentAccuracy == null ? null : Math.round(evidence.recentAccuracy * 100),

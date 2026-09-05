@@ -20,6 +20,9 @@
 import { Injectable, Logger, Optional } from '@nestjs/common';
 import { StudyAgentToolRegistry, AGENT_TOOL_NAMES, type AgentToolName } from './agent-tools';
 import { LearningMemoryService } from './learning-memory.service';
+import { LearningSignalService } from '../adaptive/learning-signal.service';
+import { derivePlanningStrategy } from '../adaptive/adaptive-planning';
+import { detectLearningRisks } from '../adaptive/learning-risk';
 import {
   detectPromptInjection,
   normalizeAgentAnswer,
@@ -120,6 +123,8 @@ export class StudyAgentService {
     @Optional() private readonly memory?: LearningMemoryService,
     // Live metrics (AI-12): optional so existing DI compositions stay valid.
     @Optional() private readonly metrics?: AiMetricsService,
+    // Adaptive signals (V4-5): appended last per the positional convention.
+    @Optional() private readonly learningSignals?: LearningSignalService,
   ) {}
 
   async run(userId: string, input: StudyAgentRunInput, now: Date = new Date()): Promise<StudyAgentRunResult> {
@@ -300,6 +305,17 @@ export class StudyAgentService {
         if (memory.brief) lines.push(`学习记忆（只读背景，来自学生上下文）：${memory.brief}`);
       } catch (error) {
         this.logger.warn(`memory load failed (non-blocking): ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (this.learningSignals) {
+      try {
+        const signalResult = await this.learningSignals.getLearningSignals(userId, new Date());
+        const risks = detectLearningRisks(signalResult.signals);
+        const strategy = derivePlanningStrategy(risks);
+        lines.push(`学习信号（规则派生）：${signalResult.brief.slice(0, 400)}`);
+        lines.push(`自适应策略指令：${strategy.join('；')}`);
+      } catch (error) {
+        this.logger.warn(`adaptive signals load failed (non-blocking): ${error instanceof Error ? error.message : String(error)}`);
       }
     }
     return lines.join('\n');
