@@ -40,6 +40,7 @@ import { useStudentProgressData } from './hooks/useStudentProgressData';
 import { useStudentLearningData } from './hooks/useStudentLearningData';
 import { useDashboardOverviewData } from './hooks/useDashboardOverviewData';
 import { useCanonicalOverviewData } from './hooks/useCanonicalOverviewData';
+import { useStudentContextData } from './hooks/useStudentContextData';
 import { useRoleWorkspaceData } from './hooks/useRoleWorkspaceData';
 import { ModuleUnavailable } from './components/ModuleResourceState';
 import type { SessionView } from './api/endpoints/sessions';
@@ -127,6 +128,7 @@ export function App() {
   const studentDataEnabled = isStaticDemoMode() || sessionUser?.role === 'student';
   const dashboardOverview = useDashboardOverviewData(studentDataEnabled, authKey);
   const canonicalOverview = useCanonicalOverviewData(studentDataEnabled && sessionUser?.role === 'student', authKey);
+  const studentContext = useStudentContextData(studentDataEnabled && sessionUser?.role === 'student', authKey);
   const { setOverview, refreshOverview } = dashboardOverview;
   const overview = dashboardOverview.overview.data ?? createMockOverview();
   const studentOverviewReady = isStudentOverviewReady(
@@ -377,7 +379,7 @@ export function App() {
     if (result.todayPlan) {
       setTodayPlan(result.todayPlan as TodayPlanType);
     }
-    await Promise.allSettled([refreshOverview(), refreshStudentProgress()]);
+    await Promise.allSettled([refreshOverview(), refreshStudentProgress(), studentContext.refresh()]);
   }
 
   async function refreshTodayPlan() {
@@ -386,7 +388,7 @@ export function App() {
     try {
       const plan = await fetchTodayPlan();
       setTodayPlan(plan);
-      await Promise.allSettled([refreshOverview(), refreshStudentProgress()]);
+      await Promise.allSettled([refreshOverview(), refreshStudentProgress(), studentContext.refresh()]);
     } catch (error) {
       setTodayPlanError(error instanceof Error ? error.message : '今日计划更新失败，请重试。');
     } finally {
@@ -634,6 +636,7 @@ export function App() {
       await refreshSprintPlan();
       await refreshMasteryMap();
       await refreshWrongQuestionSummary();
+      await studentContext.refresh();
       setDiagnosticStatus(`${profile.diagnosis} 已切换到${profile.stage}阶段计划。`);
     } catch {
       setDiagnosticStatus('入学诊断提交失败，请稍后重试。');
@@ -854,6 +857,7 @@ export function App() {
       await refreshMasteryMap();
       await refreshWrongQuestionSummary();
       await refreshDueReviews();
+      await studentContext.refresh();
       setApiState('connected');
       setWrongStatus(`已复盘 ${reviewed.knowledgePointTitle}。${reviewed.nextAction}`);
     } catch {
@@ -1344,7 +1348,7 @@ paperId: paper.id,
       ]);
       return;
     }
-    void refreshOverview();
+    void Promise.allSettled([refreshOverview(), studentContext.refresh()]);
   }
 
   const activeDataSource = sessionUser?.role === 'teacher'
@@ -1442,6 +1446,7 @@ paperId: paper.id,
             learningCalendar={learningCalendar}
             canonicalOverview={canonicalOverview.overview.data}
             canonicalOverviewError={canonicalOverview.overview.error}
+            studentContext={studentContext.context}
             stageReport={stageReport}
             masteryMap={studentProgress.masteryMap.data}
             masteryMapResource={studentProgress.masteryMap}

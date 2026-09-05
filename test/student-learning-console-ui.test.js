@@ -99,9 +99,11 @@ test('student learning console surfaces completed-task feedback and the next vis
 test('student dashboard wires the learning console above existing launchpad content', () => {
   const source = readFileSync('apps/web/src/features/student/StudentSections.tsx', 'utf8');
   const home = readFileSync('apps/web/src/features/student/home/StudentHome.tsx', 'utf8');
-  // V3 Sprint 1 收尾后首页由 StudentHome 组合学习总览台（Console 移入 StudentHome）。
+  // V3 收敛后首页由 StudentHome 组合学习总览台：原 Console 的今日任务/下一步职责
+  // 由 lazy TodayPlan + StudentActionCard 承载（GoalProgressInsight 挂在 TodayPlan 内）。
   assert.match(source, /StudentHome/);
-  assert.match(home, /StudentLearningConsole/);
+  assert.match(home, /TodayPlan/);
+  assert.match(home, /StudentActionCard/);
   assert.match(source, /todayPlan=\{props\.todayPlan\}/);
   assert.match(source, /wrongQuestionSummary=\{props\.wrongQuestionSummary\.data\}/);
   assert.match(source, /masteryMap=\{props\.masteryMap\}/);

@@ -57,7 +57,8 @@ test('today plan, practice feedback, and report all surface goal progress contex
 
   assert.match(report, /GoalProgressInsight/);
   assert.match(report, /student=\{student\}/);
-  assert.match(report, /report=\{report\}/);
+  // Canonical overview 优先、无则回退 report（V3 数据源收敛后的传参契约）。
+  assert.match(report, /report=\{canonicalOverview \? null : report\}/);
   assert.match(report, /actionLabel="报告目标进度"/);
 });
 

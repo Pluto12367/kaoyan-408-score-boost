@@ -7,13 +7,14 @@ const accents = ['violet', 'amber', 'mint', 'blue'];
 function MasteryRing({ subject, index }: { subject: DashboardSubjectViewModel; index: number }) {
   const radius = 25;
   const circumference = 2 * Math.PI * radius;
-  const dash = `${(subject.value / 100) * circumference} ${circumference}`;
+  const value = subject.value ?? 0;
+  const dash = `${(value / 100) * circumference} ${circumference}`;
   return <div className={`dashboard-mastery-ring dashboard-accent-${accents[index]}`}>
-    <svg viewBox="0 0 64 64" aria-label={`${subject.name}${subject.value}%`} role="img">
+    <svg viewBox="0 0 64 64" aria-label={subject.value == null ? `${subject.name}暂无数据` : `${subject.name}${subject.value}%`} role="img">
       <circle className="dashboard-ring-track" cx="32" cy="32" r={radius} />
       <circle className="dashboard-ring-value" cx="32" cy="32" r={radius} strokeDasharray={dash} />
     </svg>
-    <strong>{subject.value}<small>%</small></strong>
+    <strong>{subject.value == null ? '--' : subject.value}<small>{subject.value == null ? '' : '%'}</small></strong>
   </div>;
 }
 

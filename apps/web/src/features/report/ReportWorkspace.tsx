@@ -11,6 +11,7 @@ import type {
   TrialProgress,
   WrongQuestionSummary,
   CanonicalOverview,
+  StudentContext,
 } from '../../api';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { ModuleResource } from '../../hooks/moduleResource';
@@ -53,6 +54,7 @@ interface ReportWorkspaceProps {
   wrongQuestionSummary: ModuleResource<WrongQuestionSummary>;
   todayPlan?: TodayPlanType | null;
   canonicalOverview?: CanonicalOverview | null;
+  studentContext?: StudentContext | null;
   feedbackStatus: string;
   diagnosticStatus: string;
   onRetryStageReport: () => void;
@@ -105,6 +107,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           wrongQuestionSummary={props.wrongQuestionSummary.data}
           todayPlan={props.todayPlan}
           canonicalOverview={props.canonicalOverview}
+          studentContext={props.studentContext}
           onRetry={props.onRetryStageReport}
           onNavigate={props.onNavigate}
         />

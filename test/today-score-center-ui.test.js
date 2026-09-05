@@ -57,9 +57,11 @@ test('score center remains compatible while the simplified homepage owns the CTA
   assert.match(navigation, /'score-center'/);
   assert.match(navigation, /if \(section === 'plan' \|\| section === 'score-center'\) return 'dashboard'/);
 
-  // V3 收敛后 score center 由 StudentHome 承载为首页「学习路线」卡片。
+  // V3 收敛后首页 CTA 由 TodayMission + StudentActionCard 承载（TodaysScoreCenter
+  // 组件保留，经 RoleNavigation 的 score-center 分区进入，兼容性由上方 navigation 检查）。
   const home = await source('apps/web/src/features/student/home/StudentHome.tsx');
-  assert.match(home, /TodaysScoreCenter/);
+  assert.match(home, /TodayMission/);
+  assert.match(home, /StudentActionCard/);
 
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
   assert.doesNotMatch(

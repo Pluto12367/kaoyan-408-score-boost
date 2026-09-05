@@ -18,6 +18,7 @@ import type {
   StudyReminders,
   TrialProgress,
   WrongQuestionSummary,
+  StudentContext,
 } from '../../api';
 import type { ModuleResource } from '../../hooks/moduleResource';
 import type { RoleSection } from '../../layouts/RoleNavigation';
@@ -46,6 +47,7 @@ interface TestSectionProps {
   wrongQuestionSummary: ModuleResource<WrongQuestionSummary>;
   todayPlan: TodayPlanType | null;
   canonicalOverview?: CanonicalOverview | null;
+  studentContext?: StudentContext | null;
   stageAssessment: DashboardOverview['stageAssessment'];
   stageResult: StageAssessmentResult | null;
   feedbackStatus: string;
@@ -120,6 +122,7 @@ export function TestSection(props: TestSectionProps) {
             wrongQuestionSummary={props.wrongQuestionSummary}
             todayPlan={props.todayPlan}
             canonicalOverview={props.canonicalOverview}
+            studentContext={props.studentContext}
             feedbackStatus={props.feedbackStatus}
             diagnosticStatus={props.diagnosticStatus}
             onRetryStageReport={props.onRetryStageReport}

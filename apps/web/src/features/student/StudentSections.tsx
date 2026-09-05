@@ -12,6 +12,7 @@ import type {
   AssessmentHistory,
   DashboardOverview,
   CanonicalOverview,
+  StudentContext,
   GeneratedPaper,
   LearningCalendar,
   LearningProfile,
@@ -80,6 +81,7 @@ export interface StudentSectionsProps {
   learningCalendar: LearningCalendar;
   canonicalOverview?: CanonicalOverview | null;
   canonicalOverviewError?: string;
+  studentContext?: ModuleResource<StudentContext>;
   stageReport: StageReport | null;
   masteryMap: MasteryMap | null;
   masteryMapResource: ModuleResource<MasteryMap>;
@@ -320,6 +322,7 @@ export function StudentSections(props: StudentSectionsProps) {
                 learningCalendar={props.learningCalendar}
                 canonicalOverview={props.canonicalOverview}
                 canonicalOverviewError={props.canonicalOverviewError}
+                studentContext={props.studentContext}
                 planFocusTaskId={props.planFocusTaskId}
                 onNavigate={props.onNavigate}
                 onLaunchTodayTask={props.onLaunchTodayTask}
@@ -383,6 +386,7 @@ export function StudentSections(props: StudentSectionsProps) {
               wrongQuestionSummary={props.wrongQuestionSummary}
               todayPlan={props.todayPlan}
               canonicalOverview={props.canonicalOverview}
+              studentContext={props.studentContext?.data ?? null}
               stageAssessment={props.stageAssessment}
               stageResult={props.stageResult}
               feedbackStatus={props.feedbackStatus}
@@ -496,6 +500,7 @@ export function StudentSections(props: StudentSectionsProps) {
           <Suspense fallback={sectionFallback('错题复盘')}>
             <MistakeWorkspace
               wrongQuestions={props.wrongQuestions}
+              masteryMap={props.masteryMap}
               dueReviews={dueReviews}
               dueReviewsLoading={props.dueReviewsLoading}
               dueReviewsError={props.dueReviewsError}

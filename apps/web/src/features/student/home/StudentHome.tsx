@@ -1,10 +1,11 @@
 import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
-import type { CanonicalOverview, LearningCalendar, MasteryMap, WrongQuestionSummary } from '../../../api';
+import type { CanonicalOverview, LearningCalendar, MasteryMap, StudentContext, WrongQuestionSummary } from '../../../api';
 import type { RoleSection } from '../../../layouts/RoleNavigation';
 import type { TodayPlan as TodayPlanType } from '../../../api/endpoints/onboarding';
 import type { DueReviewsResponse } from '../../../api/endpoints/review';
 import type { TodayPlanTask } from '../../onboarding/todayLearningRoute';
 import type { StudentAction } from '../actions/studentAction';
+import type { ModuleResource } from '../../../hooks/moduleResource';
 import { StudentActionCard } from '../actions/StudentActionCard';
 import { useDashboardViewModel } from './useDashboardViewModel';
 import { DashboardHero } from './components/DashboardHero';
@@ -32,6 +33,7 @@ interface StudentHomeProps {
   learningCalendar: LearningCalendar;
   canonicalOverview?: CanonicalOverview | null;
   canonicalOverviewError?: string;
+  studentContext?: ModuleResource<StudentContext>;
   planFocusTaskId: string | null;
   onNavigate: (section: RoleSection) => void;
   onLaunchTodayTask: (task: TodayPlanTask) => void;
@@ -56,6 +58,7 @@ export function StudentHome({
   learningCalendar,
   canonicalOverview,
   canonicalOverviewError,
+  studentContext,
   planFocusTaskId,
   onNavigate,
   onLaunchTodayTask,
@@ -64,12 +67,14 @@ export function StudentHome({
   canonicalAction,
   onSelectCanonicalAction,
 }: StudentHomeProps) {
-  const model = useDashboardViewModel({ student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar, canonicalOverview });
+  const model = useDashboardViewModel({ student, todayPlan, masteryMap, report, wrongQuestionSummary, learningCalendar, canonicalOverview, studentContext: studentContext?.data });
   const openCoach = () => onNavigate('ai');
 
   return (
     <div className="student-home dashboard-home">
-      {canonicalOverviewError ? <p className="dashboard-muted" role="status">新版总览暂不可用，当前保留兼容视图：{canonicalOverviewError}</p> : null}
+      {studentContext?.state === 'loading' && !studentContext.data ? <p className="dashboard-muted" role="status">正在同步学生状态摘要...</p> : null}
+      {studentContext?.state === 'error' && !studentContext.data && studentContext.error ? <p className="dashboard-muted" role="status">学生状态摘要暂不可用，当前保留兼容视图：{studentContext.error}</p> : null}
+      {canonicalOverviewError && !studentContext?.data ? <p className="dashboard-muted" role="status">新版总览暂不可用，当前保留兼容视图：{canonicalOverviewError}</p> : null}
       <DashboardHero model={model} onNavigate={openCoach} />
       <div className="dashboard-main-grid">
         <div className="dashboard-primary-column">
@@ -106,7 +111,7 @@ export function StudentHome({
           <aside className="dashboard-secondary-actions" aria-label="次要快捷入口">
             <QuickActions onNavigate={onNavigate} />
           </aside>
-          <div className="dashboard-streak-strip"><strong>{learningCalendar.streakDays}</strong><span>天连续学习<br /><small>今日 {learningCalendar.today.practiceCount} 次练习</small></span></div>
+          <div className="dashboard-streak-strip"><strong>{model.studyStreak ?? '--'}</strong><span>天连续学习<br /><small>今日 {learningCalendar.today.practiceCount} 次练习</small></span></div>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { buildLearningInsights, estimatePredictedScore } from '@kaoyan408/shared';
 import type { StageReport, UserProfile, WeaknessReport } from '@kaoyan408/shared';
-import type { CanonicalOverview, MasteryMap, LearningProfile } from '../../api';
+import type { CanonicalOverview, MasteryMap, LearningProfile, StudentContext } from '../../api';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
@@ -9,6 +9,7 @@ import { RecommendationEvidence } from '../student/RecommendationEvidence';
 import { buildReportNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
 import { buildReportActions } from '../student/actions/adapters/reportActionAdapter';
 import { toRoleSection } from '../student/actions/studentActionDestination';
+import { toReportWorkspaceSummary } from '../student/report/reportWorkspaceContextAdapter';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -26,17 +27,23 @@ interface ReportSummaryPanelProps {
   wrongQuestionSummary?: { pendingCount: number } | null;
   todayPlan?: TodayPlanType | null;
   canonicalOverview?: CanonicalOverview | null;
+  studentContext?: StudentContext | null;
   onRetry: () => void;
   onNavigate: (section: RoleSection) => void;
 }
 
-export function ReportSummaryPanel({ student, report, stageReport, masteryMap, learningProfile = null, wrongQuestionSummary = null, todayPlan = null, canonicalOverview = null, onRetry, onNavigate }: ReportSummaryPanelProps) {
+export function ReportSummaryPanel({ student, report, stageReport, masteryMap, learningProfile = null, wrongQuestionSummary = null, todayPlan = null, canonicalOverview = null, studentContext = null, onRetry, onNavigate }: ReportSummaryPanelProps) {
+  const contextSummary = useMemo(
+    () => (studentContext ? toReportWorkspaceSummary(studentContext) : null),
+    [studentContext],
+  );
   const averageMastery = useMemo(() => {
+    if (contextSummary) return contextSummary.mastery.averageMastery;
     if (canonicalOverview) return canonicalOverview.mastery.averageMastery;
     if (!masteryMap || masteryMap.subjects.length === 0) return null;
     const total = masteryMap.subjects.reduce((sum, subject) => sum + subject.averageMastery, 0);
     return Math.round(total / masteryMap.subjects.length);
-  }, [canonicalOverview, masteryMap]);
+  }, [contextSummary, canonicalOverview, masteryMap]);
 
   const hasEnoughData = canonicalOverview
     ? canonicalOverview.mastery.nodes.length > 0
@@ -48,8 +55,9 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
 
   const predicted = useMemo(() => {
     if (!hasEnoughData) return null;
-    const accuracyRate = canonicalOverview?.progress.last7d.current ?? (canonicalOverview ? null : report.accuracyRate);
-    const predictionMastery = canonicalOverview ? averageMastery : averageMastery ?? report.accuracyRate;
+    const contextAccuracy = contextSummary?.practice.status === 'sufficient' ? contextSummary.practice.recentAccuracy : null;
+    const accuracyRate = contextAccuracy ?? (canonicalOverview?.progress.last7d.current ?? (canonicalOverview ? null : report.accuracyRate));
+    const predictionMastery = averageMastery ?? report.accuracyRate;
     if (accuracyRate === null || predictionMastery === null) return null;
     return estimatePredictedScore({
       currentScore: student.currentScore ?? 0,
@@ -59,7 +67,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
       remainingDays: student.remainingDays ?? 0,
       scoreTrend: stageReport?.assessmentTrend.delta ?? undefined,
     });
-  }, [averageMastery, canonicalOverview, hasEnoughData, report.accuracyRate, stageReport?.assessmentTrend.delta, student.currentScore, student.remainingDays, student.targetScore]);
+  }, [averageMastery, canonicalOverview, contextSummary, hasEnoughData, report.accuracyRate, stageReport?.assessmentTrend.delta, student.currentScore, student.remainingDays, student.targetScore]);
 
   const improvements: string[] = [];
   if (canonicalOverview?.progress.last7d.status === 'up' && canonicalOverview.progress.last7d.current !== null && canonicalOverview.progress.last7d.baseline !== null) {
