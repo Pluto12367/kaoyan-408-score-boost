@@ -83,13 +83,13 @@
 | **B5** | W3（所有者授权后） | 保护清单 | — |
 | **B6** | W6 文档杂项 | 随时可提交 | — |
 
-建议顺序：**B1 → B6 → B2 → B3 → B4 → B5**。B1 完成后建议打 tag `v3.4.1-closure`（使 v3.2+ 全链可构建）。
+B1 已执行（commit `8aa1a84` + B1.2 补充 `3a1fbc9`，tag `v3.4.1-closure` 已创建）——**v3.2+ 全链 fresh checkout 可构建已实证**。B1.2 细节与剩余 6 个回归失败的分类见 `docs/v34-closure-verification-report.md`。剩余边界：B2（Review Center/Galaxy，绿）→ B3（Student Home/Report，含 3 失败测试需收口）→ B4（Score Center 剩余 2 文件）→ B5（主题，所有者授权）→ B6（文档杂项）。
 
 ## 5. Tests / Build 现状
 
 - 全量 `npm test`：**1721 / 1694 / 25 fail**（25 失败全部为 W1 UI 契约 16 + W4 前端 3 + 前序遗留 6，非 AI 域）。
 - AI 域 240/240；`build:shared`/`build:api`/`build:web` 全 PASS（工作树态）。
-- **fresh-checkout HEAD 构建态：FAIL**（R1）——B1 是发布前硬性前置。
+- **fresh-checkout HEAD 构建态：B1.2 后 ✅ PASS**（v3412-verify worktree 实证：shared/api/web 全绿；3a1fbc9 检出）。
 
 ## 6. Release 状态判定
 
