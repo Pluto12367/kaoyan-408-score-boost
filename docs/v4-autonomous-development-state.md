@@ -9,7 +9,7 @@ V4 Adaptive Learning OS——把系统从"被动响应"升级为"持续观察→
 
 ## Current Phase
 
-V4-7 Adaptive Review（动态 spacing/intensity，保持既有 ReviewSchedule 语义）。
+V4-10 Evaluation V3（50+ 确定性用例）。
 
 ## Completed
 
@@ -17,6 +17,8 @@ V4-7 Adaptive Review（动态 spacing/intensity，保持既有 ReviewSchedule �
 - **V4-2**：Learning Signal Engine 完成——apps/api/src/adaptive/learning-signals.ts（8 类信号纯函数，deterministic，baseline-gated 优雅降级）+ LearningSignalService（Nest 壳，StudentContext 单一入口）。测试 9+3 全绿。
 - **V4-5**：Agent Adaptive Planner 完成——StudyAgentService 构造器尾部追加 @Optional LearningSignalService；systemPrompt 注入学习信号 brief + derivePlanningStrategy 策略指令（规则派生，非 LLM）。
 - **V4-6**：Proactive Coach 完成——apps/api/src/adaptive/proactive-coach.ts（风险→主动干预卡片：headline/actions/actorHint，按 severity 排序，确定性可重建）。测试 6/6。
+- **V4-9**：Adaptive Exam Simulation 完成——apps/api/src/adaptive/adaptive-exam.ts（topic_drill/chapter_test/comprehensive/mock_exam 四模式，难度进阶波次，scope 过滤，不虚构题目）。测试 5/5（含 1 个断言修正：HARD 缺席时不比较顺序）。
+- **V4-7/V4-8**：Adaptive Review + Personalized Practice 完成——apps/api/src/adaptive/adaptive-review.ts（deriveAdaptiveReviewInterval：stability×mastery×risk×debt 四因子，clamp [0.5,14]；selectNextPractice：productive-zone fit 选题）。测试 10/10。不改变既有 ReviewSchedule 写语义。
 - **V4-4**：Adaptive Recommendation Layer 完成——apps/api/src/adaptive/adaptive-recommendation.ts（risk boost/exam proximity/review card/overload cap，确定性重排）+ DailyPlanningService 集成（adaptive 字段进 DailyStudyPlan）。测试 6/6 + px2 回归。
 - **V4-3**：LearningRiskDetector 完成——apps/api/src/adaptive/learning-risk.ts（6 类风险：knowledge_regression/repeated_mistake/review_debt/study_inactivity/overload/exam_risk；evidence-based 纯函数，severity/confidence/recommendation；健康学生零风险）。测试 10/10。
 - **V4-1**：自适应闭环审计 → `docs/v4-adaptive-learning-audit.md`。核心结论：被动闭环（表现→State→推荐→计划→行为→结果）已在 v3.4 实证完整；**主动自适应层缺失**（Signal/Risk/Predict/Proactive）= V4 增量空间。
@@ -66,7 +68,7 @@ V4-7 Adaptive Review（动态 spacing/intensity，保持既有 ReviewSchedule �
 
 ## Next Task
 
-V4-7：Adaptive Review——动态 spacing/intensity，保持既有 ReviewSchedule 语义。
+V4-10：Evaluation V3 50+ 用例；随后 Experiment/Observability/Failure。
 
 ## Last Validation (V4-5: adaptive-planner 2/2 + agent/signal/risks 回归 57/57)
 
