@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import {
   type AiFollowUpDraft,
   type AiTutorContext,
@@ -23,6 +23,7 @@ import {
 } from './contextual-coach.prompt';
 import type { ContextualCoachContext, ContextualCoachDraft } from './contextual-coach.types';
 import { normalizeContextualCoachModelResponse } from './contextual-coach-normalizer';
+import { AiMetricsService } from '../ai-metrics/ai-metrics.service';
 
 export interface AiTutorResult<T> {
   draft: T;
@@ -41,7 +42,12 @@ export class AiTutorService {
   private readonly logger = new Logger(AiTutorService.name);
   private readonly client: DeepSeekClient | null;
 
-  constructor(private readonly logRepository: AiTutorLogRepository) {
+  constructor(
+    private readonly logRepository: AiTutorLogRepository,
+    // Live metrics (AI-12): appended last per the positional-constructor
+    // convention; optional so existing compositions stay valid.
+    @Optional() private readonly metrics?: AiMetricsService,
+  ) {
     const apiKey = process.env.AI_API_KEY;
     this.client = apiKey ? new DeepSeekClient({ apiKey }) : null;
   }
@@ -226,6 +232,11 @@ export class AiTutorService {
     errorType?: string;
     durationMs: number;
   }): void {
+    this.metrics?.recordCoachResponse({
+      source: input.source,
+      fallback: Boolean(input.fallbackReason),
+      durationMs: input.durationMs,
+    });
     this.logger.log(JSON.stringify({
       event: 'contextual_coach.completed',
       userId: input.userId,

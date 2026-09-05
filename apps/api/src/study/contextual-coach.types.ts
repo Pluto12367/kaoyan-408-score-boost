@@ -6,6 +6,22 @@ export type ContextualCoachRequest =
   | { contextType: 'knowledge_node'; knowledgeNodeId: string; message?: string }
   | { contextType: 'assessment'; assessmentId?: string; message?: string };
 
+export interface ContextualCoachKnowledgeContext {
+  source: string;
+  query: string;
+  available: boolean;
+  results: ReadonlyArray<{
+    knowledgeNodeId: string;
+    subject: string;
+    nodeType: string;
+    title: string;
+    chapterPath: readonly string[];
+    relevanceScore: number;
+    relatedNodes: ReadonlyArray<{ knowledgeNodeId: string; title: string; relationType: string }>;
+  }>;
+  reason?: string;
+}
+
 export interface ContextualCoachContext {
   version: 'contextual-coach-v1';
   context: { type: ContextualCoachContextType; id: string | null };
@@ -24,6 +40,8 @@ export interface ContextualCoachContext {
   focus: Record<string, unknown>;
   currentTasks: Array<Record<string, unknown>>;
   assembledAt: string;
+  /** Retrieved 408 knowledge (Phase AI-2). Optional: absent when no retriever is wired or no usable query exists. */
+  knowledgeContext?: ContextualCoachKnowledgeContext;
 }
 
 export interface ContextualCoachDraft {

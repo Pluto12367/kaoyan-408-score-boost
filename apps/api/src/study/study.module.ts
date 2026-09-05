@@ -47,20 +47,34 @@ import { AdminUserRepository } from './admin-user.repository';
 import { FeedbackRepository } from './feedback.repository';
 import { UserEventRepository } from './user-event.repository';
 import { ScoreCenterModule } from '../score-center/score-center.module';
+import { RagModule } from '../rag/rag.module';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
 import { LearningLoopRepository } from './learning-loop.repository';
 import { ContextualCoachService } from './contextual-coach.service';
 import { ContextualCoachContextAssembler } from './contextual-coach-context-assembler.service';
 import { OverviewReportProjectionService } from './overview-report-projection.service';
 import { OverviewQueryService } from './overview-query.service';
+import { RecommendationActionRepository } from './recommendation-action.repository';
+import { RecommendationActionService } from './recommendation-action.service';
+import { LearningSessionActionService } from './learning-session-action.service';
+import { ActionOutcomeAuditRepository } from './action-outcome-audit.repository';
+import { ActionOutcomeAuditService } from './action-outcome-audit.service';
+import { ActionLearningSignalService } from './action-learning-signal.service';
+import { RecommendationFeedbackService } from './recommendation-feedback.service';
+import { StudentStateFeedbackAdapter } from './student-state-feedback.adapter';
+import { StudentStateFeedbackRepository } from './student-state-feedback.repository';
+import { ActionLearningSignalConsumerService } from './action-learning-signal-consumer.service';
+import { ActionFeedbackTriggerService } from './action-feedback-trigger.service';
+import { CanonicalEventWriterService } from './canonical-event-writer.service';
+import { StudentContextQueryService } from './student-context.query.service';
 
 @Module({
-  imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule],
+  imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule, RagModule],
   controllers: [StudyController],
-  providers: [StudyService, OverviewReportProjectionService, OverviewQueryService, StudentStateProjectionService, StudentStateQueryService, StudentStateReminderQueryService, StudentStateSprintPlanQueryService, StudentStateTrialProgressQueryService, StudentStateLearningCalendarQueryService, ActivityProjectionService, PracticeProjectionService, MasterySummaryProjectionService, WrongQuestionProjectionService, WrongQuestionQueryService, TodayPlanProjectionService, TodayPlanQueryService, DashboardProjectionService, DashboardQueryService, AssessmentProjectionService, StageAssessmentProjectionService, StageAssessmentQueryService, AssessmentHistoryProjectionService, AssessmentHistoryQueryService, ContextualCoachService, ContextualCoachContextAssembler, ExamScoreHistoryQueryService, {
+  providers: [StudyService, RecommendationActionService, RecommendationActionRepository, LearningSessionActionService, ActionOutcomeAuditRepository, ActionOutcomeAuditService, ActionLearningSignalService, RecommendationFeedbackService, StudentStateFeedbackAdapter, StudentStateFeedbackRepository, ActionLearningSignalConsumerService, ActionFeedbackTriggerService, OverviewReportProjectionService, OverviewQueryService, StudentStateProjectionService, StudentStateQueryService, StudentStateReminderQueryService, StudentStateSprintPlanQueryService, StudentStateTrialProgressQueryService, StudentStateLearningCalendarQueryService, ActivityProjectionService, PracticeProjectionService, MasterySummaryProjectionService, WrongQuestionProjectionService, WrongQuestionQueryService, TodayPlanProjectionService, TodayPlanQueryService, DashboardProjectionService, DashboardQueryService, AssessmentProjectionService, StageAssessmentProjectionService, StageAssessmentQueryService, AssessmentHistoryProjectionService, AssessmentHistoryQueryService, ContextualCoachService, ContextualCoachContextAssembler, StudentContextQueryService, ExamScoreHistoryQueryService, {
     provide: ExamScoreHistoryProjectionService,
     useFactory: (sessions: LearningSessionRepository, practiceRecords: PracticeRecordRepository) =>
       new ExamScoreHistoryProjectionService({ sessions, practiceRecords }),    inject: [LearningSessionRepository, PracticeRecordRepository],
-  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
+  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, CanonicalEventWriterService, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository],
 })
 export class StudyModule {}

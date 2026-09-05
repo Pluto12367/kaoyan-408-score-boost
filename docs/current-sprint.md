@@ -1,18 +1,25 @@
 # Current Sprint
 
+> 2026-09-05 接管更正：Learning Intelligence Platform **IN PROGRESS**。下文旧 COMPLETE/PASS 声明不能替代门禁；旧报告自身有 25 FAIL 与数据库验证缺口。当前执行状态见 `docs/autonomous-development-state.md`；既有文件归属保护继续有效。本次已重现默认沙箱 spawn EPERM，沙箱外全量基线运行中；Docker 29.2.0 沙箱外可用，ENV-005 重新核实中。
+
+> **2026-09-05 AI Intelligence Foundation Milestone 已完成（Phase AI-0…AI-5）**：Knowledge RAG（`/rag/knowledge/search`）、Coach RAG 集成（`knowledgeContext` 可选增量）、Study Agent V1（六工具 + LLM 循环 + workflow 兜底，`POST /agent/study/run`）全部落地；74 项新测试全绿，全量 1597/1568/25（与预存基线一致）；build:shared/api 通过。新增模块 `apps/api/src/rag/`、`apps/api/src/agent/`，未触碰 Prisma Schema/Mastery/Recommendation/Practice 写路径与前端。详见 `docs/ai-intelligence-final-report.md`（提交时按其 §4 清单精确 git add；主题在途文件保护不变）。
+
+> **2026-09-05 AI Learning Agent Production Evolution Milestone 已完成（Phase AI-6…AI-12）**：Agent Memory（三层学习记忆，纯 StudentContext 派生）、Learning RAG V2（rewrite/hybrid/graph/difficulty，`/rag/knowledge/v2/search`）、Study Agent V2 Planner（`POST /agent/study/plan` + 四规则 Plan Validation + run deadline）、Safety Guard（注入检测/知识引用契约/承认不知道/写权限硬闸）、Evaluation Framework（13 项指标即断言，检索命中 12/12）、Production Metrics（`GET /ai/metrics` admin + usage 计量）。新增 96 项测试；AI 域组合回归 160/160；全量与 build 见 `docs/ai-learning-agent-production-final-report.md` §5/§8。冻结域零触碰；提交按其 §3 清单精确 git add。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
-> 最后更新：2026-08-31（Sprint 4 formal closeout）
+> 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
 
 ---
 
 ## 1. 当前阶段与目标
 
 - **分支**：`feature/v3-product-refactor`
-- **HEAD**：`19a15ed` feat(web): add reusable design system primitives
-- **当前 Sprint**：Sprint 4 AI Training Room Formal Closeout
-- **状态**：Sprint 4 已完成并通过 Release Re-Verification；Phase 5 尚未开始
-- **一句话目标**：完成 Sprint 4 状态封板，保留其他工作线供后续独立处理。
+- **HEAD**：`4f58fe3`（当前工作树含未提交的 Phase 3.x 与其他在途工作线）
+- **当前 Sprint**：Learning Intelligence Platform — Full Learning Loop Hardening（**COMPLETE**，`docs/learning-intelligence-final-report.md`； preceded by SC-1…SC-5）
+- **状态**：Sprint 4 已完成并通过 Release Re-Verification；Phase 2 Baseline Closure 已完成；Phase 3.3A 已完成稳定化验证；Phase 3.4 已完成事件边界实现；Phase 3.5 已完成提交后 best-effort 反馈触发；Phase 3.6.2B-2 已完成 EventKey Schema Migration；Phase 3.6.2C writer 已接入数据库唯一冲突回读；Phase 3.6.3 已限制 `/events` 为 telemetry allowlist，并将 `plan.generated` 迁移到 CanonicalEventWriterService；Phase 3.6.4-D1/D2/D3 已完成 identity contract、StudyPlan 幂等 repository 与 Action key contract；D4-B1 已将 LearningLoop generation context 接入 StudyPlan generation repository；D4-B2 已将 generationKey 接入 RecommendationAction runtime creationKey；D4-B3 已将 `plan.generated` eventKey 切换为 generation-scoped identity，并保留 legacy triggerKey 读取兼容；D4-B4 仍因 ENV-005 宿主环境阻塞。**StudentContext 消费收敛已完成**：StudentHome 五类摘要、ReportWorkspace summary、Contextual Coach base student state 三个 summary 消费者均以 StudentContext 为 canonical source（各有纯展示 adapter/bridge + legacy 兜底）；全仓消费者审计（`docs/student-context-consumer-audit.md`）确认无剩余应迁移消费者，Knowledge/Assessment 等领域 detail 按 Rule 3 保留独立；契约审查产出 mastery 桶语义提案 P-1（`docs/student-context-contract-hardening-proposal.md`，未实施、待人工决策）。定向测试 57/57 PASS，`build:api`/`build:web` PASS。完整 `npm test` 与 PostgreSQL integration 当前仍受本机环境阻塞。
+- **一句话目标**：保持 RecommendationAction.studyTaskId 为唯一 Action-Task 绑定，并让 canonical event 只能由受控 server-side writer 产生、使用数据库级 eventKey 幂等。
+- **Phase 3.6.2B-1/B-2/3.6.2C/3.6.3**：Event Contract v1 已冻结（`docs/event-contract.md`）；`UserEvent.eventKey` nullable 字段与 `(userId,eventKey)` 唯一索引已实现；Feedback writer 已使用数据库唯一冲突回读；`POST /events` 仅接受 telemetry allowlist，`plan.generated` 通过 CanonicalEventWriterService 写入。
 
 ---
 
@@ -38,7 +45,41 @@
 
 ## 3. 当前进行中
 
-**当前：Sprint 4 已完成 Formal Closeout；Phase 5 尚未开始。**
+**当前：Sprint 4 已完成 Formal Closeout；Phase 2 Baseline Closure 已完成；Phase 3.3 Recommendation Consumer Migration 及 3.3A 稳定化验证已完成；Phase 3.4 已建立 ActionLearningSignal → UserEvent 的 Student State 反馈事件边界；Phase 3.5 已完成 Practice/Review 提交后 best-effort 反馈触发，未改变 Mastery；Phase 3.6.4-D4-B3 已完成 `plan.generated` generation-scoped event identity migration；D4-B4 并发验证入口已建立，因目标数据库 schema 未应用 generationKey 而阻塞；StudentContext v1 与 StudentHome 首个摘要消费者迁移已完成，Closure Gate 判定 READY FOR REPORT WORKSPACE，其他首页明细与消费者保持兼容链。**
+
+### Phase 3.3 Recommendation Consumer Migration
+
+- `RecommendationActionAdapterService` 以 `(userId, creationKey)` 幂等创建 Action，并在同一事务中通过 `RecommendationAction.studyTaskId` 绑定 `StudyTask`。
+- 重试在 Action 已绑定时复用原计划；`ScoreCenterService` 通过 compatibility adapter 暴露可选 `actionId`，不新增 `StudyTask.actionId`。
+- `RecommendationFeedbackService` 只读消费 `ActionLearningSignal`，新增用户隔离的 `GET /recommendation-actions/:id/feedback`。
+- Phase 3.3 定向与相关回归测试通过；API/shared/Web TypeScript 通过；全量 node:test 与 Vite bundle 仍受 Windows `spawn EPERM` 阻塞。
+
+### Phase 3.3A Consumer Migration Verification & Stabilization
+
+- 新增 `test/recommendation-consumer-verification.test.js`，覆盖 today-plan Action relation loading、legacy adapter identity boundary 与 direct task compatibility。
+- 修复 `loadTodayScoreCenterPlan` 未加载 `StudyTask.action` 的 Phase 3.3 消费缺口；不新增 `StudyTask.actionId`，不改变 Schema/Migration。
+- 3.3A 定向验证与 Phase 3.2C–3.3 相关回归通过；`npm test`（253 个文件）与 Vite bundle 因 Windows `spawn EPERM` BLOCKED；`prisma validate` PASS，`prisma generate` 同样 BLOCKED。
+
+### Phase 3.4 Student State Feedback Integration
+
+- 新增 `StudentStateFeedbackAdapter` 与 `ActionLearningSignalConsumerService`，将 ActionLearningSignal 映射为 `StudentStateFeedbackEvent`。
+- 新增 `StudentStateFeedbackRepository`，使用现有 `UserEvent` 记录 `USER_ACTION_FEEDBACK`，以 user + action + signalType 做 repository-level 幂等去重。
+- 未修改 `UserKnowledgeMastery`、Mastery 写入管线、Practice/Review、Recommendation、Schema/Migration 或 UI；定向契约测试通过。
+
+### Phase 3.5 Feedback Event Integration & Learning Loop Activation
+
+- 新增 `ActionFeedbackTriggerService`，统一调用既有 `ActionLearningSignalConsumerService`，不直接查询或写入 Practice、Review、Mastery 或 UserEvent。
+- Practice 的 legacy、AnswerReceipt transaction、pending takeover 三条成功提交路径均在持久化完成后触发；AnswerReceipt 重放不触发。
+- Review 仅在 `ReviewAttempt` 写入成功后触发，`isReview=false` 的记录原因流程保持无 Attempt、无反馈事件。
+- 反馈触发为 best-effort 异步调用；Consumer 错误只记录 warning，不回滚已提交的业务事实。定向回归 105/105、shared/API build 与 Web TypeScript 通过；全量 `npm test` 与 Web Vite 仍受 Windows `spawn EPERM` 阻塞。
+
+### 2026-09-01 P1 线上验证结论（FIXED + VERIFIED ONLINE）
+
+- `ac81e26`（WrongQuestionDetail `useMemo` 位于 loading/error guard 之前）已 push 且为分支 HEAD；回归测试 `test/mistake-detail-hook-regression.test.js` PASS。
+- 线上 chunk `MistakeWorkspace--QrJX8Ts.js` 与纯净 `ac81e26` 构建逐字节一致（字节级对比），修复已上线；此前复现源于浏览器缓存旧 `index.html` → 旧 `BTRD8AwK` chunk（旧资源未清理 + nginx 无 `Cache-Control`）。
+- 线上无缓存会话浏览器回归：详情打开/关闭/再打开、变式练习、笔记保存持久化、原题重做、筛选均 PASS；Console 零错误、Network 零失败。
+- 全仓扫描未发现第二个同类 Hook mismatch。
+- 完整报告：`docs/qa/production-fix-verification.md`；遗留观察项（科目筛选中文名/代码匹配偏差、部署卫生、缓存策略、SSH 受限）见该报告 §11。
 
 Sprint 4 Release Re-Verification 已完成：
 
@@ -71,7 +112,7 @@ Sprint 4 Formal Closeout 状态：
 
 1. 任务完成与 `stage_assessment` session 完成后的事务后触发链。
 2. `RecommendationService.generateDailyPlanFromState()` 支持注入 `scheduledDate`，生成次日 `StudyPlan`/`StudyTask`。
-3. 写入 `plan.generated` UserEvent，并按 `learning-loop:{userId}:{scheduledDate}` 幂等。
+3. 写入 generation-scoped `plan.generated` UserEvent（`PLAN_GENERATED:{generationKey}`），并保留 legacy `triggerKey` 重复检查。
 4. AnswerReceipt 成功重放不进入进度、任务完成或 Learning Loop 触发链。
 5. 触发失败仅记录 warning，不影响答题事务、PracticeRecord 或 StudyTaskCompletion。
 
@@ -125,7 +166,36 @@ Sprint 4 已提交；当前 working tree 中仍有其他未提交工作线，均
 
 ## 5. First Next Task
 
-**下一步需单独确认 Phase 5 规划；在用户确认前不开始实现。**
+**StudentContext 主线（SC-1…SC-5）已完成。候选下一步（由项目所有者决策，不自动启动）：**
+1. SC-P2-001 Mastery fallback 语义对齐（唯一遗留的契约语义修正提案）。
+2. SC-P2-003 practiceRecord 读取上界化（需 DB 聚合投影独立设计）。
+3. 恢复 disposable PostgreSQL 后重跑 Phase 3.6.4-D4-B4（ENV 阻塞项）。
+
+（SC-4 审计的缓存基础设施建议已被 TASK 1 的按需 IN 查询实质替代；v2 契约策略见 `docs/student-context-contract-evolution.md`。）
+
+### Phase 3.6.4-D4-B1 StudyPlan GenerationKey Runtime Adoption
+
+- LearningLoop 现在生成确定性的 `LEARNING_LOOP:{userId}:{scheduledDate}:v1`，并将 generation context（source/version）传入 `RecommendationService.generateDailyPlanFromState()`。
+- 有 generation context 且运行在持久化环境时，推荐计划路径先按 `(userId,generationKey)` 读取，再通过 `StudyPlanRepository.createOrGetByGenerationKey()` 在外层事务中创建；唯一冲突由外层回滚后 fresh read 收敛。
+- 无 generation context、无数据库或 onboarding/exam-review 等 legacy 计划路径保持原有 writer，不改变 Action creationKey、`plan.generated` eventKey、归档语义或 Recommendation 算法。
+- D4-B1 定向验证：runtime adoption 2/2、LearningLoop 10/10、StudyPlan idempotency 4/4、Recommendation consumer 16/16、daily-plan parity 3/3；shared/API build 与 Web TypeScript 通过。
+
+### Phase 3.6.4-D4-B2 RecommendationAction Generation-Scoped CreationKey Runtime Migration
+
+- `RecommendationActionAdapterService` 在提供 `generationKey` 时使用 `createRecommendationActionKey()` 生成 `ACTION:{generationKey}:{actionType}:{targetType}:{targetId}`。
+- 没有 generationKey 的 legacy draft 继续使用原 date-scoped creationKey；未修改历史 Action 数据或 Schema/Migration。
+- RecommendationService 将 generationKey 透传到 Action draft；D4-B2 定向 runtime contract 5/5、Action key contract 5/5、Recommendation consumer 16/16、StudyPlan adoption 2/2 通过。
+
+### Phase 3.6.4-D4-B3 plan.generated Event Identity Migration
+
+- `plan.generated` 的 canonical eventKey 已切换为 `PLAN_GENERATED:{generationKey}`；同一 generation 重试由 `(userId,eventKey)` 唯一约束收敛，不同 generation 与 version 保持隔离。
+- 事件 payload 新增 `generationKey` 与 `source`，继续保留 `triggerKey`、`planId`、`scheduledDate` 等兼容字段；缺少 generationKey 的 legacy writer 仍按旧 triggerKey 规则派生 eventKey。
+- 定向验证：`plan-generated-event-identity.test.js` 5/5、`learning-loop-trigger.test.js` 10/10、`canonical-event-boundary.test.js` 8/8、`student-state-feedback-event-key.test.js` 4/4、`recommendation-action-generation-runtime.test.js` 5/5；shared/API build 与 Web TypeScript 通过。全量 node:test、Vite bundle 与 Docker PostgreSQL integration 仍受本机环境阻塞。
+
+### Phase 3.6.4-D4-B4 Reliability Verification
+
+- 新增 `scripts/integration-generation-reliability.mjs` 与 opt-in 测试 `test/study-plan-generation-concurrency.integration.test.js`，使用两个真实 Prisma Client 验证 StudyPlan generationKey、generation-scoped Action、plan.generated eventKey 的并发收敛，以及跨 Plan/Task/Action/Event 事务回滚。
+- 测试脚本仅允许 loopback PostgreSQL fixture；未执行 migration、seed 或历史数据修改。当前 `127.0.0.1:55432/kaoyan408_test` 返回 Prisma `P2022`（`StudyPlan.generationKey` 不存在），因此 D4-B4 实际并发断言为 **BLOCKED / MIGRATION NOT APPLIED**。
 
 已完成验收：
 

@@ -1,8 +1,12 @@
 import { Injectable } from '@nestjs/common';
 
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
+  role: 'system' | 'user' | 'assistant' | 'tool';
   content: string;
+  /** Present on assistant messages that request tool calls. */
+  tool_calls?: Array<{ id: string; type: 'function'; function: { name: string; arguments: string } }>;
+  /** Present on tool-result messages; references the assistant tool_call id. */
+  tool_call_id?: string;
 }
 
 export type ChatCompletionErrorKind = 'timeout' | 'rate-limited' | 'http' | 'network' | 'invalid-response';
@@ -35,11 +39,30 @@ export interface ChatCompletionInput {
   temperature?: number;
   timeoutMs?: number;
   jsonMode?: boolean;
+  /** OpenAI-compatible tool definitions; absent for plain chat. */
+  tools?: Array<Record<string, unknown>>;
+  /** OpenAI-compatible tool_choice; only meaningful with tools. */
+  toolChoice?: unknown;
+}
+
+export interface ChatCompletionToolCall {
+  id?: string;
+  name: string;
+  arguments: string;
+}
+
+export interface ChatCompletionUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  total_tokens?: number;
 }
 
 export interface ChatCompletionResult {
   content: string;
   model: string;
+  toolCalls?: ChatCompletionToolCall[];
+  /** Present when the provider reports token usage (AI-12 cost control). */
+  usage?: ChatCompletionUsage;
 }
 
 // OpenAI 兼容 Chat Completions 客户端。默认对接 DeepSeek，也可通过
@@ -89,6 +112,7 @@ export class DeepSeekClient {
           thinking: { type: 'disabled' },
           chat_template_kwargs: { thinking: false },
           ...(input.jsonMode ? { response_format: { type: 'json_object' } } : {}),
+          ...(input.tools ? { tools: input.tools, ...(input.toolChoice ? { tool_choice: input.toolChoice } : {}) } : {}),
         }),
         signal: controller.signal,
       });
@@ -99,15 +123,34 @@ export class DeepSeekClient {
         throw new ChatCompletionError('http', `DeepSeek request failed with ${response.status}`, response.status);
       }
       const payload = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string; reasoning_content?: string } }>;
+        choices?: Array<{
+          message?: {
+            content?: string;
+            reasoning_content?: string;
+            tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }>;
+          };
+        }>;
         model?: string;
+        usage?: ChatCompletionUsage;
       };
       const message = payload.choices?.[0]?.message;
       const content = message?.content || message?.reasoning_content;
-      if (!content) {
+      const toolCalls = (message?.tool_calls ?? [])
+        .map((call) => ({
+          id: call.id,
+          name: String(call.function?.name ?? ''),
+          arguments: String(call.function?.arguments ?? '{}'),
+        }))
+        .filter((call) => call.name);
+      if (!content && toolCalls.length === 0) {
         throw new ChatCompletionError('invalid-response', 'DeepSeek returned an empty completion');
       }
-      return { content, model: payload.model ?? this.defaultModel };
+      return {
+        content: content ?? '',
+        model: payload.model ?? this.defaultModel,
+        ...(toolCalls.length > 0 ? { toolCalls } : {}),
+        ...(payload.usage ? { usage: payload.usage } : {}),
+      };
     } catch (error) {
       if (error instanceof ChatCompletionError) throw error;
       if (error instanceof Error && error.name === 'AbortError') {
