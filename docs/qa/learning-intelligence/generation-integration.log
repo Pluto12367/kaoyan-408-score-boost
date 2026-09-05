@@ -1,0 +1,7 @@
+generation reliability PostgreSQL integration assertions passed {
+  studyPlans: 1,
+  studyTasks: 2,
+  recommendationActions: 2,
+  planGeneratedEvents: 1,
+  rollbackArtifacts: 0
+}

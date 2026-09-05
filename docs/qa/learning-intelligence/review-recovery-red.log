@@ -1,0 +1,97 @@
+✖ failed review persistence leaves no schedule or idempotency cache and the retry actually persists (5.9305ms)
+✖ failed reason-only persistence preserves the prior schedule (2.8331ms)
+✖ failed subsequent review preserves the committed attempt array and schedule (1.381ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 0
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19.4663
+
+✖ failing tests:
+
+test at test\learning-intelligence-review-recovery.test.js:30:1
+✖ failed review persistence leaves no schedule or idempotency cache and the retry actually persists (5.9305ms)
+  AssertionError [ERR_ASSERTION]: failed transaction must not publish a schedule
+  
+  1 !== 0
+  
+      at TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/learning-intelligence-review-recovery.test.js:37:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\learning-intelligence-review-recovery.test.js:47:1
+✖ failed reason-only persistence preserves the prior schedule (2.8331ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+      consecutiveCorrect: 1,
+  +   inferredReason: '概念不清',
+  +   lastReviewedAt: undefined,
+  +   lastWrongRecordId: 'record-1',
+      nextReviewAt: '2026-09-08T00:00:00.000Z',
+      note: 'retain me',
+      questionId: 'q-1',
+  +   redoCorrect: false,
+      reviewCount: 2,
+  +   selfReportedReason: '概念不清',
+      stability: 'review',
+  +   timeSpentSec: 30,
+      userId: 'u-1'
+    }
+  
+      at TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/learning-intelligence-review-recovery.test.js:54:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Object],
+    expected: [Object],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test\learning-intelligence-review-recovery.test.js:57:1
+✖ failed subsequent review preserves the committed attempt array and schedule (1.381ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    {
+  +   consecutiveCorrect: 2,
+  -   consecutiveCorrect: 1,
+      inferredReason: '概念不清',
+      lastReviewedAt: '2026-09-05T03:15:21.978Z',
+      lastWrongRecordId: 'record-1',
+  +   nextReviewAt: '2026-09-12T03:15:21.978Z',
+  -   nextReviewAt: '2026-09-08T03:15:21.978Z',
+      note: undefined,
+      questionId: 'q-1',
+      redoCorrect: true,
+  +   reviewCount: 2,
+  -   reviewCount: 1,
+      selfReportedReason: '概念不清',
+      stability: 'review',
+      timeSpentSec: 30,
+      userId: 'u-1'
+    }
+  
+      at TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/learning-intelligence-review-recovery.test.js:63:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Object],
+    expected: [Object],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

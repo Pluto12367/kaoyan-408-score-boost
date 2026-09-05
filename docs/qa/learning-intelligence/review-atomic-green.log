@@ -1,0 +1,44 @@
+[Nest] 300  - 2026/09/05 11:23:00    WARN [ActionFeedbackTriggerService] Action feedback trigger failed for user-1/action-1
+[Nest] 300  - 2026/09/05 11:23:00    WARN [ActionFeedbackTriggerService] feedback unavailable
+✔ action id triggers signal consumer after a committed outcome (1.8329ms)
+✔ null action id skips feedback trigger (0.1696ms)
+✔ consumer failure is swallowed by the best-effort trigger (1.6964ms)
+✔ successful practice persistence triggers feedback after the action is resolved from its session (2.2594ms)
+✔ practice persistence failure does not trigger feedback (1.2949ms)
+✔ review reason recording without a ReviewAttempt does not trigger feedback (1.0234ms)
+✔ successful ReviewAttempt persistence triggers feedback after saveReview returns (0.7206ms)
+✔ practice persistence failure cannot reach the post-commit trigger (8.0237ms)
+✔ review without a ReviewAttempt cannot reach the post-commit trigger (1.9101ms)
+✔ study module wires the feedback trigger after the signal consumer (1.7395ms)
+✔ failed review persistence leaves no schedule or idempotency cache and the retry actually persists (3.1814ms)
+✔ failed reason-only persistence preserves the prior schedule (0.6525ms)
+✔ failed subsequent review preserves the committed attempt array and schedule (1.0256ms)
+✔ mastery failure rolls back the review facts and permits retrying the same identity (0.6455ms)
+✔ saveMastery creates version 0 and ordinary updates increment version 0 to 1 to 2 (3.2914ms)
+✔ two different concurrent attempts against the same node both accumulate after a version retry (29.8435ms)
+✔ saveMastery retries when the first conditional update observes a stale version (24.7329ms)
+✔ saveMastery throws a conflict error after more than three consecutive version conflicts (112.7172ms)
+✔ applyAttempt and applyReview can retry without overwriting each other fields (30.0788ms)
+✔ batch-style Promise.all attempts mapped to the same node do not lose updates (29.7761ms)
+✔ version increases monotonically through sequential service updates (8.0531ms)
+✔ pinned=true survives both attempt and review mastery writes (3.7478ms)
+✔ touchWrongQuestion creates an unresolved row and lets the schema provide the initial reviewedAt (1.3543ms)
+✔ touchWrongQuestion reopens a resolved question without refreshing reviewedAt (0.4706ms)
+✔ resolveWrongQuestion marks lifecycle resolved without refreshing reviewedAt (0.2479ms)
+✔ resolveWrongQuestion does not write UserKnowledgeMastery state (0.2461ms)
+✔ ScoreCenterService.applyReview updates mastery but no longer directly resolves wrong questions (1.4662ms)
+✔ manual wrong-question review only updates reviewedAt and does not create attempts or mastery updates (1.5737ms)
+✔ reportWrongReason with isReview=false records wrong reason without ReviewAttempt, resolved write, or mastery update (0.7191ms)
+✔ original retest below mastered updates schedule and attempt but does not change resolved (0.6058ms)
+✔ original retest resolves only when the ReviewSchedule reaches mastered (0.4771ms)
+✔ variant retest below mastered updates schedule and attempt but does not change resolved (0.7142ms)
+✔ variant retest resolves only when the ReviewSchedule reaches mastered (0.3115ms)
+✔ listWrongQuestions and StudentStateSnapshot both treat latest wrong as current even when resolved is true (3.0513ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 34
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7952.213

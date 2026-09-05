@@ -1,0 +1,28 @@
+✔ failed review persistence leaves no schedule or idempotency cache and the retry actually persists (4.2728ms)
+✔ failed reason-only persistence preserves the prior schedule (0.8059ms)
+✔ failed subsequent review preserves the committed attempt array and schedule (1.047ms)
+✖ mastery failure rolls back the review facts and permits retrying the same identity (17.5588ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 33.5224
+
+✖ failing tests:
+
+test at test\learning-intelligence-review-recovery.test.js:67:1
+✖ mastery failure rolls back the review facts and permits retrying the same identity (17.5588ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/learning-intelligence-review-recovery.test.js:91:3)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /mastery write failed/,
+    operator: 'rejects',
+    diff: 'simple'
+  }

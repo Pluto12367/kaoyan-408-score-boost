@@ -1,0 +1,159 @@
+ M AGENTS.md
+ M apps/api/src/score-center/repository.ts
+ M apps/api/src/score-center/score-center.module.ts
+ M apps/api/src/score-center/service.ts
+ M apps/api/src/study/contextual-coach-context-assembler.service.ts
+ M apps/api/src/study/learning-loop-trigger.service.ts
+ M apps/api/src/study/learning-session.repository.ts
+ M apps/api/src/study/mastery-summary-projection.service.ts
+ M apps/api/src/study/practice-record.repository.ts
+ M apps/api/src/study/practice-set-recommendation.adapter.ts
+ M apps/api/src/study/recommendation.service.ts
+ M apps/api/src/study/review-schedule.repository.ts
+ M apps/api/src/study/student-state-query.service.ts
+ M apps/api/src/study/study.controller.ts
+ M apps/api/src/study/study.module.ts
+ M apps/api/src/study/study.service.ts
+ M apps/api/src/study/user-event.repository.ts
+ M apps/api/src/study/wrong-question-projection.service.ts
+ M apps/api/src/study/wrong-question.adapter.ts
+ M apps/api/src/study/wrong-question.snapshot.ts
+ M apps/web/src/App.tsx
+ M apps/web/src/api/endpoints/dashboard.ts
+ M apps/web/src/api/types.ts
+ M apps/web/src/components/ExamSession.tsx
+ M apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx
+ M apps/web/src/features/mistakes/MistakeWorkspace.tsx
+ M apps/web/src/features/mistakes/components/PriorityReviewCard.tsx
+ M apps/web/src/features/mistakes/components/ReviewQueue.tsx
+ M apps/web/src/features/practice/PracticePanel.tsx
+ M apps/web/src/features/report/ReportSummaryPanel.tsx
+ M apps/web/src/features/report/ReportWorkspace.tsx
+ M apps/web/src/features/student/StudentSections.tsx
+ M apps/web/src/features/student/home/StudentHome.tsx
+ M apps/web/src/features/student/home/components/LearningTrend.tsx
+ M apps/web/src/features/student/home/components/StudentStateCard.tsx
+ M apps/web/src/features/student/home/components/TodayMission.tsx
+ M apps/web/src/features/student/home/useDashboardViewModel.ts
+ M apps/web/src/features/test/TestSection.tsx
+ M apps/web/src/styles.css
+ M apps/web/src/theme-optimizations.css
+ M apps/web/src/theme/themePreference.ts
+ M docs/current-sprint.md
+ M package.json
+ M packages/shared/src/domain.ts
+ M packages/shared/src/index.ts
+ M packages/shared/src/nodeMastery.ts
+ M prisma/schema.prisma
+ M test/learning-loop-trigger.test.js
+ M test/mobile-nav-ui.test.js
+ M test/node-mastery-map.test.js
+ M test/practice-set-adapter.test.js
+ M test/theme-preference.test.js
+?? apps/api/src/study/action-creation-key.ts
+?? apps/api/src/study/action-feedback-trigger.service.ts
+?? apps/api/src/study/action-learning-signal-consumer.service.ts
+?? apps/api/src/study/action-learning-signal.service.ts
+?? apps/api/src/study/action-outcome-audit.repository.ts
+?? apps/api/src/study/action-outcome-audit.service.ts
+?? apps/api/src/study/canonical-event-writer.service.ts
+?? apps/api/src/study/generation-key.ts
+?? apps/api/src/study/learning-session-action.service.ts
+?? apps/api/src/study/practice-action-attribution.ts
+?? apps/api/src/study/recommendation-action-adapter.service.ts
+?? apps/api/src/study/recommendation-action.repository.ts
+?? apps/api/src/study/recommendation-action.service.ts
+?? apps/api/src/study/recommendation-feedback.service.ts
+?? apps/api/src/study/recommendation-task.adapter.ts
+?? apps/api/src/study/review-action-attribution.ts
+?? apps/api/src/study/student-context.contract.ts
+?? apps/api/src/study/student-context.query.service.ts
+?? apps/api/src/study/student-context.selector.ts
+?? apps/api/src/study/student-state-feedback.adapter.ts
+?? apps/api/src/study/student-state-feedback.repository.ts
+?? apps/api/src/study/study-plan.repository.ts
+?? apps/web/src/features/knowledge-catalog/KnowledgeGalaxy.tsx
+?? apps/web/src/features/knowledge-catalog/knowledge-galaxy.css
+?? apps/web/src/features/mistakes/components/RecentMistakes.tsx
+?? apps/web/src/features/mistakes/components/ReviewHero.tsx
+?? apps/web/src/features/mistakes/components/WeakKnowledgeList.tsx
+?? apps/web/src/features/mistakes/review-center.css
+?? apps/web/src/features/mistakes/reviewCenterViewModel.ts
+?? apps/web/src/features/student/home/studentHomeContextAdapter.ts
+?? apps/web/src/features/student/report/
+?? apps/web/src/hooks/useStudentContextData.ts
+?? docs/contextual-coach-student-context-design.md
+?? docs/event-contract.md
+?? docs/frontend-refactor-audit.md
+?? docs/learning-event-state-transition-matrix.md
+?? docs/learning-intelligence-architecture.md
+?? docs/learning-intelligence-final-report.md
+?? docs/learning-intelligence-loop-audit.md
+?? docs/product/RECOMMENDATION-ACTION-CONTRACT-V1.md
+?? docs/product/V4-PRODUCT-CAPABILITY-MAP.md
+?? docs/qa/
+?? docs/recommendation-consistency-audit.md
+?? docs/report-workspace-student-context-design.md
+?? docs/student-context-adoption-readiness.md
+?? docs/student-context-consumer-audit.md
+?? docs/student-context-consumer-convergence.md
+?? docs/student-context-contract-evolution.md
+?? docs/student-context-contract-hardening-proposal.md
+?? docs/student-context-contract-hardening-report.md
+?? docs/student-context-contract.md
+?? docs/student-context-convergence-final-report.md
+?? docs/student-context-payload-optimization.md
+?? docs/student-context-production-hardening-final-report.md
+?? docs/student-context-production-readiness-audit.md
+?? docs/student-context-query-boundary-analysis.md
+?? docs/student-context-reference-check.md
+?? docs/student-home-context-closure.md
+?? docs/superpowers/plans/2026-08-31-student-action-spine.md
+?? docs/superpowers/plans/2026-09-02-canonical-event-boundary-hardening.md
+?? docs/superpowers/plans/2026-09-02-phase-3-1-identity-action-contract.md
+?? docs/superpowers/specs/2026-08-31-student-action-spine-design.md
+?? packages/shared/src/actionContract.ts
+?? prisma/migrations/20260902150000_recommendation_action_spine/
+?? prisma/migrations/20260902160000_user_event_event_key/
+?? prisma/migrations/20260902170000_study_plan_generation_key/
+?? scripts/integration-event-key.mjs
+?? scripts/integration-generation-reliability.mjs
+?? test/action-controller.test.js
+?? test/action-creation-key-contract.test.js
+?? test/action-feedback-trigger.test.js
+?? test/action-identity-contract.test.js
+?? test/action-learning-signal.test.js
+?? test/action-outcome-audit.test.js
+?? test/action-runtime.test.js
+?? test/action-schema-contract.test.mjs
+?? test/action-service.test.js
+?? test/canonical-event-boundary.test.js
+?? test/contextual-coach-base-context.test.js
+?? test/event-key-schema-contract.test.mjs
+?? test/generation-key-contract.test.js
+?? test/knowledge-galaxy-ui.test.js
+?? test/knowledge-identity-02.test.js
+?? test/knowledge-identity-resolver.test.js
+?? test/knowledge-identity-review-center.test.js
+?? test/learning-session-action.test.js
+?? test/plan-generated-event-identity.test.js
+?? test/practice-action-attribution.test.js
+?? test/recommendation-action-generation-runtime.test.js
+?? test/recommendation-consumer-migration.test.js
+?? test/recommendation-consumer-verification.test.js
+?? test/report-workspace-context-adapter.test.js
+?? test/review-action-attribution.test.js
+?? test/review-center-ui.test.js
+?? test/student-context-contract.test.js
+?? test/student-context-controller-wiring.test.js
+?? test/student-context-performance.test.js
+?? test/student-context-query-boundary.test.js
+?? test/student-context-query.test.js
+?? test/student-context-selector.test.js
+?? test/student-home-context-adapter.test.js
+?? test/student-state-feedback-adapter.test.js
+?? test/student-state-feedback-event-key.test.js
+?? test/study-plan-generation-concurrency.integration.test.js
+?? test/study-plan-generation-key-schema-contract.test.mjs
+?? test/study-plan-idempotency.test.js
+?? test/study-plan-runtime-adoption.test.js

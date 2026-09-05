@@ -1,43 +1,61 @@
-import type { StudentAction } from '../../student/actions/studentAction';
-
-type ReviewAction = Extract<StudentAction, { type: 'review_due' | 'redo_wrong_question' }>;
+import { ArrowRight, RotateCcw } from 'lucide-react';
+import { EmptyState, SurfaceCard } from '../../../components/ui';
+import type { ReviewCenterPriorityItem } from '../reviewCenterViewModel';
 
 interface PriorityReviewCardProps {
-  action: StudentAction;
-  priority?: {
-    priority: string;
-    reason: string;
-    suggestedAction: string;
-  } | null;
-  onReview: (action: ReviewAction) => void;
-  onRedo: (action: ReviewAction) => void;
-  onOpenDetail: (action: ReviewAction) => void;
+  item: ReviewCenterPriorityItem | null;
+  onOpenReview: (questionId: string) => void;
+  onRedo: (questionId: string, knowledgePointTitle?: string) => void;
 }
 
-export function PriorityReviewCard({ action, priority, onReview, onRedo, onOpenDetail }: PriorityReviewCardProps) {
-  if (action.type !== 'review_due' && action.type !== 'redo_wrong_question') return null;
-
-  const isFallback = action.source === 'wrong-summary-fallback';
-  const displayReason = isFallback
-    ? '当前没有可用的到期复习或优先重做依据，先处理这道错题。'
-    : priority?.reason ?? action.reason ?? '根据当前复盘队列安排下一步。';
-  const displayHint = isFallback
-    ? '完成这道展示兜底错题后，再用变式题验证。'
-    : priority?.suggestedAction ?? action.reason ?? '完成这一步后，再用变式题验证。';
-
+export function PriorityReviewCard({ item, onOpenReview, onRedo }: PriorityReviewCardProps) {
   return (
-    <div className="wrong-today-task-panel" role="status" aria-label="今日最该复盘">
-      <div className="wrong-today-task-head">
-        <strong>{action.type === 'review_due' ? '今日最该复盘' : '优先重做'}：{action.title}</strong>
-        <span>{isFallback ? '展示兜底' : priority?.priority ?? '待处理'}</span>
+    <SurfaceCard className="review-center-priority-card" data-testid="review-center-priority">
+      <div className="review-center-section-heading">
+        <div>
+          <p className="eyebrow">Today&apos;s focus</p>
+          <h3>今天最该恢复什么</h3>
+        </div>
+        <span className="review-center-source-badge">{sourceLabel(item?.source)}</span>
       </div>
-      <p>{displayReason}</p>
-      <div className="wrong-today-task-actions">
-        <button type="button" className="primary-action" onClick={() => onReview(action)}>先复盘这题</button>
-        <button type="button" className="secondary-action" onClick={() => onRedo(action)}>重做这题</button>
-        <button type="button" className="secondary-action" onClick={() => onOpenDetail(action)}>看详情与笔记</button>
-      </div>
-      <p className="wrong-today-task-hint">{displayHint}</p>
-    </div>
+      {item ? (
+        <>
+          <div className="review-center-priority-main">
+            <div>
+              <strong>{item.knowledgePointTitle}</strong>
+              <span>{item.subject} · {item.statusLabel}</span>
+            </div>
+            <span className="review-center-mastery-label">掌握度 {item.masteryLabel}</span>
+          </div>
+          <p className="review-center-priority-reason">{item.reason}</p>
+          <div className="review-center-priority-meta">
+            <span>错误 {item.wrongCount ?? '暂无数据'} 次</span>
+            <span>{item.nextReviewAt ? `复习时间 ${formatDate(item.nextReviewAt)}` : '暂无复习时间'}</span>
+          </div>
+          <p className="review-center-priority-action">下一步：{item.suggestedAction}</p>
+          <div className="review-center-actions">
+            <button type="button" className="primary-action" onClick={() => onOpenReview(item.questionId)}>
+              开始复习 <ArrowRight size={14} aria-hidden="true" />
+            </button>
+            <button type="button" className="secondary-action" onClick={() => onRedo(item.questionId, item.knowledgePointTitle)}>
+              <RotateCcw size={14} aria-hidden="true" /> 重做
+            </button>
+          </div>
+        </>
+      ) : (
+        <EmptyState title="当前没有可优先恢复的项目" description="到期复习和待复盘错题会出现在这里。" />
+      )}
+    </SurfaceCard>
   );
+}
+
+function sourceLabel(source: ReviewCenterPriorityItem['source'] | undefined) {
+  if (source === 'review-due') return '到期复习';
+  if (source === 'priority-redo') return '优先重做';
+  if (source === 'display-fallback') return '错题展示';
+  return '等待数据';
+}
+
+function formatDate(value: string) {
+  return value.slice(0, 10);
 }

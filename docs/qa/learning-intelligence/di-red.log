@@ -1,0 +1,39 @@
+✖ Nest resolves the action session repository and invokes its persisted-session lookup (12.344ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17.1542
+
+✖ failing tests:
+
+test at test\learning-intelligence-di.test.js:15:1
+✖ Nest resolves the action session repository and invokes its persisted-session lookup (12.344ms)
+  UnknownDependenciesException [Error]: Nest can't resolve dependencies of the LearningSessionActionService (RecommendationActionService, ?). Please make sure that the argument Object at index [1] is available in the FixtureModule context.
+  
+  Potential solutions:
+  - Is FixtureModule a valid NestJS module?
+  - If Object is a provider, is it part of the current FixtureModule?
+  - If Object is exported from a separate @Module, is that module imported within FixtureModule?
+    @Module({
+      imports: [ /* the Module containing Object */ ]
+    })
+  
+      at Injector.lookupComponentInParentModules (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:262:19)
+      at async Injector.resolveComponentInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:215:33)
+      at async resolveParam (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:129:38)
+      at async Promise.all (index 1)
+      at async Injector.resolveConstructorParams (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:144:27)
+      at async Injector.loadInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:70:13)
+      at async Injector.loadProvider (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:98:9)
+      at async D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:56:13
+      at async Promise.all (index 3)
+      at async InstanceLoader.createInstancesOfProviders (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:55:9) {
+    type: 'LearningSessionActionService',
+    context: { index: 1, dependencies: [ [class RecommendationActionService], [Function: Object] ], name: [Function: Object] },
+    metadata: { id: 'c4ba58ada2cb9fe1fda6c' },
+    moduleRef: { id: '938c117835c4ba58ada2c' }
+  }

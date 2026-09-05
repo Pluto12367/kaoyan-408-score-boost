@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   buildKnowledgeCatalogFirstScreenHighlights,
   buildKnowledgePointIndex,
+  deriveNodeMasteryStatus,
   filterKnowledgeTree,
   resolveKnowledgePointRefs,
   searchKnowledgeTree,
@@ -23,8 +24,10 @@ import {
   type NodeQuestState,
 } from '../../api/endpoints/score-center';
 import type { RoleSection } from '../../layouts/RoleNavigation';
+import { ProgressRing, SurfaceCard } from '../../components/ui';
 import { getKnowledgeCatalog } from './catalogData';
 import { SUBJECT_NAMES, SUBJECT_ORDER } from './constants';
+import { KnowledgeGalaxy } from './KnowledgeGalaxy';
 import { KnowledgePointDetailDrawer } from './KnowledgePointDetailDrawer';
 import { KnowledgeTree, type ExpansionCommand } from './KnowledgeTree';
 import { buildKnowledgeActions } from '../student/actions/adapters/knowledgeActionAdapter';
@@ -166,6 +169,23 @@ export function KnowledgeCatalog({
 
   const subject = catalog[active];
   const summary = useMemo(() => summarizeSubject(subject), [subject]);
+  const subjectOverview = useMemo(
+    () => SUBJECT_ORDER.map((code) => {
+      const points = flattenSubjectPoints(catalog[code]);
+      const knownMastery = points
+        .map((point) => masteryById[point.id]?.mastery)
+        .filter((value): value is number => value != null);
+      const mastery = knownMastery.length > 0
+        ? Math.round((knownMastery.reduce((total, value) => total + value, 0) / knownMastery.length) * 100)
+        : null;
+      const weakCount = points.filter((point) => {
+        const item = masteryById[point.id];
+        return item ? deriveNodeMasteryStatus({ mastery: item.mastery, attempts: item.attempts }) === 'weak' : false;
+      }).length;
+      return { code, name: SUBJECT_NAMES[code], pointCount: points.length, mastery, weakCount };
+    }),
+    [catalog, masteryById],
+  );
   const firstScreenHighlights = useMemo(
     () => buildKnowledgeCatalogFirstScreenHighlights({ subject, masteryById }),
     [subject, masteryById],
@@ -200,16 +220,24 @@ export function KnowledgeCatalog({
   return (
     <section
       id="knowledge-catalog"
-      className="panel"
+      className="panel knowledge-galaxy-page"
       data-testid="knowledge-catalog"
       data-knowledge-node-id={nodeAction?.type === 'knowledge_explore' ? nodeAction.context.knowledgeNodeId : undefined}
     >
-      <div className="panel-heading">
+      <header className="knowledge-galaxy-hero">
         <div>
-          <p className="eyebrow">408 知识图谱</p>
-          <h3>知识点目录</h3>
+          <p className="eyebrow">我的 408 知识宇宙</p>
+          <h2>Knowledge Galaxy</h2>
+          <p className="knowledge-galaxy-hero-description">
+            探索你的知识掌握状态，从当前学习焦点出发理解、定位并进入练习。
+          </p>
         </div>
-      </div>
+        <div className="knowledge-galaxy-hero-metric">
+          <span>当前聚焦</span>
+          <strong>{subject.name}</strong>
+          <small>{summary.atomicPointCount} 个知识点</small>
+        </div>
+      </header>
       <div className="report-tabs" role="tablist" aria-label="科目">
         {SUBJECT_ORDER.map((code) => (
           <button
@@ -226,6 +254,38 @@ export function KnowledgeCatalog({
           </button>
         ))}
       </div>
+      <section className="knowledge-galaxy-overview" aria-labelledby="knowledge-galaxy-overview-title">
+        <div className="knowledge-galaxy-overview-heading">
+          <div>
+            <p className="eyebrow">Student State</p>
+            <h3 id="knowledge-galaxy-overview-title">我的 408 学习状态</h3>
+          </div>
+          <span className="knowledge-galaxy-summary">掌握度来自当前节点学习记录</span>
+        </div>
+        <div className="knowledge-galaxy-subject-grid">
+          {subjectOverview.map((item) => (
+            <SurfaceCard key={item.code} className={`knowledge-galaxy-subject-card${active === item.code ? ' is-active' : ''}`}>
+              <button
+                type="button"
+                className="knowledge-galaxy-subject-card-action"
+                onClick={() => setActive(item.code)}
+              >
+                <ProgressRing
+                  value={item.mastery}
+                  label={item.mastery == null ? '未评估' : `${item.mastery}%`}
+                  size={58}
+                  strokeWidth={5}
+                  tone={item.code === 'DS' ? 'primary' : item.code === 'OS' ? 'warning' : item.code === 'CN' ? 'teal' : 'success'}
+                />
+                <span className="knowledge-galaxy-subject-copy">
+                  <strong>{item.name}</strong>
+                  <span>{item.pointCount} 个节点 · {item.weakCount > 0 ? `${item.weakCount} 个薄弱点` : '暂无薄弱点'}</span>
+                </span>
+              </button>
+            </SurfaceCard>
+          ))}
+        </div>
+      </section>
       {firstScreenHighlights.length > 0 ? (
         <div className="catalog-first-screen" aria-label={`${SUBJECT_NAMES[active]}建议先看`}>
           <div className="catalog-first-screen-heading">
@@ -256,7 +316,13 @@ export function KnowledgeCatalog({
           </div>
         </div>
       ) : null}
-      <div className="catalog-filter-bar">
+      <div className="knowledge-galaxy-workspace">
+        <aside className="knowledge-galaxy-controls" aria-label="知识宇宙筛选">
+          <div className="knowledge-galaxy-control-heading">
+            <strong>探索范围</strong>
+            <span>搜索和筛选会同步更新 Galaxy</span>
+          </div>
+          <div className="catalog-filter-bar">
         <input
           type="search"
           className="catalog-search"
@@ -283,8 +349,8 @@ export function KnowledgeCatalog({
         </button>
         <button type="button" className="catalog-toggle" onClick={expandAll}>全部展开</button>
         <button type="button" className="catalog-toggle" onClick={collapseAll}>全部收起</button>
-      </div>
-      <div className="catalog-summary" aria-label={`${SUBJECT_NAMES[active]}汇总`}>
+          </div>
+          <div className="catalog-summary" aria-label={`${SUBJECT_NAMES[active]}汇总`}>
         <span>章节数：{summary.chapterCount}</span>
         <span>小节数：{summary.sectionCount}</span>
         <span>原子知识点数：{summary.atomicPointCount}</span>
@@ -293,7 +359,25 @@ export function KnowledgeCatalog({
             掌握度加载失败：{masteryError}
           </span>
         ) : null}
+          </div>
+        </aside>
+        <main className="knowledge-galaxy-visual" aria-label={`${SUBJECT_NAMES[active]}知识宇宙视图`}>
+          <KnowledgeGalaxy
+            subject={visibleSubject}
+            masteryById={masteryById}
+            selectedPointId={selectedPointId}
+            onSelectPoint={(point) => {
+              setSelectedActionType(null);
+              setSelectedPointId(point.id);
+            }}
+          />
+        </main>
       </div>
+      <section className="knowledge-galaxy-tree-section" aria-labelledby="knowledge-galaxy-tree-title">
+        <div className="knowledge-galaxy-tree-heading">
+          <h3 id="knowledge-galaxy-tree-title">完整知识目录</h3>
+          <span>用于精确搜索、筛选和展开浏览</span>
+        </div>
       {hasResults ? (
         <KnowledgeTree
           key={subject.code}
@@ -322,6 +406,7 @@ export function KnowledgeCatalog({
       ) : (
         <p className="empty-state">没有符合条件的知识点</p>
       )}
+      </section>
       <KnowledgePointDetailDrawer
         open={selectedPointId !== null}
         onClose={() => {
@@ -380,5 +465,11 @@ function groupSearchMatches(subject: CatalogSubject, matches: CatalogSearchResul
       }))
       .filter((chapter) => chapter.sections.length > 0),
   };
+}
+
+function flattenSubjectPoints(subject: CatalogSubject): CatalogAtomicPoint[] {
+  return subject.chapters.flatMap((chapter) =>
+    chapter.sections.flatMap((section) => section.points),
+  );
 }
 //知识图谱

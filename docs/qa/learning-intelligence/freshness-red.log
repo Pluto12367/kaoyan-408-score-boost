@@ -1,0 +1,102 @@
+✖ late older refresh cannot overwrite the newest canonical state (111.5258ms)
+✖ old request failure cannot turn a newer successful refresh into an error (22.2382ms)
+✖ auth switch immediately hides prior data and ignores the prior request (13.8369ms)
+✖ disabled hook ignores in-flight responses and does not fetch on manual refresh (10.5443ms)
+✔ latest request error stays explicit and preserves server timestamp in existing data (13.0045ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 1
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 178.2869
+
+✖ failing tests:
+
+test at test\student-context-freshness.test.js:49:1
+✖ late older refresh cannot overwrite the newest canonical state (111.5258ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + '2026-09-05T01:00:00Z'
+  - '2026-09-05T02:00:00Z'
+                 ^
+  
+      at TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/student-context-freshness.test.js:57:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:385:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '2026-09-05T01:00:00Z',
+    expected: '2026-09-05T02:00:00Z',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\student-context-freshness.test.js:60:1
+✖ old request failure cannot turn a newer successful refresh into an error (22.2382ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'error' !== 'ready'
+  
+      at TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/student-context-freshness.test.js:68:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'error',
+    expected: 'ready',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\student-context-freshness.test.js:71:1
+✖ auth switch immediately hides prior data and ignores the prior request (13.8369ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + {
+  +   asOf: 'a-time',
+  +   freshness: {
+  +     asOf: 'a-time'
+  +   },
+  +   userId: 'user-a'
+  + }
+  - null
+  
+      at TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/student-context-freshness.test.js:77:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Object],
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test\student-context-freshness.test.js:85:1
+✖ disabled hook ignores in-flight responses and does not fetch on manual refresh (10.5443ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + {
+  +   asOf: 'late-time',
+  +   freshness: {
+  +     asOf: 'late-time'
+  +   },
+  +   userId: 'user-a'
+  + }
+  - null
+  
+      at TestContext.<anonymous> (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/test/student-context-freshness.test.js:91:10)
+      at async Test.run (node:internal/test_runner/test:1208:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:831:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Object],
+    expected: null,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

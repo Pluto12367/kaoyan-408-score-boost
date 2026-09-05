@@ -1,0 +1,55 @@
+
+> kaoyan-408-score-boost@1.0.0 test:integration:postgres
+> npm run build:api && node scripts/integration-postgres.mjs
+
+
+> kaoyan-408-score-boost@1.0.0 build:api
+> npm run build:shared && npm run build -w apps/api
+
+
+> kaoyan-408-score-boost@1.0.0 build:shared
+> npm run build -w packages/shared
+
+
+> @kaoyan408/shared@0.1.0 build
+> tsc -p tsconfig.json
+
+
+> @kaoyan408/api@0.1.0 build
+> nest build
+
+(node:6136) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Error: review scheduler regression requires three target-date tasks
+    at assert (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/scripts/integration-postgres.mjs:3168:25)
+    at main (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/scripts/integration-postgres.mjs:1254:5)
+ GET} route +0ms
+[Nest] 31804  - 2026/09/05 11:20:25     LOG [RouterExplorer] Mapped {/wrong-questions/:questionId/exam-links, GET} route +0ms
+[Nest] 31804  - 2026/09/05 11:20:25     LOG [RouterExplorer] Mapped {/knowledge/:id/quest/complete, POST} route +0ms
+[Nest] 31804  - 2026/09/05 11:20:25     LOG [RouterExplorer] Mapped {/score-center/generate, POST} route +1ms
+[Nest] 31804  - 2026/09/05 11:20:25     LOG [NestApplication] Nest application successfully started +309ms
+[Nest] 31804  - 2026/09/05 11:20:25     LOG [Bootstrap] API running on http://localhost:3200
+[Nest] 31804  - 2026/09/05 11:20:25     LOG [Bootstrap] Environment: development
+[Nest] 31804  - 2026/09/05 11:20:25     LOG [Bootstrap] Demo auth: enabled
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] ae6a88be-ebae-461d-87ab-8f23cb849c8c GET /health 200 10ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 0297b972-4855-4c97-8a61-db4481319daf POST /auth/login 201 67ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 634364eb-3f44-4e57-bccb-15b2195aa63a GET /wrong-questions/q-001/detail 200 6ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 4b2b3114-9bea-4053-a62b-66e58deb8e2f GET /onboarding/status 200 5ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 6d4302ac-ba12-4d2e-acaf-0a4a9aca54d5 GET /today/plan 200 27ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 9a6ad359-4883-461b-9238-83264d477d15 GET /sessions/practice/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2 200 4ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 3c502ad3-08e0-4b87-8e6e-b105bfe91cd3 GET /sessions/practice/session-9ab58b03-8805-42d4-9a18-57bd067be014 200 5ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 31840c36-9b75-448b-9c9d-3983efcd57b6 GET /sessions/practice/session-e7329352-1f0d-4565-9ded-09cdb5cdfdc1 200 4ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 8be97359-3539-4aa1-a760-4c9cc9fce3a6 POST /sessions/practice/session-9ab58b03-8805-42d4-9a18-57bd067be014/submit 201 71ms
+[Nest] 31804  - 2026/09/05 11:20:26    WARN [Bootstrap] 1058f978-6992-4f78-a248-23239ef33f18 POST /sessions/practice/session-9ab58b03-8805-42d4-9a18-57bd067be014/submit 400 5ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 0de968bc-a6dd-4ee8-9b28-c4fd241badd6 POST /sessions/practice/session-e7329352-1f0d-4565-9ded-09cdb5cdfdc1/submit 201 56ms
+[Nest] 31804  - 2026/09/05 11:20:26    WARN [Bootstrap] afb1231f-50ed-4223-8e94-97694f072507 POST /sessions/practice/session-e7329352-1f0d-4565-9ded-09cdb5cdfdc1/submit 400 4ms
+[Nest] 31804  - 2026/09/05 11:20:26    WARN [Bootstrap] e69d6cbf-1f40-4b5e-a452-6776c58e678f GET /exam/report/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2 400 3ms
+[Nest] 31804  - 2026/09/05 11:20:26    WARN [Bootstrap] 9c0a302f-5f57-498c-8a53-4736b945d114 POST /sessions/practice/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2/submit 400 4ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] a7d9ef11-3465-45da-a6c7-c787e8c18865 PATCH /questions/q-004 200 36ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] b214b9c2-8a61-4dcd-aff2-c7c698873b7c POST /sessions/practice/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2/submit 201 75ms
+[Nest] 31804  - 2026/09/05 11:20:26    WARN [Bootstrap] 4d305207-1963-42db-846b-392968a646e0 POST /sessions/practice/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2/submit 400 4ms
+[Nest] 31804  - 2026/09/05 11:20:26    WARN [Bootstrap] 8151c222-61cb-4b57-98d7-bfd4ecff0be6 POST /sessions/practice/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2/save 400 5ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] 916612f0-9d2a-4927-9894-0439a540c024 GET /exam/report/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2 200 4ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] d535a927-09b4-432a-ac64-43606cb92745 GET /exam/report/session-dd8b2764-69b1-4f02-b2de-5824bcee57f2 200 4ms
+[Nest] 31804  - 2026/09/05 11:20:26     LOG [Bootstrap] f4a59b22-ca3c-43a7-9444-406d1d373d17 GET /dashboard/overview 200 12ms
+

@@ -1,0 +1,142 @@
+
+> kaoyan-408-score-boost@1.0.0 test:integration:postgres
+> npm run build:api && node scripts/integration-postgres.mjs
+
+
+> kaoyan-408-score-boost@1.0.0 build:api
+> npm run build:shared && npm run build -w apps/api
+
+
+> kaoyan-408-score-boost@1.0.0 build:shared
+> npm run build -w packages/shared
+
+
+> @kaoyan408/shared@0.1.0 build
+> tsc -p tsconfig.json
+
+
+> @kaoyan408/api@0.1.0 build
+> nest build
+
+(node:2504) [DEP0190] DeprecationWarning: Passing args to a child process with shell option true can lead to security vulnerabilities, as the arguments are not escaped, only concatenated.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [NestFactory] Starting Nest application...
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [InstanceLoader] PrismaModule dependencies initialized +42ms
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [InstanceLoader] ThrottlerModule dependencies initialized +6ms
+[Nest] 40520  - 2026/09/05 11:18:20   ERROR [ExceptionHandler] Nest can't resolve dependencies of the LearningSessionActionService (RecommendationActionService, ?). Please make sure that the argument Object at index [1] is available in the StudyModule context.
+
+Potential solutions:
+- Is StudyModule a valid NestJS module?
+- If Object is a provider, is it part of the current StudyModule?
+- If Object is exported from a separate @Module, is that module imported within StudyModule?
+  @Module({
+    imports: [ /* the Module containing Object */ ]
+  })
+
+Error: Nest can't resolve dependencies of the LearningSessionActionService (RecommendationActionService, ?). Please make sure that the argument Object at index [1] is available in the StudyModule context.
+
+Potential solutions:
+- Is StudyModule a valid NestJS module?
+- If Object is a provider, is it part of the current StudyModule?
+- If Object is exported from a separate @Module, is that module imported within StudyModule?
+  @Module({
+    imports: [ /* the Module containing Object */ ]
+  })
+
+    at Injector.lookupComponentInParentModules (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:262:19)
+    at async Injector.resolveComponentInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:215:33)
+    at async resolveParam (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:129:38)
+    at async Promise.all (index 1)
+    at async Injector.resolveConstructorParams (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:144:27)
+    at async Injector.loadInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:70:13)
+    at async Injector.loadProvider (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:98:9)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:56:13
+    at async Promise.all (index 6)
+    at async InstanceLoader.createInstancesOfProviders (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:55:9)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:40:13
+    at async Promise.all (index 7)
+    at async InstanceLoader.createInstances (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:39:9)
+    at async InstanceLoader.createInstancesOfDependencies (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:22:13)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\nest-factory.js:108:17
+    at async ExceptionsZone.asyncRun (D:\计算机考研提分系统\node_modules\@nestjs\core\errors\exceptions-zone.js:22:13)
+Error: PostgreSQL API exited with 1: [Nest] 40520  - 2026/09/05 11:18:20     LOG [NestFactory] Starting Nest application...
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [InstanceLoader] PrismaModule dependencies initialized +42ms
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [InstanceLoader] ThrottlerModule dependencies initialized +6ms
+[Nest] 40520  - 2026/09/05 11:18:20   ERROR [ExceptionHandler] Nest can't resolve dependencies of the LearningSessionActionService (RecommendationActionService, ?). Please make sure that the argument Object at index [1] is available in the StudyModule context.
+
+Potential solutions:
+- Is StudyModule a valid NestJS module?
+- If Object is a provider, is it part of the current StudyModule?
+- If Object is exported from a separate @Module, is that module imported within StudyModule?
+  @Module({
+    imports: [ /* the Module containing Object */ ]
+  })
+
+Error: Nest can't resolve dependencies of the LearningSessionActionService (RecommendationActionService, ?). Please make sure that the argument Object at index [1] is available in the StudyModule context.
+
+Potential solutions:
+- Is StudyModule a valid NestJS module?
+- If Object is a provider, is it part of the current StudyModule?
+- If Object is exported from a separate @Module, is that module imported within StudyModule?
+  @Module({
+    imports: [ /* the Module containing Object */ ]
+  })
+
+    at Injector.lookupComponentInParentModules (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:262:19)
+    at async Injector.resolveComponentInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:215:33)
+    at async resolveParam (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:129:38)
+    at async Promise.all (index 1)
+    at async Injector.resolveConstructorParams (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:144:27)
+    at async Injector.loadInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:70:13)
+    at async Injector.loadProvider (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:98:9)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:56:13
+    at async Promise.all (index 6)
+    at async InstanceLoader.createInstancesOfProviders (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:55:9)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:40:13
+    at async Promise.all (index 7)
+    at async InstanceLoader.createInstances (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:39:9)
+    at async InstanceLoader.createInstancesOfDependencies (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:22:13)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\nest-factory.js:108:17
+    at async ExceptionsZone.asyncRun (D:\计算机考研提分系统\node_modules\@nestjs\core\errors\exceptions-zone.js:22:13)
+    at waitForHealth (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/scripts/integration-postgres.mjs:3050:13)
+    at async main (file:///D:/%E8%AE%A1%E7%AE%97%E6%9C%BA%E8%80%83%E7%A0%94%E6%8F%90%E5%88%86%E7%B3%BB%E7%BB%9F/scripts/integration-postgres.mjs:100:3)
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [NestFactory] Starting Nest application...
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [InstanceLoader] PrismaModule dependencies initialized +42ms
+[Nest] 40520  - 2026/09/05 11:18:20     LOG [InstanceLoader] ThrottlerModule dependencies initialized +6ms
+[Nest] 40520  - 2026/09/05 11:18:20   ERROR [ExceptionHandler] Nest can't resolve dependencies of the LearningSessionActionService (RecommendationActionService, ?). Please make sure that the argument Object at index [1] is available in the StudyModule context.
+
+Potential solutions:
+- Is StudyModule a valid NestJS module?
+- If Object is a provider, is it part of the current StudyModule?
+- If Object is exported from a separate @Module, is that module imported within StudyModule?
+  @Module({
+    imports: [ /* the Module containing Object */ ]
+  })
+
+Error: Nest can't resolve dependencies of the LearningSessionActionService (RecommendationActionService, ?). Please make sure that the argument Object at index [1] is available in the StudyModule context.
+
+Potential solutions:
+- Is StudyModule a valid NestJS module?
+- If Object is a provider, is it part of the current StudyModule?
+- If Object is exported from a separate @Module, is that module imported within StudyModule?
+  @Module({
+    imports: [ /* the Module containing Object */ ]
+  })
+
+    at Injector.lookupComponentInParentModules (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:262:19)
+    at async Injector.resolveComponentInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:215:33)
+    at async resolveParam (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:129:38)
+    at async Promise.all (index 1)
+    at async Injector.resolveConstructorParams (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:144:27)
+    at async Injector.loadInstance (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:70:13)
+    at async Injector.loadProvider (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\injector.js:98:9)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:56:13
+    at async Promise.all (index 6)
+    at async InstanceLoader.createInstancesOfProviders (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:55:9)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:40:13
+    at async Promise.all (index 7)
+    at async InstanceLoader.createInstances (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:39:9)
+    at async InstanceLoader.createInstancesOfDependencies (D:\计算机考研提分系统\node_modules\@nestjs\core\injector\instance-loader.js:22:13)
+    at async D:\计算机考研提分系统\node_modules\@nestjs\core\nest-factory.js:108:17
+    at async ExceptionsZone.asyncRun (D:\计算机考研提分系统\node_modules\@nestjs\core\errors\exceptions-zone.js:22:13)
+

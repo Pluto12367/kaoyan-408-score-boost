@@ -1,0 +1,24 @@
+✔ Nest resolves the action session repository and invokes its persisted-session lookup (11.5617ms)
+✔ created action creates attributed session (2.0948ms)
+✔ started action creates attributed session (0.2921ms)
+✔ rejects COMPLETED action (0.7357ms)
+✔ rejects CANCELLED action (0.182ms)
+✔ rejects EXPIRED action (0.2351ms)
+✔ missing action returns not found (0.3259ms)
+✔ foreign action is forbidden (0.2312ms)
+✔ same action is idempotent (0.408ms)
+✔ different actions create different sessions (0.4441ms)
+✔ duplicate action cannot create a second session (0.5362ms)
+✔ session keeps action identity distinct from resource and session ids (0.2915ms)
+✔ question target is carried as question id, not action id (0.9951ms)
+✔ persistence failure does not return a partial session (0.3002ms)
+✔ direct sessions remain actionless (0.1208ms)
+✔ metadata is accepted without changing attribution identity (0.1762ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3510.0091

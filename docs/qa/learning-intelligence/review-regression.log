@@ -1,0 +1,50 @@
+[Nest] 41448  - 2026/09/05 11:17:36    WARN [ActionFeedbackTriggerService] Action feedback trigger failed for user-1/action-1
+[Nest] 41448  - 2026/09/05 11:17:36    WARN [ActionFeedbackTriggerService] feedback unavailable
+✔ action id triggers signal consumer after a committed outcome (2.2213ms)
+✔ null action id skips feedback trigger (0.2213ms)
+✔ consumer failure is swallowed by the best-effort trigger (2.7428ms)
+✔ successful practice persistence triggers feedback after the action is resolved from its session (2.6965ms)
+✔ practice persistence failure does not trigger feedback (0.9294ms)
+✔ review reason recording without a ReviewAttempt does not trigger feedback (1.1554ms)
+✔ successful ReviewAttempt persistence triggers feedback after saveReview returns (0.8146ms)
+✔ practice persistence failure cannot reach the post-commit trigger (9.4711ms)
+✔ review without a ReviewAttempt cannot reach the post-commit trigger (2.4779ms)
+✔ study module wires the feedback trigger after the signal consumer (1.4869ms)
+✔ failed review persistence leaves no schedule or idempotency cache and the retry actually persists (3.5195ms)
+✔ failed reason-only persistence preserves the prior schedule (1.1556ms)
+✔ failed subsequent review preserves the committed attempt array and schedule (1.5229ms)
+✔ created and started actions are attributable (1.5012ms)
+✔ rejects COMPLETED action (0.7206ms)
+✔ rejects CANCELLED action (0.1742ms)
+✔ rejects EXPIRED action (0.1391ms)
+✔ missing and foreign actions are rejected (0.3101ms)
+✔ client spoof cannot override validated action identity (0.186ms)
+✔ direct review remains actionless (0.1537ms)
+✔ action and attempt identities remain distinct (0.2697ms)
+✔ same schedule and idempotency key is a stable lookup boundary (0.2048ms)
+✔ different idempotency keys permit separate attempts (0.3535ms)
+✔ multiple actions remain isolated (0.204ms)
+✔ invalid action request is never silently converted to direct review (0.2157ms)
+✔ legacy attempt rows can remain actionless (0.2112ms)
+✔ existing review reads preserve optional attribution fields (0.1432ms)
+✔ review attempt attribution never uses question identity (0.1301ms)
+✔ touchWrongQuestion creates an unresolved row and lets the schema provide the initial reviewedAt (1.8141ms)
+✔ touchWrongQuestion reopens a resolved question without refreshing reviewedAt (0.6708ms)
+✔ resolveWrongQuestion marks lifecycle resolved without refreshing reviewedAt (0.3217ms)
+✔ resolveWrongQuestion does not write UserKnowledgeMastery state (0.2867ms)
+✔ ScoreCenterService.applyReview updates mastery but no longer directly resolves wrong questions (1.542ms)
+✔ manual wrong-question review only updates reviewedAt and does not create attempts or mastery updates (1.4462ms)
+✔ reportWrongReason with isReview=false records wrong reason without ReviewAttempt, resolved write, or mastery update (0.561ms)
+✔ original retest below mastered updates schedule and attempt but does not change resolved (0.4145ms)
+✔ original retest resolves only when the ReviewSchedule reaches mastered (0.281ms)
+✔ variant retest below mastered updates schedule and attempt but does not change resolved (0.8133ms)
+✔ variant retest resolves only when the ReviewSchedule reaches mastered (0.4569ms)
+✔ listWrongQuestions and StudentStateSnapshot both treat latest wrong as current even when resolved is true (3.8802ms)
+ℹ tests 40
+ℹ suites 0
+ℹ pass 40
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8199.9169

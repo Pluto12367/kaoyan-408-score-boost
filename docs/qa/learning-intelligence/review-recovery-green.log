@@ -1,0 +1,11 @@
+✔ failed review persistence leaves no schedule or idempotency cache and the retry actually persists (2.127ms)
+✔ failed reason-only persistence preserves the prior schedule (0.9018ms)
+✔ failed subsequent review preserves the committed attempt array and schedule (1.194ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9.9826

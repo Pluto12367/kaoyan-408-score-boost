@@ -1,0 +1,25 @@
+✔ direct stage assessment triggers the next recommendation only after its result exists (2.8141ms)
+✔ failed stage result never triggers a recommendation (0.9936ms)
+✔ failed recommendation does not erase a successful direct assessment result (0.4451ms)
+[Nest] 28420  - 2026/09/05 11:21:12    WARN [LearningLoopTriggerService] Learning loop plan generation failed for u-1
+[Nest] 28420  - 2026/09/05 11:21:12    WARN [LearningLoopTriggerService] recommendation unavailable
+✔ task complete trigger generates next-day plan and emits one plan.generated event (3.5772ms)
+✔ duplicate trigger is skipped by triggerKey (0.8756ms)
+✔ same user and scheduled date produce the same generation identity (0.9413ms)
+✔ learning-loop generation versions remain isolated (0.4946ms)
+✔ generation failure is contained and does not emit plan.generated (2.6853ms)
+✔ stage assessment trigger requires no incomplete task before generating (0.5764ms)
+✔ AnswerReceipt replay path does not invoke the learning-loop trigger (17.8166ms)
+✔ today score-center plan remains queryable after tomorrow plan is created (0.4917ms)
+[Nest] 28420  - 2026/09/05 11:21:12    WARN [StudyService] Learning loop trigger failed for u-1
+[Nest] 28420  - 2026/09/05 11:21:12    WARN [StudyService] recommendation unavailable
+✔ repository boundary keeps Prisma access out of the trigger service (1.8537ms)
+✔ StudyService keeps task completion successful when plan generation fails (4.6077ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 6406.1606
