@@ -19,6 +19,8 @@ V4-10 Evaluation V3（50+ 确定性用例）。
 - **V4-10**：Evaluation V3 完成——test/v4-evaluation-v3.test.js（信号 9 + 风险 12 + 自适应层 10 + 难度 6 + 计划 8 + 考试 8 = 53 断言用例）。测试 8/8。
 - **V4-11**：Experiment Framework 完成——test/v4-experiment-observability.test.js（12 学生 4 archetype 离线策略对比：adaptive vs baseline；reduce/challenge 分流断言；确定性验证）。测试 3/3。
 - **V4-12**：Learning Intelligence Metrics 完成——AiMetricsService 扩展（recordRiskDetected/recordAdaptiveRecommendation/recordPlanAdaptation/recordReviewAdaptation/recordCoachIntervention/recordLearningOutcomeDelta + snapshotLearningIntelligence）。测试 5/5。
+- **V4-13**：Failure Engineering 完成——test/v4-failure-engineering.test.js（6/6：garbage/错误类型信号不 crash、false-positive 风险上限、重复信号 collapse、重复 createStudyTask 幂等、malformed JSON+未授权写闸）。study_consistency 的 inactive 语义修复（isActiveToday=false 且 activeDaysLast7<=1）。
+- **V4-14**：Performance 基线完成——RAG p95 8ms（1388 chunks）；StudentContext/Signal 纯函数微秒级；Agent/Coach LLM 延迟 BLOCKED（billing）。
 - **V4-6**：Proactive Coach 完成——apps/api/src/adaptive/proactive-coach.ts（风险→主动干预卡片：headline/actions/actorHint，按 severity 排序，确定性可重建）。测试 6/6。
 - **V4-9**：Adaptive Exam Simulation 完成——apps/api/src/adaptive/adaptive-exam.ts（topic_drill/chapter_test/comprehensive/mock_exam 四模式，难度进阶波次，scope 过滤，不虚构题目）。测试 5/5（含 1 个断言修正：HARD 缺席时不比较顺序）。
 - **V4-7/V4-8**：Adaptive Review + Personalized Practice 完成——apps/api/src/adaptive/adaptive-review.ts（deriveAdaptiveReviewInterval：stability×mastery×risk×debt 四因子，clamp [0.5,14]；selectNextPractice：productive-zone fit 选题）。测试 10/10。不改变既有 ReviewSchedule 写语义。
@@ -71,7 +73,7 @@ V4-10 Evaluation V3（50+ 确定性用例）。
 
 ## Next Task
 
-V4-10：Evaluation V3 50+ 用例；随后 Experiment/Observability/Failure。
+V4-15：Release Gate + v4-adaptive-learning-architecture.md + final report。Real AI Provider 仍 BLOCKED。
 
 ## Last Validation (V4-5: adaptive-planner 2/2 + agent/signal/risks 回归 57/57)
 

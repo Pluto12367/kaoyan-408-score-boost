@@ -75,6 +75,7 @@ test('risk: study inactivity from consistency warning', () => {
   const inactivity = risks.find((r) => r.type === 'study_inactivity');
   assert.ok(inactivity);
   assert.ok(inactivity.severity === 'high' || inactivity.severity === 'medium');
+  assert.ok(inactivity.evidence.studyStreak === 0);
 });
 
 test('risk: overload from large open task count with low completion', () => {

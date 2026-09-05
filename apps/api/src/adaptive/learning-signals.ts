@@ -99,15 +99,17 @@ function round4(value: number): number {
  */
 export function deriveLearningSignals(input: SignalStudentContextInput): LearningSignal[] {
   const signals: LearningSignal[] = [];
-  const weak = input.mastery?.weakNodes ?? [];
-  const improving = input.mastery?.improvingNodes ?? [];
-  const mastered = input.mastery?.masteredNodes ?? [];
-  const dueCount = input.review?.dueCount ?? 0;
-  const overdueCount = input.review?.overdueCount ?? 0;
+  // V4-13: null/undefined/non-object input must not crash.
+  const safeInput = (input && typeof input === "object" ? input : {}) as SignalStudentContextInput;
+  const weak = safeInput.mastery?.weakNodes ?? [];
+  const improving = safeInput.mastery?.improvingNodes ?? [];
+  const mastered = safeInput.mastery?.masteredNodes ?? [];
+  const dueCount = safeInput.review?.dueCount ?? 0;
+  const overdueCount = safeInput.review?.overdueCount ?? 0;
 
   // ---- accuracy_trend ----
-  const accuracyValue = input.practice?.recentAccuracy?.value ?? null;
-  const accuracyStatus = input.practice?.recentAccuracy?.status ?? 'insufficient_data';
+  const accuracyValue = safeInput.practice?.recentAccuracy?.value ?? null;
+  const accuracyStatus = safeInput.practice?.recentAccuracy?.status ?? 'insufficient_data';
   signals.push(signal('accuracy_trend', accuracyStatus === 'sufficient' && accuracyValue != null, accuracyValue != null && accuracyValue < 0.5 ? 'warning' : 'info', {
     recentAccuracy: accuracyValue,
     status: accuracyStatus,
@@ -123,19 +125,25 @@ export function deriveLearningSignals(input: SignalStudentContextInput): Learnin
   }
 
   // ---- study_consistency ----
-  const inactive = !input.momentum?.isActiveToday && input.momentum?.activeDaysLast7 <= 1;
-  if (inactive || input.momentum?.studyStreak === 0) {
-    signals.push(signal('study_consistency', true, 'warning', { studyStreak: input.momentum?.studyStreak ?? 0, activeDaysLast7: input.momentum?.activeDaysLast7 ?? 0 }));
+  // Absent momentum object = unknown (present=false, info).
+  // Known + zero streak/today-inactive = warning; otherwise info.
+  const momentum = safeInput.momentum;
+  const momentumKnown = momentum != null && (
+    typeof momentum.studyStreak === 'number' || typeof momentum.activeDaysLast7 === 'number' || typeof momentum.isActiveToday === 'boolean'
+  );
+  if (!momentumKnown) {
+    signals.push(signal('study_consistency', false, 'info', { reason: 'no_momentum' }));
   } else {
-    signals.push(signal('study_consistency', true, 'info', { studyStreak: input.momentum?.studyStreak ?? 0, activeDaysLast7: input.momentum?.activeDaysLast7 ?? 0 }));
+    const inactive = !momentum.isActiveToday && (momentum.activeDaysLast7 ?? 0) <= 1;
+    signals.push(signal('study_consistency', true, inactive ? 'warning' : 'info', { studyStreak: momentum.studyStreak ?? 0, activeDaysLast7: momentum.activeDaysLast7 ?? 0 }));
   }
 
   // ---- task_completion ----
-  const completionRate = input.plan?.completionRate ?? null;
-  if (completionRate != null && completionRate < LOW_COMPLETION_THRESHOLD && input.plan.openTaskCount > 0) {
-    signals.push(signal('task_completion', true, 'warning', { completionRate: round4(completionRate), openTaskCount: input.plan.openTaskCount }));
+  const completionRate = safeInput.plan?.completionRate ?? null;
+  if (completionRate != null && completionRate < LOW_COMPLETION_THRESHOLD && safeInput.plan?.openTaskCount > 0) {
+    signals.push(signal('task_completion', true, 'warning', { completionRate: round4(completionRate), openTaskCount: safeInput.plan?.openTaskCount ?? 0 }));
   } else {
-    signals.push(signal('task_completion', false, 'info', { completionRate: completionRate == null ? null : round4(completionRate), openTaskCount: input.plan.openTaskCount }));
+    signals.push(signal('task_completion', false, 'info', { completionRate: completionRate == null ? null : round4(completionRate), openTaskCount: safeInput.plan?.openTaskCount ?? 0 }));
   }
 
   // ---- wrong_streak ----
@@ -145,7 +153,7 @@ export function deriveLearningSignals(input: SignalStudentContextInput): Learnin
     ratio: node.attempts > 0 ? node.wrongCount / node.attempts : 0,
   }));
   const worst = wrongTotals.sort((left, right) => right.ratio - left.ratio)[0];
-  const highRiskCount = input.review?.highRiskQuestions?.length ?? 0;
+  const highRiskCount = safeInput.review?.highRiskQuestions?.length ?? 0;
   if (worst && worst.ratio >= WRONG_STREAK_RATIO) {
     signals.push(signal('wrong_streak', true, 'warning', {
       weakWrongRatio: round4(worst.ratio),
@@ -157,7 +165,7 @@ export function deriveLearningSignals(input: SignalStudentContextInput): Learnin
   }
 
   // ---- mastery_change / knowledge_regression / exam_performance (baseline-gated) ----
-  const baseline = input.baseline;
+  const baseline = safeInput.baseline;
   if (!baseline || !baseline.nodeMastery) {
     signals.push(signal('mastery_change', false, 'info', { reason: 'no_baseline' }));
     signals.push(signal('knowledge_regression', false, 'info', { reason: 'no_baseline' }));
