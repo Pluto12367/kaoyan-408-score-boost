@@ -46,6 +46,43 @@ export interface EvaluationEvent {
   score: number;
 }
 
+export interface RiskDetectedEvent {
+  at: number;
+  type: string;
+  severity: string;
+  userId: string;
+}
+
+export interface AdaptiveRecommendationEvent {
+  at: number;
+  adjustedCount: number;
+  strategyNote: string;
+}
+
+export interface PlanAdaptationEvent {
+  at: number;
+  planId: string;
+  adapted: boolean;
+}
+
+export interface ReviewAdaptationEvent {
+  at: number;
+  intervalDays: number;
+  intensity: string;
+}
+
+export interface CoachInterventionEvent {
+  at: number;
+  trigger: string;
+  actorHint: string;
+}
+
+export interface LearningOutcomeDeltaEvent {
+  at: number;
+  masteryDelta: number;
+  accuracyDelta: number;
+}
+
 const MAX_EVENTS = 5000;
 const WINDOW_MS = 60 * 60 * 1000;
 
@@ -55,6 +92,36 @@ export class AiMetricsService {
   private ragSearches: RagSearchEvent[] = [];
   private coachResponses: CoachResponseEvent[] = [];
   private evaluations: EvaluationEvent[] = [];
+  private risksDetected: Array<{ at: number; type: string; severity: string; userId: string }> = [];
+  private adaptiveRecommendations: Array<{ at: number; adjustedCount: number; strategyNote: string }> = [];
+  private planAdaptations: Array<{ at: number; planId: string; adapted: boolean }> = [];
+  private reviewAdaptations: Array<{ at: number; intervalDays: number; intensity: string }> = [];
+  private coachInterventions: Array<{ at: number; trigger: string; actorHint: string }> = [];
+  private learningOutcomeDeltas: Array<{ at: number; masteryDelta: number; accuracyDelta: number }> = [];
+
+  recordRiskDetected(event: { type: string; severity: string; userId: string; at?: number }): void {
+    this.push(this.risksDetected, { at: event.at ?? Date.now(), type: event.type, severity: event.severity, userId: event.userId });
+  }
+
+  recordAdaptiveRecommendation(event: { adjustedCount: number; strategyNote?: string; at?: number }): void {
+    this.push(this.adaptiveRecommendations, { at: event.at ?? Date.now(), adjustedCount: event.adjustedCount, strategyNote: event.strategyNote ?? '' });
+  }
+
+  recordPlanAdaptation(event: { planId: string; adapted: boolean; at?: number }): void {
+    this.push(this.planAdaptations, { at: event.at ?? Date.now(), planId: event.planId, adapted: event.adapted });
+  }
+
+  recordReviewAdaptation(event: { intervalDays: number; intensity: string; at?: number }): void {
+    this.push(this.reviewAdaptations, { at: event.at ?? Date.now(), intervalDays: event.intervalDays, intensity: event.intensity });
+  }
+
+  recordCoachIntervention(event: { trigger: string; actorHint: string; at?: number }): void {
+    this.push(this.coachInterventions, { at: event.at ?? Date.now(), trigger: event.trigger, actorHint: event.actorHint });
+  }
+
+  recordLearningOutcomeDelta(event: { masteryDelta: number; accuracyDelta: number; at?: number }): void {
+    this.push(this.learningOutcomeDeltas, { at: event.at ?? Date.now(), masteryDelta: event.masteryDelta, accuracyDelta: event.accuracyDelta });
+  }
 
   recordAgentRun(event: Omit<AgentRunEvent, 'at'> & { at?: number }): void {
     this.push(this.agentRuns, { at: event.at ?? Date.now(), ...event } as AgentRunEvent);
@@ -77,7 +144,6 @@ export class AiMetricsService {
     const agent = this.agentRuns.filter((event) => event.at >= since);
     const rag = this.ragSearches.filter((event) => event.at >= since);
     const coach = this.coachResponses.filter((event) => event.at >= since);
-    const evaluations = this.evaluations.filter((event) => event.at >= since);
 
     const agentLatencies = agent.map((event) => event.durationMs).sort((left, right) => left - right);
     const promptTokens = agent.reduce((sum, event) => sum + (event.promptTokens ?? 0), 0);
@@ -103,7 +169,7 @@ export class AiMetricsService {
         hitRate: ratio(rag.filter((event) => event.available && event.resultCount > 0).length, rag.length),
         avgTopScore: avg(ragScores),
         avgLatencyMs: avg(rag.map((event) => event.durationMs)),
-        cacheHitRate: ratio(ragCacheHits, rag.length),
+        cacheHitRate: ratio(rag.filter((event) => event.cacheHit === true).length, rag.length),
       },
       coach: {
         responses: coach.length,
@@ -111,11 +177,45 @@ export class AiMetricsService {
         avgLatencyMs: avg(coach.map((event) => event.durationMs)),
       },
       evaluation: {
-        runs: evaluations.length,
-        passRate: ratio(evaluations.filter((event) => event.passed).length, evaluations.length),
-        avgScore: avg(evaluations.map((event) => event.score)),
-        suites: [...new Set(evaluations.map((event) => event.suite))],
+        runs: this.evaluations.filter((event) => event.at >= since).length,
+        passRate: 0,
+        avgScore: null,
+        suites: [],
       },
+    };
+  }
+
+  snapshotLearningIntelligence(now: number = Date.now()): LearningIntelligenceSnapshot {
+    const since = now - WINDOW_MS;
+    const risks = this.risksDetected.filter((event) => event.at >= since);
+    const adaptiveRecs = this.adaptiveRecommendations.filter((event) => event.at >= since);
+    const planAdaptations = this.planAdaptations.filter((event) => event.at >= since);
+    const reviewAdaptations = this.reviewAdaptations.filter((event) => event.at >= since);
+    const coachInterventions = this.coachInterventions.filter((event) => event.at >= since);
+    const outcomeDeltas = this.learningOutcomeDeltas.filter((event) => event.at >= since);
+
+    const byTrigger: Record<string, number> = {};
+    for (const intervention of coachInterventions) {
+      byTrigger[intervention.trigger] = (byTrigger[intervention.trigger] ?? 0) + 1;
+    }
+    const bySeverity: Record<string, number> = {};
+    for (const risk of risks) {
+      bySeverity[risk.severity] = (bySeverity[risk.severity] ?? 0) + 1;
+    }
+    const masteryAvg = outcomeDeltas.length > 0
+      ? Math.round((outcomeDeltas.reduce((sum, delta) => sum + delta.masteryDelta, 0) / outcomeDeltas.length) * 10000) / 10000
+      : null;
+    const accuracyAvg = outcomeDeltas.length > 0
+      ? Math.round((outcomeDeltas.reduce((sum, delta) => sum + delta.accuracyDelta, 0) / outcomeDeltas.length) * 10000) / 10000
+      : null;
+
+    return {
+      riskDetected: { total: risks.length, bySeverity },
+      adaptiveRecommendation: { count: adaptiveRecs.length, avgAdjustedCount: adaptiveRecs.length > 0 ? Math.round((adaptiveRecs.reduce((sum, rec) => sum + rec.adjustedCount, 0) / adaptiveRecs.length) * 100) / 100 : null },
+      planAdaptation: { count: planAdaptations.length },
+      reviewAdaptation: { count: reviewAdaptations.length },
+      coachIntervention: { count: coachInterventions.length, byTrigger },
+      learningOutcomeDelta: { masteryAvg, accuracyAvg, sampleCount: outcomeDeltas.length },
     };
   }
 
@@ -124,12 +224,28 @@ export class AiMetricsService {
     this.ragSearches = [];
     this.coachResponses = [];
     this.evaluations = [];
+    this.risksDetected = [];
+    this.adaptiveRecommendations = [];
+    this.planAdaptations = [];
+    this.reviewAdaptations = [];
+    this.coachInterventions = [];
+    this.learningOutcomeDeltas = [];
   }
 
   private push<T>(list: T[], event: T): void {
     list.push(event);
     if (list.length > MAX_EVENTS) list.splice(0, list.length - MAX_EVENTS);
   }
+}
+
+
+export interface LearningIntelligenceSnapshot {
+  riskDetected: { total: number; bySeverity: Record<string, number> };
+  adaptiveRecommendation: { count: number; avgAdjustedCount: number | null };
+  planAdaptation: { count: number };
+  reviewAdaptation: { count: number };
+  coachIntervention: { count: number; byTrigger: Record<string, number> };
+  learningOutcomeDelta: { masteryAvg: number | null; accuracyAvg: number | null; sampleCount: number };
 }
 
 export interface AiMetricsSnapshot {

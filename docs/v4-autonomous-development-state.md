@@ -16,6 +16,9 @@ V4-10 Evaluation V3（50+ 确定性用例）。
 - **V4-0**：持久状态账本（本文件）。
 - **V4-2**：Learning Signal Engine 完成——apps/api/src/adaptive/learning-signals.ts（8 类信号纯函数，deterministic，baseline-gated 优雅降级）+ LearningSignalService（Nest 壳，StudentContext 单一入口）。测试 9+3 全绿。
 - **V4-5**：Agent Adaptive Planner 完成——StudyAgentService 构造器尾部追加 @Optional LearningSignalService；systemPrompt 注入学习信号 brief + derivePlanningStrategy 策略指令（规则派生，非 LLM）。
+- **V4-10**：Evaluation V3 完成——test/v4-evaluation-v3.test.js（信号 9 + 风险 12 + 自适应层 10 + 难度 6 + 计划 8 + 考试 8 = 53 断言用例）。测试 8/8。
+- **V4-11**：Experiment Framework 完成——test/v4-experiment-observability.test.js（12 学生 4 archetype 离线策略对比：adaptive vs baseline；reduce/challenge 分流断言；确定性验证）。测试 3/3。
+- **V4-12**：Learning Intelligence Metrics 完成——AiMetricsService 扩展（recordRiskDetected/recordAdaptiveRecommendation/recordPlanAdaptation/recordReviewAdaptation/recordCoachIntervention/recordLearningOutcomeDelta + snapshotLearningIntelligence）。测试 5/5。
 - **V4-6**：Proactive Coach 完成——apps/api/src/adaptive/proactive-coach.ts（风险→主动干预卡片：headline/actions/actorHint，按 severity 排序，确定性可重建）。测试 6/6。
 - **V4-9**：Adaptive Exam Simulation 完成——apps/api/src/adaptive/adaptive-exam.ts（topic_drill/chapter_test/comprehensive/mock_exam 四模式，难度进阶波次，scope 过滤，不虚构题目）。测试 5/5（含 1 个断言修正：HARD 缺席时不比较顺序）。
 - **V4-7/V4-8**：Adaptive Review + Personalized Practice 完成——apps/api/src/adaptive/adaptive-review.ts（deriveAdaptiveReviewInterval：stability×mastery×risk×debt 四因子，clamp [0.5,14]；selectNextPractice：productive-zone fit 选题）。测试 10/10。不改变既有 ReviewSchedule 写语义。
