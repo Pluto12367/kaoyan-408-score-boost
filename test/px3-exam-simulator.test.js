@@ -156,3 +156,72 @@ test('service depends on tools only (no database access)', async () => {
   assert.match(controller, /Post\('agent\/exam\/generate'\)/);
   assert.match(controller, /Post\('agent\/exam\/analyze'\)/);
 });
+// ---- PX follow-up: node-precise candidates via QuestionKnowledgeNodeTag ----
+
+test('exam generation merges node-precise candidates and weights them by node mastery', async () => {
+  const { ExamQuestionRepository } = await import('../apps/api/dist/agent/exam-question.repository.js');
+  const nodeRepo = {
+    enabled: true,
+    listByNode: async (nodeIds) => {
+      assert.ok(nodeIds.includes('OS-C06-S06-P02'), 'retrieved node ids must drive the lookup');
+      return [
+        { id: 'q-precise-1', stem: '死锁节点精确题', type: 'SINGLE_CHOICE', difficulty: 'BASIC', knowledgePointIds: ['OS-C06-S06-P02'] },
+        { id: 'q-precise-2', stem: '死锁节点精确题2', type: 'SINGLE_CHOICE', difficulty: 'HARD', knowledgePointIds: ['OS-C06-S06-P02'] },
+      ];
+    },
+  };
+  const tools = {
+    execute: async (_userId, tool) => {
+      if (tool === 'getStudentContext') {
+        return { ok: true, data: { mastery: { weakNodes: [{ knowledgeNodeId: 'OS-C06-S06-P02', mastery: 0.2 }], improvingPoints: [], masteredPoints: [] } } };
+      }
+      if (tool === 'searchKnowledge') {
+        return { ok: true, data: { results: [{ knowledgeNodeId: 'OS-C06-S06-P02', title: '死锁必要条件', subject: 'OS', relevanceScore: 0.9, matchedChunks: [], relatedNodes: [] }] } };
+      }
+      if (tool === 'generateStudyPlan') {
+        return { ok: true, data: { items: [{ kind: 'TASK_DRAFT', knowledgeNodeId: 'OS-C06-S06-P02', title: '死锁必要条件', score: 95 }] } };
+      }
+      if (tool === 'searchQuestion') {
+        return { ok: true, data: [{ id: 'q-bank-1', stem: '科目级题', type: 'SINGLE_CHOICE', difficulty: 'MEDIUM', knowledgePointIds: ['other-point'], subject: 'OS' }] };
+      }
+      return { ok: false, data: null, error: 'unknown' };
+    },
+    listTools: () => [],
+  };
+  const service = new ExamSimulatorService(tools, nodeRepo, undefined);
+  const result = await service.generateExam('u-1', { subject: 'OS' }, new Date('2026-09-06T10:00:00.000Z'));
+
+  // All three candidates fit the (min-5) slot budget; both precise questions
+  // are in, and dedup keeps bank/precise ids distinct.
+  assert.equal(result.paper.questions.length, 3);
+  const picked = new Set(result.paper.questions.map((question) => question.id));
+  assert.ok(picked.has('q-precise-1') && picked.has('q-precise-2') && picked.has('q-bank-1'));
+  assert.ok(result.paper.questions.every((question) => question.knowledgePointIds.includes('OS-C06-S06-P02') || question.id === 'q-bank-1'));
+  // weak mastery (0.2) + BASIC preference ordering within the group
+  assert.equal(result.paper.difficultyMix.BASIC, 1);
+});
+
+test('exam generation falls back to subject-level bank when node repo is disabled', async () => {
+  const nodeRepo = { enabled: false, listByNode: async () => { throw new Error('should not be called'); } };
+  const tools = {
+    execute: async (_userId, tool) => {
+      if (tool === 'getStudentContext') return { ok: true, data: { mastery: { weakNodes: [], improvingPoints: [], masteredPoints: [] } } };
+      if (tool === 'searchKnowledge') return { ok: true, data: { results: [] } };
+      if (tool === 'generateStudyPlan') return { ok: true, data: { items: [] } };
+      if (tool === 'searchQuestion') return { ok: true, data: [{ id: 'q-bank-only', stem: '题库题', type: 'SINGLE_CHOICE', difficulty: 'MEDIUM', knowledgePointIds: ['p9'], subject: 'OS' }] };
+      return { ok: false, data: null, error: 'unknown' };
+    },
+    listTools: () => [],
+  };
+  const service = new ExamSimulatorService(tools, nodeRepo, undefined);
+  const result = await service.generateExam('u-1', { subject: 'OS', questionCount: 5 }, new Date('2026-09-06T10:00:00.000Z'));
+  assert.equal(result.paper.questions.length, 1);
+  assert.equal(result.paper.questions[0].id, 'q-bank-only');
+});
+
+test('exam question repository is read-only', async () => {
+  const source = await readFile(new URL('../apps/api/src/agent/exam-question.repository.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /\.(update|delete|upsert)\s*\(/);
+  assert.doesNotMatch(source, /\.create\w*\s*\(/, 'no create methods (createMany/create included)');
+  assert.match(source, /isCurrent: true/);
+});

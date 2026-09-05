@@ -34,6 +34,7 @@ import { DailyPlanningService } from './daily-planning.service';
 import { ExamSimulatorService } from './exam-simulator.service';
 import { TutorService } from './tutor.service';
 import { SupervisorAgentService } from './supervisor.service';
+import { ExamQuestionRepository } from './exam-question.repository';
 import { LearningMemoryService } from './learning-memory.service';
 import { createAgentLlmFromEnv } from './agent-llm';
 import type { AgentLlm } from './study-agent.service';
@@ -77,6 +78,7 @@ import type { AgentLlm } from './study-agent.service';
     StudyPlannerService,
     DailyPlanningService,
     ExamSimulatorService,
+    ExamQuestionRepository,
     TutorService,
     SupervisorAgentService,
   ],

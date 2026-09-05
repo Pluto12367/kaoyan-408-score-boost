@@ -17,6 +17,7 @@ import { Injectable, Logger, Optional } from '@nestjs/common';
 import { buildExamPaper, analyzeExam, type ExamCandidateQuestion, type ExamAnswerFact, type ExamAnalysis } from './exam-simulator';
 import type { GeneratedExamPaper } from './exam-simulator';
 import { StudyAgentToolRegistry } from './agent-tools';
+import { ExamQuestionRepository } from './exam-question.repository';
 import { AiMetricsService } from '../ai-metrics/ai-metrics.service';
 
 export interface ExamGenerationInput {
@@ -47,6 +48,10 @@ export class ExamSimulatorService {
 
   constructor(
     private readonly tools: StudyAgentToolRegistry,
+    // PX follow-up: node-precise question lookup (read-only). Optional so
+    // legacy compositions keep working; when unavailable or the database is
+    // down the simulator falls back to the subject-level bank candidates.
+    @Optional() private readonly examQuestions?: ExamQuestionRepository,
     @Optional() private readonly metrics?: AiMetricsService,
   ) {}
 
@@ -87,11 +92,28 @@ export class ExamSimulatorService {
 
     // Real question-bank candidates (never LLM-generated).
     const candidatesResult = await this.tools.execute(userId, 'searchQuestion', input.subject ? { subject: input.subject } : {}, now);
-    const candidates = (candidatesResult.ok ? (candidatesResult.data as ExamCandidateQuestion[]) : [])
+    let candidates: ExamCandidateQuestion[] = (candidatesResult.ok ? (candidatesResult.data as ExamCandidateQuestion[]) : [])
       .map((question) => ({
         ...question,
         difficulty: (['BASIC', 'MEDIUM', 'HARD'] as const).includes(question.difficulty as 'BASIC') ? question.difficulty : 'MEDIUM' as const,
       }));
+
+    // Node-precise candidates: real QuestionKnowledgeNodeTag labels for the
+    // retrieved nodes (PX follow-up). Merged with dedup; precise candidates
+    // carry the node id so mastery weighting applies directly.
+    const nodeIds = [...new Set([
+      ...retrievedNodes.map((node) => node.knowledgeNodeId),
+      ...enginePriorities.map((item) => item.knowledgeNodeId),
+    ])].filter(Boolean);
+    if (this.examQuestions?.enabled && nodeIds.length > 0) {
+      try {
+        const precise = await this.examQuestions.listByNode(nodeIds, targetCount * 4);
+        const seen = new Set(precise.map((question) => question.id));
+        candidates = [...precise, ...candidates.filter((question) => !seen.has(question.id))];
+      } catch (error) {
+        this.logger.warn(`node-precise candidates unavailable, using subject-level bank: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
 
     const paper = buildExamPaper(candidates, {
       targetCount,
