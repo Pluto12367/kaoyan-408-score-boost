@@ -21,6 +21,9 @@ export interface ReviewScheduleState {
 }
 
 export interface ReviewAttemptState {
+  id?: string;
+  actionId?: string | null;
+  idempotencyKey?: string | null;
   redoCorrect: boolean;
   timeSpentSec: number;
   reportedReason?: string;
@@ -60,7 +63,10 @@ export class ReviewScheduleRepository {
           reviewCount: row.reviewCount,
           lastReviewedAt: row.lastReviewedAt?.toISOString(),
         },
-        attempts: row.attempts.map((attempt) => ({
+        attempts: (row.attempts as Array<typeof row.attempts[number] & { actionId?: string | null; idempotencyKey?: string | null }>).map((attempt) => ({
+          id: attempt.id,
+          actionId: attempt.actionId ?? null,
+          idempotencyKey: attempt.idempotencyKey ?? null,
           redoCorrect: attempt.redoCorrect,
           timeSpentSec: attempt.timeSpentSec,
           reportedReason: attempt.reportedReason ?? undefined,
@@ -98,9 +104,11 @@ export class ReviewScheduleRepository {
           timeSpentSec: attempt.timeSpentSec,
           reportedReason: attempt.reportedReason,
           inferredReason: attempt.inferredReason,
+          actionId: attempt.actionId ?? null,
+          idempotencyKey: attempt.idempotencyKey ?? null,
           nextIntervalDays: attempt.nextIntervalDays,
           reviewedAt: new Date(attempt.reviewedAt),
-        },
+        } as any,
       });
     };
     if (tx) {
@@ -108,6 +116,25 @@ export class ReviewScheduleRepository {
       return;
     }
     await this.prisma.$transaction(save);
+  }
+
+  async findAttemptByIdempotencyKey(userId: string, questionId: string, idempotencyKey: string): Promise<ReviewAttemptState | null> {
+    if (!this.enabled) return null;
+    const schedule = await this.prisma.reviewSchedule.findUnique({ where: { userId_questionId: { userId, questionId } } });
+    if (!schedule) return null;
+    const reviewAttempt = (this.prisma as PrismaService & { reviewAttempt: any }).reviewAttempt;
+    const attempt = await reviewAttempt.findUnique({ where: { scheduleId_idempotencyKey: { scheduleId: schedule.id, idempotencyKey } } });
+    return attempt ? {
+      id: attempt.id,
+      actionId: attempt.actionId ?? null,
+      idempotencyKey: attempt.idempotencyKey ?? null,
+      redoCorrect: attempt.redoCorrect,
+      timeSpentSec: attempt.timeSpentSec,
+      reportedReason: attempt.reportedReason ?? undefined,
+      inferredReason: attempt.inferredReason ?? undefined,
+      nextIntervalDays: attempt.nextIntervalDays,
+      reviewedAt: attempt.reviewedAt.toISOString(),
+    } : null;
   }
 
   async saveNote(userId: string, questionId: string, note: string) {

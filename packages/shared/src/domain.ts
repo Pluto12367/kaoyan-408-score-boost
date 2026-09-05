@@ -70,6 +70,7 @@ export interface PracticeRecord {
   mistakeReason: MistakeReason | null;
   submittedAt: string;
   sessionId?: string;
+  actionId?: string | null;
   gradingMode?: 'objective' | 'self_assessed';
   selfScore?: number;
   maxScore?: number;

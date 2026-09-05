@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { RecommendationInput } from '@kaoyan408/shared';
 import { calculatePriority, runRecommendation } from '@kaoyan408/shared';
@@ -13,6 +13,9 @@ import {
   loadMasteries,
   neutralMastery,
 } from '../score-center/repository';
+import { toLegacyStudyTaskIdentity } from './practice-set-recommendation.adapter';
+import { RecommendationActionAdapterService } from './recommendation-action-adapter.service';
+import { StudyPlanRepository } from './study-plan.repository';
 
 // Sprint 3.2：Daily Plan Integration。
 // 职责边界（契约见 docs/sprint3-recommendation-contract.md）：
@@ -23,6 +26,15 @@ import {
 // 依赖方向：ScoreCenterService / StudyService → 本服务 → shared 引擎；本服务不依赖 StudyService。
 
 const MODEL_VERSION = 'score-center-v1';
+
+export interface DailyPlanGenerationInput {
+  targetExamDate: Date;
+  availableMinutes: 30 | 60 | 120 | 180;
+  scheduledDate?: string;
+  generationKey?: string;
+  source?: string | null;
+  version?: string | null;
+}
 
 // 学生目标事实（来自 User 行，字段名对齐 schema：stage ← studyStage）
 interface UserGoalFacts {
@@ -65,7 +77,11 @@ function startOfUtcDay(date: Date): Date {
 
 @Injectable()
 export class RecommendationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly actionAdapter?: RecommendationActionAdapterService,
+    @Optional() private readonly studyPlanRepository?: StudyPlanRepository,
+  ) {}
 
   /**
    * 组装契约输入并运行引擎（不持久化）。Sprint 3.3/3.4 的复用入口。
@@ -201,7 +217,7 @@ export class RecommendationService {
    */
   async generateDailyPlanFromState(
     userId: string,
-    input: { targetExamDate: Date; availableMinutes: 30 | 60 | 120 | 180; scheduledDate?: string },
+    input: DailyPlanGenerationInput,
   ): Promise<PrismaValidationPlan> {
     const scheduledDate = input.scheduledDate ?? todayKey();
     const { result, nodeById, breakdownByNode, user, daysToExam } = await this.runRecommendationForUser(userId, {
@@ -212,9 +228,9 @@ export class RecommendationService {
     const taskDrafts = result.items.filter((item) => item.kind === 'TASK_DRAFT');
     const enrichedTasks = taskDrafts.map((draft, index) => {
       const node = nodeById.get(draft.knowledgeNodeId);
+      const canonicalIdentity = { knowledgeNodeId: draft.knowledgeNodeId };
       return {
-        knowledgePointId: draft.knowledgeNodeId,
-        knowledgeNodeId: draft.knowledgeNodeId,
+        ...toLegacyStudyTaskIdentity(canonicalIdentity),
         subject: node?.subject ?? '',
         chapter: '',
         title: node?.name ?? draft.knowledgeNodeId,
@@ -234,9 +250,110 @@ export class RecommendationService {
       };
     });
 
-    return this.prisma.$transaction(async (tx) => {
+    const useGenerationRepository = Boolean(
+      input.generationKey && this.studyPlanRepository && process.env.DATABASE_URL,
+    );
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (useGenerationRepository) {
+          const existingGenerationPlan = await this.studyPlanRepository!.findByGenerationKey(
+            userId,
+            input.generationKey!,
+            tx,
+          );
+          if (existingGenerationPlan) return existingGenerationPlan as PrismaValidationPlan;
+        }
+
+        const generationPlan = useGenerationRepository
+          ? {
+              userId,
+              generationKey: input.generationKey!,
+              phase: 'score-center',
+              targetScore: user?.targetScore ?? 115,
+              remainingDays: user?.remainingDays ?? daysToExam,
+              dailyHours: user?.dailyHours ?? 3.5,
+              checkpoint: 'score-center',
+              source: input.source ?? 'score-center',
+              modelVersion: input.version ?? MODEL_VERSION,
+              targetExamDate: input.targetExamDate,
+              availableMinutes: input.availableMinutes,
+              stale: false,
+              status: 'ACTIVE',
+              tasks: enrichedTasks as unknown as Prisma.StudyTaskCreateWithoutPlanInput[],
+            }
+          : null;
+
+        if (generationPlan && !this.actionAdapter) {
+          await archiveScoreCenterPlans(tx, userId);
+          return await this.studyPlanRepository!.createOrGetByGenerationKey(generationPlan, tx) as PrismaValidationPlan;
+        }
+
+      // In-memory/demo mode intentionally retains the legacy plan writer. The
+      // Action spine is a persisted compatibility path and must never assume a
+      // Prisma delegate exists when DATABASE_URL is absent.
+      if (!generationPlan && (!this.actionAdapter || !process.env.DATABASE_URL || taskDrafts.length === 0)) {
+        await archiveScoreCenterPlans(tx, userId);
+        return createScoreCenterPlan(tx, userId, {
+          targetScore: user?.targetScore ?? 115,
+          remainingDays: user?.remainingDays ?? daysToExam,
+          dailyHours: user?.dailyHours ?? 3.5,
+          modelVersion: MODEL_VERSION,
+          targetExamDate: input.targetExamDate,
+          availableMinutes: input.availableMinutes,
+          scheduledDate,
+        }, enrichedTasks);
+      }
+
+      const actionDrafts = taskDrafts.map((draft) => ({
+        userId,
+        scheduledDate,
+        generationKey: input.generationKey,
+        actionType: draft.action,
+        targetType: 'KNOWLEDGE_NODE' as const,
+        targetId: draft.knowledgeNodeId,
+        reason: draft.reasonCodes.join('、') || `recommendation:${draft.action}`,
+        evidenceRefs: [{
+          kind: 'recommendation-result',
+          id: `${userId}:${scheduledDate}`,
+          knowledgeNodeId: draft.knowledgeNodeId,
+        }],
+      }));
+      const actions = [];
+      for (const actionDraft of actionDrafts) {
+        actions.push(await this.actionAdapter!.createOrGetAction(actionDraft, tx));
+      }
+
+      // A retry with the same creation keys returns the already bound plan. It
+      // is important to check this before archiving, otherwise a harmless retry
+      // would orphan the canonical Action → StudyTask link.
+      const existingPlan = await this.actionAdapter!.findBoundPlan(
+        actions.map((action) => action.id),
+        userId,
+        tx,
+      );
+      if (existingPlan) return existingPlan as PrismaValidationPlan;
+
       await archiveScoreCenterPlans(tx, userId);
-      return createScoreCenterPlan(tx, userId, {
+
+      if (generationPlan) {
+        const plan = await this.studyPlanRepository!.createOrGetByGenerationKey(generationPlan, tx);
+        if (plan.tasks.length !== actions.length) {
+          throw new Error('StudyPlan task count does not match RecommendationAction count');
+        }
+        const tasks = [];
+        for (let index = 0; index < plan.tasks.length; index += 1) {
+          const task = plan.tasks[index];
+          const bound = await this.actionAdapter!.bindStudyTask(actions[index].id, task.id, tx);
+          if (!bound) {
+            throw new Error(`RecommendationAction ${actions[index].id} could not bind StudyTask ${task.id}`);
+          }
+          tasks.push({ ...task, action: { id: actions[index].id } });
+        }
+        return { ...plan, tasks } as PrismaValidationPlan;
+      }
+
+      const plan = await createScoreCenterPlan(tx, userId, {
         targetScore: user?.targetScore ?? 115,
         remainingDays: user?.remainingDays ?? daysToExam,
         dailyHours: user?.dailyHours ?? 3.5,
@@ -244,8 +361,27 @@ export class RecommendationService {
         targetExamDate: input.targetExamDate,
         availableMinutes: input.availableMinutes,
         scheduledDate,
-      }, enrichedTasks);
-    });
+      }, []);
+
+      const studyTask = (tx as Prisma.TransactionClient & { studyTask: any }).studyTask;
+      const tasks = [];
+      for (let index = 0; index < enrichedTasks.length; index += 1) {
+        const task = await studyTask.create({ data: { ...enrichedTasks[index], planId: plan.id } });
+        const bound = await this.actionAdapter!.bindStudyTask(actions[index].id, task.id, tx);
+        if (!bound) {
+          throw new Error(`RecommendationAction ${actions[index].id} could not bind StudyTask ${task.id}`);
+        }
+        tasks.push({ ...task, action: { id: actions[index].id } });
+      }
+      return { ...plan, tasks } as PrismaValidationPlan;
+      });
+    } catch (error) {
+      if (useGenerationRepository && isUniqueConflict(error)) {
+        const winner = await this.studyPlanRepository!.findByGenerationKey(userId, input.generationKey!);
+        if (winner) return winner as PrismaValidationPlan;
+      }
+      throw error;
+    }
   }
 
   private async getReviewSummary(userId: string, now: Date): Promise<{ dueCount: number; overdueCount: number }> {
@@ -255,6 +391,10 @@ export class RecommendationService {
     ]);
     return { dueCount, overdueCount };
   }
+}
+
+function isUniqueConflict(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'P2002');
 }
 
 function buildEvidence(

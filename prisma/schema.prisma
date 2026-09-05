@@ -179,6 +179,7 @@ model User {
   nodeQuests             UserNodeQuest[]
   answerReceipts         AnswerReceipt[]
   studyTaskProgresses    StudyTaskProgress[]
+  recommendationActions  RecommendationAction[]
 }
 
 model AnswerReceipt {
@@ -203,11 +204,41 @@ model UserEvent {
   id        String   @id @default(cuid())
   userId    String
   type      String
+  eventKey  String?
   payload   Json?
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, type, createdAt])
+  @@unique([userId, eventKey])
+}
+
+model RecommendationAction {
+  id              String           @id @default(cuid())
+  userId          String
+  actionType      String
+  targetType      String
+  targetId        String
+  reason          String
+  evidenceRefs    Json
+  status          String           @default("CREATED")
+  version         Int              @default(0)
+  creationKey     String
+  studyTaskId     String?          @unique
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  startedAt       DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studyTask       StudyTask?       @relation(fields: [studyTaskId], references: [id], onDelete: SetNull)
+  learningSession LearningSession?
+  practiceRecords PracticeRecord[]
+  reviewAttempts  ReviewAttempt[]
+
+  @@unique([userId, creationKey])
+  @@index([userId, status, createdAt])
+  @@index([targetType, targetId, createdAt])
 }
 
 model FeedbackSubmission {
@@ -301,28 +332,31 @@ model AuditEvent {
 }
 
 model LearningSession {
-  id               String           @id
+  id               String                @id
   userId           String
   type             String
   resourceId       String?
   questionIds      String[]
-  questionSnapshot Json             @default("[]")
+  questionSnapshot Json                  @default("[]")
   answers          Json
   markedQuestions  String[]
-  currentIndex     Int              @default(0)
-  revision         Int              @default(0)
-  startedAt        DateTime         @default(now())
-  lastActiveAt     DateTime         @default(now())
-  totalActiveMs    Int              @default(0)
-  lastResumeAt     DateTime         @default(now())
-  completed        Boolean          @default(false)
+  currentIndex     Int                   @default(0)
+  revision         Int                   @default(0)
+  startedAt        DateTime              @default(now())
+  lastActiveAt     DateTime              @default(now())
+  totalActiveMs    Int                   @default(0)
+  lastResumeAt     DateTime              @default(now())
+  completed        Boolean               @default(false)
   submittedAt      DateTime?
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  actionId         String?               @unique
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action           RecommendationAction? @relation(fields: [actionId], references: [id], onDelete: Restrict)
   practiceRecords  PracticeRecord[]
   examReviewPlan   ExamReviewPlan?
 
   @@index([userId, completed, lastActiveAt])
   @@index([userId, type, resourceId])
+  @@index([userId, actionId])
 }
 
 model RefreshToken {
@@ -551,7 +585,7 @@ model QuestionKnowledgePoint {
 }
 
 model PracticeRecord {
-  id                String           @id @default(cuid())
+  id                String                @id @default(cuid())
   userId            String
   questionId        String
   knowledgePointId  String
@@ -560,24 +594,27 @@ model PracticeRecord {
   timeSpentSec      Int
   expectedTimeSec   Int
   mistakeReason     String?
-  submittedAt       DateTime         @default(now())
+  submittedAt       DateTime              @default(now())
   sessionId         String?
-  gradingMode       String           @default("objective")
+  actionId          String?
+  gradingMode       String                @default("objective")
   selfScore         Int?
   maxScore          Int?
   confidence        String?
-  usedHint          Boolean          @default(false)
-  answerModified    Boolean          @default(false)
+  usedHint          Boolean               @default(false)
+  answerModified    Boolean               @default(false)
   variantQuestionId String?
-  knowledgePointIds String[]         @default([])
-  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  question          Question         @relation(fields: [questionId], references: [id], onDelete: Cascade)
-  knowledgePoint    KnowledgePoint   @relation(fields: [knowledgePointId], references: [id])
-  session           LearningSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  knowledgePointIds String[]              @default([])
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question          Question              @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  knowledgePoint    KnowledgePoint        @relation(fields: [knowledgePointId], references: [id])
+  session           LearningSession?      @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  action            RecommendationAction? @relation(fields: [actionId], references: [id], onDelete: Restrict)
 
   @@index([userId, submittedAt])
   @@index([knowledgePointId, correct])
   @@index([sessionId, submittedAt])
+  @@index([userId, actionId, submittedAt])
 }
 
 model WrongQuestionReview {
@@ -633,6 +670,7 @@ model StudyPlan {
   remainingDays    Int
   dailyHours       Float
   checkpoint       String
+  generationKey    String?
   source           String?
   modelVersion     String?
   targetExamDate   DateTime?
@@ -643,10 +681,12 @@ model StudyPlan {
   updatedAt        DateTime    @updatedAt
   user             User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   tasks            StudyTask[]
+
+  @@unique([userId, generationKey])
 }
 
 model StudyTask {
-  id                   String         @id @default(cuid())
+  id                   String                @id @default(cuid())
   planId               String
   knowledgePointId     String
   knowledgeNodeId      String?
@@ -655,24 +695,25 @@ model StudyTask {
   reasonCodes          Json?
   scoreBreakdown       Json?
   generatedRank        Int?
-  subject              String         @default("")
-  chapter              String         @default("")
+  subject              String                @default("")
+  chapter              String                @default("")
   title                String
   mode                 String
   minutes              Int
   questionCount        Int
-  scheduledDate        String         @default("")
-  priority             String         @default("低")
-  reason               String         @default("")
-  nextAction           String         @default("")
-  status               String         @default("pending")
-  postponeCount        Int            @default(0)
+  scheduledDate        String                @default("")
+  priority             String                @default("低")
+  reason               String                @default("")
+  nextAction           String                @default("")
+  status               String                @default("pending")
+  postponeCount        Int                   @default(0)
   startedAt            DateTime?
   nextAvailableAt      DateTime?
   completedAt          DateTime?
-  completed            Boolean        @default(false)
-  plan                 StudyPlan      @relation(fields: [planId], references: [id], onDelete: Cascade)
-  knowledgeNode        KnowledgeNode? @relation(fields: [knowledgeNodeId], references: [id], onDelete: SetNull)
+  completed            Boolean               @default(false)
+  plan                 StudyPlan             @relation(fields: [planId], references: [id], onDelete: Cascade)
+  knowledgeNode        KnowledgeNode?        @relation(fields: [knowledgeNodeId], references: [id], onDelete: SetNull)
+  action               RecommendationAction?
 
   @@index([planId, scheduledDate, status])
 }
@@ -719,17 +760,22 @@ model ReviewSchedule {
 }
 
 model ReviewAttempt {
-  id               String         @id @default(cuid())
+  id               String                @id @default(cuid())
   scheduleId       String
+  actionId         String?
+  idempotencyKey   String?
   redoCorrect      Boolean
   timeSpentSec     Int
   reportedReason   String?
   inferredReason   String?
   nextIntervalDays Int
-  reviewedAt       DateTime       @default(now())
-  schedule         ReviewSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  reviewedAt       DateTime              @default(now())
+  schedule         ReviewSchedule        @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  action           RecommendationAction? @relation(fields: [actionId], references: [id], onDelete: Restrict)
 
+  @@unique([scheduleId, idempotencyKey])
   @@index([scheduleId, reviewedAt])
+  @@index([actionId, reviewedAt])
 }
 
 model ExamReviewPlan {
@@ -786,7 +832,7 @@ model SystemConfig {
   id             Int      @id @default(autoincrement())
   recommendation Json
   updatedBy      String
-  updatedAt      DateTime @updatedAt @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
 }
 
 // ---- 408 score center: global knowledge evidence layer ----
@@ -969,7 +1015,7 @@ model UserKnowledgeMastery {
 }
 
 model UserMasterySnapshot {
-  id              String        @id @default(cuid())
+  id              String   @id @default(cuid())
   userId          String
   knowledgeNodeId String
   mastery         Float
@@ -977,25 +1023,25 @@ model UserMasterySnapshot {
   correctCount    Int
   wrongCount      Int
   snapshotDate    DateTime
-  createdAt       DateTime      @default(now())
+  createdAt       DateTime @default(now())
 
-  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  knowledgeNode  KnowledgeNode  @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
+  user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  knowledgeNode KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)
 
   @@unique([userId, knowledgeNodeId, snapshotDate])
   @@index([userId, snapshotDate])
 }
 
 model UserNodeQuest {
-  id              String     @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
   knowledgeNodeId String
-  attempts        Int        @default(0)
-  bestAccuracy    Float      @default(0)
-  passed          Boolean    @default(false)
+  attempts        Int       @default(0)
+  bestAccuracy    Float     @default(0)
+  passed          Boolean   @default(false)
   passedAt        DateTime?
-  updatedAt       DateTime   @updatedAt
-  createdAt       DateTime   @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime  @default(now())
 
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   knowledgeNode KnowledgeNode @relation(fields: [knowledgeNodeId], references: [id], onDelete: Cascade)

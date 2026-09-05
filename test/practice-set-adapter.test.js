@@ -62,7 +62,7 @@ test('reason prefers the top weak point and falls back without one', async () =>
   assert.equal(withoutPoint.reason, '当前薄弱点较少，按今日计划和高频考点生成练习题组。');
 });
 
-test('nodeId bridge maps to KP ids, dedupes, and falls back to nodeId', async () => {
+test('nodeId bridge maps to real KP ids, dedupes, and never aliases an orphan node', async () => {
   const { bridgeKnowledgePointIds } = await loadAdapter();
   const bridged = bridgeKnowledgePointIds({
     nodeIds: ['node-1', 'node-2', 'node-1'],
@@ -71,5 +71,5 @@ test('nodeId bridge maps to KP ids, dedupes, and falls back to nodeId', async ()
   assert.deepEqual(bridged, ['kp-a', 'kp-b']);
 
   const orphan = bridgeKnowledgePointIds({ nodeIds: ['node-orphan'], kpIdsByNodeId: {} });
-  assert.deepEqual(orphan, ['node-orphan'], 'unbridged nodes must fall back to their nodeId');
+  assert.deepEqual(orphan, [], 'unbridged nodes must not be emitted as Point IDs');
 });

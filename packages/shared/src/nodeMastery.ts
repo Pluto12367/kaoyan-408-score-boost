@@ -37,6 +37,27 @@ export interface NodeMasteryRow {
 }
 
 export interface NodeMasteryPoint {
+  /** Canonical identity for Student State / mastery consumers. */
+  knowledgeNodeId: string;
+  title: string;
+  chapter: string;
+  importance: number;
+  frequency: number;
+  masteryRate: number;
+  accuracyRate: number;
+  practiceCount: number;
+  wrongCount: number;
+  status: Exclude<NodeMasteryStatus, 'untouched'>;
+  nextAction: string;
+  actionAnchor: string;
+}
+
+/**
+ * Legacy mastery-map point shape.  This type is intentionally isolated from
+ * the canonical node-native model; callers must cross the boundary through
+ * toLegacyMasteryMap rather than relabeling an id in-place.
+ */
+export interface LegacyMasteryPoint {
   knowledgePointId: string;
   title: string;
   chapter: string;
@@ -66,6 +87,45 @@ export interface NodeMasteryMap {
   generatedAt: string;
   subjects: NodeMasterySubjectMap[];
   weakestPoints: Array<NodeMasteryPoint & { subject: string }>;
+}
+
+export interface LegacyMasteryMap {
+  userId: string;
+  title: string;
+  generatedAt: string;
+  subjects: Array<Omit<NodeMasterySubjectMap, 'points'> & { points: LegacyMasteryPoint[] }>;
+  weakestPoints: Array<LegacyMasteryPoint & { subject: string }>;
+}
+
+/** Convert canonical node mastery into the old /mastery-map response shape. */
+export function toLegacyMasteryMap(input: NodeMasteryMap): LegacyMasteryMap {
+  const toLegacyPoint = (point: NodeMasteryPoint): LegacyMasteryPoint => ({
+    knowledgePointId: point.knowledgeNodeId,
+    title: point.title,
+    chapter: point.chapter,
+    importance: point.importance,
+    frequency: point.frequency,
+    masteryRate: point.masteryRate,
+    accuracyRate: point.accuracyRate,
+    practiceCount: point.practiceCount,
+    wrongCount: point.wrongCount,
+    status: point.status,
+    nextAction: point.nextAction,
+    actionAnchor: point.actionAnchor,
+  });
+  return {
+    userId: input.userId,
+    title: input.title,
+    generatedAt: input.generatedAt,
+    subjects: input.subjects.map((subject) => ({
+      ...subject,
+      points: subject.points.map(toLegacyPoint),
+    })),
+    weakestPoints: input.weakestPoints.map((point) => ({
+      ...toLegacyPoint(point),
+      subject: point.subject,
+    })),
+  };
 }
 
 export interface MasteryTrendPoint {
@@ -104,6 +164,11 @@ export interface MasteryTrend {
   declining: MasteryTrendDelta[];
 }
 
+/**
+ * Legacy overview compatibility helper. The returned WeakPoint shape keeps
+ * its historical `knowledgePointId` field; canonical Node consumers must use
+ * buildNodeMasteryMap() and NodeMasteryPoint instead.
+ */
 export function deriveNodeWeakPoints(rows: NodeMasteryRow[]): WeakPoint[] {
   return rows
     .filter((row) => row.attempts > 0 && row.status === 'weak')
@@ -163,7 +228,7 @@ export function buildNodeMasteryMap(input: {
 function toPoint(row: NodeMasteryRow): NodeMasteryPoint {
   const status = row.status as Exclude<NodeMasteryStatus, 'untouched'>;
   return {
-    knowledgePointId: row.knowledgeNodeId,
+    knowledgeNodeId: row.knowledgeNodeId,
     title: row.title,
     chapter: row.chapter,
     importance: row.importance,

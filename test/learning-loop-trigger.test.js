@@ -11,6 +11,7 @@ require('ts-node/register');
 const { LearningLoopTriggerService } = require('../apps/api/src/study/learning-loop-trigger.service.ts');
 const { StudyService } = require('../apps/api/src/study/study.service.ts');
 const { loadTodayScoreCenterPlan } = require('../apps/api/src/score-center/repository.ts');
+const { createLearningLoopGenerationKey } = require('../apps/api/src/study/generation-key.ts');
 
 function createHarness(overrides = {}) {
   const events = overrides.events ?? [];
@@ -29,8 +30,11 @@ function createHarness(overrides = {}) {
     async hasTriggerKey(userId, triggerKey) {
       return events.some((event) => event.userId === userId && event.payload?.triggerKey === triggerKey);
     },
-    async record(userId, type, payload) {
-      events.push({ userId, type, payload });
+  };
+  const canonicalEventWriter = {
+    async recordCanonicalEvent({ userId, type, eventKey, payload }) {
+      events.push({ userId, type, eventKey, payload });
+      return { id: `event-${events.length}`, userId, type, eventKey, payload, createdAt: new Date() };
     },
   };
   const recommendation = {
@@ -39,8 +43,8 @@ function createHarness(overrides = {}) {
       return { id: 'plan-1' };
     },
   };
-  const service = new LearningLoopTriggerService(learningLoopRepository, recommendation, userEvents);
-  return { service, events, plans };
+  const service = new LearningLoopTriggerService(learningLoopRepository, recommendation, userEvents, canonicalEventWriter);
+  return { service, events, plans, canonicalEventWriter };
 }
 
 test('task complete trigger generates next-day plan and emits one plan.generated event', async () => {
@@ -53,12 +57,20 @@ test('task complete trigger generates next-day plan and emits one plan.generated
   });
 
   assert.equal(result.status, 'generated');
+  assert.equal(result.generationKey, 'LEARNING_LOOP:u-1:2026-09-01:v1');
+  assert.equal(result.triggerKey, 'learning-loop:u-1:2026-09-01');
   assert.equal(plans.length, 1);
   assert.equal(plans[0].input.scheduledDate, '2026-09-01');
+  assert.equal(plans[0].input.generationKey, 'LEARNING_LOOP:u-1:2026-09-01:v1');
+  assert.equal(plans[0].input.source, 'score-center');
+  assert.equal(plans[0].input.version, 'score-center-v1');
   assert.equal(events.length, 1);
   assert.equal(events[0].type, 'plan.generated');
+  assert.equal(events[0].eventKey, 'PLAN_GENERATED:LEARNING_LOOP:u-1:2026-09-01:v1');
   assert.deepEqual(events[0].payload, {
     planId: 'plan-1',
+    generationKey: 'LEARNING_LOOP:u-1:2026-09-01:v1',
+    source: 'score-center',
     scheduledDate: '2026-09-01',
     triggerType: 'task.complete',
     sourceId: 'task-1',
@@ -80,6 +92,32 @@ test('duplicate trigger is skipped by triggerKey', async () => {
   assert.equal(result.status, 'skipped');
   assert.equal(plans.length, 0);
   assert.equal(events.length, 1);
+});
+
+test('same user and scheduled date produce the same generation identity', async () => {
+  const first = createHarness();
+  const second = createHarness();
+  const input = {
+    triggerType: 'task.complete',
+    sourceId: 'task-1',
+    scheduledDate: '2026-08-31',
+  };
+
+  const firstResult = await first.service.maybeGenerateLearningLoopPlan('u-1', input);
+  const secondResult = await second.service.maybeGenerateLearningLoopPlan('u-1', input);
+
+  assert.equal(firstResult.status, 'generated');
+  assert.equal(secondResult.status, 'generated');
+  assert.equal(firstResult.generationKey, secondResult.generationKey);
+  assert.equal(firstResult.generationKey, 'LEARNING_LOOP:u-1:2026-09-01:v1');
+  assert.equal(firstResult.triggerKey, secondResult.triggerKey);
+});
+
+test('learning-loop generation versions remain isolated', () => {
+  assert.notEqual(
+    createLearningLoopGenerationKey('u-1', '2026-09-01', 'v1'),
+    createLearningLoopGenerationKey('u-1', '2026-09-01', 'v2'),
+  );
 });
 
 test('generation failure is contained and does not emit plan.generated', async () => {

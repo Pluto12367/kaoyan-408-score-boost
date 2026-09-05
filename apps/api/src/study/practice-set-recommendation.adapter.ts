@@ -17,9 +17,26 @@ export interface PracticeSetTopWeakPoint {
   accuracyRate: number;
 }
 
+export interface CanonicalPracticeSetIdentity {
+  knowledgeNodeIds: string[];
+  knowledgePointIds: string[];
+}
+
+/** Compatibility boundary for the schema's legacy StudyTask field. */
+export function toLegacyStudyTaskIdentity(input: { knowledgeNodeId: string }): {
+  knowledgePointId: string;
+  knowledgeNodeId: string;
+} {
+  return {
+    knowledgePointId: input.knowledgeNodeId,
+    knowledgeNodeId: input.knowledgeNodeId,
+  };
+}
+
 /**
  * nodeId → knowledgePointId 桥接（契约 §1 指定由 adapter 承担）。
- * 无桥接记录的节点保留 nodeId（与 legacy 节点口径分支一致）；输出去重保序。
+ * 无桥接记录的节点不会伪装成 Point ID；调用方仍可通过
+ * CanonicalPracticeSetIdentity.knowledgeNodeIds 暴露节点事实。
  */
 export function bridgeKnowledgePointIds(input: {
   nodeIds: string[];
@@ -29,13 +46,6 @@ export function bridgeKnowledgePointIds(input: {
   const seen = new Set<string>();
   for (const nodeId of input.nodeIds) {
     const kpIds = input.kpIdsByNodeId[nodeId] ?? [];
-    if (kpIds.length === 0) {
-      if (!seen.has(nodeId)) {
-        seen.add(nodeId);
-        bridged.push(nodeId);
-      }
-      continue;
-    }
     for (const kpId of kpIds) {
       if (!seen.has(kpId)) {
         seen.add(kpId);
@@ -44,6 +54,18 @@ export function bridgeKnowledgePointIds(input: {
     }
   }
   return bridged;
+}
+
+/** Build the two disjoint identity arrays used by recommendation responses. */
+export function buildCanonicalPracticeSetIdentity(input: {
+  nodeIds: string[];
+  kpIdsByNodeId: Record<string, string[]>;
+}): CanonicalPracticeSetIdentity {
+  const knowledgeNodeIds = [...new Set(input.nodeIds)];
+  return {
+    knowledgeNodeIds,
+    knowledgePointIds: bridgeKnowledgePointIds(input),
+  };
 }
 
 /**

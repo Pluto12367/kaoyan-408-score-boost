@@ -9,6 +9,7 @@ export type SessionType = 'practice_set' | 'stage_assessment' | 'paper';
 export interface PersistedLearningSession {
   id: string;
   userId: string;
+  actionId?: string;
   type: SessionType;
   resourceId?: string;
   questionIds: string[];
@@ -70,6 +71,24 @@ export class LearningSessionRepository {
     return row ? toDomainSession(row) : null;
   }
 
+  async findByActionId(actionId: string, userId: string): Promise<PersistedLearningSession | null> {
+    if (!this.enabled) return null;
+    const learningSession = (this.prisma as PrismaService & { learningSession: any }).learningSession;
+    const row = await learningSession.findFirst({ where: { actionId, userId } });
+    return row ? toDomainSession(row) : null;
+  }
+
+  async createFromAction(session: PersistedLearningSession): Promise<PersistedLearningSession> {
+    if (!this.enabled) { await this.save(session); return session; }
+    return this.prisma.$transaction(async (tx) => {
+      const learningSession = (tx as Prisma.TransactionClient & { learningSession: any }).learningSession;
+      const existing = await learningSession.findUnique({ where: { actionId: session.actionId } });
+      if (existing) return toDomainSession(existing);
+      const row = await learningSession.create({ data: { id: session.id, ...toPersistenceData(session) } });
+      return toDomainSession(row);
+    });
+  }
+
   async commitSubmission(
     session: PersistedLearningSession,
     records: PracticeRecord[],
@@ -98,6 +117,7 @@ export class LearningSessionRepository {
 function toPersistenceData(session: PersistedLearningSession) {
   return {
     userId: session.userId,
+    actionId: session.actionId ?? null,
     type: session.type,
     resourceId: session.resourceId,
     questionIds: session.questionIds,
@@ -118,6 +138,7 @@ function toPersistenceData(session: PersistedLearningSession) {
 function toDomainSession(row: {
   id: string;
   userId: string;
+  actionId?: string | null;
   type: string;
   resourceId: string | null;
   questionIds: string[];
@@ -135,6 +156,7 @@ function toDomainSession(row: {
   return {
     id: row.id,
     userId: row.userId,
+    actionId: row.actionId ?? undefined,
     type: row.type as SessionType,
     resourceId: row.resourceId ?? undefined,
     questionIds: row.questionIds,

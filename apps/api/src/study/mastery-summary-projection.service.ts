@@ -7,6 +7,8 @@ import {
 import {
   buildNodeMasteryMap,
   deriveNodeMasteryStatus,
+  toLegacyMasteryMap,
+  type LegacyMasteryMap,
   type NodeMasteryMap,
   type NodeMasteryPoint,
   type NodeMasteryRow,
@@ -96,7 +98,7 @@ export interface StudentStateMasteryDto {
   weakPoints: StudentWeakPointSnapshot[];
 }
 
-export function toMasteryMapDto(projection: MasterySummaryProjection): NodeMasteryMap {
+export function toNodeMasteryMapDto(projection: MasterySummaryProjection): NodeMasteryMap {
   const subjects = projection.subjects.map((subject) => ({
     subject: subject.subject,
     averageMastery: subject.averageMastery,
@@ -117,6 +119,11 @@ export function toMasteryMapDto(projection: MasterySummaryProjection): NodeMaste
     subjects,
     weakestPoints,
   };
+}
+
+/** Legacy /mastery-map contract adapter. */
+export function toMasteryMapDto(projection: MasterySummaryProjection): LegacyMasteryMap {
+  return toLegacyMasteryMap(toNodeMasteryMapDto(projection));
 }
 
 export function toReportMasteryDto(
@@ -316,7 +323,7 @@ function toProjectionPoint(
   subject: Subject | '未分类',
 ): MasteryPointProjection {
   return {
-    knowledgeNodeId: point.knowledgePointId,
+    knowledgeNodeId: point.knowledgeNodeId,
     title: point.title,
     subject,
     chapter: point.chapter,
@@ -332,7 +339,7 @@ function toProjectionPoint(
 
 function toMasteryMapPoint(point: MasteryPointProjection): NodeMasteryPoint {
   return {
-    knowledgePointId: point.knowledgeNodeId,
+    knowledgeNodeId: point.knowledgeNodeId,
     title: point.title,
     chapter: point.chapter,
     importance: point.importance,

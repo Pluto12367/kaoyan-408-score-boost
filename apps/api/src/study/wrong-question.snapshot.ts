@@ -94,6 +94,11 @@ export interface WrongQuestionKnowledgePointRow {
   importance: number;
 }
 
+export interface WrongQuestionKnowledgePointNodeMapRow {
+  knowledgePointId: string;
+  knowledgeNodeId: string;
+}
+
 export interface WrongQuestionAttemptSnapshot {
   date: string;
   selectedAnswer: string | null;
@@ -120,6 +125,7 @@ export interface WrongQuestionItemSnapshot {
   answer: string | null;
   analysis: string | null;
   knowledgePointId: string;
+  knowledgeNodeIds?: string[];
   knowledgePointTitle: string;
   subject: string;
   chapter: string;
@@ -182,6 +188,7 @@ export interface BuildWrongQuestionSnapshotInput {
   reviewAttempts?: WrongQuestionReviewAttemptRow[];
   questions: WrongQuestionCatalogQuestionRow[];
   knowledgePoints: WrongQuestionKnowledgePointRow[];
+  knowledgePointNodeMaps?: WrongQuestionKnowledgePointNodeMapRow[];
 }
 
 export function buildWrongQuestionSnapshot(input: BuildWrongQuestionSnapshotInput): WrongQuestionSnapshot {
@@ -210,6 +217,7 @@ export function buildWrongQuestionSnapshot(input: BuildWrongQuestionSnapshotInpu
       attempts: attemptsByQuestion.get(questionId) ?? [],
       question: questionsById.get(questionId) ?? null,
       pointsById,
+      knowledgePointNodeMaps: input.knowledgePointNodeMaps ?? [],
       variantCorrectCount: records.filter((record) => record.variantQuestionId === questionId && record.correct).length,
     });
 
@@ -239,11 +247,15 @@ function buildItem(input: {
   attempts: WrongQuestionReviewAttemptRow[];
   question: WrongQuestionCatalogQuestionRow | null;
   pointsById: Map<string, WrongQuestionKnowledgePointRow>;
+  knowledgePointNodeMaps: WrongQuestionKnowledgePointNodeMapRow[];
   variantCorrectCount: number;
 }): WrongQuestionItemSnapshot {
   const latestRecord = input.records.at(-1)!;
   const knowledgePointId = latestRecord.knowledgePointId ?? input.question?.knowledgePointIds?.[0] ?? '';
   const point = input.pointsById.get(knowledgePointId) ?? null;
+  const knowledgeNodeIds = [...new Set(input.knowledgePointNodeMaps
+    .filter((mapping) => mapping.knowledgePointId === knowledgePointId)
+    .map((mapping) => mapping.knowledgeNodeId))];
   const stability = input.schedule?.stability ?? 'learning';
   const consecutiveCorrect = input.schedule?.consecutiveCorrect ?? 0;
 
@@ -253,6 +265,7 @@ function buildItem(input: {
     answer: input.question?.answer ?? null,
     analysis: input.question?.analysis ?? null,
     knowledgePointId,
+    ...(knowledgeNodeIds.length > 0 ? { knowledgeNodeIds } : {}),
     knowledgePointTitle: point?.title ?? knowledgePointId,
     subject: point?.subject ?? '未分类',
     chapter: point?.chapter ?? '未分类',

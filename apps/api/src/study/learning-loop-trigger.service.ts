@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { LearningLoopRepository } from './learning-loop.repository';
 import { RecommendationService } from './recommendation.service';
 import { UserEventRepository } from './user-event.repository';
+import { CanonicalEventWriterService } from './canonical-event-writer.service';
+import { createLearningLoopGenerationKey } from './generation-key';
 import { studyDateKey, todayKey } from './study-date';
 
 type TriggerType = 'task.complete' | 'stage_assessment';
@@ -14,7 +16,7 @@ export interface LearningLoopTriggerInput {
 }
 
 export type LearningLoopTriggerResult =
-  | { status: 'generated'; planId: string; scheduledDate: string; triggerKey: string }
+  | { status: 'generated'; planId: string; scheduledDate: string; triggerKey: string; generationKey: string }
   | { status: 'skipped'; reason: 'incomplete_today' | 'duplicate' }
   | { status: 'failed'; error: string };
 
@@ -27,6 +29,7 @@ export class LearningLoopTriggerService {
     private readonly learningLoopRepository: LearningLoopRepository,
     private readonly recommendation: RecommendationService,
     private readonly userEvents: UserEventRepository,
+    private readonly canonicalEventWriter: CanonicalEventWriterService,
   ) {}
 
   async maybeGenerateLearningLoopPlan(
@@ -35,15 +38,16 @@ export class LearningLoopTriggerService {
   ): Promise<LearningLoopTriggerResult> {
     const completionDate = input.scheduledDate ?? todayKey();
     const scheduledDate = nextDate(completionDate);
+    const generationKey = createLearningLoopGenerationKey(userId, scheduledDate, 'v1');
     const triggerKey = `learning-loop:${userId}:${scheduledDate}`;
-    const existing = this.inFlight.get(triggerKey);
+    const existing = this.inFlight.get(generationKey);
     if (existing) return existing;
 
-    const work = this.generateIfNeeded(userId, input, completionDate, scheduledDate, triggerKey)
+    const work = this.generateIfNeeded(userId, input, completionDate, scheduledDate, triggerKey, generationKey)
       .finally(() => {
-        if (this.inFlight.get(triggerKey) === work) this.inFlight.delete(triggerKey);
+        if (this.inFlight.get(generationKey) === work) this.inFlight.delete(generationKey);
       });
-    this.inFlight.set(triggerKey, work);
+    this.inFlight.set(generationKey, work);
     return work;
   }
 
@@ -53,6 +57,7 @@ export class LearningLoopTriggerService {
     completionDate: string,
     scheduledDate: string,
     triggerKey: string,
+    generationKey: string,
   ): Promise<LearningLoopTriggerResult> {
     try {
       if (input.triggerType === 'task.complete' && !(await this.isTodayComplete(userId, completionDate))) {
@@ -67,15 +72,25 @@ export class LearningLoopTriggerService {
         targetExamDate: targetExamDate(user?.examYear, user?.remainingDays),
         availableMinutes: availableMinutes(user?.dailyHours),
         scheduledDate,
+        generationKey,
+        source: 'score-center',
+        version: 'score-center-v1',
       });
-      await this.userEvents.record(userId, 'plan.generated', {
-        planId: plan.id,
-        scheduledDate,
-        triggerType: input.triggerType,
-        sourceId: input.sourceId,
-        triggerKey,
+      await this.canonicalEventWriter.recordCanonicalEvent({
+        userId,
+        type: 'plan.generated',
+        eventKey: `PLAN_GENERATED:${generationKey}`,
+        payload: {
+          planId: plan.id,
+          generationKey,
+          source: 'score-center',
+          scheduledDate,
+          triggerType: input.triggerType,
+          sourceId: input.sourceId,
+          triggerKey,
+        },
       });
-      return { status: 'generated', planId: plan.id, scheduledDate, triggerKey };
+      return { status: 'generated', planId: plan.id, scheduledDate, triggerKey, generationKey };
     } catch (error) {
       this.logger.warn(
         `Learning loop plan generation failed for ${userId}`,

@@ -51,5 +51,5 @@ test('buildNodeMasteryMap aggregates practiced nodes per subject with compatible
   const os = map.subjects.find((subject) => subject.subject === '操作系统');
   assert.equal(os.points.length, 0);
   assert.equal(map.weakestPoints.length, 3);
-  assert.equal(map.weakestPoints[0].knowledgePointId, 'n-weak');
+  assert.equal(map.weakestPoints[0].knowledgeNodeId, 'n-weak');
 });

@@ -33,6 +33,13 @@ import type { UserProfile } from '@kaoyan408/shared';
 import { ContextualCoachService } from './contextual-coach.service';
 import type { ContextualCoachRequest } from './contextual-coach.types';
 import { OverviewQueryService } from './overview-query.service';
+import { RecommendationActionService, toHttpActionError } from './recommendation-action.service';
+import { LearningSessionActionService } from './learning-session-action.service';
+import { ActionOutcomeAuditService } from './action-outcome-audit.service';
+import { ActionLearningSignalService } from './action-learning-signal.service';
+import { RecommendationFeedbackService } from './recommendation-feedback.service';
+import { isReservedCanonicalEventType, isTelemetryEventType } from './canonical-event-writer.service';
+import { StudentContextQueryService } from './student-context.query.service';
 
 @Controller()
 export class StudyController {
@@ -52,7 +59,71 @@ export class StudyController {
     private readonly examScoreHistoryQuery: ExamScoreHistoryQueryService,
     private readonly contextualCoachService: ContextualCoachService,
     private readonly overviewQuery: OverviewQueryService,
+    private readonly recommendationActionService: RecommendationActionService,
+    private readonly learningSessionActionService: LearningSessionActionService,
+    private readonly actionOutcomeAuditService: ActionOutcomeAuditService,
+    private readonly actionLearningSignalService: ActionLearningSignalService,
+    private readonly recommendationFeedbackService: RecommendationFeedbackService,
+    private readonly studentContextQuery: StudentContextQueryService,
   ) {}
+
+  @Post('recommendation-actions')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async createRecommendationAction(@CurrentUser() user: UserProfile, @Body() input: Record<string, unknown>) {
+    try {
+      return await this.recommendationActionService.createAction({ ...input, userId: user.id } as never);
+    } catch (error) { throw toHttpActionError(error); }
+  }
+
+  @Post('recommendation-actions/:id/start')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async startRecommendationAction(@CurrentUser() user: UserProfile, @Param('id') actionId: string, @Body() input: { expectedVersion?: number }) {
+    try { return await this.recommendationActionService.startAction({ userId: user.id, actionId, expectedVersion: input.expectedVersion as number }); } catch (error) { throw toHttpActionError(error); }
+  }
+
+  @Post('recommendation-actions/:id/complete')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async completeRecommendationAction(@CurrentUser() user: UserProfile, @Param('id') actionId: string, @Body() input: { expectedVersion?: number }) {
+    try { return await this.recommendationActionService.completeAction({ userId: user.id, actionId, expectedVersion: input.expectedVersion as number }); } catch (error) { throw toHttpActionError(error); }
+  }
+
+  @Post('recommendation-actions/:id/cancel')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async cancelRecommendationAction(@CurrentUser() user: UserProfile, @Param('id') actionId: string, @Body() input: { expectedVersion?: number }) {
+    try { return await this.recommendationActionService.cancelAction({ userId: user.id, actionId, expectedVersion: input.expectedVersion as number }); } catch (error) { throw toHttpActionError(error); }
+  }
+
+  @Post('learning-sessions/from-action')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async createLearningSessionFromAction(@CurrentUser() user: UserProfile, @Body() input: { actionId: string; resourceId: string; metadata?: Record<string, unknown> }) {
+    try { return await this.learningSessionActionService.createLearningSessionFromAction({ ...input, userId: user.id }); } catch (error) { throw toHttpActionError(error); }
+  }
+
+  @Get('recommendation-actions/:id/outcome')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRecommendationActionOutcome(@CurrentUser() user: UserProfile, @Param('id') actionId: string) {
+    try { return await this.actionOutcomeAuditService.buildOutcome(user.id, actionId); } catch (error) { throw toHttpActionError(error); }
+  }
+
+  @Get('recommendation-actions/:id/learning-signal')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRecommendationActionLearningSignal(@CurrentUser() user: UserProfile, @Param('id') actionId: string) {
+    try { return await this.actionLearningSignalService.buildSignal(user.id, actionId); } catch (error) { throw toHttpActionError(error); }
+  }
+
+  @Get('recommendation-actions/:id/feedback')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRecommendationActionFeedback(@CurrentUser() user: UserProfile, @Param('id') actionId: string) {
+    try { return await this.recommendationFeedbackService.getFeedback(user.id, actionId); } catch (error) { throw toHttpActionError(error); }
+  }
 
   // ---- Student endpoints (require student+ auth) ----
   // All student-facing endpoints use @CurrentUser() — userId NEVER comes from the client
@@ -104,6 +175,18 @@ export class StudyController {
     @Query('userId') viewUserId?: string,
   ) {
     return this.studentStateProjection.getSnapshot(this.resolveUserId(user, viewUserId));
+  }
+
+  @Get('student-context')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getStudentContext(
+    @CurrentUser() user: UserProfile,
+    @Query('asOf') asOfValue?: string,
+  ) {
+    const asOf = asOfValue ? new Date(asOfValue) : new Date();
+    if (Number.isNaN(asOf.getTime())) throw new BadRequestException('Invalid asOf');
+    return this.studentContextQuery.getContext(user.id, asOf);
   }
 
   @Get('trial-progress')
@@ -467,6 +550,12 @@ export class StudyController {
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
   recordUserEvent(@CurrentUser() user: UserProfile, @Body() input: RecordUserEventDto) {
+    if (isReservedCanonicalEventType(input.type)) {
+      throw new ForbiddenException('Canonical events are server-only');
+    }
+    if (!isTelemetryEventType(input.type)) {
+      throw new BadRequestException('Unsupported telemetry event type');
+    }
     return this.studyService.recordUserEvent(user.id, input.type, input.payload);
   }
 
@@ -485,7 +574,7 @@ export class StudyController {
   @Post('wrong-questions/:questionId/reason')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
-  reportWrongReason(
+  async reportWrongReason(
     @CurrentUser() user: UserProfile,
     @Param('questionId') questionId: string,
     @Body() input: {
@@ -493,9 +582,11 @@ export class StudyController {
       redoCorrect: boolean;
       timeSpentSec: number;
       isReview?: boolean;
+      actionId?: string;
+      idempotencyKey?: string;
     },
   ) {
-    return this.studyService.reportWrongReason(questionId, user.id, input);
+    try { return await this.studyService.reportWrongReason(questionId, user.id, input); } catch (error) { throw toHttpActionError(error); }
   }
 
   @Get('review/due')

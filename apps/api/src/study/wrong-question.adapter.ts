@@ -16,6 +16,7 @@ export interface LegacyWrongQuestionDto {
   answer?: string;
   analysis?: string;
   knowledgePointId: string;
+  knowledgeNodeIds?: string[];
   knowledgePointTitle: string;
   subject: string;
   chapter: string;
@@ -146,6 +147,7 @@ function toLegacyWrongQuestion(item: WrongQuestionItemSnapshot): LegacyWrongQues
     answer: item.answer ?? undefined,
     analysis: item.analysis ?? undefined,
     knowledgePointId: item.knowledgePointId,
+    ...(item.knowledgeNodeIds ? { knowledgeNodeIds: [...item.knowledgeNodeIds] } : {}),
     knowledgePointTitle: item.knowledgePointTitle,
     subject: item.subject,
     chapter: item.chapter,

@@ -1,5 +1,5 @@
 import { Injectable, Optional } from '@nestjs/common';
-import type { NodeMasteryMap } from '@kaoyan408/shared';
+import type { LegacyMasteryMap } from '@kaoyan408/shared';
 import {
   MasterySummaryProjectionService,
   toMasteryMapDto,
@@ -17,9 +17,9 @@ export class StudentStateQueryService {
     @Optional() private readonly legacy?: StudyService,
   ) {}
 
-  async getMasteryMapCompat(userId: string, generatedAt: Date = new Date()): Promise<NodeMasteryMap> {
+  async getMasteryMapCompat(userId: string, generatedAt: Date = new Date()): Promise<LegacyMasteryMap> {
     if (this.legacy) {
-      return this.legacy.getMasteryMap(userId) as unknown as NodeMasteryMap;
+      return this.legacy.getMasteryMap(userId) as LegacyMasteryMap;
     }
     const projection = await this.masterySummaryProjection.getProjection(userId, generatedAt);
     return toMasteryMapDto(projection);

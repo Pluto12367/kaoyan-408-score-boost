@@ -7,6 +7,7 @@ import {
   buildAssessmentHistorySummary,
   buildNodeDrivenDailyTasks,
   buildNodeMasteryMap,
+  toLegacyMasteryMap,
   buildStudyPlan,
   buildTemplateFollowUp,
   buildTemplateTutorReply,
@@ -55,12 +56,15 @@ import { PracticeRecordRepository } from './practice-record.repository';
 import { AiTutorService } from './ai-tutor.service';
 import { LearningProgressRepository, type StudyTaskProgressMetric, type TaskCompletionMetric } from './learning-progress.repository';
 import { LearningSessionRepository } from './learning-session.repository';
+import { resolvePracticeActionId } from './practice-action-attribution';
+import { resolveReviewActionId } from './review-action-attribution';
+import { RecommendationActionService } from './recommendation-action.service';
 import { LearningProfileRepository } from './learning-profile.repository';
 import { KnowledgePointRepository } from './knowledge-point.repository';
 import { AssessmentHistoryRepository, type PersistedAssessmentHistoryItem } from './assessment-history.repository';
 import type { RecommendationItem } from '@kaoyan408/shared';
 import { RecommendationService } from './recommendation.service';
-import { bridgeKnowledgePointIds, buildPracticeSetCopy } from './practice-set-recommendation.adapter';
+import { buildCanonicalPracticeSetIdentity, buildPracticeSetCopy } from './practice-set-recommendation.adapter';
 import { buildReviewResourcesDto } from './review-resources-recommendation.adapter';
 import { PaperRepository } from './paper.repository';
 import { SystemConfigRepository } from './system-config.repository';
@@ -90,6 +94,8 @@ import { computePracticeRecordRequestHash, PRACTICE_RECORD_HASH_VERSION } from '
 import { ScoreCenterService } from '../score-center/service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
+import { ActionFeedbackTriggerService } from './action-feedback-trigger.service';
+import { isReservedCanonicalEventType, isTelemetryEventType } from './canonical-event-writer.service';
 import {
   loadActiveAtomicNodeCatalog,
   loadLatestFrequencySnapshots,
@@ -146,6 +152,8 @@ export class StudyService implements OnModuleInit {
     @Optional() private readonly masterySummaryProjection?: MasterySummaryProjectionService,
     @Optional() private readonly recommendation?: RecommendationService,
     @Optional() private readonly learningLoopTrigger?: LearningLoopTriggerService,
+    @Optional() private readonly recommendationActionService?: RecommendationActionService,
+    @Optional() private readonly actionFeedbackTrigger?: ActionFeedbackTriggerService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -171,8 +179,24 @@ export class StudyService implements OnModuleInit {
     }
   }
 
+  private triggerActionFeedback(userId: string, actionId: string | null | undefined) {
+    if (!actionId || !this.actionFeedbackTrigger) return;
+    void this.actionFeedbackTrigger.trigger(userId, actionId).catch((error) => {
+      this.logger.warn(
+        `Action feedback trigger failed for ${userId}/${actionId}`,
+        error instanceof Error ? error.message : String(error),
+      );
+    });
+  }
+
   async recordUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
-    await this.trackUserEvent(userId, type, payload);
+    if (isReservedCanonicalEventType(type)) {
+      throw new ForbiddenException('Canonical events are server-only');
+    }
+    if (!isTelemetryEventType(type)) {
+      throw new BadRequestException('Unsupported telemetry event type');
+    }
+    await this.userEventRepository.recordTelemetry(userId, type, payload);
     return { userId, type, recordedAt: new Date().toISOString() };
   }
 
@@ -807,12 +831,13 @@ export class StudyService implements OnModuleInit {
   getMasteryMap(userId = this.student.id) {
     this.ensureNodeMasteryFresh();
     if (this.useNodeMastery) {
-      return buildNodeMasteryMap({
+      const canonical = buildNodeMasteryMap({
         userId,
         rows: this.nodeMasteryByUser.get(userId) ?? [],
         subjects: ['数据结构', '计算机组成原理', '操作系统', '计算机网络'],
         generatedAt: new Date().toISOString(),
       });
+      return toLegacyMasteryMap(canonical);
     }
     const subjects: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
     const wrongQuestions = this.listWrongQuestions(userId);
@@ -2143,6 +2168,8 @@ export class StudyService implements OnModuleInit {
     redoCorrect: boolean;
     timeSpentSec: number;
     isReview?: boolean;
+    actionId?: string;
+    idempotencyKey?: string;
   }) {
     const selfReportedReason = input.selfReportedReason?.trim();
     if (!selfReportedReason || selfReportedReason.length > 100) {
@@ -2155,6 +2182,17 @@ export class StudyService implements OnModuleInit {
       throw new BadRequestException('Review time must be between 0 and 86400 seconds');
     }
     const key = scheduleKey(userId, questionId);
+    const action = input.actionId
+      ? await this.recommendationActionService?.getAction(userId, input.actionId)
+      : null;
+    const actionId = resolveReviewActionId(action, userId, input.actionId);
+    if (input.idempotencyKey && this.reviewAttemptsByKey.get(key)?.some((attempt) => attempt.idempotencyKey === input.idempotencyKey)) {
+      return this.reviewAttemptsByKey.get(key)!.find((attempt) => attempt.idempotencyKey === input.idempotencyKey);
+    }
+    if (input.idempotencyKey) {
+      const persisted = await this.reviewScheduleRepository.findAttemptByIdempotencyKey(userId, questionId, input.idempotencyKey);
+      if (persisted) return persisted;
+    }
     const existing = this.reviewSchedules.get(key);
     const now = new Date();
     const questionRecords = this.records.filter((record) => record.userId === userId && record.questionId === questionId);
@@ -2182,8 +2220,8 @@ export class StudyService implements OnModuleInit {
         reviewCount: existing?.reviewCount ?? 0,
         lastReviewedAt: existing?.lastReviewedAt,
       };
-      this.reviewSchedules.set(key, schedule);
       await this.reviewScheduleRepository.saveSchedule(schedule);
+      this.reviewSchedules.set(key, schedule);
       return {
         ...schedule,
         nextReviewInDays: Math.max(1, Math.ceil((new Date(nextReviewAt).getTime() - now.getTime()) / 86_400_000)),
@@ -2224,8 +2262,9 @@ export class StudyService implements OnModuleInit {
       reviewCount: (existing?.reviewCount ?? 0) + 1,
       lastReviewedAt: now.toISOString(),
     };
-    this.reviewSchedules.set(key, schedule);
     const attempt: ReviewAttemptState = {
+      actionId,
+      idempotencyKey: input.idempotencyKey ?? null,
       redoCorrect: input.redoCorrect,
       timeSpentSec: input.timeSpentSec,
       reportedReason: selfReportedReason,
@@ -2233,31 +2272,36 @@ export class StudyService implements OnModuleInit {
       nextIntervalDays,
       reviewedAt: now.toISOString(),
     };
+    const persistReview = async (tx?: Prisma.TransactionClient) => {
+      if (tx) await this.reviewScheduleRepository.saveReview(schedule, attempt, tx);
+      else await this.reviewScheduleRepository.saveReview(schedule, attempt);
+      await this.learningProgressRepository.saveWrongQuestionReview(userId, questionId, now.toISOString(), tx);
+      if (stability === 'mastered' && this.prisma) {
+        await resolveWrongQuestion(tx ?? this.prisma, userId, questionId, now);
+      }
+      if (input.isReview === true) {
+        await this.scoreCenterService?.applyReview(userId, questionId, {
+          reviewedAt: now,
+          redoCorrect: input.redoCorrect,
+        }, tx);
+      }
+    };
+    if (this.prisma && this.reviewScheduleRepository.enabled && typeof this.prisma.$transaction === 'function') {
+      await this.prisma.$transaction((tx) => persistReview(tx));
+    } else {
+      await persistReview();
+    }
+    // Only committed attempts may become visible to reads or idempotent retries.
+    this.reviewSchedules.set(key, schedule);
     const attempts = this.reviewAttemptsByKey.get(key) ?? [];
-    attempts.push(attempt);
-    this.reviewAttemptsByKey.set(key, attempts);
-    await this.reviewScheduleRepository.saveReview(schedule, attempt);
+    this.reviewAttemptsByKey.set(key, [...attempts, attempt]);
+    this.triggerActionFeedback(userId, actionId);
 
     // Also mark as reviewed in the existing tracking
     const reviewed = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
     reviewed.set(questionId, now.toISOString());
     this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
-    await this.learningProgressRepository.saveWrongQuestionReview(userId, questionId, now.toISOString());
-    if (stability === 'mastered' && this.prisma) {
-      await resolveWrongQuestion(this.prisma, userId, questionId, now);
-    }
     if (input.isReview === true) {
-      try {
-        await this.scoreCenterService?.applyReview(userId, questionId, {
-          reviewedAt: now,
-          redoCorrect: input.redoCorrect,
-        });
-      } catch (error) {
-        this.logger.error(
-          `Score-center mastery update failed after review of ${questionId}`,
-          error instanceof Error ? error.stack : String(error),
-        );
-      }
       await this.refreshNodeMasteryCache(userId);
     }
 
@@ -2573,15 +2617,19 @@ export class StudyService implements OnModuleInit {
     const questionSet = result.items.find((item): item is Extract<RecommendationItem, { kind: 'QUESTION_SET' }> => item.kind === 'QUESTION_SET');
     const weakNodeIds = weakKnowledgeItems.map((item) => item.knowledgeNodeId);
     const fallbackNodeIds = this.generatePlan(userId).dailyTasks.map((task) => task.knowledgePointId);
-    // 灰度/节点口径契约：knowledgePointIds 字段承载节点 id（与 legacy 节点模式一致）
-    const knowledgePointIds = [...new Set(weakNodeIds)].slice(0, 4);
+    const selectedNodeIds = [...new Set(weakNodeIds.length ? weakNodeIds : fallbackNodeIds)].slice(0, 4);
+    const identity = buildCanonicalPracticeSetIdentity({
+      nodeIds: selectedNodeIds,
+      kpIdsByNodeId: await this.getKpIdsByNodeId(selectedNodeIds),
+    });
+    const knowledgeNodeIds = identity.knowledgeNodeIds;
+    const knowledgePointIds = identity.knowledgePointIds;
     let matchingQuestions: Question[] = [];
-    const nodeQuestionIds = new Set(weakNodeIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []));
+    const nodeQuestionIds = new Set(knowledgeNodeIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []));
     matchingQuestions = this.questions.filter((question) => nodeQuestionIds.has(question.id));
     if (matchingQuestions.length === 0) {
-      const sourceIds = weakNodeIds.length ? weakNodeIds : fallbackNodeIds.slice(0, 4);
-      knowledgePointIds.splice(0, knowledgePointIds.length, ...sourceIds.slice(0, 4));
-      const fallbackNodeQuestionIds = new Set(knowledgePointIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []));
+      const sourceNodeIds = weakNodeIds.length ? weakNodeIds : fallbackNodeIds.slice(0, 4);
+      const fallbackNodeQuestionIds = new Set(sourceNodeIds.flatMap((nodeId) => this.nodeQuestionIdsByNode.get(nodeId) ?? []));
       matchingQuestions = this.questions.filter((question) => fallbackNodeQuestionIds.has(question.id));
       if (matchingQuestions.length === 0) {
         matchingQuestions = this.questions.filter((question) =>
@@ -2590,13 +2638,20 @@ export class StudyService implements OnModuleInit {
       }
     }
     if (matchingQuestions.length === 0) {
-      knowledgePointIds.push(...this.questions.flatMap((question) => question.knowledgePointIds).slice(0, 2));
+      for (const pointId of this.questions.flatMap((question) => question.knowledgePointIds).slice(0, 2)) {
+        if (!knowledgePointIds.includes(pointId)) knowledgePointIds.push(pointId);
+      }
       matchingQuestions = this.questions.filter((question) =>
         question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
       );
     }
     const questionCount = stage === '冲刺' ? 20 : questionSet?.questionCount ?? 12;
     const questions = dedupeQuestionsByStem(matchingQuestions).slice(0, Math.min(questionCount, matchingQuestions.length));
+    // A legacy Point list may include only real question bindings; it never
+    // receives a Node ID merely because a selected Node had no map row.
+    for (const pointId of questions.flatMap((question) => question.knowledgePointIds)) {
+      if (!knowledgePointIds.includes(pointId)) knowledgePointIds.push(pointId);
+    }
     const topWeak = weakKnowledgeItems[0];
     const topWeakPoint = topWeak ? {
       title: nodeById.get(topWeak.knowledgeNodeId)?.name ?? topWeak.knowledgeNodeId,
@@ -2611,6 +2666,7 @@ export class StudyService implements OnModuleInit {
       stage,
       focus: copy.focus,
       reason: copy.reason,
+      knowledgeNodeIds,
       knowledgePointIds,
       questionCount: questions.length,
       estimatedMinutes: Math.max(10, Math.round(questions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
@@ -2741,16 +2797,24 @@ export class StudyService implements OnModuleInit {
     const knowledgeItems = result.items.filter((item) => item.kind === 'KNOWLEDGE');
     const weakKnowledgeItems = knowledgeItems.filter((item) => item.facts.mastery < 0.45);
     const nodeIds = weakKnowledgeItems.map((item) => item.knowledgeNodeId);
+    const kpIdsByNodeId = await this.getKpIdsByNodeId(nodeIds);
 
-    const resourcePoints = weakKnowledgeItems.slice(0, 3).map((item) => {
+    const resourcePoints = weakKnowledgeItems.slice(0, 3).flatMap((item) => {
       const node = nodeById.get(item.knowledgeNodeId);
-      return {
-        knowledgePointId: item.knowledgeNodeId,
-        title: node?.name ?? item.knowledgeNodeId,
-        subject: node?.subject ?? '408',
-        chapter: '高频章节',
-        accuracyRate: accuracyRateByNode[item.knowledgeNodeId] ?? 70,
-      };
+      const pointIds = kpIdsByNodeId[item.knowledgeNodeId] ?? [];
+      return pointIds.map((knowledgePointId) => {
+        const point = this.knowledgePoints.find((candidate) => candidate.id === knowledgePointId);
+        const pointRecords = this.records.filter((record) => record.knowledgePointId === knowledgePointId);
+        return {
+          knowledgePointId,
+          title: point?.title ?? node?.name ?? knowledgePointId,
+          subject: point?.subject ?? node?.subject ?? '408',
+          chapter: point?.chapter ?? '高频章节',
+          accuracyRate: pointRecords.length
+            ? Math.round(pointRecords.filter((record) => record.correct).length / pointRecords.length * 100)
+            : 70,
+        };
+      });
     });
     const wrongQuestions = this.listWrongQuestions(userId).map((item) => ({
       knowledgePointId: item.knowledgePointId,
@@ -2830,11 +2894,20 @@ export class StudyService implements OnModuleInit {
     input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question },
     options: { idempotencyKey?: string } = {},
   ) {
+    const attributedInput = { ...input, actionId: await this.resolvePracticeActionId(input.userId, input.sessionId) };
     const idempotencyKey = options.idempotencyKey?.trim();
-    if (!idempotencyKey) return this.createPracticeRecordLegacy(input);
+    if (!idempotencyKey) return this.createPracticeRecordLegacy(attributedInput);
     if (idempotencyKey.length > 255) throw new BadRequestException('Idempotency-Key is too long');
-    if (!this.prisma || !this.answerReceipts?.enabled) return this.createPracticeRecordLegacy(input);
-    return this.createPracticeRecordWithReceipt(input, idempotencyKey);
+    if (!this.prisma || !this.answerReceipts?.enabled) return this.createPracticeRecordLegacy(attributedInput);
+    return this.createPracticeRecordWithReceipt(attributedInput, idempotencyKey);
+  }
+
+  private async resolvePracticeActionId(userId: string, sessionId?: string) {
+    if (!sessionId) return null;
+    const session = this.practiceSessions.get(sessionId);
+    if (session?.userId === userId) return resolvePracticeActionId(session);
+    const persisted = await this.learningSessionRepository.loadOne(sessionId, userId);
+    return resolvePracticeActionId(persisted);
   }
 
   private async createPracticeRecordLegacy(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }) {
@@ -2849,6 +2922,7 @@ export class StudyService implements OnModuleInit {
           return saved;
         })
       : await this.practiceRecordRepository.save(record);
+    this.triggerActionFeedback(input.userId, savedRecord.actionId);
     if (this.prisma) await this.refreshNodeMasteryCache(input.userId);
     this.records.push(savedRecord);
     if (!savedRecord.correct) {
@@ -2921,6 +2995,7 @@ export class StudyService implements OnModuleInit {
       throw error;
     }
 
+    this.triggerActionFeedback(input.userId, result.savedRecord.actionId);
     if (this.prisma) await this.refreshNodeMasteryCache(input.userId);
     this.records.push(result.savedRecord);
     if (result.reviewSchedule) this.commitReviewScheduleMemory(result.reviewSchedule);
@@ -3001,6 +3076,7 @@ export class StudyService implements OnModuleInit {
       throw error;
     }
 
+    this.triggerActionFeedback(input.userId, result.savedRecord.actionId);
     if (this.prisma) await this.refreshNodeMasteryCache(input.userId);
     this.records.push(result.savedRecord);
     if (result.reviewSchedule) this.commitReviewScheduleMemory(result.reviewSchedule);
@@ -3066,7 +3142,7 @@ export class StudyService implements OnModuleInit {
     }
   }
 
-  private buildPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question }): PracticeRecord {
+  private buildPracticeRecord(input: CreatePracticeRecordDto & { userId: string; questionSnapshot?: Question; actionId?: string | null }): PracticeRecord {
     const question = input.questionSnapshot ?? this.questions.find((item) => item.id === input.questionId);
     if (!question) {
       throw new BadRequestException(`Question ${input.questionId} was not found`);
@@ -3102,6 +3178,7 @@ export class StudyService implements OnModuleInit {
       mistakeReason,
       submittedAt: new Date().toISOString(),
       sessionId: input.sessionId,
+      actionId: input.actionId ?? null,
       gradingMode: isSubjective ? 'self_assessed' : 'objective',
       selfScore: input.selfScore,
       maxScore: input.maxScore,
@@ -3457,7 +3534,12 @@ export class StudyService implements OnModuleInit {
       selectedAnswer: answer.selectedAnswer,
       timeSpentSec: answer.timeSpentSec,
     })));
-    return this.createStageAssessmentResult(userId, records);
+    const result = await this.createStageAssessmentResult(userId, records);
+    await this.triggerLearningLoop(userId, {
+      triggerType: 'stage_assessment',
+      sourceId: result.id,
+    });
+    return result;
   }
 
   private async createStageAssessmentResult(userId: string, records: PracticeRecord[]) {
@@ -4282,6 +4364,7 @@ export class StudyService implements OnModuleInit {
           userId,
           questionId: answer.questionId,
           knowledgePointId: '',
+          actionId: session.actionId ?? null,
           selectedAnswer: answer.selectedAnswer,
           timeSpentSec: answer.timeSpentSec,
           sessionId,
@@ -4794,6 +4877,7 @@ export class StudyService implements OnModuleInit {
       id: s.id,
       type: s.type,
       resourceId: s.resourceId,
+      actionId: s.actionId ?? null,
       questionIds: s.questionIds,
       questions: s.questionIds.flatMap((questionId) => {
         const question = questionsById.get(questionId);
@@ -5047,6 +5131,7 @@ interface PracticeSession {
   userId: string;
   type: 'practice_set' | 'stage_assessment' | 'paper';
   resourceId?: string;
+  actionId?: string;
   questionIds: string[];
   questionSnapshot: Question[];
   answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean }>;

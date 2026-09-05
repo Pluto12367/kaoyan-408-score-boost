@@ -30,6 +30,7 @@ export class WrongQuestionProjectionService {
       reviewAttempts,
       questions,
       knowledgePoints,
+      knowledgePointNodeMaps,
     ] = await Promise.all([
       this.prisma.practiceRecord.findMany({
         where: { userId },
@@ -116,6 +117,12 @@ export class WrongQuestionProjectionService {
           importance: true,
         },
       }),
+      this.prisma.knowledgePointNodeMap?.findMany
+        ? this.prisma.knowledgePointNodeMap.findMany({
+          select: { knowledgePointId: true, knowledgeNodeId: true },
+          orderBy: [{ knowledgePointId: 'asc' }, { knowledgeNodeId: 'asc' }],
+        })
+        : Promise.resolve([]),
     ]);
 
     return buildWrongQuestionSnapshot({
@@ -141,6 +148,7 @@ export class WrongQuestionProjectionService {
         knowledgePointIds: question.knowledgePoints.map((point) => point.knowledgePointId),
       })),
       knowledgePoints,
+      knowledgePointNodeMaps,
     });
   }
 }
