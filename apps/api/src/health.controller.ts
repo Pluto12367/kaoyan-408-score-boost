@@ -1,5 +1,6 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from './prisma/prisma.service';
+import { buildOperationalHealth, validateStartupConfiguration } from './operations/startup-validation';
 
 const startTime = Date.now();
 
@@ -35,8 +36,17 @@ export class HealthController {
       });
     }
 
+    const startup = validateStartupConfiguration(process.env);
+    const operational = buildOperationalHealth(
+      checks.database === 'connected',
+      Boolean(process.env.DATABASE_URL),
+      startup.aiProvider === 'configured',
+      false, // embedding: local deterministic is the default; remote needs EMBEDDING_API_KEY + provider
+    );
+
     return {
       status: 'ok',
+      operational,
       service: 'kaoyan-408-api',
       version: '1.0.0',
       dataSource: process.env.DATABASE_URL ? 'postgresql' : 'memory-api',
