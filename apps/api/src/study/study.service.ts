@@ -81,6 +81,8 @@ import {
 import { applyCarryOver, harvestCarryOverTasks } from './missed-day-recovery';
 import { questionCountForMinutes } from './quick-session';
 import { deriveTaskReasonCodes } from './task-reason-codes';
+import { applyWeeklyIntensity, deriveWeeklyAdjustment } from './weekly-adjustment';
+import type { EffectivenessService } from '../effectiveness/effectiveness.service';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
@@ -157,6 +159,7 @@ export class StudyService implements OnModuleInit {
     @Optional() private readonly learningLoopTrigger?: LearningLoopTriggerService,
     @Optional() private readonly recommendationActionService?: RecommendationActionService,
     @Optional() private readonly actionFeedbackTrigger?: ActionFeedbackTriggerService,
+    @Optional() private readonly effectiveness?: EffectivenessService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -1148,10 +1151,26 @@ export class StudyService implements OnModuleInit {
         // V8 #13 missed-day recovery: open overdue tasks ride into the fresh
         // window instead of vanishing with the old plan.
         const carryOver = harvestCarryOverTasks(scheduledPlan.tasks, today);
+        // V9 Phase 2: last week's evidence (if any) adjusts this week's load.
+        let weeklyAdjustment;
+        try {
+          const outcomes = this.effectiveness ? await this.effectiveness.getOutcomes(userId, 7) : null;
+          weeklyAdjustment = deriveWeeklyAdjustment({
+            outcomes: (outcomes?.outcomes ?? []).map((view) => ({
+              attemptsInWindow: view.attemptsInWindow,
+              masteryGain: view.masteryGain,
+              gatePassed: view.evidenceGate.passed,
+            })),
+            openDebt: carryOver.length,
+          });
+        } catch {
+          weeklyAdjustment = undefined;
+        }
         this.sevenDayPlansByUser.delete(userId);
         const freshPlan = this.buildSevenDayPlan(userId);
         if (freshPlan.tasks.length > 0) {
-          const augmented = applyCarryOver(freshPlan, carryOver, today);
+          let augmented = applyCarryOver(applyWeeklyIntensity(freshPlan, weeklyAdjustment ?? { factor: 1, verdict: 'maintain' }), carryOver, today);
+          if (weeklyAdjustment) augmented = { ...augmented, weeklyAdjustment };
           scheduledPlan = profile
             ? await this.onboardingPlanRepository.saveOnboarding(userId, profile, augmented)
             : augmented;
@@ -1208,6 +1227,7 @@ export class StudyService implements OnModuleInit {
         reviewDue: this.getDueReviews(userId).dueCount,
         checkpoint: scheduledPlan.checkpoint,
         recoveredFromGap: scheduledPlan.recoveredFromGap ?? null,
+        weeklyAdjustment: scheduledPlan.weeklyAdjustment ?? null,
         scoreCenter,
       };
     }

@@ -49,6 +49,7 @@ import { FeedbackRepository } from './feedback.repository';
 import { UserEventRepository } from './user-event.repository';
 import { ScoreCenterModule } from '../score-center/score-center.module';
 import { RagModule } from '../rag/rag.module';
+import { EffectivenessModule } from '../effectiveness/effectiveness.module';
 import { CoachSessionRepository } from './coach-session.repository';
 import { LearningMemoryService } from '../agent/learning-memory.service';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
@@ -72,7 +73,7 @@ import { CanonicalEventWriterService } from './canonical-event-writer.service';
 import { StudentContextQueryService } from './student-context.query.service';
 
 @Module({
-  imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule, RagModule],
+  imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule, RagModule, EffectivenessModule],
   controllers: [StudyController, DailyBriefController],
   providers: [StudyService, RecommendationActionService, RecommendationActionRepository, LearningSessionActionService, ActionOutcomeAuditRepository, ActionOutcomeAuditService, ActionLearningSignalService, RecommendationFeedbackService, StudentStateFeedbackAdapter, StudentStateFeedbackRepository, ActionLearningSignalConsumerService, ActionFeedbackTriggerService, OverviewReportProjectionService, OverviewQueryService, StudentStateProjectionService, StudentStateQueryService, StudentStateReminderQueryService, StudentStateSprintPlanQueryService, StudentStateTrialProgressQueryService, StudentStateLearningCalendarQueryService, ActivityProjectionService, PracticeProjectionService, MasterySummaryProjectionService, WrongQuestionProjectionService, WrongQuestionQueryService, TodayPlanProjectionService, TodayPlanQueryService, DashboardProjectionService, DashboardQueryService, AssessmentProjectionService, StageAssessmentProjectionService, StageAssessmentQueryService, AssessmentHistoryProjectionService, AssessmentHistoryQueryService, ContextualCoachService, ContextualCoachContextAssembler, StudentContextQueryService, ExamScoreHistoryQueryService, {
     provide: ExamScoreHistoryProjectionService,

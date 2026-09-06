@@ -37,5 +37,6 @@ import { EffectivenessService } from './effectiveness.service';
     TeacherStudentAuthorizationRepository,
     EffectivenessService,
   ],
+  exports: [EffectivenessService],
 })
 export class EffectivenessModule {}

@@ -36,8 +36,21 @@ export function DailyBriefCard() {
       }
     };
     void load();
+    // V9 slice 2: recalibrate on return — finishing practice happens away
+    // from the dashboard; the brief must recompute when the student comes
+    // back (window focus or a custom refresh signal), not just on mount.
+    const onFocus = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    const onRefreshSignal = () => void load();
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    window.addEventListener('daily-brief:refresh', onRefreshSignal);
     return () => {
       cancelled = true;
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+      window.removeEventListener('daily-brief:refresh', onRefreshSignal);
     };
   }, []);
 

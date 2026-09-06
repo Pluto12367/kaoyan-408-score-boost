@@ -49,6 +49,8 @@ export interface SevenDayPlanState {
   tasks: ScheduledStudyTaskState[];
   /** V8 #13: set when the plan was rebuilt after a gap and open tasks were carried over. */
   recoveredFromGap?: { carriedCount: number; recoveredOn: string };
+  /** V9 Phase 2: evidence-based intensity adjustment applied at rebuild. */
+  weeklyAdjustment?: { verdict: 'intensity_up' | 'maintain' | 'intensity_down'; factor: number; note: string; evidence: { evaluated: number; avgGain: number | null; gatePassed: number } };
 }
 
 export interface FutureTaskAdjustment {
