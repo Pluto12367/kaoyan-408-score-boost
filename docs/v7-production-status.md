@@ -4,7 +4,9 @@
 
 ## Status
 
-**PRODUCTION CANDIDATE — APPLICATION CERTIFIED**
+**PRODUCTION CERTIFIED**（2026-09-06，Owner Operations Gate 5/5 PASS）
+
+> 认证范围：应用层认证（V7 Application Certified）+ 基础设施运维演练（备份/恢复/重启/回滚/资源）。
 
 ## Certified
 
@@ -24,18 +26,17 @@
 | Observability | Contract PASS |
 | Evaluation | Contract PASS |
 
-## Not Verified
+## Owner Operations Gate (VERIFIED 2026-09-06, Tencent Cloud 2C2G)
 
-| 维度 | 原因 |
-|---|---|
-| Backup / Restore | Requires direct SSH/server access |
-| Restart Recovery | Requires direct SSH/server access |
-| Rollback Drill | Requires direct SSH/server access |
-| Host Resource Monitoring | Requires direct SSH/server access |
+| 演练 | 结果 | 证据摘要 |
+|---|---|---|
+| B-1 Backup (pg_dump) | PASS | 备份文件生成成功 |
+| B-2 Restore (pg_restore) | PASS | 恢复到验证库成功 |
+| B-3 Restart Recovery | PASS | `docker compose restart` 后三容器健康，`/health` overall ok |
+| B-4 Rollback Drill | PASS | `git checkout f2786df`（V5.5 认证版）重建 48.3s → 三容器健康 → `/health` ok；切回 `feature/v3-product-refactor` 重建 2.8s → 三容器健康 → `/health` ok |
+| B-5 Resource Inspection | PASS | 内存 available 1.1Gi、swap 278Mi；容器占用 app 73MB/640MB、PG 26MB/320MB、gateway 3MB/32MB。`docker builder prune -f` 回收 17.21GB 构建缓存，`df -h /` 确认 40GB 盘使用率 31%（12G used / 27G avail） |
 
-## Reason
-
-These checks require direct SSH/server access and cannot be honestly verified through public HTTP/API/browser access alone.
+B-4 备注：旧版本（f2786df）health 显示 `embeddingProvider: "degraded"`，当前版本为 `"configured"`——`.env.production` 的 Jina 凭据是后续加入的，回滚需配套旧环境假设，已留痕。服务器尚未 fetch tags，回滚用 commit hash 定位；建议本地 `git push origin --tags` 后服务器即可用 tag 名回滚。
 
 ## Certification Commit
 
@@ -43,14 +44,14 @@ These checks require direct SSH/server access and cannot be honestly verified th
 
 ## Final Production Certification
 
-Requires owner-operated SSH verification. Once complete, upgrade status to **PRODUCTION CERTIFIED** and create tag `v7.0.0-production-certified`. No code changes needed — only infrastructure verification.
+Owner SSH verification complete: B-1 至 B-5 全部 PASS，无遗留项。状态升级为 **PRODUCTION CERTIFIED**。创建 tag `v7.0.0-production-certified` 并 `git push origin feature/v3-product-refactor --tags` 后，服务器即可用 tag 名回滚。
 
 ## Owner SSH Checklist
 
 Run `docs/v7-deployment-runbook.md` Step 9-10 to verify:
 
-- [ ] Backup (pg_dump)
-- [ ] Restore (pg_restore)
-- [ ] Restart (docker compose restart)
-- [ ] Rollback (git checkout previous tag + rebuild)
-- [ ] Resource inspection (docker stats / free -h / df -h)
+- [x] Backup (pg_dump)
+- [x] Restore (pg_restore)
+- [x] Restart (docker compose restart)
+- [x] Rollback (git checkout previous tag + rebuild)
+- [x] Resource inspection (docker stats / free -h / df -h) — 内存与容器占用 PASS；构建缓存 17.21GB 已清理，磁盘使用率 31%
