@@ -21,7 +21,7 @@
 |---|---|---|---|
 | 8 | 首页唯一今日卡：合并 StudentActionCard/TodayMission/TodayLearningRoute 为单一"今日焦点"模块（一个任务、一个理由、一个开始按钮），其余任务降级为列表 | U5/P7 | ⬜ |
 | 9 | 全局"下一步"仲裁：建立单一 pickNextBestAction selector（输入 StudentContext+risks+review+plan），四页（首页/题库/错题/报告）共用，保证"最重要的一件事"全产品一致 | P7 | ✅（仲裁器提取 reportTopFocus + 报告页接线；题库提分报告卡接入排 #57） |
-| 10 | effectiveness 前端消费第一刀：报告页新增"努力与效果"卡（复用 V6.3 summary/outcomes，insufficient_data 显示"继续积累一周数据"） | U16/B10 | ⬜ |
+| 10 | effectiveness 前端消费第一刀：报告页新增"努力与效果"卡（复用 V6.3 summary/outcomes，insufficient_data 显示"继续积累一周数据"） | U16/B10 | ✅（报告页新 tab：努力与效果，gate 通过展示增益、证据不足诚实呈现） |
 | 11 | TodayMission 任务行透出 reason（GET /today/plan 透传结构化 reasonCodes，B1 后端先行，前端渲染理由标签） | B1/U6 | ⬜ |
 | 12 | 时长预算入口："我有 15/30/60 分钟"快速会话——后端开放 composeDailyPlan 四档引擎到经典闭环，前端首页加预算选择 | B7/U22 | ⬜ |
 | 13 | 断档恢复：重建窗口时结转 overdue 任务（按 priorityScore 压缩进未来 N 天），/today/plan 返回 recoveredFromGap，首页显示"已为你把 X 个逾期任务排进本周" | B5/P9 | ⬜ |

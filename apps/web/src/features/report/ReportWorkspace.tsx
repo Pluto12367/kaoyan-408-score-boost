@@ -19,6 +19,7 @@ import type { RoleSection } from '../../layouts/RoleNavigation';
 import { StudentProgressOverview } from '../dashboard/StudentProgressOverview';
 import { AssessmentHistoryPanel } from '../assessment/AssessmentHistoryPanel';
 import { DiagnosticSummary } from '../diagnostic/DiagnosticSummary';
+import { EffectivenessPanel } from './EffectivenessPanel';
 import { FeedbackPanel } from '../feedback/FeedbackPanel';
 import { LearningProfilePanel } from './LearningProfilePanel';
 import { MasteryTrendPanel } from './MasteryTrendPanel';
@@ -27,10 +28,11 @@ import { ReviewResourcesPanel } from './ReviewResourcesPanel';
 import { StageReportPanel } from './StageReportPanel';
 import { WeaknessReportPanel } from './WeaknessReportPanel';
 
-type ReportTab = 'overview' | 'mastery' | 'history' | 'actions' | 'resources';
+type ReportTab = 'overview' | 'effectiveness' | 'mastery' | 'history' | 'actions' | 'resources';
 
 const TABS: { id: ReportTab; label: string }[] = [
   { id: 'overview', label: '总览' },
+  { id: 'effectiveness', label: '努力与效果' },
   { id: 'mastery', label: '四科掌握度' },
   { id: 'history', label: '测评历史' },
   { id: 'actions', label: '今日行动' },
@@ -127,6 +129,15 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           onNavigate={props.onNavigate}
         />
         <LearningProfilePanel profile={props.learningProfile} onRetry={props.onRetryLearningProfile} />
+      </div>
+
+      <div
+        role="tabpanel"
+        id="report-panel-effectiveness"
+        aria-labelledby="report-tab-effectiveness"
+        hidden={activeTab !== 'effectiveness'}
+      >
+        <EffectivenessPanel />
       </div>
 
       <div
