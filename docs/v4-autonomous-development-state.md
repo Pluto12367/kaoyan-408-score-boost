@@ -73,7 +73,7 @@ V4-10 Evaluation V3（50+ 确定性用例）。
 
 ## Next Task
 
-V4-15：Release Gate + v4-adaptive-learning-architecture.md + final report。Real AI Provider 仍 BLOCKED。
+V5-4：Real User Journey 端到端验证（测试库，全链路）。V5-1/V5-2 的 Real Provider 维度维持 BLOCKED 直到凭证解除。
 
 ## Last Validation (V4-5: adaptive-planner 2/2 + agent/signal/risks 回归 57/57)
 
