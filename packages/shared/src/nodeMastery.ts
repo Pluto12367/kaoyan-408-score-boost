@@ -130,7 +130,8 @@ export function toLegacyMasteryMap(input: NodeMasteryMap): LegacyMasteryMap {
 
 export interface MasteryTrendPoint {
   date: string;
-  averageMastery: number;
+  /** Average mastery in percent for days WITH snapshots; null = no snapshot (never fabricate 0). */
+  averageMastery: number | null;
 }
 
 export interface NodeTrendSeries {
@@ -311,7 +312,7 @@ export function buildMasteryTrend(input: {
         date,
         averageMastery: values.length
           ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100)
-          : 0,
+          : null,
       };
     });
     const weakestNodes = nodeSeries

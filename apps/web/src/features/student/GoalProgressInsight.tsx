@@ -1,5 +1,6 @@
 import type { UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
+import { resolveScoreGapView } from '../../displayFormat';
 
 export interface GoalProgressInsightProps {
   student?: UserProfile | null;
@@ -44,9 +45,8 @@ export function GoalProgressInsight({
 }: GoalProgressInsightProps) {
   const currentScore = student?.currentScore;
   const targetScore = student?.targetScore;
-  const scoreGap = typeof currentScore === 'number' && typeof targetScore === 'number'
-    ? Math.max(0, targetScore - currentScore)
-    : null;
+  const scoreGapView = resolveScoreGapView(currentScore, targetScore);
+  const scoreGap = scoreGapView.gap;
   const weekFocus = getWeekFocus(report, todayPlan, taskChapter);
   const taskContribution = getTaskContribution(todayPlan, taskTitle, taskSubject);
   const completedTasks = todayPlan?.summary.completedTasks ?? 0;
@@ -62,7 +62,7 @@ export function GoalProgressInsight({
           <h4>这一步如何接近目标</h4>
           <span>{targetName}</span>
         </div>
-        <strong>{scoreGap === null ? '--' : `${scoreGap} 分`}</strong>
+        <strong>{scoreGapView.gapLabel}</strong>
       </div>
       <div className="goal-progress-grid">
         <article>
@@ -75,7 +75,7 @@ export function GoalProgressInsight({
         </article>
         <article>
           <span>还差</span>
-          <strong>{scoreGap === null ? '--' : `${scoreGap} 分`}</strong>
+          <strong>{scoreGapView.reachedLabel}</strong>
         </article>
         <article>
           <span>剩余天数</span>
@@ -91,9 +91,10 @@ export function GoalProgressInsight({
         <strong>{taskContribution}</strong>
       </div>
       <p>
-        {estimatedGain != null
-          ? `当前报告预估可提升 ${estimatedGain} 分；本卡只解释学习方向，不承诺单题立即涨分。`
-          : `已完成 ${completedTasks}/${totalTasks} 项今日任务；继续完成后，系统会用真实练习记录校准目标差距。`}
+        {scoreGapView.guidance
+          ?? (estimatedGain != null
+            ? `当前报告预估可提升 ${estimatedGain} 分；本卡只解释学习方向，不承诺单题立即涨分。`
+            : `已完成 ${completedTasks}/${totalTasks} 项今日任务；继续完成后，系统会用真实练习记录校准目标差距。`)}
       </p>
     </section>
   );

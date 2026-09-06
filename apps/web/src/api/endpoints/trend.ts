@@ -2,7 +2,8 @@ import { API_BASE_URL, fetchWithAuth } from '../client';
 
 export interface MasteryTrendPoint {
   date: string;
-  averageMastery: number;
+  /** Percent for days WITH snapshots; null = no snapshot that day. */
+  averageMastery: number | null;
 }
 
 export interface NodeTrendSeries {

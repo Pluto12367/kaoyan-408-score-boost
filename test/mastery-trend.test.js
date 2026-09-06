@@ -66,3 +66,30 @@ test('buildMasteryTrend handles empty snapshots', async () => {
   assert.deepEqual(trend.improving, []);
   assert.deepEqual(trend.declining, []);
 });
+
+test('subject series marks days without subject snapshots as null instead of 0', async () => {
+  const { buildMasteryTrend } = await loadNodeMastery();
+  const trend = buildMasteryTrend({
+    userId: 'u-1',
+    snapshots: [
+      { knowledgeNodeId: 'n-a', mastery: 0.4, snapshotDate: '2026-08-10T00:00:00.000Z' },
+      { knowledgeNodeId: 'n-os', mastery: 0.6, snapshotDate: '2026-08-11T00:00:00.000Z' },
+    ],
+    nodeCatalog: [
+      ...NODE_CATALOG,
+      { knowledgeNodeId: 'n-os', subject: '操作系统', title: 'OS 点', chapter: 'C1' },
+    ],
+    subjects: ['数据结构', '操作系统'],
+    days: 7,
+  });
+  const ds = trend.subjects.find((subject) => subject.subject === '数据结构');
+  assert.deepEqual(ds.series, [
+    { date: '2026-08-10', averageMastery: 40 },
+    { date: '2026-08-11', averageMastery: null },
+  ]);
+  const os = trend.subjects.find((subject) => subject.subject === '操作系统');
+  assert.deepEqual(os.series, [
+    { date: '2026-08-10', averageMastery: null },
+    { date: '2026-08-11', averageMastery: 60 },
+  ]);
+});

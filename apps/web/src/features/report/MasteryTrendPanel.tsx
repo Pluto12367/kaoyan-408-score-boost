@@ -101,15 +101,22 @@ export function MasteryTrendPanel() {
   );
 }
 
-function TrendBars({ points }: { points: Array<{ date: string; averageMastery: number }> }) {
+function TrendBars({ points }: { points: Array<{ date: string; averageMastery: number | null }> }) {
   if (points.length === 0) return <p className="catalog-drawer-empty">暂无数据</p>;
   return (
     <div className="trend-bars" role="img" aria-label="掌握度趋势柱状图">
       {points.map((point) => (
-        <div key={point.date} className="trend-bar-col" title={`${point.date}：${point.averageMastery}%`}>
-          <span className="trend-bar" style={{ height: `${Math.max(2, point.averageMastery)}%` }} />
-          <small>{point.date.slice(5)}</small>
-        </div>
+        point.averageMastery == null ? (
+          <div key={point.date} className="trend-bar-col trend-bar-nosnapshot" title={`${point.date}：无快照`}>
+            <span className="trend-bar trend-bar-empty" />
+            <small>{point.date.slice(5)}</small>
+          </div>
+        ) : (
+          <div key={point.date} className="trend-bar-col" title={`${point.date}：${point.averageMastery}%`}>
+            <span className="trend-bar" style={{ height: `${Math.max(2, point.averageMastery)}%` }} />
+            <small>{point.date.slice(5)}</small>
+          </div>
+        )
       ))}
     </div>
   );

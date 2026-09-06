@@ -187,7 +187,7 @@ export function StudentProgressOverview({
       {sections.includes('metrics') ? <section id="dashboard" className="metrics-grid">
         <Metric title="目标分" value={`${student.targetScore ?? 0}`} caption={student.targetSchool ?? '目标院校未设置'} />
         <Metric title="正确率" value={canonicalOverview ? (canonicalAccuracy === null ? '--' : `${canonicalAccuracy}%`) : `${report.accuracyRate}%`} caption={canonicalOverview ? `近 7 日 · ${canonicalOverview.progress.last7d.sampleSize} 次练习 · ${canonicalOverview.progress.last7d.status}` : '近 20 次练习统计'} />
-        <Metric title="预计提分空间" value={canonicalOverview ? '--' : `${report.estimatedGain} 分`} caption={canonicalOverview ? 'Canonical Overview 未定义该指标' : '基于薄弱点和目标分估算'} />
+        <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
         <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
         <Metric title="预测分数" value={predicted ? `${predicted.minScore}–${predicted.maxScore} 分` : '--'} caption={predicted ? predicted.disclaimer : '完成练习后估算'} />
       </section> : null}

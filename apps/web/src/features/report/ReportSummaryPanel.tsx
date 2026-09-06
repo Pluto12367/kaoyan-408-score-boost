@@ -10,6 +10,7 @@ import { buildReportNextLearningStep, NextLearningStepCard } from '../student/Ne
 import { buildReportActions } from '../student/actions/adapters/reportActionAdapter';
 import { toRoleSection } from '../student/actions/studentActionDestination';
 import { toReportWorkspaceSummary } from '../student/report/reportWorkspaceContextAdapter';
+import { formatRatePercent } from '../../displayFormat';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -109,12 +110,12 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
   const canonicalPracticeWeakness = canonicalOverview?.weaknesses.practiceWeaknesses[0] ?? null;
   const topTask = canonicalOverview
     ? canonicalNodeWeakness
-      ? `优先补强「${canonicalNodeWeakness.title}」（掌握 ${canonicalNodeWeakness.masteryRate}% · Node 掌握度）`
+      ? `优先补强「${canonicalNodeWeakness.title}」（掌握 ${formatRatePercent(canonicalNodeWeakness.masteryRate)} · Node 掌握度）`
       : canonicalPracticeWeakness
         ? `优先训练「${canonicalPracticeWeakness.title}」（正确率 ${canonicalPracticeWeakness.accuracyRate}% · Point 练习表现）`
         : '先完成今日推荐练习，积累数据后再生成建议'
     : topMasteryWeakPoint
-      ? `优先补强「${topMasteryWeakPoint.title}」（掌握 ${topMasteryWeakPoint.masteryRate}%，基于掌握度地图）`
+      ? `优先补强「${topMasteryWeakPoint.title}」（掌握 ${formatRatePercent(topMasteryWeakPoint.masteryRate)}，基于掌握度地图）`
       : report.weakPoints[0]
         ? `优先补强「${report.weakPoints[0].title}」（${report.weakPoints[0].chapter}）：${report.weakPoints[0].suggestion}`
         : stageReport?.nextAction
@@ -144,12 +145,12 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
 
   const longTermWeakPoints = useMemo(() => {
     if (canonicalOverview) {
-      return canonicalOverview.weaknesses.nodeWeaknesses.slice(0, 3).map((point) => ({ title: point.title, rate: `掌握 ${point.masteryRate}%` }));
+      return canonicalOverview.weaknesses.nodeWeaknesses.slice(0, 3).map((point) => ({ title: point.title, rate: `掌握 ${formatRatePercent(point.masteryRate)}` }));
     }
     const weak = (masteryMap?.subjects ?? []).flatMap((subject) =>
       subject.points
         .filter((point) => point.status === 'weak')
-        .map((point) => ({ title: point.title, rate: `掌握 ${point.masteryRate}%` })),
+        .map((point) => ({ title: point.title, rate: `掌握 ${formatRatePercent(point.masteryRate)}` })),
     );
     if (weak.length > 0) return weak.slice(0, 3);
     return report.weakPoints.slice(0, 3).map((point) => ({ title: point.title, rate: `正确率 ${point.accuracyRate}%` }));
@@ -169,7 +170,7 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
       title: '训练薄弱知识点',
       description: canonicalOverview
         ? canonicalNodeWeakness
-          ? `优先补强：${canonicalNodeWeakness.title}（Node 掌握度 ${canonicalNodeWeakness.masteryRate}%）。`
+          ? `优先补强：${canonicalNodeWeakness.title}（Node 掌握度 ${formatRatePercent(canonicalNodeWeakness.masteryRate)}）。`
           : canonicalPracticeWeakness
             ? `优先训练：${canonicalPracticeWeakness.title}（Point 正确率 ${canonicalPracticeWeakness.accuracyRate}%）。`
             : '暂无明确薄弱点时，用推荐题组继续积累数据。'

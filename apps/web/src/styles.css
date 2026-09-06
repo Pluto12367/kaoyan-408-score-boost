@@ -6819,6 +6819,13 @@ html[data-theme="b"] .role-pill {
   border-radius: 3px 3px 0 0;
   background: var(--accent);
 }
+/* Days without a mastery snapshot: hollow baseline tick, never a 0% bar. */
+.trend-bar-empty {
+  height: 2px;
+  background: transparent;
+  border-bottom: 2px dotted var(--text-muted);
+  border-radius: 0;
+}
 .trend-bar-col small {
   color: var(--text-muted);
   font-size: 11px;
