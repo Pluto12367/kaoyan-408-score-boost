@@ -16,7 +16,6 @@ export interface TodayLearningRouteProps {
   launchError: string;
   onRetry: () => void;
   onLaunch: (task: TodayPlanTask) => void;
-  onOpenPlan: () => void;
   onOpenWrongBook: () => void;
   onOpenReport: () => void;
   /** V8 #8: the home canonical action card already headlines this task —
@@ -73,7 +72,6 @@ export function TodayLearningRoute(props: TodayLearningRouteProps) {
         <h2 id="today-route-title">今日学习路线</h2>
       </div>
       <div className="today-route-summary">预计 {totalMinutes} 分钟 · 已完成 {completedMinutes} 分钟</div>
-      <button type="button" className="text-button" onClick={props.onOpenPlan}>调整计划</button>
     </header>
 
     {firstTask ? (

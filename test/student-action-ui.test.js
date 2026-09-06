@@ -135,10 +135,10 @@ test('Review queue keeps question identity per row and honest bucket empty state
   assert.match(queue, /const items = queue\[activeTab\];/);
   assert.match(queue, /onOpenReview\(group\.questionIds\[0\]\)/);
   assert.match(queue, /等 \$\{group\.count\} 道题/, 'multi-question groups must show their count');
-  for (const bucket of ['today', 'overdue', 'upcoming']) {
+  for (const bucket of ['today', 'overdue']) {
     assert.match(queue, new RegExp(`'${bucket}'`), `${bucket} bucket should remain a distinct queue`);
   }
-  assert.match(queue, /当前已有接口只提供到期复习记录/, 'the upcoming tab must stay honest about the data boundary');
+  assert.doesNotMatch(queue, /即将到期/, 'the permanently-empty upcoming tab was removed (V8 #30)');
   assert.match(queue, /重新加载/);
 });
 

@@ -49,6 +49,7 @@ const studentItems: NavigationItem[] = [
   { id: 'knowledge-catalog', label: '知识', icon: Network },
   { id: 'wrong-book', label: '错题', icon: ShieldCheck },
   { id: 'test', label: '测试', icon: ClipboardCheck },
+  { id: 'ai', label: 'AI 答疑', icon: Brain },
 ];
 
 const studentBottomItems: NavigationItem[] = [
@@ -57,6 +58,7 @@ const studentBottomItems: NavigationItem[] = [
   { id: 'knowledge-catalog', label: '知识', icon: Network },
   { id: 'wrong-book', label: '错题', icon: ShieldCheck },
   { id: 'test', label: '测试', icon: ClipboardCheck },
+  { id: 'ai', label: 'AI 答疑', icon: Brain },
 ];
 
 const studentCompatSections: RoleSection[] = [

@@ -136,7 +136,6 @@ export function StudentLaunchpad({
         launchError={todayTaskLaunchError}
         onRetry={onRetryTodayPlan}
         onLaunch={onLaunchTodayTask}
-        onOpenPlan={() => onNavigate('plan')}
         onOpenWrongBook={() => onNavigate('wrong-book')}
         onOpenReport={() => onNavigate('report')}
         hideFirstStepAction={hideFirstStepAction}

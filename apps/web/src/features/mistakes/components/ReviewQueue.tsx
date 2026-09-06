@@ -11,10 +11,11 @@ interface ReviewQueueProps {
   onOpenReview: (questionId: string) => void;
 }
 
+// V8 #30: the earlier look-ahead tab was permanently empty (the due-reviews
+// feed only contains due items) — removed instead of showing a dead tab.
 const TABS: Array<{ id: ReviewQueueBucket; label: string; icon: typeof CalendarClock }> = [
   { id: 'today', label: '今天', icon: CalendarClock },
   { id: 'overdue', label: '已逾期', icon: CircleAlert },
-  { id: 'upcoming', label: '即将到期', icon: RotateCcw },
 ];
 
 export function ReviewQueue({ queue, loading, error, onRetry, onOpenReview }: ReviewQueueProps) {
@@ -56,8 +57,8 @@ export function ReviewQueue({ queue, loading, error, onRetry, onOpenReview }: Re
           </div>
         ) : items.length === 0 ? (
           <EmptyState
-            title={activeTab === 'upcoming' ? '暂无即将到期的数据' : activeTab === 'overdue' ? '没有已逾期复习' : '今天没有到期复习'}
-            description={activeTab === 'upcoming' ? '当前已有接口只提供到期复习记录。' : '新的复习安排会根据已有学习记录出现在这里。'}
+            title={activeTab === 'overdue' ? '没有已逾期复习' : '今天没有到期复习'}
+            description="新的复习安排会根据已有学习记录出现在这里。"
           />
         ) : (
           items.slice(0, 5).map((group) => (

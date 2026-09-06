@@ -50,7 +50,8 @@ test('onboarding and today-task actions refresh every student progress resource'
 test('homepage route delegates plan editing to the dedicated plan section', async () => {
   const launchpad = await readFile(new URL('../apps/web/src/features/onboarding/StudentLaunchpad.tsx', import.meta.url), 'utf8');
   assert.match(launchpad, /<TodayLearningRoute/);
-  assert.match(launchpad, /onOpenPlan=\{\(\) => onNavigate\('plan'\)\}/);
+  // V8 #22: the dead 调整计划 link (plan section normalized to dashboard) is gone
+  assert.doesNotMatch(launchpad, /onOpenPlan/);
   assert.doesNotMatch(launchpad, /<TodayPlan\b/);
 });
 

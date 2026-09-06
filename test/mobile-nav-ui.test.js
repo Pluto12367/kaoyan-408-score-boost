@@ -4,16 +4,16 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('stage 6: student bottom navigation keeps five unique tabs', async () => {
+test('stage 6: student bottom navigation keeps six unique tabs (V8 #21 adds AI)', async () => {
   const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
 
   const bottomItems = navigation.match(/const studentBottomItems: NavigationItem\[\] = \[([\s\S]*?)\];/)?.[1] ?? '';
   const ids = [...bottomItems.matchAll(/\{ id: '([^']+)'/g)].map((match) => match[1]);
   const labels = [...bottomItems.matchAll(/label: '([^']+)'/g)].map((match) => match[1]);
 
-  assert.equal(ids.length, 5, `expected 5 bottom tabs, got ${ids.length}`);
-  assert.equal(new Set(ids).size, 5, 'bottom tab ids must be unique');
-  assert.deepEqual(labels, ['首页', '题库', '知识', '错题', '测试']);
+  assert.equal(ids.length, 6, `expected 6 bottom tabs, got ${ids.length}`);
+  assert.equal(new Set(ids).size, 6, 'bottom tab ids must be unique');
+  assert.deepEqual(labels, ['首页', '题库', '知识', '错题', '测试', 'AI 答疑'], 'AI 答疑 must be a first-class tab (audit U1)');
   assert.match(navigation, /normalizeRoleSection\(section: RoleSection\)/);
   assert.match(navigation, /if \(section === 'report'\) return 'test'/);
   assert.match(navigation, /className="bottom-nav"/);

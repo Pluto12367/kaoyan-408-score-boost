@@ -55,7 +55,8 @@ test('report summary turns conclusions into concrete learning actions', async ()
 
 test('desktop fix: dashboard route and lower insight cards expose their destinations', async () => {
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
-  assert.match(launchpad, /onOpenPlan=\{\(\) => onNavigate\('plan'\)\}/);
+  // V8 #22: the dead plan link is removed; the other destinations stay wired
+  assert.doesNotMatch(launchpad, /onOpenPlan/);
   assert.match(launchpad, /onOpenWrongBook=\{\(\) => onNavigate\('wrong-book'\)\}/);
   assert.match(launchpad, /onClick=\{\(\) => onNavigate\('question'\)\}/);
   assert.match(launchpad, /onOpenReview\(item\.questionId\)/);

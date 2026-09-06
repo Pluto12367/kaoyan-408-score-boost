@@ -5485,7 +5485,7 @@ textarea:focus-visible,
     bottom: 0;
     z-index: 40;
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 2px;
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
     background: #111827;
