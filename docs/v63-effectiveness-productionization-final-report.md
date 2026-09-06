@@ -53,13 +53,29 @@
 - 单用户生产环境 → experiments 必然 `insufficient_data`、proposals 为空——这正是预期行为。
 - experiments 标注 `design: 'observational_cohort'`（观察性队列对比，非受控实验，关联≠因果）。
 
-## 6. 遗留风险
+## 6. 生产部署与冒烟（2026-09-07 完成）
 
-1. **部署未执行**：生产（Tencent Cloud 2C2G）仍运行 `v7.0.0-production-certified` 代码。上线步骤 = 服务器 `git pull` + `docker compose -f compose.production.yml --env-file .env.production up -d --build` + 冒烟 4 个端点（无迁移步骤）。2C2G 内存预算不受影响（只读有界查询，app 堆上限 512MB 不变）。
-2. **单用户数据稀疏**：生产当前仅 1 个活跃学习账号，outcomes 大概率落在 `insufficient_data` 分支——这是诚实行为，需要真实用户积累后才出现 gate PASS。
-3. **knowledgePointId→nodeId 覆盖率依赖 NodeMap 种子**：未建映射的历史记录不参与 outcome（设计如此）；提升覆盖率需内容侧补映射，不在本轮范围。
-4. **22 项 UI 测试债**与 V6 staging 部署仍按原计划归属后续工作线。
+部署：Tencent Cloud 2C2G，服务器经 `git fetch origin feature/v3-product-refactor`（显式 refspec 穿透代理陈旧缓存）更新到 `b72bfc5`，`up -d --build` 重建，三容器健康，`/health` overall ok。无迁移步骤（零 Schema 变更）。
 
-## 7. Git 状态
+生产冒烟（体验账号，网关 `/api` 前缀）全项 PASS：
 
-未提交（遵守 AGENTS.md 第 9 条）。提交时按 `docs/current-sprint.md` §4 的 V6.3 清单精确 `git add`，禁用 `git add -A`。
+| 端点 | 生产证据 | 判定 |
+|---|---|---|
+| GET /effectiveness/outcomes | 节点 `CO-C03-S05-P01`：161 次真实练习，masteryBefore 0.5504 → masteryAfter 0.8922，masteryGain 0.3418，quality ok，confidence high，**evidence gate 四项检查全部通过**（161/5、0.3418/0.05、high、ok） | PASS |
+| GET /effectiveness/interventions | 真实 RecommendationAction→StudyTask 链派生 `study_plan_task` 事件（如目标 OS-C02-S04-P04，status delivered），eventKey 幂等格式正确，actionCorrelation 诚实标注 partial | PASS |
+| GET /effectiveness/summary | 画像 archetype=returning（avgMastery 0.68、recentAccuracy 0.85、overdue 24）；**outcomes 汇总 4 节点评估：gatePassed 1 / gateBlocked 3** | PASS |
+| GET /effectiveness/experiments | HTTP 403（学生角色被 RoleGuard 拦截）——数据隔离门禁的生产证据 | PASS |
+
+**生产证据要点**：evidence gate 在真实数据上非全有全无——同一用户 4 个节点中 3 个因证据不足被诚实拦截、1 个以 161 样本通过，门槛精确工作；"单活跃用户必然 insufficient_data"的预估被修正为"按节点证据强度独立判定"。观测指标 `snapshotLearningIntelligence().effectiveness` 已在 `/ai/metrics` 可查（bySurface/derivations/gatePassed/gateInsufficient）。
+
+## 7. 遗留风险（更新）
+
+1. ~~生产部署未执行~~ **已完成**（本报告 §6）。V6.3 代码已随 `b72bfc5` 上线生产。
+2. **数据覆盖**：体验账号 gate 通过节点为 1/4——更多节点通过需真实用户持续练习积累；NodeMap 映射覆盖率提升归内容侧后续工作。
+3. **experiments 正向路径**生产验证仍缺 admin token 证据（集成测试已覆盖正向逻辑 + 生产 403 已证明门禁；可择机用管理员账号补一次 cohort insufficient_data 冒烟，不阻塞）。
+4. **服务器 git 缓存怪象**：腾讯云到 GitHub 的代理会间歇性返回陈旧 ref 通告（默认 `git pull` 拿到旧 `a0de9ee`）；已用 `git fetch origin <branch>` 显式 refspec 穿透 + `git reset --hard FETCH_HEAD` 解决，并留置 `http.version=HTTP/1.1`。后续服务器更新若再遇 "Already up to date" 异常，直接用此流程。
+5. 22 项 UI 测试债与 V6 staging 部署仍按原计划归属后续工作线。
+
+## 8. Git 状态
+
+**已提交并部署**：`b72bfc5`（本地 → GitHub → 生产服务器三方一致）。tag `v7.0.0-production-certified`（869c161）保持不动，V6.3 在认证基线之上增量前进。
