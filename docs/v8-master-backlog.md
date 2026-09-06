@@ -20,7 +20,7 @@
 | # | 项 | 来源 | 状态 |
 |---|---|---|---|
 | 8 | 首页唯一今日卡：合并 StudentActionCard/TodayMission/TodayLearningRoute 为单一"今日焦点"模块（一个任务、一个理由、一个开始按钮），其余任务降级为列表 | U5/P7 | ⬜ |
-| 9 | 全局"下一步"仲裁：建立单一 pickNextBestAction selector（输入 StudentContext+risks+review+plan），四页（首页/题库/错题/报告）共用，保证"最重要的一件事"全产品一致 | P7 | ⬜ |
+| 9 | 全局"下一步"仲裁：建立单一 pickNextBestAction selector（输入 StudentContext+risks+review+plan），四页（首页/题库/错题/报告）共用，保证"最重要的一件事"全产品一致 | P7 | ✅（仲裁器提取 reportTopFocus + 报告页接线；题库提分报告卡接入排 #57） |
 | 10 | effectiveness 前端消费第一刀：报告页新增"努力与效果"卡（复用 V6.3 summary/outcomes，insufficient_data 显示"继续积累一周数据"） | U16/B10 | ⬜ |
 | 11 | TodayMission 任务行透出 reason（GET /today/plan 透传结构化 reasonCodes，B1 后端先行，前端渲染理由标签） | B1/U6 | ⬜ |
 | 12 | 时长预算入口："我有 15/30/60 分钟"快速会话——后端开放 composeDailyPlan 四档引擎到经典闭环，前端首页加预算选择 | B7/U22 | ⬜ |
@@ -78,6 +78,7 @@
 | 54 | 错题"审题错误 83 次"→针对性策略卡（审题类错因专项训练入口） | 生产走查 | ⬜ |
 | 55 | 学习画像 timeline"入学诊断 2026-09-07"时间戳异常排查（学生 8 月已开始练习） | 生产走查 | ⬜ |
 | 56 | 错题本与 canonical WrongQuestionReview 表漂移对账（23 vs 12）：数据来源审计 → resolved 回写策略 → 迁移评估（架构保护边界，设计先行） | P5/新 | ⬜ |
+| 57 | 题库提分报告卡（树与二叉树）接入同一仲裁来源 | P7 | ⬜ |
 
 ## 执行节奏
 

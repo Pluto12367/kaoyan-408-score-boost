@@ -11,6 +11,7 @@ import { buildReportActions } from '../student/actions/adapters/reportActionAdap
 import { toRoleSection } from '../student/actions/studentActionDestination';
 import { toReportWorkspaceSummary } from '../student/report/reportWorkspaceContextAdapter';
 import { formatRatePercent } from '../../displayFormat';
+import { resolveReportTopFocus } from '../student/actions/reportTopFocus';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -112,12 +113,18 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
   const topMasteryWeakPoint = stageReport?.mastery.weakestPoints[0] ?? null;
   const canonicalNodeWeakness = canonicalOverview?.weaknesses.nodeWeaknesses[0] ?? null;
   const canonicalPracticeWeakness = canonicalOverview?.weaknesses.practiceWeaknesses[0] ?? null;
+  // V8 #9: same arbitration as the home page — an open today task headlines;
+  // weakness is the after-line, never a competing first step.
+  const topFocus = resolveReportTopFocus({
+    todayPlan,
+    canonicalNodeWeakness,
+    topMasteryWeakPoint,
+    practiceWeakness: canonicalPracticeWeakness
+      ? { title: canonicalPracticeWeakness.title, accuracyRate: canonicalPracticeWeakness.accuracyRate }
+      : null,
+  });
   const topTask = canonicalOverview
-    ? canonicalNodeWeakness
-      ? `优先补强「${canonicalNodeWeakness.title}」（掌握 ${formatRatePercent(canonicalNodeWeakness.masteryRate)} · Node 掌握度）`
-      : canonicalPracticeWeakness
-        ? `优先训练「${canonicalPracticeWeakness.title}」（正确率 ${canonicalPracticeWeakness.accuracyRate}% · Point 练习表现）`
-        : '先完成今日推荐练习，积累数据后再生成建议'
+    ? (topFocus.afterLine ? `${topFocus.headline}；${topFocus.afterLine}。` : topFocus.headline)
     : topMasteryWeakPoint
       ? `优先补强「${topMasteryWeakPoint.title}」（掌握 ${formatRatePercent(topMasteryWeakPoint.masteryRate)}，基于掌握度地图）`
       : report.weakPoints[0]
