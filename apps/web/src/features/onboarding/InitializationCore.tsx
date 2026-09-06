@@ -13,8 +13,10 @@ export function InitializationCore({ profile, onComplete }: InitializationCorePr
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    const timers = stages.slice(1).map((_, index) => window.setTimeout(() => setStage(index + 1), (index + 1) * 1200));
-    const done = window.setTimeout(onComplete, 6600);
+    // V8 #52: compress the theatrical wait (~6.6s → ~3s). The stages are
+    // presentation only; nothing here gates real initialization work.
+    const timers = stages.slice(1).map((_, index) => window.setTimeout(() => setStage(index + 1), (index + 1) * 550));
+    const done = window.setTimeout(onComplete, 3000);
     return () => { timers.forEach(window.clearTimeout); window.clearTimeout(done); };
   }, [onComplete]);
 

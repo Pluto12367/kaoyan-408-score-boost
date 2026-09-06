@@ -21,4 +21,12 @@ export class AiMetricsController {
   getMetrics() {
     return this.metrics.snapshot();
   }
+
+  /** V8 #41: expose the learning-intelligence half (risk/adaptive/effectiveness counters). */
+  @Get('ai/learning-intelligence')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  getLearningIntelligence() {
+    return this.metrics.snapshotLearningIntelligence();
+  }
 }

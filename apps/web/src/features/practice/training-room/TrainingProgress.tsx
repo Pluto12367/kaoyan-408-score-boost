@@ -24,7 +24,7 @@ export function TrainingProgress({ model }: TrainingProgressProps) {
           <p className="eyebrow">Training Progress</p>
           <h3>当前进度</h3>
         </div>
-        <strong>{model.progress.current} / {model.progress.total}</strong>
+        <strong>题库推进 {model.progress.current} / {model.progress.total}</strong>
       </div>
       <div className="training-room-progress-content">
         <ProgressRing

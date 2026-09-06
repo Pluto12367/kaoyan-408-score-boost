@@ -66,3 +66,16 @@ test('code list is capped at three, highest-signal first', async () => {
   const codes = deriveTaskReasonCodes({ knowledgePointId: 'kp-cache' }, { weakPoints, remainingDays: 30 });
   assert.ok(codes.length <= 3, 'documented cap of 3');
 });
+
+test('V8 #41: ai-metrics controller exposes the learning-intelligence snapshot', async () => {
+  const controller = await readFile(new URL('../apps/api/src/ai-metrics/ai-metrics.controller.ts', import.meta.url), 'utf8');
+  assert.match(controller, /Get\('ai\/learning-intelligence'\)/);
+  assert.match(controller, /snapshotLearningIntelligence\(\)/);
+  const roles = controller.slice(controller.indexOf('learning-intelligence'));
+  assert.match(roles, /@Roles\('admin'\)/, 'learning-intelligence snapshot stays admin-only');
+});
+
+test('V8 #29: wrong-row variant action launches variant practice directly', async () => {
+  const workspace = await readFile(new URL('../apps/web/src/features/mistakes/MistakeWorkspace.tsx', import.meta.url), 'utf8');
+  assert.match(workspace, /onClick=\{\(\) => onPracticeVariant\?\.\(item\.questionId, item\.questionId\)\}>做同考点变式/);
+});

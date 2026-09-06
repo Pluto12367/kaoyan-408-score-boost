@@ -116,7 +116,8 @@ export function useDashboardViewModel(input: {
   const legacyCompletionRate = todayPlan?.summary.completionRate ?? (legacyTotalTaskCount ? Math.round((legacyCompletedTaskCount / legacyTotalTaskCount) * 100) : 0);
   const trend = (learningCalendar?.days ?? []).slice(-7).map((day) => ({
     label: day.date.slice(5),
-    value: day.completedTaskCount * 24 + day.practiceCount * 8,
+    // V8 #51: bar height = real practice count (no synthetic weighting).
+    value: day.practiceCount,
     practiceCount: day.practiceCount,
     active: day.isActive,
   }));

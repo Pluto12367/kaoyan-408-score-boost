@@ -375,7 +375,7 @@ export function MistakeWorkspace({ wrongQuestions, masteryMap, dueReviews, dueRe
             <div className="wrong-row-next-actions" aria-label="复盘后下一步">
               <span>复盘后下一步</span>
               <button type="button" disabled={item.reviewStatus === 'reviewed'} onClick={() => onReview(item.questionId)}>继续复盘</button>
-              <button type="button" onClick={() => onOpenDetail(item.questionId)}>做同考点变式</button>
+              <button type="button" onClick={() => onPracticeVariant?.(item.questionId, item.questionId)}>做同考点变式</button>
               <button type="button" onClick={() => onNavigate('dashboard')}>回到首页</button>
             </div>
           </article>
