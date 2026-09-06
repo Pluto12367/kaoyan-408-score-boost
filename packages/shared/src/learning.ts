@@ -680,7 +680,10 @@ export function computeMasteryReport(input: {
     speedRisks,
     mistakeReasons: countReasons(input.records),
     estimatedGain,
-    summary: `当前正确率 ${accuracyRate}%，预计提分空间 ${estimatedGain} 分；优先处理 ${weakPoints[0]?.chapter ?? '高频章节'}。`,
+    // V8 #57: name the weak POINT (title), not its chapter — the report and
+    // home pages already name points; a chapter name read as a different
+    // "most important thing" (audit P7).
+    summary: `当前正确率 ${accuracyRate}%，预计提分空间 ${estimatedGain} 分；优先处理 ${weakPoints[0]?.title ?? weakPoints[0]?.chapter ?? '高频章节'}。`,
   };
 }
 
