@@ -19,6 +19,9 @@ export interface TodayLearningRouteProps {
   onOpenPlan: () => void;
   onOpenWrongBook: () => void;
   onOpenReport: () => void;
+  /** V8 #8: the home canonical action card already headlines this task —
+   * show a pointer instead of a second competing start button. */
+  hideFirstStepAction?: boolean;
 }
 
 export function TodayLearningRoute(props: TodayLearningRouteProps) {
@@ -75,18 +78,27 @@ export function TodayLearningRoute(props: TodayLearningRouteProps) {
 
     {firstTask ? (
       <div className="today-route-first-action" role="status" aria-label="今日第一步主行动">
-        <strong>今日第一步：{firstTask.title}</strong>
-        <span>{firstTaskBenefits}</span>
-        <div className="today-route-first-action-meta">
-          <span>{firstTask.subject} · {firstTask.chapter}</span>
-          <span>{firstTaskProgress}/{firstTask.questionCount} 题</span>
-        </div>
-        <button
-          type="button"
-          className="primary-action today-route-primary"
-          disabled={props.launchingTaskId === firstTask.id}
-          onClick={() => props.onLaunch(firstTask)}
-        >{props.launchingTaskId === firstTask.id ? '正在启动…' : getTodayTaskActionLabel(firstTask, resolveTodayTaskDestination(firstTask.mode))}</button>
+        {props.hideFirstStepAction ? (
+          <>
+            <strong>今日第一步：{firstTask.title}</strong>
+            <span>这一步已显示在页面上方「首页核心行动」，直接在那里开始即可。</span>
+          </>
+        ) : (
+          <>
+            <strong>今日第一步：{firstTask.title}</strong>
+            <span>{firstTaskBenefits}</span>
+            <div className="today-route-first-action-meta">
+              <span>{firstTask.subject} · {firstTask.chapter}</span>
+              <span>{firstTaskProgress}/{firstTask.questionCount} 题</span>
+            </div>
+            <button
+              type="button"
+              className="primary-action today-route-primary"
+              disabled={props.launchingTaskId === firstTask.id}
+              onClick={() => props.onLaunch(firstTask)}
+            >{props.launchingTaskId === firstTask.id ? '正在启动…' : getTodayTaskActionLabel(firstTask, resolveTodayTaskDestination(firstTask.mode))}</button>
+          </>
+        )}
       </div>
     ) : null}
 

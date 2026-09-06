@@ -20,6 +20,23 @@ test('today route is an ordered presentational workflow with one task primary ac
   assert.doesNotMatch(ui, /startTask|fetchTodayPlan|setActiveSection/);
 });
 
+test('V8 #8: route first-step defers to the home canonical action when it heads the day', async () => {
+  const ui = await source('apps/web/src/features/onboarding/TodayLearningRouteView.tsx');
+  const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');
+  const sections = await source('apps/web/src/features/student/StudentSections.tsx');
+
+  assert.match(ui, /hideFirstStepAction\?: boolean/);
+  assert.match(ui, /props\.hideFirstStepAction \? \(/);
+  assert.match(ui, /这一步已显示在页面上方/, 'suppressed mode must point back to the canonical card, not render a second start button');
+
+  assert.match(launchpad, /hideFirstStepAction=/, 'launchpad must forward the suppression flag');
+  assert.match(
+    sections,
+    /hideFirstStepAction=\{canonicalAction\?\.type === 'today_task'\}/,
+    'suppression applies exactly when the canonical action IS the today task',
+  );
+});
+
 test('the current route task owns the dashboard visual primary action', async () => {
   const ui = await source('apps/web/src/features/onboarding/TodayLearningRouteView.tsx');
   const launchpad = await source('apps/web/src/features/onboarding/StudentLaunchpad.tsx');

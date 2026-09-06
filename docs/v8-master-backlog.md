@@ -19,7 +19,7 @@
 
 | # | 项 | 来源 | 状态 |
 |---|---|---|---|
-| 8 | 首页唯一今日卡：合并 StudentActionCard/TodayMission/TodayLearningRoute 为单一"今日焦点"模块（一个任务、一个理由、一个开始按钮），其余任务降级为列表 | U5/P7 | ⬜ |
+| 8 | 首页唯一今日卡：合并 StudentActionCard/TodayMission/TodayLearningRoute 为单一"今日焦点"模块（一个任务、一个理由、一个开始按钮），其余任务降级为列表 | U5/P7 | ✅（canonical 卡为唯一主行动；路线视图首步在 canonical 为 today_task 时降级为指路文案，不重复开始按钮） |
 | 9 | 全局"下一步"仲裁：建立单一 pickNextBestAction selector（输入 StudentContext+risks+review+plan），四页（首页/题库/错题/报告）共用，保证"最重要的一件事"全产品一致 | P7 | ✅（仲裁器提取 reportTopFocus + 报告页接线；题库提分报告卡接入排 #57） |
 | 10 | effectiveness 前端消费第一刀：报告页新增"努力与效果"卡（复用 V6.3 summary/outcomes，insufficient_data 显示"继续积累一周数据"） | U16/B10 | ✅（报告页新 tab：努力与效果，gate 通过展示增益、证据不足诚实呈现） |
 | 11 | TodayMission 任务行透出 reason（GET /today/plan 透传结构化 reasonCodes，B1 后端先行，前端渲染理由标签） | B1/U6 | ✅（前端先行：任务行渲染已有 reason 文本；经典闭环结构化 reasonCodes 派生拆至 #58） |

@@ -34,6 +34,7 @@ interface StudentLaunchpadProps {
   onNavigate: (section: RoleSection) => void;
   onLaunchTodayTask: (task: TodayPlanTask) => void;
   onRetryTodayPlan: () => void;
+  hideFirstStepAction?: boolean;
 }
 
 const SUBJECTS: Subject[] = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
@@ -60,6 +61,7 @@ export function StudentLaunchpad({
   onNavigate,
   onLaunchTodayTask,
   onRetryTodayPlan,
+  hideFirstStepAction,
 }: StudentLaunchpadProps) {
   const [paperType, setPaperType] = useState<PrepareExamPaperInput['paperType']>('模拟卷');
   const [subject, setSubject] = useState<Subject>('数据结构');
@@ -137,6 +139,7 @@ export function StudentLaunchpad({
         onOpenPlan={() => onNavigate('plan')}
         onOpenWrongBook={() => onNavigate('wrong-book')}
         onOpenReport={() => onNavigate('report')}
+        hideFirstStepAction={hideFirstStepAction}
       />
 
       <section className="panel student-subject-panel">

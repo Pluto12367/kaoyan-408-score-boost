@@ -352,6 +352,7 @@ export function StudentSections(props: StudentSectionsProps) {
                 masteryMap={props.masteryMap}
                 learningCalendar={props.learningCalendar}
                 wrongQuestionSummary={props.wrongQuestionSummary.data}
+                hideFirstStepAction={canonicalAction?.type === 'today_task'}
                 onNavigate={props.onNavigate}
                 onLaunchTodayTask={props.onLaunchTodayTask}
                 onRetryTodayPlan={props.onRetryTodayPlan}
