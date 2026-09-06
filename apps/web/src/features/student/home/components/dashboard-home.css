@@ -108,6 +108,7 @@
 .dashboard-task-copy { display: grid; gap: 4px; min-width: 0; }
 .dashboard-task-copy strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-task-copy small, .dashboard-task-count { color: #9793a4; font-size: 11px; }
+.dashboard-task-reason { display: block; overflow: hidden; font-style: normal; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
 .dashboard-task-count { white-space: nowrap; }
 .dashboard-ai-insight { padding: 24px; background: linear-gradient(145deg, #f2efff, #fff 75%); }
 .dashboard-insight-heading { justify-content: flex-start; }
