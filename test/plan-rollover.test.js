@@ -10,6 +10,9 @@ test('today plan rolls over an expired or empty seven-day plan so week progress 
   assert.match(block, /!hasCurrentWindow/);
   assert.match(block, /sevenDayPlansByUser\.delete\(userId\)/);
   assert.match(block, /buildSevenDayPlan\(userId\)/);
-  assert.match(block, /saveOnboarding\(userId, profile, freshPlan\)/);
+  // V8 #13: the rebuilt plan is augmented with carried-over open tasks
+  assert.match(block, /harvestCarryOverTasks\(scheduledPlan\.tasks, today\)/);
+  assert.match(block, /applyCarryOver\(freshPlan, carryOver, today\)/);
+  assert.match(block, /saveOnboarding\(userId, profile, augmented\)/);
   assert.match(block, /sevenDayPlansByUser\.set\(userId, scheduledPlan\)/);
 });

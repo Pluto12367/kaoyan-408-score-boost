@@ -24,7 +24,7 @@
 | 10 | effectiveness 前端消费第一刀：报告页新增"努力与效果"卡（复用 V6.3 summary/outcomes，insufficient_data 显示"继续积累一周数据"） | U16/B10 | ✅（报告页新 tab：努力与效果，gate 通过展示增益、证据不足诚实呈现） |
 | 11 | TodayMission 任务行透出 reason（GET /today/plan 透传结构化 reasonCodes，B1 后端先行，前端渲染理由标签） | B1/U6 | ✅（前端先行：任务行渲染已有 reason 文本；经典闭环结构化 reasonCodes 派生拆至 #58） |
 | 12 | 时长预算入口："我有 15/30/60 分钟"快速会话——后端开放 composeDailyPlan 四档引擎到经典闭环，前端首页加预算选择 | B7/U22 | ⬜ |
-| 13 | 断档恢复：重建窗口时结转 overdue 任务（按 priorityScore 压缩进未来 N 天），/today/plan 返回 recoveredFromGap，首页显示"已为你把 X 个逾期任务排进本周" | B5/P9 | ⬜ |
+| 13 | 断档恢复：重建窗口时结转 overdue 任务（按 priorityScore 压缩进未来 N 天），/today/plan 返回 recoveredFromGap，首页显示"已为你把 X 个逾期任务排进本周" | B5/P9 | ✅（missed-day-recovery 纯模块：harvest ≤3 最旧未完成任务重锚到新窗口首日，reason 标记断档补做，响应带 recoveredFromGap；UI 提示条待接） |
 | 14 | 复习卡去重聚合：同考点多题聚合为一张卡（"Cache 映射与替换 · 5 题待复习"），点开看题目列表 | P6 | ✅（buildReviewCenterViewModel 按考点分组，组卡显示 N 道题；行为测试钉死） |
 | 15 | 顶栏 API 状态聚合多资源（任一关键资源失败即显示降级） | U17 | ⬜ |
 | 16 | 考试倒计时贯通：targetExamDate→sprint-plan/exam 端点暴露 examCountdown，报告与首页展示倒计时；缺省时用 remainingDays 推算 | B4/B9 | ⬜ |

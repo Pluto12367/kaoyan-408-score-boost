@@ -45,6 +45,8 @@ export interface SevenDayPlanState {
   checkpoint: string;
   startDate: string;
   tasks: ScheduledStudyTaskState[];
+  /** V8 #13: set when the plan was rebuilt after a gap and open tasks were carried over. */
+  recoveredFromGap?: { carriedCount: number; recoveredOn: string };
 }
 
 export interface FutureTaskAdjustment {

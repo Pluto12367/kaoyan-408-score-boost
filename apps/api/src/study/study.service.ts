@@ -78,6 +78,7 @@ import {
   type SevenDayPlanState,
   type TaskRebalanceAdjustment,
 } from './onboarding-plan.repository';
+import { applyCarryOver, harvestCarryOverTasks } from './missed-day-recovery';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
@@ -1142,12 +1143,16 @@ export class StudyService implements OnModuleInit {
       const hasCurrentWindow = lastScheduledDate ? lastScheduledDate >= today : false;
       if (!hasCurrentWindow) {
         const profile = this.onboardingProfiles.get(userId);
+        // V8 #13 missed-day recovery: open overdue tasks ride into the fresh
+        // window instead of vanishing with the old plan.
+        const carryOver = harvestCarryOverTasks(scheduledPlan.tasks, today);
         this.sevenDayPlansByUser.delete(userId);
         const freshPlan = this.buildSevenDayPlan(userId);
         if (freshPlan.tasks.length > 0) {
+          const augmented = applyCarryOver(freshPlan, carryOver, today);
           scheduledPlan = profile
-            ? await this.onboardingPlanRepository.saveOnboarding(userId, profile, freshPlan)
-            : freshPlan;
+            ? await this.onboardingPlanRepository.saveOnboarding(userId, profile, augmented)
+            : augmented;
           this.sevenDayPlansByUser.set(userId, scheduledPlan);
         } else {
           this.sevenDayPlansByUser.set(userId, scheduledPlan);
@@ -1188,6 +1193,7 @@ export class StudyService implements OnModuleInit {
         weekProgress: this.getSevenDayPlanSummary(scheduledPlan).days,
         reviewDue: this.getDueReviews(userId).dueCount,
         checkpoint: scheduledPlan.checkpoint,
+        recoveredFromGap: scheduledPlan.recoveredFromGap ?? null,
         scoreCenter,
       };
     }
