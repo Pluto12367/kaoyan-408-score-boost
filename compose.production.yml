@@ -6,6 +6,15 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      # 2C2G tuning: limit PG memory footprint
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c effective_cache_size=256MB
+      -c max_connections=20
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -14,6 +23,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 320M
     logging:
       driver: json-file
       options:
@@ -73,7 +86,11 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-25000}
       AI_MAX_TOKENS: ${AI_MAX_TOKENS:-2000}
-      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=1536}
+      # 2C2G: Node heap capped at 512MB (was 1536 — causes OOM on 2GB)
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=512}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
       TENCENTCLOUD_SECRET_ID: ${TENCENTCLOUD_SECRET_ID:-}
       TENCENTCLOUD_SECRET_KEY: ${TENCENTCLOUD_SECRET_KEY:-}
       TENCENTCLOUD_REGION: ${TENCENTCLOUD_REGION:-ap-shanghai}
@@ -88,6 +105,10 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          memory: 640M
     logging:
       driver: json-file
       options:
@@ -101,13 +122,18 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
     depends_on:
       app:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 32M
     logging:
       driver: json-file
       options:
-        max-size: 10m
+        max-size: 5m
         max-file: "3"
 
 volumes:
