@@ -6,6 +6,7 @@ export type ReviewPrioritySource = 'review-due' | 'priority-redo' | 'display-fal
 
 export interface ReviewCenterQueueItem {
   questionId: string;
+  knowledgePointId: string | null;
   knowledgePointTitle: string;
   subject: string;
   stem: string;
@@ -17,6 +18,22 @@ export interface ReviewCenterQueueItem {
   mastery: number | null;
   masteryLabel: string;
   wrongCount: number | null;
+}
+
+export interface ReviewCenterQueueGroup {
+  /** Stable group key: knowledgePointId when known, else the title. */
+  key: string;
+  knowledgePointTitle: string;
+  subject: string;
+  bucket: ReviewQueueBucket;
+  /** How many distinct questions hide behind this card. */
+  count: number;
+  /** Every question id in the group (first one opens the review entry). */
+  questionIds: string[];
+  nextReviewAt: string | null;
+  statusLabel: string;
+  masteryLabel: string;
+  totalWrongCount: number;
 }
 
 export interface ReviewCenterPriorityItem extends ReviewCenterQueueItem {
@@ -43,7 +60,8 @@ export interface ReviewCenterViewModel {
     pendingCount: number;
   };
   priorityItem: ReviewCenterPriorityItem | null;
-  queue: Record<ReviewQueueBucket, ReviewCenterQueueItem[]>;
+  /** Per-point groups: N distinct due questions behind one card, never N identical cards. */
+  queue: Record<ReviewQueueBucket, ReviewCenterQueueGroup[]>;
   weakKnowledge: ReviewCenterWeakKnowledge[];
   recentMistakes: WrongQuestion[];
 }
@@ -64,24 +82,28 @@ export function formatMasteryRate(value: number | null | undefined): string {
 export function buildReviewCenterViewModel(input: ReviewCenterViewModelInput): ReviewCenterViewModel {
   const masteryById = buildMasteryIndex(input.masteryMap);
   const wrongByQuestionId = new Map(input.wrongQuestions.map((item) => [item.questionId, item]));
-  const queue = {
-    today: [] as ReviewCenterQueueItem[],
-    overdue: [] as ReviewCenterQueueItem[],
-    upcoming: [] as ReviewCenterQueueItem[],
+  const queueItems: Record<ReviewQueueBucket, ReviewCenterQueueItem[]> = {
+    today: [],
+    overdue: [],
+    upcoming: [],
   };
-
   for (const item of input.dueReviews) {
     const wrongQuestion = wrongByQuestionId.get(item.questionId);
     const bucket = reviewBucket(item.nextReviewAt);
-    queue[bucket].push(toDueQueueItem(item, wrongQuestion, masteryById, bucket));
+    queueItems[bucket].push(toDueQueueItem(item, wrongQuestion, masteryById, bucket));
   }
+  const queue = {
+    today: groupQueueItems(queueItems.today),
+    overdue: groupQueueItems(queueItems.overdue),
+    upcoming: groupQueueItems(queueItems.upcoming),
+  };
 
-  const duePriority = [...queue.today, ...queue.overdue, ...queue.upcoming][0];
-  const priorityItem = duePriority
+  const duePriorityItem = [...queueItems.today, ...queueItems.overdue, ...queueItems.upcoming][0];
+  const priorityItem = duePriorityItem
     ? {
-        ...duePriority,
+        ...duePriorityItem,
         source: 'review-due' as const,
-        reason: duePriority.bucket === 'overdue' ? '这项复习已经逾期，建议优先恢复。' : '这项复习已到期，建议今天完成。',
+        reason: duePriorityItem.bucket === 'overdue' ? '这项复习已经逾期，建议优先恢复。' : '这项复习已到期，建议今天完成。',
         suggestedAction: '打开详情，回顾错因后再做一次复测。',
       }
     : input.priorityRedoItems[0]
@@ -92,8 +114,8 @@ export function buildReviewCenterViewModel(input: ReviewCenterViewModelInput): R
 
   return {
     metrics: {
-      todayDueCount: queue.today.length,
-      overdueCount: queue.overdue.length,
+      todayDueCount: queue.today.reduce((sum, group) => sum + group.count, 0),
+      overdueCount: queue.overdue.reduce((sum, group) => sum + group.count, 0),
       pendingCount: input.pendingCount ?? input.wrongQuestions.length,
     },
     priorityItem,
@@ -103,6 +125,37 @@ export function buildReviewCenterViewModel(input: ReviewCenterViewModelInput): R
       .sort((left, right) => Date.parse(right.latestSubmittedAt) - Date.parse(left.latestSubmittedAt))
       .slice(0, 5),
   };
+}
+
+/** Collapse per-question due items into per-point groups (V8 #14). */
+function groupQueueItems(items: ReviewCenterQueueItem[]): ReviewCenterQueueGroup[] {
+  const groups = new Map<string, ReviewCenterQueueGroup>();
+  for (const item of items) {
+    const key = item.knowledgePointId ?? `title:${item.knowledgePointTitle}`;
+    const group = groups.get(key);
+    if (group) {
+      group.questionIds.push(item.questionId);
+      group.count += 1;
+      group.totalWrongCount += item.wrongCount ?? 0;
+      if (item.nextReviewAt && (group.nextReviewAt == null || item.nextReviewAt < group.nextReviewAt)) {
+        group.nextReviewAt = item.nextReviewAt;
+      }
+      continue;
+    }
+    groups.set(key, {
+      key,
+      knowledgePointTitle: item.knowledgePointTitle,
+      subject: item.subject,
+      bucket: item.bucket,
+      count: 1,
+      questionIds: [item.questionId],
+      nextReviewAt: item.nextReviewAt,
+      statusLabel: item.statusLabel,
+      masteryLabel: item.masteryLabel,
+      totalWrongCount: item.wrongCount ?? 0,
+    });
+  }
+  return [...groups.values()];
 }
 
 function buildMasteryIndex(masteryMap: MasteryMap | null) {
@@ -149,6 +202,7 @@ function toDueQueueItem(
   const mastery = wrongQuestion ? resolveWrongQuestionMastery(wrongQuestion, masteryById)?.masteryRate ?? null : null;
   return {
     questionId: item.questionId,
+    knowledgePointId: wrongQuestion?.knowledgePointId ?? null,
     knowledgePointTitle: item.knowledgePointTitle,
     subject: item.subject,
     stem: item.stem,
@@ -172,6 +226,7 @@ function toPriorityRedoItem(
   const mastery = wrongQuestion ? resolveWrongQuestionMastery(wrongQuestion, masteryById)?.masteryRate ?? null : null;
   return {
     questionId: item.questionId,
+    knowledgePointId: wrongQuestion?.knowledgePointId ?? null,
     knowledgePointTitle: item.knowledgePointTitle,
     subject: wrongQuestion?.subject ?? '暂无科目信息',
     stem: item.stem,
@@ -196,6 +251,7 @@ function toDisplayFallbackItem(
   const mastery = resolveWrongQuestionMastery(item, masteryById)?.masteryRate ?? null;
   return {
     questionId: item.questionId,
+    knowledgePointId: item.knowledgePointId,
     knowledgePointTitle: item.knowledgePointTitle,
     subject: item.subject,
     stem: item.stem,

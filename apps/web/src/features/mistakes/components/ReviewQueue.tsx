@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { ArrowRight, CalendarClock, CircleAlert, RotateCcw } from 'lucide-react';
 import { EmptyState, SurfaceCard } from '../../../components/ui';
-import type { ReviewCenterQueueItem, ReviewQueueBucket } from '../reviewCenterViewModel';
+import type { ReviewCenterQueueGroup, ReviewQueueBucket } from '../reviewCenterViewModel';
 
 interface ReviewQueueProps {
-  queue: Record<ReviewQueueBucket, ReviewCenterQueueItem[]>;
+  queue: Record<ReviewQueueBucket, ReviewCenterQueueGroup[]>;
   loading: boolean;
   error: string;
   onRetry: () => void;
@@ -29,7 +29,7 @@ export function ReviewQueue({ queue, loading, error, onRetry, onOpenReview }: Re
           <p className="eyebrow">Review queue</p>
           <h3>复习队列</h3>
         </div>
-        <span>{loading ? '同步中' : `${queue.today.length + queue.overdue.length} 项待处理`}</span>
+        <span>{loading ? '同步中' : `${queue.today.reduce((sum, group) => sum + group.count, 0) + queue.overdue.reduce((sum, group) => sum + group.count, 0)} 项待处理`}</span>
       </div>
       <div className="review-center-tabs" role="tablist" aria-label="复习时间队列">
         {TABS.map(({ id, label, icon: Icon }) => (
@@ -60,16 +60,16 @@ export function ReviewQueue({ queue, loading, error, onRetry, onOpenReview }: Re
             description={activeTab === 'upcoming' ? '当前已有接口只提供到期复习记录。' : '新的复习安排会根据已有学习记录出现在这里。'}
           />
         ) : (
-          items.slice(0, 5).map((item) => (
-            <article key={item.questionId} className={`review-center-queue-item queue-${item.bucket}`}>
+          items.slice(0, 5).map((group) => (
+            <article key={group.key} className={`review-center-queue-item queue-${group.bucket}`}>
               <div className="review-center-queue-item-icon" aria-hidden="true"><RotateCcw size={16} /></div>
               <div className="review-center-queue-item-copy">
-                <strong>{item.knowledgePointTitle}</strong>
-                <span>{item.subject} · {item.statusLabel} · 掌握度 {item.masteryLabel}</span>
-                <small>{item.nextReviewAt ? `复习时间 ${item.nextReviewAt.slice(0, 10)}` : '暂无复习时间'}{item.reviewCount != null ? ` · 已复习 ${item.reviewCount} 次` : ''}</small>
+                <strong>{group.knowledgePointTitle}{group.count > 1 ? ` 等 ${group.count} 道题` : ''}</strong>
+                <span>{group.subject} · {group.statusLabel} · 掌握度 {group.masteryLabel}</span>
+                <small>{group.nextReviewAt ? `复习时间 ${group.nextReviewAt.slice(0, 10)}` : '暂无复习时间'}{group.totalWrongCount > 0 ? ` · 累计错 ${group.totalWrongCount} 次` : ''}</small>
               </div>
-              <button type="button" className="secondary-action" onClick={() => onOpenReview(item.questionId)}>
-                开始复习 <ArrowRight size={13} aria-hidden="true" />
+              <button type="button" className="secondary-action" onClick={() => onOpenReview(group.questionIds[0])}>
+                {group.count > 1 ? '开始复习这组' : '开始复习'} <ArrowRight size={13} aria-hidden="true" />
               </button>
             </article>
           ))

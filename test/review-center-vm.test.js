@@ -119,11 +119,32 @@ test('queue buckets split by due date and metrics count today/overdue/pending', 
     masteryMap: masteryMap(),
     pendingCount: 7,
   });
-  assert.deepEqual(vm.queue.today.map((item) => item.questionId), ['q-today']);
-  assert.deepEqual(vm.queue.overdue.map((item) => item.questionId), ['q-overdue']);
+  assert.deepEqual(vm.queue.today.flatMap((group) => group.questionIds), ['q-today']);
+  assert.deepEqual(vm.queue.overdue.flatMap((group) => group.questionIds), ['q-overdue']);
   assert.equal(vm.metrics.todayDueCount, 1);
   assert.equal(vm.metrics.overdueCount, 1);
   assert.equal(vm.metrics.pendingCount, 7, 'pendingCount must use the server summary, not the list length');
+});
+
+test('queue groups same-point due items so identical cards never repeat', async () => {
+  const { buildReviewCenterViewModel } = await loadModule('../apps/web/src/features/mistakes/reviewCenterViewModel.ts');
+  const vm = buildReviewCenterViewModel({
+    dueReviews: [
+      dueReview({ questionId: 'q-c1' }),
+      dueReview({ questionId: 'q-c2' }),
+      dueReview({ questionId: 'q-c3' }),
+      dueReview({ questionId: 'q-other', knowledgePointTitle: '信号量' }),
+    ],
+    wrongQuestions: [],
+    priorityRedoItems: [],
+    masteryMap: null,
+  });
+  assert.equal(vm.queue.today.length, 2, '5 same-point cards must collapse to per-point groups');
+  const cacheGroup = vm.queue.today[0];
+  assert.equal(cacheGroup.knowledgePointTitle, 'Cache 映射与替换');
+  assert.equal(cacheGroup.count, 3);
+  assert.deepEqual(cacheGroup.questionIds, ['q-c1', 'q-c2', 'q-c3'], 'group keeps every question id for the detail entry');
+  assert.equal(vm.queue.today[1].knowledgePointTitle, '信号量');
 });
 
 test('queue items enrich mastery through Point→Node resolution and keep honest 未评估', async () => {
@@ -137,8 +158,8 @@ test('queue items enrich mastery through Point→Node resolution and keep honest
     priorityRedoItems: [],
     masteryMap: masteryMap(),
   });
-  const known = vm.queue.today.find((item) => item.questionId === 'q-1');
-  const unknown = vm.queue.today.find((item) => item.questionId === 'q-unknown');
+  const known = vm.queue.today.find((group) => group.questionIds.includes('q-1'));
+  const unknown = vm.queue.today.find((group) => group.questionIds.includes('q-unknown'));
   assert.equal(known.masteryLabel, '42%', 'wrong question kp-1 must resolve through the mastery index');
   assert.equal(unknown.masteryLabel, '未评估', 'missing mastery must read 未评估, never 0%');
 });

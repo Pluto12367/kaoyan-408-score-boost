@@ -133,7 +133,8 @@ test('Review queue keeps question identity per row and honest bucket empty state
   const queue = await source('apps/web/src/features/mistakes/components/ReviewQueue.tsx');
 
   assert.match(queue, /const items = queue\[activeTab\];/);
-  assert.match(queue, /onOpenReview\(item\.questionId\)/);
+  assert.match(queue, /onOpenReview\(group\.questionIds\[0\]\)/);
+  assert.match(queue, /等 \$\{group\.count\} 道题/, 'multi-question groups must show their count');
   for (const bucket of ['today', 'overdue', 'upcoming']) {
     assert.match(queue, new RegExp(`'${bucket}'`), `${bucket} bucket should remain a distinct queue`);
   }
@@ -178,7 +179,7 @@ test('Review actions carry explicit question context at callback boundaries', as
     assert.match(workspace, new RegExp(callback));
   }
   assert.match(card, /onOpenReview\(item\.questionId\)/);
-  assert.match(queue, /onOpenReview\(item\.questionId\)/);
+  assert.match(queue, /onOpenReview\(group\.questionIds\[0\]\)/);
 });
 
 test('Review convergence keeps filters, detail, redo, variant, evidence, and AI Coach capabilities', async () => {
