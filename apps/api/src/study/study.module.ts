@@ -38,6 +38,7 @@ import { AssessmentHistoryQueryService } from './assessment-history-query.servic
 import { ExamScoreHistoryProjectionService } from './exam-score-history.projection.service';
 import { ExamScoreHistoryQueryService } from './exam-score-history.query.service';
 import { StudyController } from './study.controller';
+import { DailyBriefController } from './daily-brief.controller';
 import { StudyService } from './study.service';
 import { AiTutorService } from './ai-tutor.service';
 import { AiTutorLogRepository } from './ai-tutor-log.repository';
@@ -72,7 +73,7 @@ import { StudentContextQueryService } from './student-context.query.service';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule, RagModule],
-  controllers: [StudyController],
+  controllers: [StudyController, DailyBriefController],
   providers: [StudyService, RecommendationActionService, RecommendationActionRepository, LearningSessionActionService, ActionOutcomeAuditRepository, ActionOutcomeAuditService, ActionLearningSignalService, RecommendationFeedbackService, StudentStateFeedbackAdapter, StudentStateFeedbackRepository, ActionLearningSignalConsumerService, ActionFeedbackTriggerService, OverviewReportProjectionService, OverviewQueryService, StudentStateProjectionService, StudentStateQueryService, StudentStateReminderQueryService, StudentStateSprintPlanQueryService, StudentStateTrialProgressQueryService, StudentStateLearningCalendarQueryService, ActivityProjectionService, PracticeProjectionService, MasterySummaryProjectionService, WrongQuestionProjectionService, WrongQuestionQueryService, TodayPlanProjectionService, TodayPlanQueryService, DashboardProjectionService, DashboardQueryService, AssessmentProjectionService, StageAssessmentProjectionService, StageAssessmentQueryService, AssessmentHistoryProjectionService, AssessmentHistoryQueryService, ContextualCoachService, ContextualCoachContextAssembler, StudentContextQueryService, ExamScoreHistoryQueryService, {
     provide: ExamScoreHistoryProjectionService,
     useFactory: (sessions: LearningSessionRepository, practiceRecords: PracticeRecordRepository) =>

@@ -109,6 +109,14 @@
 .dashboard-task-copy strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .dashboard-task-copy small, .dashboard-task-count { color: #9793a4; font-size: 11px; }
 .dashboard-task-reason { display: block; overflow: hidden; font-style: normal; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+/* V9 Phase 1 — daily coach brief */
+.daily-brief-section { padding: 20px 24px; background: linear-gradient(150deg, #eef0ff, #fff 70%); }
+.daily-brief-headline { margin: 10px 0 8px; font-size: 16px; font-weight: 700; }
+.daily-brief-states { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 4px; color: #5b5870; font-size: 12px; }
+.daily-brief-priorities { margin: 0 0 8px; padding-left: 4px; display: grid; gap: 6px; }
+.daily-brief-priorities strong { display: block; font-size: 13px; }
+.daily-brief-priorities small { color: #9793a4; font-size: 11px; }
+.daily-brief-followup { margin: 0; padding-top: 8px; border-top: 1px dashed #d9d6ea; color: #55a68d; font-size: 12px; }
 .dashboard-task-count { white-space: nowrap; }
 .dashboard-ai-insight { padding: 24px; background: linear-gradient(145deg, #f2efff, #fff 75%); }
 .dashboard-insight-heading { justify-content: flex-start; }
