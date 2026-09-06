@@ -43,9 +43,12 @@ test('report summary turns conclusions into concrete learning actions', async ()
   assert.match(summary, /优先复盘错题/);
   assert.match(summary, /训练薄弱知识点/);
   assert.match(summary, /回到今日任务/);
-  assert.match(summary, /onNavigate\('wrong-book'\)/);
-  assert.match(summary, /onNavigate\('question'\)/);
-  assert.match(summary, /onNavigate\('dashboard'\)/);
+  // 目的地经 canonical action adapter 计算（v3.5 起），不再是字面 section 字符串
+  assert.match(summary, /const mistakeActionTarget = toRoleSection\(mistakeAction\?\.destination \?\? 'review'\)/);
+  assert.match(summary, /const practiceActionTarget = toRoleSection\(practiceAction\?\.destination \?\? 'practice'\)/);
+  assert.match(summary, /onClick: \(\) => onNavigate\(mistakeActionTarget\)/);
+  assert.match(summary, /onClick: \(\) => onNavigate\(practiceActionTarget\)/);
+  assert.match(summary, /onClick: \(\) => onNavigate\('dashboard'\)/);
   assert.match(summary, /className="report-action-plan"/);
   assert.match(summary, /className="report-action-card"/);
 });

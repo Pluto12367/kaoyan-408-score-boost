@@ -115,13 +115,20 @@ function buildMasteryIndex(masteryMap: MasteryMap | null) {
   return index;
 }
 
-/** Resolve a Point-backed wrong question through its explicit Point → Node map. */
+/** Resolve a wrong question's mastery via its Point → Node mapping.
+ * The mastery index is keyed by knowledgePointId (classic map); node ids are
+ * probed first so a node-keyed index also works. Unresolvable → null (the
+ * caller renders 未评估, never 0). */
 export function resolveWrongQuestionMastery(
-  wrongQuestion: Pick<WrongQuestion, 'knowledgeNodeIds'>,
-  masteryByNodeId: Map<string, { masteryRate: number; status: string }>,
+  wrongQuestion: Pick<WrongQuestion, 'knowledgeNodeIds' | 'knowledgePointId'>,
+  masteryById: Map<string, { masteryRate: number; status: string }>,
 ): { masteryRate: number; status: string } | null {
-  const values = (wrongQuestion.knowledgeNodeIds ?? [])
-    .map((nodeId) => masteryByNodeId.get(nodeId))
+  const candidates = [
+    ...(wrongQuestion.knowledgeNodeIds ?? []),
+    wrongQuestion.knowledgePointId,
+  ];
+  const values = candidates
+    .map((id) => masteryById.get(id))
     .filter((value): value is { masteryRate: number; status: string } => Boolean(value));
   if (values.length === 0) return null;
   const masteryRate = Math.round(values.reduce((sum, value) => sum + value.masteryRate, 0) / values.length);

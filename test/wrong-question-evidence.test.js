@@ -62,12 +62,16 @@ test('wrong question detail view wires the shared evidence summary block', () =>
 
 test('wrong question detail view exposes an on-demand AI mistake diagnosis', () => {
   const detail = readFileSync('apps/web/src/components/WrongQuestionDetail.tsx', 'utf8');
-  assert.match(detail, /requestTutorReply/);
-  assert.match(detail, /AI错题诊断/);
-  assert.match(detail, /生成 AI 错题诊断/);
-  assert.match(detail, /aiDiagnosis/);
-  assert.match(detail, /aiDiagnosisError/);
-  assert.match(detail, /selectedAnswer: latestAttempt\?\.selectedAnswer/);
+  // The diagnosis moved from an inline tutor call to the shared Contextual
+  // Coach: still per-question, still on-demand, still about the mistake.
+  assert.match(detail, /import \{ ContextualCoach \} from '\.\/ContextualCoach'/);
+  assert.match(detail, /contextType: 'wrong_question'/);
+  assert.match(detail, /questionId \}\s*\}/);
+  assert.match(detail, /为什么这道题容易错/);
+
+  const coach = readFileSync('apps/web/src/components/ContextualCoach.tsx', 'utf8');
+  assert.match(coach, /requestContextualCoach/, 'coach must hit the on-demand contextual endpoint');
+  assert.match(coach, /loading|加载中/, 'on-demand action needs a pending state');
 });
 
 test('wrong question detail API still provides the exam links payload consumed by the evidence cards', () => {

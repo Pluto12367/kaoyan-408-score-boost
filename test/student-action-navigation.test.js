@@ -241,10 +241,11 @@ test('uses the supplied due review resource in TodayPlan and only fetches as a c
 test('uses supplied due review items in MistakeWorkspace priority selection', async () => {
   const source = await readSource('apps/web/src/features/mistakes/MistakeWorkspace.tsx');
 
-  assert.match(source, /MistakeWorkspace\(\{[\s\S]*?dueReviews,[\s\S]*?dueReviewsLoading,[\s\S]*?dueReviewsError,[\s\S]*?onRetryDueReviews,/);
-  assert.match(source, /const dueReviewQuestionIds = useMemo\([\s\S]*?dueReviews\?\.items/);
-  assert.match(source, /prioritizedQuestions\.find\(\(item\) => dueReviewQuestionIds\.has\(item\.questionId\)\)/);
-  assert.match(source, /onClick=\{onRetryDueReviews\}/);
+  assert.match(source, /MistakeWorkspace\(\{[\s\S]*?dueReviews,[\s\S]*?dueReviewsLoading[\s\S]*?dueReviewsError[\s\S]*?onRetryDueReviews,/);
+  assert.match(source, /const effectiveDueReviews = dueReviews\?\.items \?\? \(dueReviews === null \? \[\] : localDueReviews\);/);
+  assert.match(source, /buildReviewCenterViewModel\(\{[\s\S]*dueReviews: effectiveDueReviews,/);
+  assert.match(source, /const retryDueReviews = dueReviews !== undefined \? \(onRetryDueReviews \?\? loadDueReviews\) : loadDueReviews;/);
+  assert.match(source, /onClick=\{retryDueReviews\}/);
 });
 
 test('keeps protected practice, session, theme, shared, and backend files outside the action-spine boundary', async () => {

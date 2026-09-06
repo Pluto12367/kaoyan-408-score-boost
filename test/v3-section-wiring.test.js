@@ -41,7 +41,9 @@ test('legacy plan and score-center sections are merged into the v3 home', () => 
 
 test('student home carries the learning calendar and focused today task', () => {
   const home = readFileSync('apps/web/src/features/student/home/StudentHome.tsx', 'utf8');
-  assert.match(home, /学习日历/);
-  assert.match(home, /calendar-strip/);
+  // 日历以 streak 条 + TodayPlan 焦点任务呈现（B3 重构后的形态）
+  assert.match(home, /learningCalendar,/);
+  assert.match(home, /dashboard-streak-strip/);
+  assert.match(home, /今日 \{learningCalendar\.today\.practiceCount\} 次练习/);
   assert.match(home, /focusTaskId=\{planFocusTaskId\}/);
 });
