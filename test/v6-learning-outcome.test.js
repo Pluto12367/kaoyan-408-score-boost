@@ -96,7 +96,7 @@ test('attribution: knowledge_node match = strong association', () => {
     concurrentInterventions: [intervention()],
   });
   assert.equal(attr.method, 'knowledge_node');
-  assert.equal(attr.association, 'strong_association');
+  assert.equal(attr.association, 'strong');
   assert.equal(attr.lagDays, 6);
 });
 

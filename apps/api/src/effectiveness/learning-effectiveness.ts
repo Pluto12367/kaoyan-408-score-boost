@@ -52,7 +52,7 @@ export function classifyStudent(params: {
   else if (errorPattern === 'high' && consistency === 'low') archetype = 'regressing';
   else if (studyVolume === 'high' && params.overdueCount > 0) archetype = 'overloaded';
   else if (consistency === 'low') archetype = 'returning';
-  else if (consistency === 'low' || reviewBehavior === 'debt') archetype = 'average_idle';
+  else if (reviewBehavior === 'debt') archetype = 'average_idle';
   else archetype = 'balanced';
 
   return { archetype, masteryLevel, consistency, errorPattern, reviewBehavior, studyVolume, examProximity };

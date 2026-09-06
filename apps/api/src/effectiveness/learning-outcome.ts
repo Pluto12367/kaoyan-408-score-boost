@@ -150,7 +150,7 @@ export interface OutcomeAttribution {
   outcome: LearningOutcome;
   method: AttributionMethod;
   /** Association strength — NOT causation. */
-  association: 'strong_association' | 'moderate_association' | 'weak_association' | 'insufficient_data';
+  association: AttributionStrength;
   /** Time between intervention delivery and outcome measurement (days). */
   lagDays: number;
   /** Caveats that prevent causal claims. */
@@ -187,13 +187,14 @@ export function attributeOutcome(params: {
   // Method: knowledge_node match = stronger attribution
   if (params.outcome.knowledgeNodeId && params.intervention.targetKnowledgeNodeId === params.outcome.knowledgeNodeId) {
     method = 'knowledge_node';
-    strength = params.outcome.confidence === 'high' ? 'strong_association' : 'moderate_association';
+    const knowledgeNodeStrength: AttributionStrength = params.outcome.confidence === 'high' ? 'strong' : 'moderate';
+    strength = knowledgeNodeStrength;
   } else if (params.outcome.confidence === 'high' && lagDays <= 7) {
     method = 'time_window';
-    strength = 'moderate_association';
+    strength = 'moderate';
   } else if (params.outcome.confidence === 'medium') {
     method = 'time_window';
-    strength = 'weak_association';
+    strength = 'weak';
   }
 
   if (confounders.length >= 2 || params.outcome.confidence === 'insufficient_data') {
@@ -238,7 +239,7 @@ export function evaluateEffectiveness(
 
   const masteryGains = matching.map((m) => m.outcome.deltas.masteryGain).filter((v): v is number => v != null);
   const accuracyGains = matching.map((m) => m.outcome.deltas.accuracyGain).filter((v): v is number => v != null);
-  const strongCount = matching.filter((m) => m.association === 'strong_association').length;
+  const strongCount = matching.filter((m) => m.association === 'strong').length;
   const avg = (values: number[]) => values.length > 0 ? Math.round((values.reduce((s, v) => s + v, 0) / values.length) * 10000) / 10000 : null;
 
   const avgMastery = avg(masteryGains);
