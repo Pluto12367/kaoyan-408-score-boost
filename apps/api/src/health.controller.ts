@@ -37,11 +37,12 @@ export class HealthController {
     }
 
     const startup = validateStartupConfiguration(process.env);
+    const embeddingConfigured = Boolean((process.env.EMBEDDING_API_KEY ?? '').trim());
     const operational = buildOperationalHealth(
       checks.database === 'connected',
       Boolean(process.env.DATABASE_URL),
       startup.aiProvider === 'configured',
-      false, // embedding: local deterministic is the default; remote needs EMBEDDING_API_KEY + provider
+      embeddingConfigured,
     );
 
     return {
