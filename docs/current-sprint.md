@@ -18,6 +18,8 @@
 
 > **2026-09-07 V8 P0 全清 + P1 首批（7 commits 推送至 1799316）**：P0 七项全完成——竞态守卫、内部术语移除、浮点格式化、趋势图 null≠0、假达成修复、**22 项测试债全部处置（npm test 首次全绿 1884/1882/0）**、错题计数口径精确化（新增 docs/v8-wrong-question-semantics.md，深层对账拆 #56）。P1：#9 全局下一步仲裁（resolveReportTopFocus，报告页不再与首页各说各话；题库卡接入拆 #57）、#10 effectiveness 前端消费（报告新 tab 努力与效果，V6.3 最后一公里打通）、#11 任务行理由展示。行为测试抓到真 bug：resolveWrongQuestionMastery 以 nodeId 查 Point 索引致复习卡掌握度永远未评估（已修）。新测试文件：review-center-vm / display-format / report-top-focus / effectiveness-panel / today-mission-reason / report-wrong-count-semantics。追加完成：#14 复习队列按考点分组（5 张同名卡 → 1 张 N 题组卡，行为测试钉死）、#8 唯一主行动（canonical 为 today_task 时路线视图首步降级为指路文案，不再双开始按钮）。推送至 86a2dff，npm test 1886/1884/0。追加完成（至 c6152e9）：#13 断档恢复（missed-day-recovery 纯模块：≤3 个最旧未完成任务重锚新窗口首日，reason 断档补做，响应 recoveredFromGap）、#12 时长预算（GET /practice-sets/recommended?minutes= 预算档 15→5 题/30→10 题 + 练习面板快速会话按钮）、#57 薄弱报告改叫考点名。npm test 1892/1890/0。下一步：#58 结构化 reasonCodes 派生、#56 漂移对账设计、效果 UI 观察迭代。
 
+> **2026-09-07 V9 Learning Experience OS Mission 启动（Phase 0 完成）**：使命 = 从 AI 辅助工具升级为 AI 考研教练。基线固化：本地 8c0e455（V8 全量 22 commits 已推送未部署生产），测试 1899/1897/0 全绿。Phase 0 产出 docs/v9-baseline-audit.md：教练差距模型（7 类教练行为 vs 现状差距映射到 6 个 Phase）+ 可复用资产清单（StudentContext/风险层/effectiveness/仲裁器/AI 层冻结复用）+ 红线（LLM 只做已核实事实的语言组织、insufficient_data 贯穿、无第二套 SoT）。Phase 1 Daily Coach 2.0 进行中：DailyBrief 纯派生读模型。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
