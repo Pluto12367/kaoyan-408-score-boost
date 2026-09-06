@@ -16,6 +16,8 @@
 
 > **2026-09-07 V8 全产品演进 Mission 启动：Phase 0 审计完成 + P0 第一批修复完成**。Phase 0：三路仓库审计（前端 22 项/后端 13 项/测试观测 9 项）+ 生产浏览器走查（jackchou 账号五分区），产出 `docs/v8-full-product-audit.md`、`docs/v8-master-backlog.md`（55 项 P0-P3）、`docs/v8-student-experience-state.md`。核心发现：产品最大问题不是缺功能，而是同屏数据自相矛盾（暂无数据 vs 89%掌握、错题计数 0/12/23 三口径、"最重要考点"四处不同、null 渲染成 0、"还差 0 分"假达成、内部术语泄漏）。P0 已修：① useStudentContextData 竞态（过期响应覆盖/跨账号串数据，4 项 B 类测试转绿）② 术语泄漏"Canonical Overview 未定义该指标"移除并恢复报告提分空间指标（p2-kpi 契约转绿）③ 掌握度浮点直出格式化（formatRatePercent）④ 掌握度趋势图无快照日 null 化（shared 契约 averageMastery: number|null + 前端空心刻度，不再画 0% 柱）⑤ 目标进度"还差 0 分"假达成修复（resolveScoreGapView + 指导文案）。验证：build:shared/api/web PASS；全量 1868/1849/17（较基线 22→17，新增测试 6 项全绿）。styles.css 仅追加 trend-bar-empty 样式类（该文件保护清单所涉在途工作已在 B5 经所有者授权入库，本次为增量不触碰主题规则）。详见 v8 三文档。
 
+> **2026-09-07 V8 P0 全清 + P1 首批（7 commits 推送至 1799316）**：P0 七项全完成——竞态守卫、内部术语移除、浮点格式化、趋势图 null≠0、假达成修复、**22 项测试债全部处置（npm test 首次全绿 1884/1882/0）**、错题计数口径精确化（新增 docs/v8-wrong-question-semantics.md，深层对账拆 #56）。P1：#9 全局下一步仲裁（resolveReportTopFocus，报告页不再与首页各说各话；题库卡接入拆 #57）、#10 effectiveness 前端消费（报告新 tab 努力与效果，V6.3 最后一公里打通）、#11 任务行理由展示。行为测试抓到真 bug：resolveWrongQuestionMastery 以 nodeId 查 Point 索引致复习卡掌握度永远未评估（已修）。新测试文件：review-center-vm / display-format / report-top-focus / effectiveness-panel / today-mission-reason / report-wrong-count-semantics。下一步：#12 时长预算、#13 断档恢复、#14 复习卡去重、#8 唯一今日卡（见 v8-master-backlog）。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
