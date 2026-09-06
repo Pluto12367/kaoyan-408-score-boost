@@ -80,6 +80,7 @@ import {
 } from './onboarding-plan.repository';
 import { applyCarryOver, harvestCarryOverTasks } from './missed-day-recovery';
 import { questionCountForMinutes } from './quick-session';
+import { deriveTaskReasonCodes } from './task-reason-codes';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
@@ -1172,11 +1173,23 @@ export class StudyService implements OnModuleInit {
     if (scheduledPlan) {
       const dayTasks = scheduledPlan.tasks.filter((task) => task.scheduledDate === today);
       const completedTasks = dayTasks.filter((task) => task.status === 'completed').length;
+      // V8 #58: classic tasks carry no structured codes — derive them from the
+      // weakness report and exam proximity at read time. Score-center tasks
+      // keep their engine-populated codes untouched.
+      const reasonContext = {
+        weakPoints: report.weakPoints.map((point) => ({
+          knowledgePointId: point.knowledgePointId,
+          accuracyRate: point.accuracyRate,
+          wrongCount: point.wrongCount,
+        })),
+        remainingDays: this.getStudent(userId).remainingDays ?? null,
+      };
       const priorityTasks = dayTasks.map((task) => ({
         ...task,
         completed: task.status === 'completed',
         progress: this.getTaskProgressView(userId, task, persistedTaskProgress),
         questionIds: this.nodeQuestionIdsByNode.get(task.knowledgePointId) ?? undefined,
+        reasonCodes: task.reasonCodes ?? deriveTaskReasonCodes(task, reasonContext),
       }));
 
       return {

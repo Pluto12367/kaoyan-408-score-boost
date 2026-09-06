@@ -38,7 +38,7 @@ const ACTION_MODES: Record<string, DailyTask['mode']> = {
   MOCK: '阶段巩固',
 };
 
-const REASON_LABELS: Record<PriorityReasonCode, string> = {
+export const REASON_LABELS: Record<PriorityReasonCode, string> = {
   HIGH_RECENT_FREQUENCY: '近3年高频考点',
   LOW_MASTERY: '掌握度偏低',
   LOW_ACCURACY: '正确率偏低',

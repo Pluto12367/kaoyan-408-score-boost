@@ -39,6 +39,7 @@ export interface TodayPlan {
     mode: string;
     priority: '高' | '中' | '低';
     reason: string;
+    reasonCodes?: string[] | null;
     nextAction: string;
     scheduledDate: string;
     status: 'pending' | 'in_progress' | 'postponed' | 'completed';

@@ -27,6 +27,8 @@ export interface ScheduledStudyTaskState {
   scheduledDate: string;
   priority: '高' | '中' | '低';
   reason: string;
+  /** V8 #58: structured codes (score-center engine populated; classic tasks derive at read time). */
+  reasonCodes?: string[] | null;
   nextAction: string;
   status: ScheduledTaskStatus;
   postponeCount: number;
