@@ -57,6 +57,7 @@
     "db:test:up": "docker compose -f compose.test.yml up -d --wait",
     "db:test:down": "docker compose -f compose.test.yml down -v",
     "test:integration:postgres": "npm run build:api && node scripts/integration-postgres.mjs",
+    "test:integration:effectiveness": "npm run build:api && node scripts/integration-effectiveness.mjs",
     "test:integration:event-key": "npm run build:api && node scripts/integration-event-key.mjs",
     "test:integration:import-first": "npm run build:api && node scripts/integration-import-first.mjs",
     "test:integration:content-import": "npm run build:api && node scripts/integration-content-import.mjs",

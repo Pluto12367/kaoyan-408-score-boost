@@ -83,6 +83,14 @@ export interface LearningOutcomeDeltaEvent {
   accuracyDelta: number;
 }
 
+export interface EffectivenessDerivationEvent {
+  at: number;
+  surface: 'outcomes' | 'interventions' | 'summary' | 'experiments';
+  nodesEvaluated: number;
+  gatePassed: number;
+  gateInsufficient: number;
+}
+
 const MAX_EVENTS = 5000;
 const WINDOW_MS = 60 * 60 * 1000;
 
@@ -98,6 +106,7 @@ export class AiMetricsService {
   private reviewAdaptations: Array<{ at: number; intervalDays: number; intensity: string }> = [];
   private coachInterventions: Array<{ at: number; trigger: string; actorHint: string }> = [];
   private learningOutcomeDeltas: Array<{ at: number; masteryDelta: number; accuracyDelta: number }> = [];
+  private effectivenessDerivations: EffectivenessDerivationEvent[] = [];
 
   recordRiskDetected(event: { type: string; severity: string; userId: string; at?: number }): void {
     this.push(this.risksDetected, { at: event.at ?? Date.now(), type: event.type, severity: event.severity, userId: event.userId });
@@ -121,6 +130,10 @@ export class AiMetricsService {
 
   recordLearningOutcomeDelta(event: { masteryDelta: number; accuracyDelta: number; at?: number }): void {
     this.push(this.learningOutcomeDeltas, { at: event.at ?? Date.now(), masteryDelta: event.masteryDelta, accuracyDelta: event.accuracyDelta });
+  }
+
+  recordEffectivenessDerivation(event: Omit<EffectivenessDerivationEvent, 'at'> & { at?: number }): void {
+    this.push(this.effectivenessDerivations, { at: event.at ?? Date.now(), ...event } as EffectivenessDerivationEvent);
   }
 
   recordAgentRun(event: Omit<AgentRunEvent, 'at'> & { at?: number }): void {
@@ -193,6 +206,7 @@ export class AiMetricsService {
     const reviewAdaptations = this.reviewAdaptations.filter((event) => event.at >= since);
     const coachInterventions = this.coachInterventions.filter((event) => event.at >= since);
     const outcomeDeltas = this.learningOutcomeDeltas.filter((event) => event.at >= since);
+    const effectiveness = this.effectivenessDerivations.filter((event) => event.at >= since);
 
     const byTrigger: Record<string, number> = {};
     for (const intervention of coachInterventions) {
@@ -216,6 +230,13 @@ export class AiMetricsService {
       reviewAdaptation: { count: reviewAdaptations.length },
       coachIntervention: { count: coachInterventions.length, byTrigger },
       learningOutcomeDelta: { masteryAvg, accuracyAvg, sampleCount: outcomeDeltas.length },
+      effectiveness: {
+        derivations: effectiveness.length,
+        nodesEvaluated: effectiveness.reduce((sum, event) => sum + event.nodesEvaluated, 0),
+        gatePassed: effectiveness.reduce((sum, event) => sum + event.gatePassed, 0),
+        gateInsufficient: effectiveness.reduce((sum, event) => sum + event.gateInsufficient, 0),
+        bySurface: countBy(effectiveness.map((event) => event.surface)),
+      },
     };
   }
 
@@ -230,6 +251,7 @@ export class AiMetricsService {
     this.reviewAdaptations = [];
     this.coachInterventions = [];
     this.learningOutcomeDeltas = [];
+    this.effectivenessDerivations = [];
   }
 
   private push<T>(list: T[], event: T): void {
@@ -246,6 +268,13 @@ export interface LearningIntelligenceSnapshot {
   reviewAdaptation: { count: number };
   coachIntervention: { count: number; byTrigger: Record<string, number> };
   learningOutcomeDelta: { masteryAvg: number | null; accuracyAvg: number | null; sampleCount: number };
+  effectiveness: {
+    derivations: number;
+    nodesEvaluated: number;
+    gatePassed: number;
+    gateInsufficient: number;
+    bySurface: Record<string, number>;
+  };
 }
 
 export interface AiMetricsSnapshot {
@@ -294,4 +323,12 @@ function percentile(sorted: number[], p: number): number | null {
   if (sorted.length === 0) return null;
   const index = Math.min(sorted.length - 1, Math.floor(p * sorted.length));
   return sorted[index];
+}
+
+function countBy(values: string[]): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const value of values) {
+    counts[value] = (counts[value] ?? 0) + 1;
+  }
+  return counts;
 }

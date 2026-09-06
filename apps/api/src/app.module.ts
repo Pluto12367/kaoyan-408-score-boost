@@ -11,6 +11,7 @@ import { ScoreCenterModule } from './score-center/score-center.module';
 import { RagModule } from './rag/rag.module';
 import { AgentModule } from './agent/agent.module';
 import { AiMetricsModule } from './ai-metrics/ai-metrics.module';
+import { EffectivenessModule } from './effectiveness/effectiveness.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { AiMetricsModule } from './ai-metrics/ai-metrics.module';
     ScoreCenterModule,
     RagModule,
     AgentModule,
+    EffectivenessModule,
   ],
   controllers: [HealthController],
   providers: [

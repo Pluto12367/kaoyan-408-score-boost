@@ -12,6 +12,8 @@
 
 > **2026-09-06 v3.4 AI Production Validation & Closed-Loop Learning Milestone 已完成（Phase 0…16）**：真实测试库（1297 节点/1388 chunks 播种）上验证 6 条学习闭环（Planning/Mastery 反馈/Review/Coach/Exam/写安全，闭环断言 34 项全绿——含引擎 priority 46→39 实证）；RAG 真实语料 top3Hit 91.7%/precision@3 0.681/recall 0.917/p95 8ms，**发现并修复 1 个真实缺陷**（口语泛化词污染检索，TDD）；Remote LLM **BLOCKED（402 余额不足，认证链路证实真实）**、Remote Embedding **BLOCKED（无凭证+DeepSeek 无端点）**——Release Gate 标记 `RELEASE BLOCKED BY CREDENTIALS`，未伪造任何 Real Provider PASS。全量 1721/1694/25（基线一致）、build 全 PASS。详见 `docs/v34-ai-production-validation-final-report.md`。
 
+> **2026-09-06 V6.3 学习效果度量生产化 Milestone 已完成（后端只读上线）**：V6/V6.1/V6.2 的 4 个 effectiveness 纯函数模块此前已随 V7 基线（tag `v7.0.0-production-certified`）部署但从未接入 NestJS（零 module/controller/端点）。本轮补齐生产读模型：新增 `apps/api/src/effectiveness/effectiveness.assembly.ts`（纯函数装配：point→node PRIMARY 解析、快照 before/after 窗口选取、evidence gate 映射）、`effectiveness.service.ts`（有界只读查询：PracticeRecord/KnowledgePointNodeMap/UserMasterySnapshot/UserKnowledgeMastery/RecommendationAction/StudyTask/StudyTaskCompletion/ReviewSchedule）、`effectiveness.controller.ts`（4 个 GET：/effectiveness/summary|outcomes|interventions|experiments，数据隔离沿用 resolveUserId 模式，teacher 需授权）、`effectiveness.module.ts`（AgentModule 组合模式自建读模型链，StudyModule 零改动）。ai-metrics 扩展 effectiveness 派生计数。**零迁移、零新表、零既有端点改动**。验证：build:api/web PASS；全量 1863/1839/22（22 败 == 在册 UI 契约测试债，零新增）；PostgreSQL 集成 `npm run test:integration:effectiveness` ALL PASS（真实种子数据端到端：masteryGain 0.25 gate PASS、intervention completed+delivered knowledge_node 关联、单用户 experiments 诚实 insufficient_data）。**未提交**（见 §4 新增 V6.3 文件清单），生产部署待用户执行 `git pull` + 重建。详见 `docs/v63-effectiveness-productionization-final-report.md`。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
@@ -163,6 +165,19 @@ Sprint 3.6 已完成内容：
 - `test/theme-preference.test.js`
 
 规则：**Sprint Agent 禁止修改、禁止提交、禁止格式化、禁止删除**这些文件；提交时一律按清单精确 `git add`，不使用 `git add -A`。
+
+**V6.3 未提交文件归属（2026-09-06，本次 milestone 产出，待所有者审查提交）：**
+
+- `apps/api/src/effectiveness/effectiveness.assembly.ts`（新增）
+- `apps/api/src/effectiveness/effectiveness.service.ts`（新增）
+- `apps/api/src/effectiveness/effectiveness.controller.ts`（新增）
+- `apps/api/src/effectiveness/effectiveness.module.ts`（新增）
+- `apps/api/src/app.module.ts`（追加 EffectivenessModule import + 注册，两行）
+- `apps/api/src/ai-metrics/ai-metrics.service.ts`（追加 effectiveness 指标）
+- `test/v63-effectiveness-service.test.js`（新增）
+- `scripts/integration-effectiveness.mjs`（新增）
+- `package.json`（追加 `test:integration:effectiveness` 脚本一行）
+- `docs/current-sprint.md`（本文件）、`docs/v63-effectiveness-productionization-final-report.md`（新增）
 
 Sprint 4 已提交；当前 working tree 中仍有其他未提交工作线，均不属于 Sprint 4，包括 Knowledge Galaxy、Review Center/Smart Review、`StudentSections.tsx` 的后续修改、其他前端组件、测试、文档及上述主题文件。它们必须保持各自归属，后续单独审查和提交。
 
