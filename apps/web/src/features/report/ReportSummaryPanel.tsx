@@ -101,7 +101,11 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
     ? canonicalOverview.reviewStatus.pendingWrongQuestionCount
     : stageReport?.wrong.pendingCount ?? 0;
   if (pendingWrongCount > 0) {
-    risks.push(`还有 ${pendingWrongCount} 道错题待复盘`);
+    // canonical reviewStatus counts unresolved rows (reviewed-but-unresolved
+    // included); only the legacy pendingCount means "never reviewed".
+    risks.push(canonicalOverview
+      ? `还有 ${pendingWrongCount} 道错题尚未标记解决`
+      : `还有 ${pendingWrongCount} 道错题待复盘`);
   }
   if (risks.length === 0) risks.push('当前无明显风险，保持现有节奏即可');
 
@@ -160,7 +164,9 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
     {
       title: '优先复盘错题',
       description: pendingWrongCount > 0
-        ? `还有 ${pendingWrongCount} 道错题待复盘，先把丢分点变成可修复动作。`
+        ? canonicalOverview
+          ? `还有 ${pendingWrongCount} 道错题尚未标记解决。`
+          : `还有 ${pendingWrongCount} 道错题待复盘，先把丢分点变成可修复动作。`
         : '当前待复盘压力不高，保持错题复盘节奏即可。',
       action: '去错题本',
       target: mistakeActionTarget,
