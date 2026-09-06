@@ -79,6 +79,7 @@ import {
   type TaskRebalanceAdjustment,
 } from './onboarding-plan.repository';
 import { applyCarryOver, harvestCarryOverTasks } from './missed-day-recovery';
+import { questionCountForMinutes } from './quick-session';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
@@ -2537,18 +2538,19 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  async getRecommendedPracticeSet(userId = this.student.id) {
+  async getRecommendedPracticeSet(userId = this.student.id, minutesBudget?: number | null) {
     // Sprint 3.3：DB 模式走 Adapter → RecommendationService → Student State SoT；内存演示模式保留 legacy 计算。
+    // V8 #12：minutesBudget 缩小题量（15 分钟 → 5 题），不放大基准档。
     if (!process.env.DATABASE_URL) {
-      return this.getRecommendedPracticeSetLegacy(userId);
+      return this.getRecommendedPracticeSetLegacy(userId, minutesBudget);
     }
     if (!this.recommendation) {
-      return this.getRecommendedPracticeSetLegacy(userId);
+      return this.getRecommendedPracticeSetLegacy(userId, minutesBudget);
     }
-    return this.getRecommendedPracticeSetFromState(userId);
+    return this.getRecommendedPracticeSetFromState(userId, minutesBudget);
   }
 
-  private getRecommendedPracticeSetLegacy(userId = this.student.id) {
+  private getRecommendedPracticeSetLegacy(userId = this.student.id, minutesBudget?: number | null) {
 
     this.ensureNodeMasteryFresh();
     const report = this.getOverviewReport(userId);
@@ -2583,7 +2585,8 @@ export class StudyService implements OnModuleInit {
         question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
       );
     }
-    const questionCount = stage === '冲刺' ? 20 : report.accuracyRate < 55 ? 16 : 12;
+    const baseCount = stage === '冲刺' ? 20 : report.accuracyRate < 55 ? 16 : 12;
+    const questionCount = minutesBudget ? questionCountForMinutes(minutesBudget, baseCount) : baseCount;
     const questions = dedupeQuestionsByStem(matchingQuestions).slice(0, Math.min(questionCount, matchingQuestions.length));
 
     return {
@@ -2611,12 +2614,17 @@ export class StudyService implements OnModuleInit {
 
   }
 
-  private async getRecommendedPracticeSetFromState(userId: string) {
+  private async getRecommendedPracticeSetFromState(userId: string, minutesBudget?: number | null) {
     if (!this.recommendation) {
-      return this.getRecommendedPracticeSetLegacy(userId);
+      return this.getRecommendedPracticeSetLegacy(userId, minutesBudget);
     }
     this.ensureNodeMasteryFresh();
-    const { result, nodeById, accuracyRateByNode, overallAccuracyRate } = await this.recommendation.runRecommendationForUser(userId, { availableMinutes: 60 });
+    // The engine's capacity hint only accepts the four standard tiers; a
+    // smaller budget snaps UP for capacity while the question count shrinks.
+    const engineMinutes: 30 | 60 | 120 | 180 = !minutesBudget
+      ? 60
+      : ([30, 60, 120, 180] as const).find((tier) => tier >= minutesBudget) ?? 180;
+    const { result, nodeById, accuracyRateByNode, overallAccuracyRate } = await this.recommendation.runRecommendationForUser(userId, { availableMinutes: engineMinutes });
     const stage = this.getStudent(userId).stage ?? '强化';
     const knowledgeItems = result.items.filter((item) => item.kind === 'KNOWLEDGE');
     const weakKnowledgeItems = knowledgeItems.filter((item) => item.facts.mastery < 0.45);
@@ -2651,7 +2659,8 @@ export class StudyService implements OnModuleInit {
         question.knowledgePointIds.some((id) => knowledgePointIds.includes(id)),
       );
     }
-    const questionCount = stage === '冲刺' ? 20 : questionSet?.questionCount ?? 12;
+    const baseCount = stage === '冲刺' ? 20 : questionSet?.questionCount ?? 12;
+    const questionCount = minutesBudget ? questionCountForMinutes(minutesBudget, baseCount) : baseCount;
     const questions = dedupeQuestionsByStem(matchingQuestions).slice(0, Math.min(questionCount, matchingQuestions.length));
     // A legacy Point list may include only real question bindings; it never
     // receives a Node ID merely because a selected Node had no map row.

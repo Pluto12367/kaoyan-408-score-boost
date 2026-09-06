@@ -1531,6 +1531,7 @@ paperId: paper.id,
             onRestartPracticeSet={handleRestartPracticeSet}
             onRestartQuestionBank={handleRestartQuestionBank}
             onRetryPracticeSet={refreshPracticeSet}
+            onQuickPracticeSet={refreshPracticeSet}
             onOpenDetail={setDetailQuestionId}
             onCloseDetail={() => setDetailQuestionId(null)}
             onOpenCatalog={handleOpenCatalogNode}

@@ -39,6 +39,7 @@ import { ActionOutcomeAuditService } from './action-outcome-audit.service';
 import { ActionLearningSignalService } from './action-learning-signal.service';
 import { RecommendationFeedbackService } from './recommendation-feedback.service';
 import { isReservedCanonicalEventType, isTelemetryEventType } from './canonical-event-writer.service';
+import { parseMinutesBudget } from './quick-session';
 import { StudentContextQueryService } from './student-context.query.service';
 
 @Controller()
@@ -293,8 +294,9 @@ export class StudyController {
   getRecommendedPracticeSet(
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
+    @Query('minutes') minutes?: string,
   ) {
-    return this.studyService.getRecommendedPracticeSet(this.resolveUserId(user, viewUserId));
+    return this.studyService.getRecommendedPracticeSet(this.resolveUserId(user, viewUserId), parseMinutesBudget(minutes));
   }
 
   @Get('review-resources/recommended')

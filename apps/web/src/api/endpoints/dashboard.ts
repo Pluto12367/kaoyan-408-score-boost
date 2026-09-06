@@ -124,8 +124,10 @@ export async function fetchLearningProfile(userId: string): Promise<LearningProf
   return response.json() as Promise<LearningProfile>;
 }
 
-export async function fetchRecommendedPracticeSet(): Promise<PracticeSet> {
-  const response = await fetchWithAuth(`${API_BASE_URL}/practice-sets/recommended`);
+export async function fetchRecommendedPracticeSet(minutesBudget?: number): Promise<PracticeSet> {
+  // V8 #12: optional minutes budget — the server sizes the set to the session.
+  const query = minutesBudget ? `?minutes=${minutesBudget}` : '';
+  const response = await fetchWithAuth(`${API_BASE_URL}/practice-sets/recommended${query}`);
   if (!response.ok) throw new Error(`Recommended practice set request failed with ${response.status}`);
   return response.json() as Promise<PracticeSet>;
 }

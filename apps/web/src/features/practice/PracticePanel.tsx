@@ -40,6 +40,8 @@ interface PracticePanelProps {
   onRestartQuestionBank?: () => void;
   onNavigate?: (section: RoleSection) => void;
   onRetryPracticeSet: () => void;
+  /** V8 #12: swap in a minutes-sized set for fragment-schedule sessions. */
+  onQuickPracticeSet?: (minutes: number) => void;
 }
 
 function answerLetter(selectedAnswer: string | undefined, question: Question) {
@@ -79,6 +81,7 @@ export function PracticePanel({
   onRestartQuestionBank,
   onNavigate,
   onRetryPracticeSet,
+  onQuickPracticeSet,
 }: PracticePanelProps) {
   const set = practiceSet.data;
   const answered = Boolean(answerResult);
@@ -221,6 +224,16 @@ export function PracticePanel({
           <strong>{set.title}</strong>
           <p>{set.focus} · 预计 {set.estimatedMinutes} 分钟</p>
           <ModuleResourceMeta resource={practiceSet} onRetry={onRetryPracticeSet} />
+          {onQuickPracticeSet ? (
+            <div className="practice-quick-session" role="group" aria-label="快速会话时长">
+              <span>时间不够？换一组快练：</span>
+              {[15, 30, 60].map((minutes) => (
+                <button key={minutes} type="button" className="secondary-action" onClick={() => onQuickPracticeSet(minutes)}>
+                  {minutes} 分钟
+                </button>
+              ))}
+            </div>
+          ) : null}
           <span>{set.reason}</span>
           <ol>{set.questions.slice(0, 3).map((item) => <li key={item.id}>{item.stem}</li>)}</ol>
           <div className="practice-set-actions">

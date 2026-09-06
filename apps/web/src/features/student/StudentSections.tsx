@@ -154,6 +154,7 @@ export interface StudentSectionsProps {
   onRestartPracticeSet: () => void;
   onRestartQuestionBank: () => void;
   onRetryPracticeSet: () => void;
+  onQuickPracticeSet?: (minutes: number) => void;
   onOpenDetail: (questionId: string) => void;
   onCloseDetail: () => void;
   onOpenCatalog?: (nodeId: string, command?: StudentActionCommandDescriptor) => void;
@@ -447,6 +448,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   onRestartQuestionBank={props.onRestartQuestionBank}
                   onNavigate={props.onNavigate}
                   onRetryPracticeSet={props.onRetryPracticeSet}
+                  onQuickPracticeSet={props.onQuickPracticeSet}
                 />
               </Suspense>
               {props.practiceAnswerResult ? (

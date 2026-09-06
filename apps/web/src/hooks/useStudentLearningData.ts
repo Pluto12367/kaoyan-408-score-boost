@@ -57,7 +57,7 @@ export function useStudentLearningData(enabled: boolean, authKey?: string) {
   }, []);
 
   const refreshPracticeSet = useCallback(
-    () => loadResource('推荐题组', fetchRecommendedPracticeSet, createMockPracticeSet, setPracticeSet),
+    (minutesBudget?: number) => loadResource('推荐题组', () => fetchRecommendedPracticeSet(minutesBudget), createMockPracticeSet, setPracticeSet),
     [loadResource],
   );
   const refreshReviewResources = useCallback(
