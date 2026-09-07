@@ -47,3 +47,9 @@ canonical 未解决数应 ≤ 派生错题本总数 + 合理容差（已解决�
 - 不改 `WrongQuestionReview` Schema（无迁移）；
 - 不动 canonical 投影契约（读模型只换数据修复，不改形状）；
 - 回填属破坏性写操作——执行前必须所有者确认 + 备份（AGENTS.md 第 6 条）。
+
+## 2b. 生产审计结果（2026-09-07，只读脚本执行完毕）
+
+- 未解决行 22 条：**RECOVERY_ACTIVE 22 / RECENT_WRONG 0 / STALE_CANDIDATE 0**；
+- 结论：**全部为合法的恢复中状态，无死行，无需回填**——23 vs 12 的差异是定义差异（canonical=未掌握，派生=近期错答），措辞精确化（V8 #7）已正确处置；
+- 写路径审计无缺口 + 数据审计无死行，#56 以零写入结案。脚本留存于 scripts/audit-wrong-question-drift.mjs 供日后复检。

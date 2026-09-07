@@ -77,7 +77,7 @@
 | 53 | mobile-nav 测试升级为真实 DOM 渲染断言 | U19 | ⬜ |
 | 54 | 错题"审题错误 83 次"→针对性策略卡（审题类错因专项训练入口） | 生产走查 | ⬜ |
 | 55 | 学习画像 timeline"入学诊断 2026-09-07"时间戳异常排查（学生 8 月已开始练习） | 生产走查 | ⬜ |
-| 56 | 错题本与 canonical WrongQuestionReview 表漂移对账（23 vs 12）：数据来源审计 → resolved 回写策略 → 迁移评估（架构保护边界，设计先行） | P5/新 | ✅（设计已出：docs/v8-wrong-question-reconciliation-design.md，推荐 B 回填脚本 + C 写路径审计并行；实施待所有者确认 + 备份） |
+| 56 | 错题本与 canonical WrongQuestionReview 表漂移对账（23 vs 12）：数据来源审计 → resolved 回写策略 → 迁移评估（架构保护边界，设计先行） | P5/新 | ✅（生产审计完毕：22/22 全部 RECOVERY_ACTIVE，0 死行，零写入结案；脚本留存供复检） |
 | 57 | 题库提分报告卡（树与二叉树）接入同一仲裁来源 | P7 | ✅（weakPoints[0] 改叫考点名而非章节名——同一弱点两种叫法的混淆消除；训练卡与报告现指向同一点位） |
 | 58 | 经典 7 天计划任务读取时派生结构化 reasonCodes（需要 mastery/frequency 上下文，读侧纯派生） | B1 | ✅（task-reason-codes 纯模块读时派生：LOW_MASTERY/LOW_ACCURACY/REPEATED_WRONG/EXAM_NEAR，cap3 且 EXAM_NEAR 先弃；TodayMission 渲染结构化标签优先于自由文本；REASON_LABELS 从 shared 导出） |
 
