@@ -44,6 +44,10 @@
 
 > **2026-09-07 LE 线新增最高约束：唯一评价标准 = 帮学生获得更多 408 分数，四问门禁（学习效率/知识保持/大题得分/模考恢复效率）生效**——每个 Feature/技术决策必须正面回答至少一问并写进 Acceptance Criteria，否则默认不做。已形式化进 `docs/v10-learning-engine-roadmap.md` §0（四问×五 Feature 映射审计：F1=Q1 核心、F2=Q4 核心、F3=Q2 核心、F4=Q3 核心、F5=Q1/Q2 双核）。**新标准暴露一个增量点已并入 F2：恢复计划执行追踪**——恢复任务即 StudyTask、执行事实即 StudyTaskCompletion（零迁移），诊断视图须输出缺口闭环率（"上次暴露 5 个缺口已修复 3 个"），把 Q4 从"生成计划"深化为"闭环度量"。当前 LE 进度不变：F1 M1/M2 完成待 M3 Review，M3（前端展示）为 F1 收官步。
 
+> **2026-09-07 LE-V10 F1 M3+M4 完成（前端展示，本地提交 `a1178ad`）+ Phase 4 User Impact Report 产出；M5 集成验证待执行**：M3——PracticePanel「真题强化」开关（aria-pressed，普通模式字节级原样）+ 集卡徽标（覆盖 N 个真题知识点）+ 前 3 题逐题理由行（星级/近5年频次/掌握度，vm 纯函数生成）+ 可展开逐题理由卡（估算强制"估算"标记、LOW 置信自动隐藏、关联真题年份题号）；M4——训练后 ExamCoverageSummary（覆盖知识点/年份跨度/高频繁点数）。数据流：mode 经 App→StudentSections→PracticePanel→hook→endpoint 全链透传；types 增 PracticeSetExamAlignment；组件纯 token（零 hex）+ DESIGN.md 增条目。验证：定向 26/26（+6 RED→GREEN）、全量 **npm test 1991/1989/0**（1985 基线 + 6 零新增失败）、build:web/api PASS。**F1 Phase 4 User Impact Report**：`docs/feature1-user-impact-report.md`（Before/After、六指标映射、Acceptance 除 M5 外全勾）。待办：M5 集成脚本 + dev 栈四主题目检 → F1 关闭；随后 F2 模考诊断（含缺口闭环率）。
+
+> **2026-09-07 LE-V10 F1（真题对标练习模式）M5 完成并正式关闭**：`scripts/integration-exam-aligned.mjs` + npm script `test:integration:exam-aligned`——对真实种子测试库断言全链（快照采样→无掌握=null≠0%→LOW 置信估算隐藏（真实 LOW 节点实证）→mastery 公式精确匹配→examHits 年份降序≤3→夹具全清理），**PASS**。Phase 4 User Impact Report：`docs/product-evolution-report-feature1.md` + `docs/feature1-user-impact-report.md`。F1 全部里程碑关闭（M1-M5，本地提交 cd0f953/a1178ad/M5-commit）。**下一 Feature：F2 全真模考诊断增强**（Phase 0 审计事实已具备，含缺口闭环率）。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）

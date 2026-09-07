@@ -62,6 +62,7 @@
     "test:integration:import-first": "npm run build:api && node scripts/integration-import-first.mjs",
     "test:integration:content-import": "npm run build:api && node scripts/integration-content-import.mjs",
     "test:integration:question-import": "npm run build:api && node scripts/integration-question-import.mjs",
-    "check:release": "npm test && npm run verify:api-build-layout && npm run build:web && npm run smoke:migration"
+    "check:release": "npm test && npm run verify:api-build-layout && npm run build:web && npm run smoke:migration",
+    "test:integration:exam-aligned": "npm run build:api && node scripts/integration-exam-aligned.mjs"
   }
 }
