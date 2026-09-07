@@ -46,7 +46,12 @@ const RECOMMENDATION_BY_TYPE: Record<string, { headline: (evidence: Record<strin
     actorHint: 'coach',
   },
   repeated_mistake: {
-    headline: (e) => `连续同型错误（错误占比 ${Math.round(((e.weakWrongRatio as number) ?? 0) * 100)}%），建议按错因复盘`,
+    // V9 production fix: the risk layer renames the signal's weakWrongRatio
+    // to wrongStreakRatio — read both so the headline can never fall back to 0%.
+    headline: (e) => {
+      const ratio = (e.wrongStreakRatio as number) ?? (e.weakWrongRatio as number) ?? 0;
+      return `连续同型错误（错误占比 ${Math.round(ratio * 100)}%），建议按错因复盘`;
+    },
     actions: ['按错因分类复盘（概念/混淆/计算）', '做 1 组对比练习验证', '复述该知识点的关键条件'],
     actorHint: 'practice',
   },

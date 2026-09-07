@@ -90,3 +90,19 @@ test('proactive: deterministic output sorted by severity', () => {
     assert.ok(order[a[i - 1].severity] <= order[a[i].severity]);
   }
 });
+test('V9 production fix: repeated-mistake headline shows the real wrong ratio, never 0%', () => {
+  // The risk layer renames the signal's weakWrongRatio → wrongStreakRatio.
+  // The headline must read the renamed key — a 0% ratio next to a high
+  // severity flag is self-contradictory (caught live in production smoke).
+  const risks = risksFrom({});
+  const repeated = risks.find((risk) => risk.type === 'repeated_mistake');
+  assert.ok(repeated, 'fixture should surface a repeated_mistake risk');
+  const ratio = repeated.evidence.wrongStreakRatio;
+  assert.ok(ratio > 0, 'fixture should have a real ratio');
+
+  const interventions = deriveProactiveInterventions({ signals: [], risks, asOf: '2026-09-07' });
+  const intervention = interventions.find((i) => i.trigger === 'repeated_mistake');
+  const expectedPct = Math.round(ratio * 100);
+  assert.match(intervention.headline, new RegExp(`错误占比 ${expectedPct}%`));
+  assert.doesNotMatch(intervention.headline, /错误占比 0%/);
+});
