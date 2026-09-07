@@ -13,9 +13,15 @@
 | `ReviewSchedule` | 答错建排期；复习调度 | 与上两套平行 |
 
 漂移假说（按可能性排序）：
-1. **旧数据无 resolved 回写**：早期版本答错写 `touchWrongQuestion`，但重做路径未调用 `resolveWrongQuestion`（或调用前数据已存在），11 行停留在 `resolved=false`；
-2. **派生错题本已"忘"的题在表里还在**：错题本由近期 PracticeRecord 派生，一道题练习历史被会话口径排除后，派生侧不再显示，但表行未清理；
-3. **同一题多轮错答**：表按 (userId,questionId) 唯一——排除重复行假说。
+1. ~~旧数据无 resolved 回写~~ **已审计推翻**：三入口（复习完成 study.service:2318、变式复测 :3286、评分中心 applyReview）回写齐全，`resolved=true` 仅在 `stability === 'mastered'` 时写入——这是掌握度模型的**有意设计**，意味着"已复盘但未掌握"的题合法地停留在 unresolved；
+2. **两套口径本就不同**：canonical 23 行 = "未掌握"（含恢复中的题）；派生错题本 12 = 近期有错答记录的题。23 ≠ 12 是定义差异而非数据损坏；
+3. **真实待决问题**：23 行中是否存在"连排期都没有、近期也无错答"的真死行——需要数据分类才能回答（scripts/audit-wrong-question-drift.mjs，只读）。
+
+## 1b. 审计结论（2026-09-07，写路径审计完成）
+
+- 写路径无缺口，**方案 C（补回写）无实施对象**；
+- 大规模回填 `resolved=true` **不安全**：会把"恢复中未掌握"的题错误标记为已解决，违反诚实原则；
+- 正确动作：先跑只读分类脚本 scripts/audit-wrong-question-drift.mjs（RECOVERY_ACTIVE / RECENT_WRONG / STALE_CANDIDATE 三分类），仅对 STALE_CANDIDATE 且所有者逐条确认后才回填。脚本已在本地测试库验证可运行；生产分类结果待所有者在服务器执行（备份先行，命令见 v8 总结）。
 
 ## 2. 对账目标（口径声明见 docs/v8-wrong-question-semantics.md）
 

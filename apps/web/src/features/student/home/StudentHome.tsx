@@ -6,6 +6,8 @@ import type { DueReviewsResponse } from '../../../api/endpoints/review';
 import type { TodayPlanTask } from '../../onboarding/todayLearningRoute';
 import type { StudentAction } from '../actions/studentAction';
 import type { ModuleResource } from '../../../hooks/moduleResource';
+import { isStaticDemoMode } from '../../../api/env';
+import { TodaysScoreCenter } from '../../today-score-center/TodaysScoreCenter';
 import { StudentActionCard } from '../actions/StudentActionCard';
 import { useDashboardViewModel } from './useDashboardViewModel';
 import { DashboardHero } from './components/DashboardHero';
@@ -89,6 +91,9 @@ export function StudentHome({
             </section>
           ) : null}
           <TodayMission model={model} loading={todayPlanLoading} error={todayPlanError} onLaunch={onLaunchTodayTask} onRefresh={onRefreshTodayPlan} />
+          {/* V9: score-center plan surface wired (backlog #23 owner decision) — node-driven
+              plan with per-minute regeneration; hidden in the static demo (no API). */}
+          {!isStaticDemoMode() ? <TodaysScoreCenter /> : null}
           {todayPlan ? (
             <details className="dashboard-plan-details">
               <summary>展开完整今日计划</summary>

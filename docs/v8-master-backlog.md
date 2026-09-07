@@ -39,7 +39,7 @@
 |---|---|---|---|
 | 21 | AI 分区加入学生导航（侧边栏+底部栏） | U1 | ✅（AI 分区已加入侧边栏与底部导航第六 tab，6 列栅格；mobile-nav 契约同步 5→6） |
 | 22 | "调整计划"死链修复：跳转首页计划折叠区并展开，或移除该按钮 | U2 | ✅（TodayLearningRouteView 删除 onOpenPlan prop 与调整计划按钮；契约改反向断言） |
-| 23 | 删除死代码 TodaysScoreCenter/StudentLearningConsole（或恢复 score-center 入口，二选一） | U3 | ✅（核查推翻原判：两者各有 2-6 个契约测试文件在册，属未接线但已批准的组件资产——删除需所有者决策；已改为「接线 or 连测试一起删」决策项） |
+| 23 | 删除死代码 TodaysScoreCenter/StudentLearningConsole（或恢复 score-center 入口，二选一） | U3 | ✅（所有者决策：选 1 接线。TodaysScoreCenter 已挂进 StudentHome 主列（静态演示隐藏），四档时长重生成 UI 随之上线；契约测试保持绿） |
 | 24 | 闯关离开确认（questContext 将丢失时提示） | U4 | ⬜ |
 | 25 | 会话退出/Esc 二次确认（"已自动保存，下次从这里继续"） | U8 | ⬜ |
 | 26 | 静默恢复会话后显示"已恢复到第 N/Y 题" | U9 | ⬜ |
