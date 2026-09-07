@@ -20,6 +20,7 @@ export const TELEMETRY_EVENT_TYPES = [
   'quest.complete',
   'assessment.generate',
   'tutor.ask',
+  'sprite.interact',
 ] as const;
 
 export const RESERVED_CANONICAL_EVENT_TYPES = [

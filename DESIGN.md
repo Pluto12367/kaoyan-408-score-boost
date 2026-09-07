@@ -87,6 +87,14 @@
 - **弹层**(`OverlayDialog` 等):`--shadow-strong` 抬升,遮罩用半透明黑。
 - **状态卡/降级**(`ModuleResourceState`/`ModuleUnavailable`/`EmptyState`):显式错误与空态,禁止静默回退演示数据(联动 AGENTS.md 第 4 条)。
 
+### 精灵组件(`apps/web/src/features/sprite/`,V10 AI Learning Sprite)
+
+- 悬浮球(`.sprite-fab`)固定右下,`z-index: 60`(高于底部导航 40、低于全屏层 1000+);≤720px 抬升至底部导航上方 `calc(84px + env(safe-area-inset-bottom))`。
+- 视觉:参数化 SVG 面孔表达 9 态 mood;核心只复用 `--primary` 家族,状态点借用既有状态 token(`--green`/`--amber`),不引入第二品牌色;动效仅 breath/pulse 两档,`prefers-reduced-motion` 全局关停。
+- 台词"依据"展开是"透明→信任"契约的一部分:每条台词必须可展开 evidenceRefs,禁止无依据鼓励。
+- 静音偏好存 localStorage(`kaoyan408:sprite.muted`),不入库;精灵是 ambient surface,拉取失败静默隐藏自身(V9 `ProactiveCoachCard` 先例),API 级降级由后端台词诚实表达。
+- 样式独立于 `sprite.css`,只消费语义 token;主题适配靠 token 级联,禁止主题特判类名。
+
 ## 5. 布局原则
 
 - 间距基础 4px 网格,token:`--space-1` 4px / `--space-2` 8px / `--space-3` 12px / `--space-4` 16px / `--space-5` 24px / `--space-6` 32px(XS→2XL)。组件内部只用该阶梯,不为单页创造新间距。历史代码中的字面间距在触碰时渐进替换。

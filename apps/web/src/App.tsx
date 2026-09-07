@@ -17,6 +17,7 @@ import { AuthExperience } from './features/auth/AuthExperience';
 import { OnboardingFlow } from './features/onboarding/OnboardingFlow';
 import { StudentSections } from './features/student/StudentSections';
 import { StudentLoopGuide } from './features/student/StudentLoopGuide';
+import { SpriteWidget } from './features/sprite/SpriteWidget';
 import { TrainingHero } from './features/practice/training-room/TrainingHero';
 import { buildTrainingRoomViewModel } from './features/practice/training-room/trainingRoomViewModel';
 import {
@@ -1648,6 +1649,9 @@ paperId: paper.id,
         </TeacherLayout>
 
       </section>
+      {(sessionUser?.role ?? 'student') === 'student' && !learningSessionType ? (
+        <SpriteWidget accountKey={sessionUser?.id ?? null} />
+      ) : null}
       {learningSessionType ? (
         <div className="exam-workspace-overlay">
           <div className="training-room-session-intro">

@@ -1,0 +1,343 @@
+/* V10-2 Sprite Widget — AI Learning Sprite ambient surface.
+ *
+ * Token-only styles (DESIGN.md §4/§7): zero hex/rgb literals, spacing walks
+ * the --space ladder, the orb core stays in the --primary family and only the
+ * status dot borrows the existing status tokens (--green/--amber). The
+ * z-index 60 sits above the mobile bottom nav (40) and below the fullscreen
+ * exam (1000) and error-reason (1100) layers; on ≤720px the fab lifts above
+ * the 84px bottom nav. Motion has two levels and is disabled under
+ * prefers-reduced-motion.
+ */
+
+.sprite-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.sprite-orb {
+  position: relative;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 1px solid var(--primary-line);
+  border-radius: var(--radius-xl);
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.sprite-orb:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-strong);
+}
+
+.sprite-orb:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sprite-orb--quiet {
+  transform: scale(0.85);
+  opacity: 0.75;
+}
+
+.sprite-orb.motion-breath {
+  animation: sprite-breath 4.5s ease-in-out infinite;
+}
+
+.sprite-orb.motion-pulse {
+  animation: sprite-pulse 2.2s ease-in-out infinite;
+}
+
+@keyframes sprite-breath {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+
+@keyframes sprite-pulse {
+  0%, 100% { box-shadow: var(--shadow-card); }
+  50% { box-shadow: var(--shadow-strong); }
+}
+
+.sprite-orb-core {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  overflow: hidden;
+}
+
+.sprite-orb-core svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sprite-orb-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid var(--surface);
+}
+
+.sprite-orb-dot--success {
+  background: var(--green);
+}
+
+.sprite-orb-dot--warning {
+  background: var(--amber);
+}
+
+.sprite-panel {
+  width: min(320px, calc(100vw - 32px));
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-strong);
+}
+
+.sprite-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.sprite-panel-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sprite-panel-title {
+  margin: var(--space-1) 0 0;
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.sprite-panel-detail {
+  margin: var(--space-2) 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.sprite-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sprite-line {
+  padding: var(--space-3);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.sprite-line-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-body);
+}
+
+.sprite-line-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.sprite-chip {
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sprite-chip:hover {
+  border-color: var(--primary);
+  color: var(--text-strong);
+}
+
+.sprite-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sprite-chip--primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--surface);
+}
+
+.sprite-chip--primary:hover {
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: var(--surface);
+}
+
+.sprite-evidence {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft-2);
+}
+
+.sprite-evidence li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.sprite-evidence-source {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-faint);
+  color: var(--primary-strong);
+  font-size: 11px;
+}
+
+.sprite-panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+}
+
+/* V10-3 companion loop — proactive bubble (one per natural day, mute-gated). */
+.sprite-bubble {
+  width: min(280px, calc(100vw - 48px));
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-strong);
+}
+
+.sprite-bubble-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.sprite-bubble-head strong {
+  font-size: 13px;
+  color: var(--text-strong);
+}
+
+.sprite-bubble-body {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-body);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sprite-bubble-body:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.sprite-bubble-cta {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: var(--surface);
+  font-size: 12px;
+}
+
+/* V10-3 — evidence-backed achievement strip. */
+.sprite-milestones {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line-faint);
+}
+
+.sprite-milestones-title {
+  margin: 0 0 var(--space-1);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sprite-milestones ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sprite-milestones li {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.sprite-mute[aria-pressed='true'] {
+  border-color: var(--primary-line);
+  background: var(--primary-faint);
+  color: var(--primary-strong);
+}
+
+@media (max-width: 720px) {
+  .sprite-fab {
+    right: var(--space-3);
+    bottom: calc(84px + env(safe-area-inset-bottom) + 8px);
+  }
+
+  .sprite-chip {
+    min-height: 40px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite-orb,
+  .sprite-orb.motion-breath,
+  .sprite-orb.motion-pulse,
+  .sprite-chip {
+    animation: none;
+    transition: none;
+  }
+}
