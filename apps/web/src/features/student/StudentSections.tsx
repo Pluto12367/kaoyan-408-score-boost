@@ -155,6 +155,7 @@ export interface StudentSectionsProps {
   onRestartQuestionBank: () => void;
   onRetryPracticeSet: () => void;
   onQuickPracticeSet?: (minutes: number) => void;
+  onExamAlignedPractice?: (enabled: boolean) => void;
   onOpenDetail: (questionId: string) => void;
   onCloseDetail: () => void;
   onOpenCatalog?: (nodeId: string, command?: StudentActionCommandDescriptor) => void;
@@ -449,6 +450,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   onNavigate={props.onNavigate}
                   onRetryPracticeSet={props.onRetryPracticeSet}
                   onQuickPracticeSet={props.onQuickPracticeSet}
+                  onExamAlignedPractice={props.onExamAlignedPractice}
                 />
               </Suspense>
               {props.practiceAnswerResult ? (

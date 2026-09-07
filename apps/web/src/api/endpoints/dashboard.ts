@@ -124,9 +124,13 @@ export async function fetchLearningProfile(userId: string): Promise<LearningProf
   return response.json() as Promise<LearningProfile>;
 }
 
-export async function fetchRecommendedPracticeSet(minutesBudget?: number): Promise<PracticeSet> {
+export async function fetchRecommendedPracticeSet(minutesBudget?: number, mode?: string): Promise<PracticeSet> {
   // V8 #12: optional minutes budget — the server sizes the set to the session.
-  const query = minutesBudget ? `?minutes=${minutesBudget}` : '';
+  // LE-V10 F1: mode=exam_aligned attaches the real-exam alignment projection.
+  const params = new URLSearchParams();
+  if (minutesBudget) params.set('minutes', String(minutesBudget));
+  if (mode) params.set('mode', mode);
+  const query = params.size > 0 ? `?${params.toString()}` : '';
   const response = await fetchWithAuth(`${API_BASE_URL}/practice-sets/recommended${query}`);
   if (!response.ok) throw new Error(`Recommended practice set request failed with ${response.status}`);
   return response.json() as Promise<PracticeSet>;

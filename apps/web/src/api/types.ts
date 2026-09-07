@@ -253,6 +253,33 @@ export interface LearningProfile {
 }
 
 // ---- Practice ----
+export interface PracticeSetExamAlignmentItem {
+  questionId: string;
+  primaryNode: { knowledgeNodeId: string; name: string; subject: string } | null;
+  stars: number;
+  recent3Frequency: number | null;
+  recent5Frequency: number | null;
+  allTimeEvidence: number | null;
+  frequencyConfidence: string | null;
+  trendDirection: string | null;
+  lastSeenYear: number | null;
+  mastery: number | null;
+  attempts: number | null;
+  /** 永远以“估算”语义呈现；公式在 evidence.gainFormula。 */
+  predictedGainEstimate: number | null;
+  examHits: Array<{ year: number; subject: string; questionNo: number }>;
+  evidence: {
+    frequencySource: { table: string; nodeId: string | null };
+    masterySource: { table: string; nodeId: string | null };
+    gainFormula: string;
+  };
+}
+
+export interface PracticeSetExamAlignment {
+  summary: { coveredNodeCount: number; coveredYears: number[]; highFrequencyCount: number };
+  items: PracticeSetExamAlignmentItem[];
+}
+
 export interface PracticeSet {
   id: string;
   userId: string;
@@ -266,6 +293,8 @@ export interface PracticeSet {
   questionCount: number;
   estimatedMinutes: number;
   questions: Question[];
+  /** LE-V10 F1：真题对齐投影；仅在 mode=exam_aligned 且数据可用时出现。 */
+  examAlignment?: PracticeSetExamAlignment | null;
 }
 
 export interface PracticeSetResult {

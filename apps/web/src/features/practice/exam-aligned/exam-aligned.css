@@ -1,0 +1,110 @@
+/* LE-V10 F1 — real-exam alignment components. Token-only (DESIGN.md §7):
+   zero hex/rgb, spacing on the --space ladder, four-theme cascade safe. */
+
+.exam-alignment-card {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.exam-alignment-card p {
+  margin: 0 0 var(--space-1);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.exam-alignment-stars {
+  color: var(--primary-strong);
+  font-weight: 600;
+}
+
+.exam-alignment-estimate {
+  color: var(--text-muted);
+}
+
+.exam-alignment-hits {
+  color: var(--text-muted);
+}
+
+.exam-aligned-badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-faint);
+  color: var(--primary-strong);
+  font-size: 11px;
+}
+
+.exam-coverage-summary {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft-2);
+}
+
+.exam-coverage-title {
+  margin: 0 0 var(--space-1);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.exam-coverage-summary p {
+  margin: 0 0 var(--space-1);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.exam-coverage-summary ul {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.exam-coverage-summary li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.practice-exam-aligned-toggle {
+  margin: var(--space-2) 0;
+}
+
+.practice-exam-aligned-toggle .secondary-action[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--primary-faint);
+  color: var(--primary-strong);
+}
+
+.exam-alignment-reason {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--primary-strong);
+  font-size: 11px;
+}
+
+.exam-alignment-details {
+  margin-top: var(--space-2);
+}
+
+.exam-alignment-details summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.exam-alignment-details[open] summary {
+  margin-bottom: var(--space-2);
+}

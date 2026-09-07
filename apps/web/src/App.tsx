@@ -1533,6 +1533,7 @@ paperId: paper.id,
             onRestartQuestionBank={handleRestartQuestionBank}
             onRetryPracticeSet={refreshPracticeSet}
             onQuickPracticeSet={refreshPracticeSet}
+            onExamAlignedPractice={(enabled) => refreshPracticeSet(undefined, enabled ? 'exam_aligned' : undefined)}
             onOpenDetail={setDetailQuestionId}
             onCloseDetail={() => setDetailQuestionId(null)}
             onOpenCatalog={handleOpenCatalogNode}

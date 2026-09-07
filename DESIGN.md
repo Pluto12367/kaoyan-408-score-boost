@@ -86,6 +86,7 @@
 - **主题切换器**(`.theme-switch`):药丸分段控件,`--surface-soft-2` 底、激活片 `--surface` + `--primary-strong` 文字 + 微阴影;按压 `scale(0.95)`。
 - **弹层**(`OverlayDialog` 等):`--shadow-strong` 抬升,遮罩用半透明黑。
 - **状态卡/降级**(`ModuleResourceState`/`ModuleUnavailable`/`EmptyState`):显式错误与空态,禁止静默回退演示数据(联动 AGENTS.md 第 4 条)。
+- **真题对标组件**(`apps/web/src/features/practice/exam-aligned/`,LE-V10 F1):理由卡/覆盖报告只读消费 `examAlignment` 投影;星级与估算文案必须携带"估算"标记与依据;样式独立 `exam-aligned.css`,只用语义 token,零 hex。
 
 ### 精灵组件(`apps/web/src/features/sprite/`,V10 AI Learning Sprite)
 

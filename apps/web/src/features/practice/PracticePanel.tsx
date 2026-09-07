@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { isSlowAnswer, type Question, type UserProfile } from '@kaoyan408/shared';
 import type { PracticeSet, PracticeSetResult } from '../../api';
 import { ModuleInlineUnavailable, ModuleResourceMeta } from '../../components/ModuleResourceState';
@@ -8,6 +9,10 @@ import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
 import { buildPracticeNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
+import { RecommendationReasonCard } from './exam-aligned/RecommendationReasonCard';
+import { ExamCoverageSummary } from './exam-aligned/ExamCoverageSummary';
+import { reasonLineFor } from './exam-aligned/examAlignmentView';
+import '../practice/exam-aligned/exam-aligned.css';
 
 interface PracticePanelProps {
   question: Question;
@@ -42,6 +47,8 @@ interface PracticePanelProps {
   onRetryPracticeSet: () => void;
   /** V8 #12: swap in a minutes-sized set for fragment-schedule sessions. */
   onQuickPracticeSet?: (minutes: number) => void;
+  /** LE-V10 F1: toggle the real-exam aligned recommendation mode. */
+  onExamAlignedPractice?: (enabled: boolean) => void;
 }
 
 function answerLetter(selectedAnswer: string | undefined, question: Question) {
@@ -82,8 +89,14 @@ export function PracticePanel({
   onNavigate,
   onRetryPracticeSet,
   onQuickPracticeSet,
+  onExamAlignedPractice,
 }: PracticePanelProps) {
   const set = practiceSet.data;
+  const examAlignment = set?.examAlignment ?? null;
+  const reasonByQuestionId = new Map(
+    (examAlignment?.items ?? []).map((item) => [item.questionId, item]),
+  );
+  const [examAlignedOn, setExamAlignedOn] = useState(false);
   const answered = Boolean(answerResult);
   const showTaskNextStep = Boolean(answerResult && taskContext && taskNextStep && taskReachedTarget);
   const answerNextAction = answerResult?.correct
@@ -222,6 +235,9 @@ export function PracticePanel({
       {set ? (
         <div className="practice-set">
           <strong>{set.title}</strong>
+          {examAlignment ? (
+            <span className="exam-aligned-badge">真题强化 · 覆盖 {examAlignment.summary.coveredNodeCount} 个真题知识点</span>
+          ) : null}
           <p>{set.focus} · 预计 {set.estimatedMinutes} 分钟</p>
           <ModuleResourceMeta resource={practiceSet} onRetry={onRetryPracticeSet} />
           {onQuickPracticeSet ? (
@@ -234,8 +250,43 @@ export function PracticePanel({
               ))}
             </div>
           ) : null}
+          {onExamAlignedPractice ? (
+            <div className="practice-exam-aligned-toggle" role="group" aria-label="真题强化模式">
+              <button
+                type="button"
+                className="secondary-action"
+                aria-pressed={examAlignedOn}
+                onClick={() => {
+                  const next = !examAlignedOn;
+                  setExamAlignedOn(next);
+                  onExamAlignedPractice(next);
+                }}
+              >
+                真题强化{examAlignedOn ? ' · 已开启' : ''}（按真题考频排序并标注理由）
+              </button>
+            </div>
+          ) : null}
           <span>{set.reason}</span>
-          <ol>{set.questions.slice(0, 3).map((item) => <li key={item.id}>{item.stem}</li>)}</ol>
+          <ol>
+            {set.questions.slice(0, 3).map((item) => {
+              const alignmentItem = reasonByQuestionId.get(item.id);
+              const reasonLine = alignmentItem ? reasonLineFor(alignmentItem) : null;
+              return (
+                <li key={item.id}>
+                  {item.stem}
+                  {reasonLine ? <small className="exam-alignment-reason">{reasonLine}</small> : null}
+                </li>
+              );
+            })}
+          </ol>
+          {examAlignment ? (
+            <details className="exam-alignment-details">
+              <summary>展开逐题推荐理由</summary>
+              {examAlignment.items.map((item) => (
+                <RecommendationReasonCard key={item.questionId} item={item} />
+              ))}
+            </details>
+          ) : null}
           <div className="practice-set-actions">
             <button type="button" className="secondary-action" onClick={onSubmitPracticeSet}>开始专项练习（训练模式）</button>
             {onStartLearningMode ? <button type="button" className="secondary-action" onClick={onStartLearningMode}>学习模式（边做边看解析）</button> : null}
@@ -243,6 +294,7 @@ export function PracticePanel({
           {practiceSetResult ? (
             <div className="practice-set-result">
               <p>最近一组：答对 {practiceSetResult.correctCount}/{practiceSetResult.totalQuestions}，正确率 {practiceSetResult.accuracyRate}%</p>
+              {examAlignment ? <ExamCoverageSummary alignment={examAlignment} /> : null}
               <div className="practice-set-action-panel" role="status" aria-label="专项训练完成后的下一步">
                 <article>
                   <span>训练结论</span>
