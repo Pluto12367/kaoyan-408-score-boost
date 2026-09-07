@@ -186,3 +186,27 @@ test('V10-3 milestones: the panel shows the achievement strip when evidence exis
   assert.match(widget, /milestones/);
   assert.match(widget, /成就/, 'achievement strip is user-visible');
 });
+
+// ---------------------------------------------------------------------------
+// V10-4 memory + V10-5 conversation
+// ---------------------------------------------------------------------------
+
+test('V10-4 memory: the panel shows, adds, and forgets user-stated facts', async () => {
+  const widget = await readSource('SpriteWidget.tsx');
+  assert.match(widget, /星野记得/, 'memory section is user-visible');
+  assert.match(widget, /sprite\/memory/, 'memory endpoints are called');
+  assert.match(widget, /忘记/, 'every memory is forgettable (user control)');
+  assert.match(widget, /记住/, 'manual memory input exists');
+  assert.match(widget, /DELETE/, 'forgetting issues the delete call');
+});
+
+test('V10-5 conversation: the panel talks through the supervisor with honest per-agent rendering', async () => {
+  const widget = await readSource('SpriteWidget.tsx');
+  assert.match(widget, /agent\/supervisor\/run/, 'conversation rides the existing supervisor');
+  assert.match(widget, /routedTo/, 'replies name the agent that answered');
+  assert.match(widget, /#\/ai'/, 'tutor intents deep-link to the AI section instead of embedding solutions');
+  assert.match(widget, /answer/, 'coach replies render the grounded answer');
+  assert.match(widget, /suggestions/, 'coach suggestions become follow-up chips');
+  assert.match(widget, /workflow/, 'deterministic fallback mode is labelled honestly');
+  assert.match(widget, /对话失败|暂时无法/, 'failures are explicit, never faked');
+});

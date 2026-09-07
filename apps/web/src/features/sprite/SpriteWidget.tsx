@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import { API_BASE_URL, fetchWithAuth } from '../../api/client';
 import { isStaticDemoMode } from '../../api/env';
 import { trackEvent } from '../../api/events';
 import { spriteVisual, type SpriteFaceKind } from './spriteMood';
@@ -13,16 +14,18 @@ import {
 import './sprite.css';
 
 /**
- * V10-2/V10-3 — the companion's ambient surface (constitution §5.3).
+ * V10-2/3/4/5 — the companion's ambient surface (constitution §5.3/§7.3/§4).
  *
  * Honesty: static demo mode and hard fetch failures render nothing (V9
  * ProactiveCoachCard precedent — the sprite never becomes an error banner);
  * API-level degradation arrives as the backend's own honest lines. Every line
  * exposes its evidence ("依据"); deep links reuse the canonical surfaces.
  * V10-3 adds the companion loop: ONE proactive bubble per natural day
- * (greeting at mount, or a celebrate/rest completion response — same quota),
- * muted users are never interrupted, idle/focused never greet, and every
- * interaction is tracked as the allowlisted `sprite.interact` type.
+ * (muted users are never interrupted; idle/focused never greet). V10-4 adds
+ * the "星野记得" user-stated memory (add / forget — always user-controlled).
+ * V10-5 adds the conversation, riding the existing supervisor with honest
+ * per-agent rendering; every user message reflows through the deterministic
+ * memory extractor (best-effort).
  */
 
 const EVIDENCE_SOURCE_LABELS: Record<string, string> = {
@@ -33,6 +36,83 @@ const EVIDENCE_SOURCE_LABELS: Record<string, string> = {
   recovery: '断档恢复',
   session: '练习会话',
 };
+
+interface SpriteChatMessage {
+  id: string;
+  role: 'user' | 'sprite';
+  text: string;
+  error?: boolean;
+  meta?: {
+    routedTo?: string;
+    mode?: string;
+    suggestions?: string[];
+    citations?: string[];
+    link?: { target: string; label: string };
+  };
+}
+
+function adaptSupervisorReply(result: {
+  ok?: boolean;
+  routedTo?: string;
+  error?: string;
+  citations?: readonly string[];
+  data?: {
+    mode?: string;
+    answer?: { summary?: string; suggestions?: string[] };
+  };
+}): SpriteChatMessage {
+  const id = `s-${Date.now()}`;
+  const routedTo = String(result?.routedTo ?? '');
+  const citations = Array.isArray(result?.citations) ? result.citations.map(String) : [];
+  if (!result || result.ok !== true) {
+    return {
+      id,
+      role: 'sprite',
+      text: `对话失败：${result?.error ?? '未知错误'}。稍后再试一次。`,
+      error: true,
+      meta: { routedTo },
+    };
+  }
+  if (routedTo === 'tutor-agent') {
+    // Constitution §4.2: solutions live in the tutor surface, not inline here.
+    return {
+      id,
+      role: 'sprite',
+      text: '这个问题值得进入讲解模式，我陪你一步步来。',
+      meta: { routedTo, link: { target: '#/ai', label: '去 AI 答疑' } },
+    };
+  }
+  if (routedTo === 'planner-agent') {
+    return {
+      id,
+      role: 'sprite',
+      text: '计划草案已生成（默认只预览，不写入你的计划）。',
+      meta: { routedTo, link: { target: '#/dashboard', label: '看今日计划' } },
+    };
+  }
+  if (routedTo === 'exam-agent') {
+    return {
+      id,
+      role: 'sprite',
+      text: '模拟卷已备好——真实题库、真实知识节点。',
+      meta: { routedTo, citations, link: { target: '#/test', label: '去测试' } },
+    };
+  }
+  const answer = result.data?.answer ?? {};
+  const summary = String(answer.summary ?? '').trim()
+    || '这一轮我没有形成有依据的回答，换个问法试试。';
+  return {
+    id,
+    role: 'sprite',
+    text: summary,
+    meta: {
+      routedTo,
+      mode: String(result.data?.mode ?? ''),
+      suggestions: Array.isArray(answer.suggestions) ? answer.suggestions.map(String).slice(0, 3) : [],
+      citations,
+    },
+  };
+}
 
 function SpriteFace({ face }: { face: SpriteFaceKind }) {
   const stroke = 'currentColor';
@@ -176,6 +256,14 @@ export function SpriteWidget({ accountKey }: { accountKey: string | null }) {
   const greetedRef = useRef(false);
   const prevMoodRef = useRef<string | null>(null);
 
+  // V10-4 memory + V10-5 conversation are panel-local state.
+  const [memoryEntries, setMemoryEntries] = useState<{ id: string; text: string }[] | null>(null);
+  const [memoryError, setMemoryError] = useState(false);
+  const [memoryInput, setMemoryInput] = useState('');
+  const [chat, setChat] = useState<SpriteChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [sending, setSending] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -231,7 +319,87 @@ export function SpriteWidget({ accountKey }: { accountKey: string | null }) {
 
   useEffect(() => {
     greetedRef.current = false;
+    setChat([]);
   }, [accountKey]);
+
+  const loadMemory = useCallback(async () => {
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/sprite/memory`);
+      if (!response.ok) {
+        setMemoryError(true);
+        return;
+      }
+      const payload = (await response.json()) as { entries?: { id: string; text: string }[] };
+      setMemoryEntries(Array.isArray(payload.entries) ? payload.entries : []);
+      setMemoryError(false);
+    } catch {
+      setMemoryError(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) void loadMemory();
+  }, [open, loadMemory]);
+
+  const forgetMemory = async (memoryId: string) => {
+    try {
+      await fetchWithAuth(`${API_BASE_URL}/sprite/memory/${encodeURIComponent(memoryId)}`, { method: 'DELETE' });
+    } catch {
+      // reload below will surface the truth
+    }
+    void loadMemory();
+  };
+
+  const rememberText = async (rawText: string): Promise<boolean> => {
+    const text = rawText.trim();
+    if (!text) return false;
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/sprite/memory`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!response.ok) {
+        setMemoryError(true);
+        return false;
+      }
+      void loadMemory();
+      return true;
+    } catch {
+      setMemoryError(true);
+      return false;
+    }
+  };
+
+  const rememberManual = async () => {
+    if (await rememberText(memoryInput)) setMemoryInput('');
+  };
+
+  const sendChat = async () => {
+    const text = chatInput.trim();
+    if (!text || sending) return;
+    setChatInput('');
+    setSending(true);
+    setChat((previous) => [...previous, { id: `u-${Date.now()}`, role: 'user', text }]);
+    // V10-4 reflow: user statements flow through the deterministic extractor.
+    void rememberText(text);
+    try {
+      const response = await fetchWithAuth(`${API_BASE_URL}/agent/supervisor/run`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message: text }),
+      });
+      const result = await response.json();
+      setChat((previous) => [...previous, adaptSupervisorReply(result)]);
+    } catch {
+      setChat((previous) => [
+        ...previous,
+        { id: `e-${Date.now()}`, role: 'sprite', text: '对话失败：暂时连不上星野的大脑，稍后再试试。', error: true },
+      ]);
+    } finally {
+      setSending(false);
+    }
+  };
 
   if (isStaticDemoMode()) return null;
   if (!state || !state.presence.visible) return null;
@@ -279,6 +447,95 @@ export function SpriteWidget({ accountKey }: { accountKey: string | null }) {
               </ul>
             </div>
           ) : null}
+          <div className="sprite-memory">
+            <p className="sprite-milestones-title">星野记得</p>
+            {memoryError ? <p className="sprite-memory-status">记忆暂不可用，稍后再试。</p> : null}
+            {memoryEntries && memoryEntries.length > 0 ? (
+              <ul className="sprite-memory-list">
+                {memoryEntries.map((item) => (
+                  <li key={item.id}>
+                    <span>{item.text}</span>
+                    <button type="button" className="sprite-chip" onClick={() => void forgetMemory(item.id)}>
+                      忘记
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : !memoryError ? (
+              <p className="sprite-memory-status">还没有关于你的记忆——跟我说说吧。</p>
+            ) : null}
+            <div className="sprite-memory-add">
+              <input
+                value={memoryInput}
+                maxLength={120}
+                placeholder="告诉星野一件关于你的事"
+                onChange={(event) => setMemoryInput(event.target.value)}
+              />
+              <button type="button" className="sprite-chip" onClick={() => void rememberManual()}>
+                记住
+              </button>
+            </div>
+          </div>
+          <div className="sprite-chat">
+            <p className="sprite-milestones-title">问星野</p>
+            <div className="sprite-chat-log">
+              {chat.length === 0 ? (
+                <p className="sprite-memory-status">考试、计划、讲解——说什么都可以，我来路由。</p>
+              ) : null}
+              {chat.map((message) => (
+                <div
+                  key={message.id}
+                  className={`sprite-chat-msg sprite-chat-msg--${message.role}${message.error ? ' sprite-chat-msg--error' : ''}`}
+                >
+                  <p>{message.text}</p>
+                  {message.meta?.mode === 'workflow' ? (
+                    <small>确定性模式（AI 暂不可用，回答仍基于你的真实数据）</small>
+                  ) : null}
+                  {message.meta?.suggestions && message.meta.suggestions.length > 0 ? (
+                    <div className="sprite-chat-suggestions">
+                      {message.meta.suggestions.map((suggestion) => (
+                        <span key={suggestion}>{suggestion}</span>
+                      ))}
+                    </div>
+                  ) : null}
+                  {message.meta?.citations && message.meta.citations.length > 0 ? (
+                    <small className="sprite-chat-citations">依据节点：{message.meta.citations.join('、')}</small>
+                  ) : null}
+                  {message.meta?.link ? (
+                    <button
+                      type="button"
+                      className="sprite-chip"
+                      onClick={() => {
+                        window.location.hash = message.meta!.link!.target;
+                      }}
+                    >
+                      {message.meta.link.label}
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+              {sending ? <p className="sprite-memory-status">星野思考中…</p> : null}
+            </div>
+            <div className="sprite-chat-input">
+              <input
+                value={chatInput}
+                maxLength={500}
+                placeholder="问点什么…"
+                onChange={(event) => setChatInput(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') void sendChat();
+                }}
+              />
+              <button
+                type="button"
+                className="sprite-chip sprite-chip--primary"
+                disabled={sending}
+                onClick={() => void sendChat()}
+              >
+                发送
+              </button>
+            </div>
+          </div>
           <footer className="sprite-panel-foot">
             <button
               type="button"

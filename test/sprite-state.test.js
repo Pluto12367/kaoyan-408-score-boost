@@ -488,6 +488,23 @@ test('evidence contract: every mood reason and line carries resolvable evidence'
   }
 });
 
+test('V10-4: the sprite state carries a bounded, optional memory section', async () => {
+  const { buildSpriteState } = await loadModules();
+  const memories = [
+    { id: 'mem:1', text: '我喜欢计组' },
+    { id: 'mem:2', text: '我想考北邮' },
+    { id: 'mem:3', text: '我每天背 20 个单词' },
+    { id: 'mem:4', text: '我怕网络层大题' },
+    { id: 'mem:5', text: '我在准备 408' },
+  ];
+  const state = buildSpriteState(baseInput({ memory: memories, plan: planLite({ totalTasks: 1 }) }));
+  assert.equal(state.memory.entries.length, 3, 'ambient display is capped at 3');
+  assert.deepEqual([...state.memory.entries.map((item) => item.id)], ['mem:1', 'mem:2', 'mem:3']);
+
+  const withoutMemory = buildSpriteState(baseInput());
+  assert.deepEqual([...withoutMemory.memory.entries], [], 'no memory service → empty section, never an error');
+});
+
 // ---------------------------------------------------------------------------
 // 5. Wiring contract (source-level, V9 #P1 style)
 // ---------------------------------------------------------------------------

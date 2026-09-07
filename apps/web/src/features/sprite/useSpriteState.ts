@@ -60,6 +60,9 @@ export interface SpriteStateView {
     readonly unavailableSources: readonly string[];
     readonly contextAvailable: boolean;
   };
+  readonly memory: {
+    readonly entries: readonly { readonly id: string; readonly text: string }[];
+  };
   readonly source: string;
 }
 

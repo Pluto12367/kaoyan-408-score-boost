@@ -121,6 +121,8 @@ export interface SpriteStateInput {
   readonly story: SpriteStoryLite | null;
   readonly activeSession: boolean;
   readonly unavailableSources: readonly string[];
+  /** V10-4 additive increment (still sprite-state-v1): bounded user-stated memories. */
+  readonly memory?: readonly { readonly id: string; readonly text: string }[] | null;
 }
 
 export interface SpriteState {
@@ -147,6 +149,10 @@ export interface SpriteState {
   readonly degraded: {
     readonly unavailableSources: readonly string[];
     readonly contextAvailable: boolean;
+  };
+  /** V10-4 additive increment: user-stated memories for ambient display (≤3). */
+  readonly memory: {
+    readonly entries: readonly { readonly id: string; readonly text: string }[];
   };
   readonly source: 'derived';
 }
@@ -214,6 +220,9 @@ export function buildSpriteState(input: SpriteStateInput): SpriteState {
     degraded: {
       unavailableSources: input.unavailableSources,
       contextAvailable,
+    },
+    memory: {
+      entries: (input.memory ?? []).slice(0, 3).map((item) => ({ id: item.id, text: item.text })),
     },
     source: 'derived',
   };
