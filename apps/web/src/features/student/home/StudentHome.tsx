@@ -6,6 +6,7 @@ import type { DueReviewsResponse } from '../../../api/endpoints/review';
 import type { TodayPlanTask } from '../../onboarding/todayLearningRoute';
 import type { StudentAction } from '../actions/studentAction';
 import type { ModuleResource } from '../../../hooks/moduleResource';
+import { lazy, Suspense } from 'react';
 import { isStaticDemoMode } from '../../../api/env';
 import { TodaysScoreCenter } from '../../today-score-center/TodaysScoreCenter';
 import { StudentActionCard } from '../actions/StudentActionCard';
@@ -126,4 +127,4 @@ export function StudentHome({
     </div>
   );
 }
-import { lazy, Suspense } from 'react';
+
