@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>主题 d 候选 · 品牌风格对比入口</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Inter", "Microsoft YaHei", "PingFang SC", sans-serif; background: #f6f5f4; color: #1a1a1a; padding: 48px 24px; }
+    .wrap { max-width: 860px; margin: 0 auto; }
+    h1 { font-size: 26px; margin: 0 0 8px; }
+    .sub { color: #5d5b54; margin: 0 0 32px; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    a.card { display: block; text-decoration: none; color: inherit; border: 1px solid #e5e3df; border-radius: 12px; padding: 20px; background: #fff; }
+    a.card:hover { border-color: #5645d4; }
+    .card .swatch { height: 64px; border-radius: 8px; margin-bottom: 14px; display: flex; }
+    .card strong { display: block; font-size: 16px; margin-bottom: 4px; }
+    .card span { font-size: 13px; color: #5d5b54; }
+    .note { margin-top: 32px; font-size: 12px; color: #787671; border-top: 1px solid #e5e3df; padding-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>主题 d 候选 · 三套品牌风格预览</h1>
+    <p class="sub">每页渲染同一组组件(色板、排版、按钮、卡片、输入框、首页样张),仅靠 --p-* token 变量换肤。选定后将以纯 token 覆盖实现为 <code>html[data-theme="d"]</code>。</p>
+    <div class="grid">
+      <a class="card" href="linear.html">
+        <div class="swatch" style="background:#010102"><i style="flex:1;background:#0f1011"></i><i style="flex:1;background:#5e6ad2"></i><i style="flex:1;background:#f7f8f8"></i></div>
+        <strong>Linear 风格</strong>
+        <span>近黑画布 · 薰衣草蓝 · 表面阶梯 · 冷静高密度工作台</span>
+      </a>
+      <a class="card" href="notion.html">
+        <div class="swatch" style="background:#ffffff;border-bottom:1px solid #e5e3df"><i style="flex:1;background:#ffe8d4"></i><i style="flex:1;background:#5645d4"></i><i style="flex:1;background:#37352f"></i></div>
+        <strong>Notion 风格</strong>
+        <span>白底 · 签名紫 CTA · 暖炭黑 · 粉彩分类卡 · 阅读友好</span>
+      </a>
+      <a class="card" href="claude.html">
+        <div class="swatch" style="background:#faf9f5"><i style="flex:1;background:#efe9de"></i><i style="flex:1;background:#cc785c"></i><i style="flex:1;background:#181715"></i></div>
+        <strong>Claude 风格</strong>
+        <span>奶油画布 · 珊瑚红 · 衬线标题 · 深色精选卡 · 温暖人文</span>
+      </a>
+    </div>
+    <p class="note">参考:VoltAgent/awesome-design-md(MIT)的 Linear / Notion / Claude DESIGN.md。静态演示样张,不含真实业务数据;与 design/option-c-mockups/ 同为设计决策素材。</p>
+  </div>
+</body>
+</html>

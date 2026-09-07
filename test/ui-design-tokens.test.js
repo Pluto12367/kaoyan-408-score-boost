@@ -21,7 +21,8 @@ test('Phase 2: semantic tokens exist and shared chrome references them', async (
     assert.match(styles, new RegExp(`${token.replace('--', '--')}: `), `token ${token} should be defined`);
   }
   assert.match(styles, /\.topbar,\s*\.panel,\s*\.metric \{[\s\S]*?background: var\(--surface\)/, 'panels should use the surface token');
-  assert.match(styles, /\.sidebar \{[\s\S]*?background: var\(--slate-900\)/, 'the sidebar should use the dark token');
+  assert.match(styles, /\.sidebar \{[\s\S]*?background: var\(--surface-sidebar\)/, 'the sidebar should use the dark token');
   assert.match(styles, /\.tag-list span \{[\s\S]*?background: var\(--primary-soft\)/, 'tags should use the soft primary token');
-  assert.match(styles, /--muted: #64748b/, 'the previously undefined --muted token must now be defined');
+  assert.match(styles, /--surface-sidebar: #111827/, 'the sidebar dark token must be defined');
+  assert.doesNotMatch(styles, /--muted:|--text-soft:|--slate-900:|--slate-800:|--slate-300:/, 'legacy alias tokens must stay removed (consolidated into --text-muted/--text-secondary/--surface-sidebar)');
 });

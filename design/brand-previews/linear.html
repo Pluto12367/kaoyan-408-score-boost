@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>主题 d 预览 · Linear 风格</title>
+  <link rel="stylesheet" href="preview-base.css">
+  <style>
+    /*
+     * Linear 规范:近黑画布 #010102(带极淡蓝调,勿改纯黑)、表面阶梯分层、
+     * hairline 细线、几乎无阴影;薰衣草蓝 #5E6AD2 仅用于品牌/主 CTA/焦点/链接。
+     * 来源:awesome-design-md/design-md/linear.app/DESIGN.md(MIT)。
+     * 注:Linear 规范不含警告/危险色,下列扩展色仅用于学习场景语义状态展示。
+     */
+    :root {
+      --p-canvas: #010102;
+      --p-surface-1: #0f1011;
+      --p-surface-2: #141516;
+      --p-line: #23252a;
+      --p-line-strong: #34343a;
+      --p-ink: #f7f8f8;
+      --p-ink-muted: #d0d6e0;
+      --p-ink-subtle: #8a8f98;
+      --p-ink-tertiary: #62666d;
+      --p-primary: #5e6ad2;
+      --p-primary-hover: #828fff;
+      --p-primary-active: #5e69d1;
+      --p-on-primary: #ffffff;
+      --p-success: #27a644;
+      --p-warning: #f2c94c; /* 扩展:学习场景待复习状态 */
+      --p-danger: #eb5757;  /* 扩展:学习场景错误状态 */
+      --p-radius-btn: 8px;
+      --p-radius-card: 12px;
+      --p-shadow-card: none;
+      --p-focus-ring: 0 0 0 2px rgba(94, 105, 209, 0.5);
+      --p-tracking-display: -0.01em;
+    }
+  </style>
+</head>
+<body>
+  <div class="pv-shell">
+
+    <header class="pv-header">
+      <div class="pv-brand-row"><span class="pv-brand-mark">408</span><span style="font-size:13px;color:var(--p-ink-subtle)">计算机考研 408 提分系统 · 主题 d 候选</span></div>
+      <h1>Linear 风格 · 冷静深色工作台</h1>
+      <p class="pv-sub">近黑画布 + 表面阶梯 + hairline 细线,几乎不用阴影;薰衣草蓝只出现在品牌、主行动、焦点与链接四处。层级靠表面抬升表达,密集、技术感、克制。</p>
+      <p class="pv-meta">候选主题 d · 参考 <a href="https://github.com/VoltAgent/awesome-design-md/blob/main/design-md/linear.app/DESIGN.md">awesome-design-md / linear.app DESIGN.md</a>(MIT)· 警告/危险色为学习场景扩展(Linear 原规范未定义)</p>
+    </header>
+
+    <section class="pv-section">
+      <h2 class="pv-section-title">色板与角色</h2>
+      <p class="pv-section-caption">canvas 锚定底色;surface 逐级抬升不跳级;主色仅限四处使用。</p>
+      <div class="pv-swatch-grid">
+        <div class="pv-swatch"><div class="pv-chip" style="background:#010102"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">canvas</span><span class="pv-swatch-hex">#010102</span><span class="pv-swatch-role">页面底色(蓝调黑)</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#0f1011"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">surface-1</span><span class="pv-swatch-hex">#0F1011</span><span class="pv-swatch-role">卡片 / 内容容器</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#141516"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">surface-2</span><span class="pv-swatch-hex">#141516</span><span class="pv-swatch-role">推荐卡 / 悬停抬升</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#23252a"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">hairline</span><span class="pv-swatch-hex">#23252A</span><span class="pv-swatch-role">卡片 1px 边框</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#34343a"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">hairline-strong</span><span class="pv-swatch-hex">#34343A</span><span class="pv-swatch-role">输入框边框</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#f7f8f8"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">ink</span><span class="pv-swatch-hex">#F7F8F8</span><span class="pv-swatch-role">标题 / 强调</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#8a8f98"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">ink-subtle</span><span class="pv-swatch-hex">#8A8F98</span><span class="pv-swatch-role">次要文字</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#62666d"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">ink-tertiary</span><span class="pv-swatch-hex">#62666D</span><span class="pv-swatch-role">禁用 / 脚注</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#5e6ad2"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">primary</span><span class="pv-swatch-hex">#5E6AD2</span><span class="pv-swatch-role">品牌 / CTA / 焦点</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#828fff"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">primary-hover</span><span class="pv-swatch-hex">#828FFF</span><span class="pv-swatch-role">悬停</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#27a644"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">success</span><span class="pv-swatch-hex">#27A644</span><span class="pv-swatch-role">已掌握 / 正确</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#f2c94c"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">warning 扩展</span><span class="pv-swatch-hex">#F2C94C</span><span class="pv-swatch-role">待复习 / 低置信</span></div></div>
+        <div class="pv-swatch"><div class="pv-chip" style="background:#eb5757"></div><div class="pv-swatch-copy"><span class="pv-swatch-name">danger 扩展</span><span class="pv-swatch-hex">#EB5757</span><span class="pv-swatch-role">错误 / 高风险</span></div></div>
+      </div>
+    </section>
+
+    <section class="pv-section">
+      <h2 class="pv-section-title">排版</h2>
+      <p class="pv-section-caption">展示 600 / 正文 400;展示用微负字距;按钮 14px/500。</p>
+      <div class="pv-type-row"><span class="pv-type-label">display 40 / 600 / -1%</span><span class="pv-type-display" style="font-size:40px">强化阶段 · 第 38 天</span></div>
+      <div class="pv-type-row"><span class="pv-type-label">headline 28 / 600</span><span class="pv-type-display" style="font-size:28px">今日提分行动</span></div>
+      <div class="pv-type-row"><span class="pv-type-label">card-title 22 / 500</span><span class="pv-type-display" style="font-size:22px;font-weight:500">数据结构 · 哈希表专项</span></div>
+      <div class="pv-type-row"><span class="pv-type-label">body 16 / 400</span><span style="font-size:16px">基于昨日错题分布,今天优先补哈希冲突处理与负载因子计算。</span></div>
+      <div class="pv-type-row"><span class="pv-type-label">body-sm 14 / 400</span><span style="font-size:14px;color:var(--p-ink-subtle)">12 题约 25 分钟,含 3 道变式题。</span></div>
+      <div class="pv-type-row"><span class="pv-type-label">caption 12 / 400</span><span style="font-size:12px;color:var(--p-ink-tertiary)">来源:错题本 · 间隔复习引擎</span></div>
+    </section>
+
+    <section class="pv-section">
+      <h2 class="pv-section-title">按钮</h2>
+      <p class="pv-state-note">三态实际可交互(悬停变亮 <code>#828FFF</code>,按压回落 <code>#5E69D1</code>);圆角 8px,禁用胶囊形。</p>
+      <div class="pv-btn-row">
+        <button class="pv-btn pv-btn-primary">开始训练</button>
+        <button class="pv-btn pv-btn-primary pv-is-active">按压态</button>
+        <button class="pv-btn pv-btn-secondary">稍后</button>
+        <button class="pv-btn pv-btn-secondary" disabled>已禁用</button>
+        <button class="pv-btn pv-btn-ghost">查看计划 →</button>
+      </div>
+    </section>
+
+    <section class="pv-section">
+      <h2 class="pv-section-title">卡片与输入</h2>
+      <p class="pv-section-caption">卡片 surface-1 + 1px hairline、圆角 12px、无阴影;重点卡抬升至 surface-2。</p>
+      <div class="pv-card-grid">
+        <div class="pv-card"><h3>普通内容卡</h3><p>知识节点、复习项目、任务组的默认容器。</p></div>
+        <div class="pv-card pv-card-featured"><span class="pv-tag">今日重点</span><h3>抬升卡 surface-2</h3><p>推荐内容与悬停态通过表面阶梯表达优先级。</p></div>
+        <div class="pv-card pv-card-accent" style="--p-card-accent-bg:#0f1011"><h3>输入焦点示例</h3>
+          <div class="pv-field" style="margin-top:10px">
+            <input class="pv-input pv-is-focus" placeholder="搜索知识点,如:红黑树" style="background:#0f1011">
+            <p style="margin:6px 0 0;font-size:11px;color:var(--p-ink-tertiary)">聚焦:2px #5E69D1 @50% 焦点环</p>
+          </div>
+        </div>
+      </div>
+      <div class="pv-input-grid" style="margin-top:16px">
+        <div class="pv-field"><label>默认输入</label><input class="pv-input" placeholder="题号 / 关键词"></div>
+        <div class="pv-field"><label>悬停输入</label><input class="pv-input" style="border-color:var(--p-ink-tertiary)" value="哈希表"></div>
+        <div class="pv-field"><label>聚焦输入</label><input class="pv-input pv-is-focus" value="开放定址法"></div>
+      </div>
+    </section>
+
+    <section class="pv-section">
+      <h2 class="pv-section-title">首页样张 · Learning Cockpit</h2>
+      <p class="pv-section-caption">状态摘要 → 今日主要行动 → 解释性洞察 → 次级入口(数据为演示样张,非真实业务数据)。</p>
+      <div class="pv-home">
+        <aside class="pv-home-sidebar">
+          <div class="pv-home-brand"><span class="pv-brand-mark">408</span><div><strong>408 提分系统</strong><span>学生工作区</span></div></div>
+          <button class="pv-nav-item active"><span class="pv-nav-dot"></span>学习总览</button>
+          <button class="pv-nav-item"><span class="pv-nav-dot"></span>题库训练</button>
+          <button class="pv-nav-item"><span class="pv-nav-dot"></span>错题复盘</button>
+          <button class="pv-nav-item"><span class="pv-nav-dot"></span>阶段测评</button>
+          <button class="pv-nav-item"><span class="pv-nav-dot"></span>AI 答疑</button>
+        </aside>
+        <main class="pv-home-main">
+          <div class="pv-home-topbar">
+            <div><p class="pv-eyebrow">学生工作区</p><h2>林同学,当前处于强化阶段</h2></div>
+            <span class="pv-day">第 38 天 · 距考试 108 天</span>
+          </div>
+          <div class="pv-stats-row">
+            <div class="pv-stat">
+              <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true">
+                <circle class="pv-ring-track" cx="26" cy="26" r="21" fill="none" stroke-width="5"></circle>
+                <circle class="pv-ring-value" cx="26" cy="26" r="21" fill="none" stroke-width="5" stroke-linecap="round" stroke-dasharray="81.7 50.2" transform="rotate(-90 26 26)"></circle>
+              </svg>
+              <div class="pv-stat-copy"><span class="pv-stat-label">综合掌握度</span><span class="pv-stat-value">62%</span><span class="pv-stat-delta up">本周 +4%</span></div>
+            </div>
+            <div class="pv-stat"><div class="pv-stat-copy"><span class="pv-stat-label">今日正确率</span><span class="pv-stat-value">78%</span><span class="pv-stat-delta up">较昨日 +5%</span></div></div>
+            <div class="pv-stat"><div class="pv-stat-copy"><span class="pv-stat-label">待复习薄弱点</span><span class="pv-stat-value" style="color:var(--p-warning)">12</span><span class="pv-stat-delta warn">3 个临近遗忘窗口</span></div></div>
+          </div>
+          <div class="pv-action">
+            <div class="pv-action-copy">
+              <h3>今日主要行动 · 数据结构 哈希表专项 12 题</h3>
+              <p>昨日错题集中在哈希冲突处理与负载因子,今天用 3 道变式题验证纠正效果。</p>
+            </div>
+            <div class="pv-action-cta">
+              <button class="pv-btn pv-btn-secondary">稍后</button>
+              <button class="pv-btn pv-btn-primary">开始训练</button>
+            </div>
+          </div>
+          <div class="pv-insight"><strong>教练洞察:</strong>你连续 3 天在"图的遍历"正确率低于 60%,建议本周插入一次专项复盘。<a href="#">查看证据 →</a></div>
+          <div class="pv-entries">
+            <div class="pv-entry"><strong>知识图谱</strong><span>142 节点 · 按科目</span></div>
+            <div class="pv-entry"><strong>错题复盘</strong><span>18 题待处理</span></div>
+            <div class="pv-entry"><strong>阶段测评</strong><span>下次:周日</span></div>
+            <div class="pv-entry"><strong>AI 答疑</strong><span>随时追问</span></div>
+          </div>
+        </main>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

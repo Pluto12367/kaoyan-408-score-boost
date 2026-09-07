@@ -1,12 +1,13 @@
 /**
- * UI 主题偏好（方案 A 深色 / 方案 B 极简 / 方案 C 标准）
+ * UI 主题偏好(A 深色 / B 极简 / C 标准 / D Notion)
  *
- * - 默认主题为 A 深色（深色科技感是学生端主视觉方向）。
- * - 选择持久化到 localStorage，刷新后保持上次选择。
- * - 通过 html[data-theme] 交给 CSS 变量级联，无业务逻辑依赖。
+ * - 默认主题为 A 深色(深色科技感是学生端主视觉方向)。
+ * - 选择持久化到 localStorage,刷新后保持上次选择。
+ * - 通过 html[data-theme] 交给 CSS 变量级联,无业务逻辑依赖。
+ * - D 为 2026-09 选定的 Notion 风格主题,色板见根目录 DESIGN.md 第 10 节。
  */
 
-export type ThemeVariant = 'a' | 'b' | 'c';
+export type ThemeVariant = 'a' | 'b' | 'c' | 'd';
 
 export const DEFAULT_THEME: ThemeVariant = 'a';
 export const THEME_STORAGE_KEY = 'kaoyan408:theme';
@@ -20,9 +21,10 @@ export const THEME_OPTIONS: ThemeOption[] = [
   { value: 'a', label: '深色' },
   { value: 'b', label: '极简' },
   { value: 'c', label: '标准' },
+  { value: 'd', label: 'Notion' },
 ];
 
-const ALLOWED_THEMES: readonly ThemeVariant[] = ['a', 'b', 'c'];
+const ALLOWED_THEMES: readonly ThemeVariant[] = ['a', 'b', 'c', 'd'];
 
 export function isThemeVariant(value: unknown): value is ThemeVariant {
   return typeof value === 'string' && (ALLOWED_THEMES as readonly string[]).includes(value);

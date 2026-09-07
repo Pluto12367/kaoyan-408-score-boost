@@ -25,14 +25,14 @@ test('theme: default theme is the dark variant', () => {
   assert.ok(isThemeVariant(DEFAULT_THEME));
 });
 
-test('theme: options cover exactly A/B/C with stable labels', () => {
+test('theme: options cover exactly A/B/C/D with stable labels', () => {
   assert.deepEqual(
     THEME_OPTIONS.map((option) => option.value),
-    ['a', 'b', 'c'],
+    ['a', 'b', 'c', 'd'],
   );
   assert.deepEqual(
     THEME_OPTIONS.map((option) => option.label),
-    ['深色', '极简', '标准'],
+    ['深色', '极简', '标准', 'Notion'],
   );
   for (const option of THEME_OPTIONS) {
     assert.ok(isThemeVariant(option.value), `${option.value} should be a valid variant`);
@@ -43,7 +43,8 @@ test('theme: readStoredTheme validates stored values', () => {
   assert.equal(readStoredTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'a' })), 'a');
   assert.equal(readStoredTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'b' })), 'b');
   assert.equal(readStoredTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'c' })), 'c');
-  assert.equal(readStoredTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'd' })), null);
+  assert.equal(readStoredTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'd' })), 'd');
+  assert.equal(readStoredTheme(fakeStorage({ [THEME_STORAGE_KEY]: 'e' })), null);
   assert.equal(readStoredTheme(fakeStorage({ [THEME_STORAGE_KEY]: '' })), null);
   assert.equal(readStoredTheme(fakeStorage({})), null);
   assert.equal(readStoredTheme(null), null);

@@ -1,0 +1,346 @@
+/*
+ * 品牌主题预览 · 共享结构样式
+ *
+ * 用途:对比 Linear / Notion / Claude 三套品牌规范落地为"主题 d"的视觉效果。
+ * 结构与布局全部在本文件;颜色、圆角、阴影、字体由每个 HTML 页面的
+ * --p-* 品牌变量提供(等价于本项目 styles.css 的语义 token 级主题覆盖)。
+ *
+ * 参考:VoltAgent/awesome-design-md 的 Linear/Notion/Claude DESIGN.md(MIT),
+ * 只借鉴 token 值与组织方式,结构按本项目首页(Learning Cockpit)重新实现。
+ */
+
+:root {
+  /* 每个品牌页覆盖以下变量;这里是兜底占位 */
+  --p-canvas: #ffffff;
+  --p-surface-1: #f6f5f4;
+  --p-surface-2: #fafaf9;
+  --p-line: #e5e3df;
+  --p-line-strong: #c8c4be;
+  --p-ink: #1a1a1a;
+  --p-ink-muted: #5d5b54;
+  --p-ink-subtle: #787671;
+  --p-ink-tertiary: #a4a097;
+  --p-primary: #5645d4;
+  --p-primary-hover: #4534b3;
+  --p-primary-active: #4534b3;
+  --p-on-primary: #ffffff;
+  --p-success: #1aae39;
+  --p-warning: #dd5b00;
+  --p-danger: #e03131;
+  --p-radius-btn: 8px;
+  --p-radius-card: 12px;
+  --p-shadow-card: 0 4px 12px rgba(15, 15, 15, 0.08);
+  --p-focus-ring: 0 0 0 2px rgba(86, 69, 212, 0.35);
+  --p-font-display: "Inter", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --p-font-body: "Inter", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --p-tracking-display: 0;
+  --p-shadow-card: 0 4px 12px rgba(15, 15, 15, 0.08);
+}
+
+* { box-sizing: border-box; }
+
+html, body { margin: 0; padding: 0; }
+
+body {
+  background: var(--p-canvas);
+  color: var(--p-ink);
+  font-family: var(--p-font-body);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.pv-shell { max-width: 1160px; margin: 0 auto; padding: 48px 32px 96px; }
+
+/* ---------- 页头 ---------- */
+
+.pv-header { margin-bottom: 48px; }
+
+.pv-header .pv-brand-row {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+
+.pv-brand-mark {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: var(--p-primary); color: var(--p-on-primary);
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; letter-spacing: 0.02em; flex: none;
+}
+
+.pv-header h1 {
+  font-family: var(--p-font-display);
+  font-size: 36px; line-height: 1.15; letter-spacing: var(--p-tracking-display);
+  margin: 0 0 10px; font-weight: 600;
+}
+
+.pv-header .pv-sub { color: var(--p-ink-subtle); margin: 0; max-width: 640px; }
+
+.pv-header .pv-meta {
+  margin-top: 16px; font-size: 12px; color: var(--p-ink-tertiary);
+  border-top: 1px solid var(--p-line); padding-top: 12px;
+}
+
+.pv-header .pv-meta a { color: var(--p-primary); text-decoration: none; }
+.pv-header .pv-meta a:hover { text-decoration: underline; }
+
+/* ---------- 章节通用 ---------- */
+
+.pv-section { margin-bottom: 56px; }
+
+.pv-section-title {
+  font-family: var(--p-font-display);
+  font-size: 18px; font-weight: 600; margin: 0 0 4px;
+  letter-spacing: var(--p-tracking-display);
+}
+
+.pv-section-caption { color: var(--p-ink-subtle); margin: 0 0 20px; font-size: 13px; }
+
+/* ---------- 色板 ---------- */
+
+.pv-swatch-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px;
+}
+
+.pv-swatch {
+  border: 1px solid var(--p-line); border-radius: var(--p-radius-card); overflow: hidden;
+  background: var(--p-surface-2);
+}
+
+.pv-swatch .pv-chip { height: 56px; }
+
+.pv-swatch .pv-swatch-copy { padding: 8px 10px 10px; }
+
+.pv-swatch .pv-swatch-name {
+  display: block; font-weight: 600; font-size: 12px;
+}
+
+.pv-swatch .pv-swatch-hex {
+  display: block; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 11px; color: var(--p-ink-subtle); margin-top: 2px;
+}
+
+.pv-swatch .pv-swatch-role {
+  display: block; font-size: 11px; color: var(--p-ink-tertiary); margin-top: 2px;
+}
+
+/* ---------- 字号阶梯 ---------- */
+
+.pv-type-row {
+  display: flex; align-items: baseline; gap: 20px;
+  padding: 14px 0; border-bottom: 1px solid var(--p-line);
+}
+
+.pv-type-row:first-of-type { border-top: 1px solid var(--p-line); }
+
+.pv-type-label {
+  flex: none; width: 150px; font-size: 11px; color: var(--p-ink-tertiary);
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+
+.pv-type-display {
+  font-family: var(--p-font-display); font-weight: 600;
+  letter-spacing: var(--p-tracking-display);
+}
+
+/* ---------- 按钮 ---------- */
+
+.pv-btn-row { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 20px; }
+
+.pv-btn {
+  appearance: none; border: 1px solid transparent; cursor: pointer;
+  font-family: var(--p-font-body); font-size: 14px; font-weight: 500;
+  padding: 8px 14px; border-radius: var(--p-radius-btn); line-height: 1.2;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.pv-btn-primary { background: var(--p-primary); color: var(--p-on-primary); }
+.pv-btn-primary:hover { background: var(--p-primary-hover); }
+.pv-btn-primary:active, .pv-btn-primary.pv-is-active { background: var(--p-primary-active); }
+
+.pv-btn-secondary {
+  background: var(--p-surface-1); color: var(--p-ink); border-color: var(--p-line-strong);
+}
+.pv-btn-secondary:hover { background: var(--p-surface-2); border-color: var(--p-primary); color: var(--p-primary); }
+.pv-btn-secondary:active, .pv-btn-secondary.pv-is-active { background: var(--p-canvas); }
+
+.pv-btn-ghost { background: transparent; color: var(--p-primary); }
+.pv-btn-ghost:hover { text-decoration: underline; }
+
+.pv-btn[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+.pv-state-note {
+  font-size: 12px; color: var(--p-ink-subtle); margin: 0 0 28px;
+}
+
+.pv-state-note code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  background: var(--p-surface-1); border: 1px solid var(--p-line);
+  padding: 1px 5px; border-radius: 4px;
+}
+
+/* ---------- 卡片 ---------- */
+
+.pv-card-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.pv-card {
+  background: var(--p-surface-1); border: 1px solid var(--p-line);
+  border-radius: var(--p-radius-card); padding: 24px; box-shadow: var(--p-shadow-card);
+}
+
+.pv-card h3 { margin: 0 0 8px; font-size: 16px; font-weight: 600; }
+
+.pv-card p { margin: 0; color: var(--p-ink-subtle); font-size: 13px; }
+
+.pv-card-featured { background: var(--p-surface-2); border-color: var(--p-primary); }
+
+.pv-card-featured .pv-tag {
+  display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  color: var(--p-primary); margin-bottom: 8px;
+}
+
+/* 品牌特色卡:由各页自定义背景(Notion 粉彩 / Claude 奶油或深色 / Linear 抬升面) */
+.pv-card-accent { background: var(--p-card-accent-bg, var(--p-surface-2)); }
+
+/* ---------- 输入框 ---------- */
+
+.pv-input-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+.pv-field label {
+  display: block; font-size: 12px; font-weight: 600; margin-bottom: 6px; color: var(--p-ink-muted);
+}
+
+.pv-input {
+  width: 100%; padding: 8px 12px; font-size: 14px; font-family: var(--p-font-body);
+  color: var(--p-ink); background: var(--p-surface-1);
+  border: 1px solid var(--p-line-strong); border-radius: var(--p-radius-btn);
+  outline: none;
+}
+
+.pv-input::placeholder { color: var(--p-ink-tertiary); }
+
+.pv-input:hover { border-color: var(--p-ink-tertiary); }
+
+.pv-input:focus, .pv-input.pv-is-focus {
+  border-color: var(--p-primary);
+  box-shadow: var(--p-focus-ring);
+}
+
+/* ---------- 首页样张(Learning Cockpit) ---------- */
+
+.pv-home {
+  display: grid; grid-template-columns: 208px 1fr; gap: 0;
+  border: 1px solid var(--p-line); border-radius: var(--p-radius-card);
+  overflow: hidden; min-height: 560px;
+  background: var(--p-canvas);
+}
+
+.pv-home-sidebar {
+  background: var(--p-surface-1); border-right: 1px solid var(--p-line);
+  padding: 16px 12px; display: flex; flex-direction: column; gap: 2px;
+}
+
+.pv-home-brand {
+  display: flex; align-items: center; gap: 8px; padding: 8px; margin-bottom: 12px;
+}
+
+.pv-home-brand .pv-brand-mark { width: 28px; height: 28px; border-radius: 8px; font-size: 11px; }
+
+.pv-home-brand strong { font-size: 13px; line-height: 1.3; display: block; }
+.pv-home-brand span { font-size: 11px; color: var(--p-ink-tertiary); display: block; }
+
+.pv-nav-item {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 8px 10px; border: 0; border-radius: var(--p-radius-btn);
+  background: transparent; color: var(--p-ink-subtle);
+  font-size: 13px; font-family: var(--p-font-body); text-align: left; cursor: pointer;
+}
+
+.pv-nav-item:hover { background: var(--p-surface-2); color: var(--p-ink); }
+
+.pv-nav-item.active { background: var(--p-surface-2); color: var(--p-ink); font-weight: 600; }
+.pv-nav-item.active .pv-nav-dot { background: var(--p-primary); }
+
+.pv-nav-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--p-line-strong); flex: none;
+}
+
+.pv-home-main { padding: 28px 32px; }
+
+.pv-home-topbar { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+
+.pv-home-topbar .pv-eyebrow {
+  margin: 0 0 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+  color: var(--p-primary); text-transform: uppercase;
+}
+
+.pv-home-topbar h2 {
+  font-family: var(--p-font-display); font-size: 22px; margin: 0;
+  letter-spacing: var(--p-tracking-display); font-weight: 600;
+}
+
+.pv-home-topbar .pv-day { font-size: 12px; color: var(--p-ink-tertiary); }
+
+.pv-stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+
+.pv-stat {
+  background: var(--p-surface-1); border: 1px solid var(--p-line);
+  border-radius: var(--p-radius-card); padding: 16px;
+  display: flex; align-items: center; gap: 14px;
+}
+
+.pv-stat-copy .pv-stat-label { display: block; font-size: 12px; color: var(--p-ink-subtle); }
+
+.pv-stat-copy .pv-stat-value {
+  display: block; font-family: var(--p-font-display); font-size: 24px; font-weight: 600;
+  letter-spacing: var(--p-tracking-display); line-height: 1.2; margin-top: 2px;
+}
+
+.pv-stat-copy .pv-stat-delta { display: block; font-size: 11px; margin-top: 2px; }
+.pv-stat-delta.up { color: var(--p-success); }
+.pv-stat-delta.warn { color: var(--p-warning); }
+
+.pv-ring-track { stroke: var(--p-line); }
+.pv-ring-value { stroke: var(--p-primary); }
+
+.pv-action {
+  background: var(--p-surface-1); border: 1px solid var(--p-line);
+  border-radius: var(--p-radius-card); padding: 20px 24px; margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+
+.pv-action-copy h3 { margin: 0 0 6px; font-size: 16px; font-weight: 600; }
+.pv-action-copy p { margin: 0; font-size: 13px; color: var(--p-ink-subtle); max-width: 460px; }
+.pv-action-cta { display: flex; gap: 10px; flex: none; align-items: center; }
+
+.pv-insight {
+  border: 1px solid var(--p-line); border-left: 3px solid var(--p-primary);
+  border-radius: var(--p-radius-card); background: var(--p-surface-2);
+  padding: 14px 18px; margin-bottom: 24px; font-size: 13px; color: var(--p-ink-muted);
+}
+
+.pv-insight strong { color: var(--p-ink); font-weight: 600; }
+.pv-insight a { color: var(--p-primary); text-decoration: none; margin-left: 4px; }
+.pv-insight a:hover { text-decoration: underline; }
+
+.pv-entries { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+.pv-entry {
+  background: var(--p-surface-1); border: 1px solid var(--p-line);
+  border-radius: var(--p-radius-btn); padding: 14px; cursor: pointer;
+}
+
+.pv-entry:hover { border-color: var(--p-line-strong); background: var(--p-surface-2); }
+
+.pv-entry strong { display: block; font-size: 13px; margin-bottom: 2px; }
+.pv-entry span { font-size: 11px; color: var(--p-ink-tertiary); }
+
+/* ---------- 响应式 ---------- */
+
+@media (max-width: 900px) {
+  .pv-shell { padding: 32px 16px 64px; }
+  .pv-card-grid, .pv-input-grid, .pv-stats-row { grid-template-columns: 1fr; }
+  .pv-home { grid-template-columns: 1fr; }
+  .pv-home-sidebar { display: none; }
+  .pv-entries { grid-template-columns: repeat(2, 1fr); }
+  .pv-action { flex-direction: column; align-items: flex-start; }
+}

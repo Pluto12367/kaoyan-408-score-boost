@@ -2,6 +2,8 @@
 
 版本：v1.0（Phase 1）
 
+> **状态更新（2026-09-07）**：本文件的升级版已迁移至仓库根目录 [`DESIGN.md`](../DESIGN.md)（Stitch 九章节结构，含逐主题 hex 色板、组件状态、响应式断点与代理提示词指南，并新增主题 D · Notion 风格）。本文档保留作为 v1.0 历史基线；两处冲突时以代码与 DESIGN.md 为准。
+
 ## Brand
 
 定位：AI-powered Computer Science Learning OS

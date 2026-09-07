@@ -7,6 +7,13 @@
   --text-h2: 24px;
   --text-h3: 18px;
   --text-h4: 16px;
+  /* Spacing scale (4px grid, shared across themes) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
   /* Design tokens (Phase 2): semantic values mapped from the existing palette */
   --bg: #f6f7fb;
   --surface: #ffffff;
@@ -20,8 +27,6 @@
   --text-body: #334155;
   --text-secondary: #526176;
   --text-muted: #64748b;
-  --muted: #64748b;
-  --text-soft: #475569;
   --primary: #2563eb;
   --primary-hover: #1d4ed8;
   --primary-strong: #1e3a8a;
@@ -41,9 +46,7 @@
   --red-soft: #fef2f2;
   --info-soft: #e0f2fe;
   --info-strong: #075985;
-  --slate-900: #111827;
-  --slate-800: #263244;
-  --slate-300: #cbd5e1;
+  --surface-sidebar: #111827;
   --radius-sm: 6px;
   --radius: 8px;
   --radius-lg: 12px;
@@ -247,7 +250,7 @@
 .exam-config-grid label {
   display: grid;
   gap: 6px;
-  color: var(--text-soft);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 700;
 }
@@ -302,7 +305,7 @@
   border-radius: 0;
   padding: 8px 12px;
   background: var(--surface);
-  color: var(--text-soft);
+  color: var(--text-secondary);
 }
 
 .segmented-control button + button {
@@ -555,7 +558,7 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  color: var(--text-soft);
+  color: var(--text-secondary);
   border: 1px solid var(--line-strong);
   background: var(--surface);
 }
@@ -673,7 +676,7 @@ textarea:focus-visible,
 
 .sidebar {
   align-self: start;
-  background: var(--slate-900);
+  background: var(--surface-sidebar);
   color: #f9fafb;
   display: flex;
   flex-direction: column;
@@ -751,7 +754,7 @@ textarea:focus-visible,
 }
 
 .student-loop-guide span {
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -1415,7 +1418,7 @@ textarea:focus-visible,
 }
 
 .demo-role-actions > span {
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 13px;
   font-weight: 700;
 }
@@ -1637,7 +1640,7 @@ textarea:focus-visible,
 }
 
 .assessment-action-button span {
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
@@ -3036,7 +3039,7 @@ textarea:focus-visible,
 
 .review-resource-card small,
 .review-resource-card p {
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .review-resource-card p {
@@ -3271,7 +3274,7 @@ textarea:focus-visible,
 
 .today-task-context span,
 .today-task-context small {
-  color: var(--text-soft);
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -3296,7 +3299,7 @@ textarea:focus-visible,
 .practice-set p,
 .practice-set span,
 .practice-set li {
-  color: var(--text-soft);
+  color: var(--text-secondary);
   font-size: 13px;
   line-height: 1.5;
   margin: 0;
@@ -3370,7 +3373,7 @@ textarea:focus-visible,
 }
 
 .answer-result-head span {
-  color: var(--text-soft);
+  color: var(--text-secondary);
   font-size: 13px;
 }
 
@@ -3817,7 +3820,7 @@ textarea:focus-visible,
 
 .module-unavailable p {
   margin: 5px 0 0;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .module-inline-unavailable {
@@ -3835,7 +3838,7 @@ textarea:focus-visible,
 
 .module-inline-unavailable p {
   margin: 4px 0 0;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 13px;
 }
 
@@ -4979,7 +4982,7 @@ textarea:focus-visible,
 .stage-report-card h4 {
   margin: 0 0 8px;
   font-size: var(--text-h4);
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .stage-report-card strong {
   font-size: 28px;
@@ -4989,12 +4992,12 @@ textarea:focus-visible,
 .stage-report-card small {
   margin: 6px 0 0;
   display: block;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .stage-report-card ul {
   margin: 8px 0 0;
   padding-left: 16px;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .stage-report-summary,
 .stage-report-next {
@@ -5008,7 +5011,7 @@ textarea:focus-visible,
   color: #c0392b;
 }
 .stage-report-badge-muted {
-  color: var(--muted);
+  color: var(--text-muted);
   font-weight: 400;
 }
 
@@ -5339,7 +5342,7 @@ textarea:focus-visible,
 .report-conclusion-card h4 {
   margin: 0 0 8px;
   font-size: var(--text-h4);
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .report-conclusion-card strong {
   font-size: 26px;
@@ -5348,7 +5351,7 @@ textarea:focus-visible,
 .report-conclusion-card p,
 .report-conclusion-list {
   margin: 8px 0 0;
-  color: var(--muted);
+  color: var(--text-muted);
   font-size: 14px;
 }
 .report-conclusion-list {
@@ -5377,7 +5380,7 @@ textarea:focus-visible,
 .report-summary-footer {
   margin: 14px 2px 0;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 .report-summary-footer .secondary-action {
   margin-left: 8px;
@@ -5432,7 +5435,7 @@ textarea:focus-visible,
 .mastery-trend-caption {
   margin-top: 10px;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 /* ---- Stage 6: mobile bottom navigation & boundary polish ---- */
@@ -6299,8 +6302,6 @@ html[data-theme="a"] {
   --text-body: #c3cfe2;
   --text-secondary: #aab8d0;
   --text-muted: #8395b4;
-  --muted: #8395b4;
-  --text-soft: #aab8d0;
   --primary: #4f7dff;
   --primary-hover: #6b92ff;
   --primary-strong: #9db4ff;
@@ -6320,9 +6321,7 @@ html[data-theme="a"] {
   --red-soft: rgba(255, 107, 107, 0.12);
   --info-soft: rgba(56, 189, 248, 0.14);
   --info-strong: #7dd3fc;
-  --slate-900: #0f1a2c;
-  --slate-800: #16233a;
-  --slate-300: #3d4f70;
+  --surface-sidebar: #0f1a2c;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 4%), 0 14px 34px rgb(0 0 0 / 35%);
   --shadow-strong: 0 18px 48px rgb(0 0 0 / 5%);
   color: var(--text);
@@ -6623,7 +6622,7 @@ html[data-theme="a"] .answer-cell.answered {
   color: #fff;
 }
 html[data-theme="a"] .segmented-control button {
-  color: var(--text-soft);
+  color: var(--text-secondary);
 }
 html[data-theme="a"] .segmented-control button.active {
   background: var(--teal);
@@ -6690,8 +6689,6 @@ html[data-theme="b"] {
   --text-body: #334155;
   --text-secondary: #4b5563;
   --text-muted: #6b7280;
-  --muted: #6b7280;
-  --text-soft: #4b5563;
   --primary: #1d4ed8;
   --primary-hover: #1e40af;
   --primary-strong: #1e40af;
@@ -6711,9 +6708,7 @@ html[data-theme="b"] {
   --red-soft: #fdeeee;
   --info-soft: #e0f2fe;
   --info-strong: #075985;
-  --slate-900: #0f172a;
-  --slate-800: #1e293b;
-  --slate-300: #cbd5e1;
+  --surface-sidebar: #0f172a;
   --radius-sm: 6px;
   --radius: 8px;
   --radius-lg: 10px;
@@ -6729,6 +6724,56 @@ html[data-theme="b"] body {
   color: var(--text);
 }
 
+/* ---------- D · Notion（白底 + 签名紫 + 平面细边卡；纯 token 覆盖，色板见根目录 DESIGN.md 第 10 节） ---------- */
+html[data-theme="d"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-soft: #fafaf9;
+  --surface-soft-2: #f6f5f4;
+  --surface-sidebar: #1a1a1a;
+  --line: #e5e3df;
+  --line-faint: #ede9e4;
+  --line-strong: #c8c4be;
+  --text: #1a1a1a;
+  --text-strong: #000000;
+  --text-body: #37352f;
+  --text-secondary: #5d5b54;
+  --text-muted: #787671;
+  --primary: #5645d4;
+  --primary-hover: #6654de;
+  --primary-strong: #3a2a99;
+  --primary-soft: #f0edfd;
+  --primary-faint: #f4f2fd;
+  --primary-line: #ddd6f6;
+  --teal: #2a9d99;
+  --teal-soft: #e3f3f2;
+  --amber: #dd5b00;
+  --amber-strong: #793400;
+  --amber-soft: #fdf1e3;
+  --green: #1aae39;
+  --green-soft: #eaf6ec;
+  --green-pill: #d9f3e1;
+  --green-strong: #157a2c;
+  --red: #e03131;
+  --red-soft: #fdecec;
+  --info-soft: #dcecfa;
+  --info-strong: #0075de;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --shadow-card: 0 1px 2px rgb(15 15 15 / 4%);
+  --shadow-strong: 0 16px 40px rgb(15 15 15 / 16%);
+  color: var(--text);
+  background: var(--bg);
+}
+html[data-theme="d"] body {
+  background: var(--bg);
+  color: var(--text);
+}
+
 /* B：侧栏浅色化 + 边框克制 */
 html[data-theme="b"] .sidebar {
   background: #ffffff;
@@ -6740,7 +6785,7 @@ html[data-theme="b"] .sidebar h1 {
 }
 html[data-theme="b"] .sidebar a,
 html[data-theme="b"] .sidebar nav button {
-  color: var(--text-soft);
+  color: var(--text-secondary);
 }
 html[data-theme="b"] .sidebar a.active,
 html[data-theme="b"] .sidebar a:hover,
