@@ -22,6 +22,8 @@ import { EffectivenessService } from '../effectiveness/effectiveness.service';
 import { LearningSignalService } from '../adaptive/learning-signal.service';
 import { detectLearningRisks } from '../adaptive/learning-risk';
 import { deriveProactiveInterventions } from '../adaptive/proactive-coach';
+import { assignExperimentArm, deriveFeedbackInsights } from './coach-experiments';
+import { FeedbackRepository } from './feedback.repository';
 
 @Controller()
 export class DailyBriefController {
@@ -31,6 +33,7 @@ export class DailyBriefController {
     private readonly scoreCenterService?: ScoreCenterService,
     private readonly effectiveness?: EffectivenessService,
     private readonly learningSignals?: LearningSignalService,
+    private readonly feedbackRepository?: FeedbackRepository,
   ) {}
 
   @Get('coach/daily-brief')
@@ -93,6 +96,40 @@ export class DailyBriefController {
       hasRisks: risks.length > 0,
       interventions,
     };
+  }
+
+  /**
+   * V9 Phase 6 — deterministic A/B arm for the current user + experiment.
+   * Sticky by hash; the endpoint only labels — features decide what varies.
+   */
+  @Get('coach/experiment-assignment')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getExperimentAssignment(
+    @CurrentUser() user: UserProfile,
+    @Query('key') experimentKey?: string,
+    @Query('arms') armsParam?: string,
+  ) {
+    const key = experimentKey?.trim() || 'default';
+    const arms = (armsParam ?? '').split(',').map((arm) => arm.trim()).filter(Boolean);
+    const arm = assignExperimentArm(user.id, key, arms.length >= 2 ? arms : ['control', 'variant']);
+    return { key, arm };
+  }
+
+  /**
+   * V9 Phase 6 — feedback reflow: scenes with repeated low ratings become
+   * experiment candidates. A signal for the owner, never an auto-change.
+   */
+  @Get('coach/feedback-insight')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
+  async getFeedbackInsight() {
+    const records = (await this.feedbackRepository?.list()) ?? [];
+    const { candidates, all } = deriveFeedbackInsights(records.map((record) => ({
+      scene: record.scene,
+      rating: record.rating,
+    })));
+    return { generatedAt: new Date().toISOString(), total: records.length, candidates, all };
   }
 
   private resolveUserId(user: UserProfile, viewUserId?: string): string {
