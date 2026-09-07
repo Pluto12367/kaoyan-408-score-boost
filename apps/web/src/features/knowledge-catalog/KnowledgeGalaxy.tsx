@@ -39,6 +39,8 @@ export interface KnowledgeGalaxyProps {
   masteryById: Record<string, NodeMasterySummary>;
   selectedPointId: string | null;
   onSelectPoint?: (point: CatalogAtomicPoint) => void;
+  /** V9 Phase 4: whole-catalog known relations (prerequisites + related), shown next to in-view edges. */
+  knownRelationCount?: number;
 }
 
 export function KnowledgeGalaxy({
@@ -46,6 +48,7 @@ export function KnowledgeGalaxy({
   masteryById,
   selectedPointId,
   onSelectPoint,
+  knownRelationCount,
 }: KnowledgeGalaxyProps) {
   const [viewport, setViewport] = useState({ x: 0, y: 0, scale: 1 });
   const dragRef = useRef<{ pointerId: number; x: number; y: number; originX: number; originY: number } | null>(null);
@@ -123,7 +126,10 @@ export function KnowledgeGalaxy({
         </div>
         <div className="knowledge-galaxy-heading-meta">
           <span>{points.length} 个聚焦节点</span>
-          <span>{layout.edges.length} 条已知关系</span>
+          <span>
+            {layout.edges.length} 条视图内关系
+            {knownRelationCount != null ? ` · 全库 ${knownRelationCount} 条` : ''}
+          </span>
         </div>
       </div>
 

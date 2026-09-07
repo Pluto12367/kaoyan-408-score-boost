@@ -132,6 +132,10 @@ export interface CatalogFirstScreenHighlight {
 export interface CatalogFilterOptions {
   onlyHighFrequency?: boolean;
   onlyHighImportance?: boolean;
+  /** V9 Phase 4: keep only points whose mastery status is weak (evidence-based). */
+  onlyWeak?: boolean;
+  /** Mastery lookup (the galaxy already builds this) used by onlyWeak. */
+  masteryById?: Record<string, { status?: string; mastery?: number } | undefined>;
 }
 
 export interface CatalogSearchResult {
@@ -362,6 +366,13 @@ export function filterKnowledgeTree(
             }
             if (options.onlyHighImportance && point.importance < HIGH_IMPORTANCE_MIN) {
               return false;
+            }
+            if (options.onlyWeak) {
+              const mastery = options.masteryById?.[point.id];
+              const isWeak = mastery != null
+                && (mastery.status === 'weak'
+                  || (mastery.status == null && mastery.mastery != null && mastery.mastery < 45));
+              if (!isWeak) return false;
             }
             return true;
           });

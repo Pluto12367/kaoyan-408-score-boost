@@ -58,6 +58,7 @@ export function KnowledgeCatalog({
   const [query, setQuery] = useState('');
   const [onlyHighFrequency, setOnlyHighFrequency] = useState(false);
   const [onlyHighImportance, setOnlyHighImportance] = useState(false);
+  const [onlyWeak, setOnlyWeak] = useState(false);
   const [expansion, setExpansion] = useState<ExpansionCommand>({ version: 0, mode: 'collapse' });
   const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
   const [selectedActionType, setSelectedActionType] = useState<CatalogFirstScreenActionType | null>(null);
@@ -192,13 +193,26 @@ export function KnowledgeCatalog({
   );
 
   const filteredSubject = useMemo(
-    () => filterKnowledgeTree(subject, { onlyHighFrequency, onlyHighImportance }),
-    [subject, onlyHighFrequency, onlyHighImportance],
+    () => filterKnowledgeTree(subject, {
+      onlyHighFrequency,
+      onlyHighImportance,
+      onlyWeak,
+      masteryById,
+    }),
+    [subject, onlyHighFrequency, onlyHighImportance, onlyWeak, masteryById],
   );
 
   const matches = useMemo(
     () => (query.trim() ? searchKnowledgeTree(catalog, query) : []),
     [catalog, query],
+  );
+  // V9 Phase 4: whole-catalog known relations (sparse today — surfaced honestly).
+  const knownRelationCount = useMemo(
+    () => Object.values(catalog).reduce((total, subjectEntry) => total
+      + subjectEntry.chapters.reduce((chapterSum, chapter) => chapterSum
+        + chapter.sections.reduce((sectionSum, section) => sectionSum
+          + section.points.reduce((pointSum, point) => pointSum + point.prerequisites.length + point.relatedPoints.length, 0), 0), 0), 0),
+    [catalog],
   );
   const searchHits = useMemo(
     () => summarizeSearchHits(matches, active),
@@ -341,6 +355,14 @@ export function KnowledgeCatalog({
         </button>
         <button
           type="button"
+          className={`catalog-toggle${onlyWeak ? ' active' : ''}`}
+          aria-pressed={onlyWeak}
+          onClick={() => setOnlyWeak((value) => !value)}
+        >
+          只看薄弱
+        </button>
+        <button
+          type="button"
           className={`catalog-toggle${onlyHighImportance ? ' active' : ''}`}
           aria-pressed={onlyHighImportance}
           onClick={() => setOnlyHighImportance((value) => !value)}
@@ -365,6 +387,7 @@ export function KnowledgeCatalog({
           <KnowledgeGalaxy
             subject={visibleSubject}
             masteryById={masteryById}
+            knownRelationCount={knownRelationCount}
             selectedPointId={selectedPointId}
             onSelectPoint={(point) => {
               setSelectedActionType(null);

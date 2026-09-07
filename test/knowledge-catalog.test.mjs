@@ -535,3 +535,26 @@ test('X: stats join never mutates the catalog or the stats items', () => {
   assert.equal(JSON.stringify(catalog), catalogSnapshot, 'catalog must not be mutated');
   assert.equal(JSON.stringify(statsFile.stats), statsSnapshot, 'stats items must not be mutated');
 });
+
+test('X: onlyWeak filter keeps weak-status points and drops the rest (V9 Phase 4)', () => {
+  const catalog = buildKnowledgeTree(tree.nodes);
+  const joined = joinFrequencyEvidence(catalog, frequency.items);
+  const points = collectPoints(joined.DS);
+  const weakId = points[0]?.id;
+  const otherId = points[1]?.id;
+  assert.ok(weakId && otherId, 'fixture needs two points');
+  const masteryById = {
+    [weakId]: { status: 'weak', mastery: 42 },
+    [otherId]: { status: 'mastered', mastery: 88 },
+  };
+  const filtered = filterKnowledgeTree(joined.DS, { onlyWeak: true, masteryById });
+  const kept = collectPoints(filtered).map((point) => point.id);
+  assert.deepEqual(kept, [weakId], 'only the weak point survives');
+});
+
+test('X: onlyWeak with no mastery entry keeps nothing (unknown is not weak)', () => {
+  const catalog = buildKnowledgeTree(tree.nodes);
+  const joined = joinFrequencyEvidence(catalog, frequency.items);
+  const filtered = filterKnowledgeTree(joined.DS, { onlyWeak: true, masteryById: {} });
+  assert.equal(collectPoints(filtered).length, 0, 'untouched points must not masquerade as weak');
+});
