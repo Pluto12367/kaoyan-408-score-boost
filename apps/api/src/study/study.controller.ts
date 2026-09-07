@@ -295,8 +295,9 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Query('userId') viewUserId?: string,
     @Query('minutes') minutes?: string,
+    @Query('mode') mode?: string,
   ) {
-    return this.studyService.getRecommendedPracticeSet(this.resolveUserId(user, viewUserId), parseMinutesBudget(minutes));
+    return this.studyService.getRecommendedPracticeSet(this.resolveUserId(user, viewUserId), parseMinutesBudget(minutes), mode);
   }
 
   @Get('review-resources/recommended')

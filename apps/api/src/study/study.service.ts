@@ -83,6 +83,7 @@ import { questionCountForMinutes } from './quick-session';
 import { deriveTaskReasonCodes } from './task-reason-codes';
 import { applyWeeklyIntensity, deriveWeeklyAdjustment } from './weekly-adjustment';
 import type { EffectivenessService } from '../effectiveness/effectiveness.service';
+import { ExamAlignmentService } from './exam-alignment.service';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
@@ -160,6 +161,7 @@ export class StudyService implements OnModuleInit {
     @Optional() private readonly recommendationActionService?: RecommendationActionService,
     @Optional() private readonly actionFeedbackTrigger?: ActionFeedbackTriggerService,
     @Optional() private readonly effectiveness?: EffectivenessService,
+    @Optional() private readonly examAlignment?: ExamAlignmentService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -2571,16 +2573,31 @@ export class StudyService implements OnModuleInit {
     };
   }
 
-  async getRecommendedPracticeSet(userId = this.student.id, minutesBudget?: number | null) {
+  async getRecommendedPracticeSet(userId = this.student.id, minutesBudget?: number | null, mode?: string) {
     // Sprint 3.3：DB 模式走 Adapter → RecommendationService → Student State SoT；内存演示模式保留 legacy 计算。
     // V8 #12：minutesBudget 缩小题量（15 分钟 → 5 题），不放大基准档。
+    // LE-V10 F1 M2：mode=exam_aligned 时由 ExamAlignmentService 附加只读真题对齐投影（排序投影不改引擎选题）。
+    let base;
     if (!process.env.DATABASE_URL) {
-      return this.getRecommendedPracticeSetLegacy(userId, minutesBudget);
+      base = this.getRecommendedPracticeSetLegacy(userId, minutesBudget);
+    } else if (!this.recommendation) {
+      base = this.getRecommendedPracticeSetLegacy(userId, minutesBudget);
+    } else {
+      base = await this.getRecommendedPracticeSetFromState(userId, minutesBudget);
     }
-    if (!this.recommendation) {
-      return this.getRecommendedPracticeSetLegacy(userId, minutesBudget);
-    }
-    return this.getRecommendedPracticeSetFromState(userId, minutesBudget);
+    if (!this.examAlignment) return base;
+    return this.examAlignment.attachToPracticeSet(userId, base, mode, this.recentPracticeRefs(userId));
+  }
+
+  /** 近 7 日该用户的已练题目（F1 排序降权输入；读内存镜像，有界窗口）。 */
+  private recentPracticeRefs(userId: string) {
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    return this.records
+      .filter((record) => record.userId === userId && new Date(record.submittedAt).getTime() >= cutoff)
+      .map((record) => ({
+        questionId: record.questionId,
+        lastPracticedAt: new Date(record.submittedAt).toISOString(),
+      }));
   }
 
   private getRecommendedPracticeSetLegacy(userId = this.student.id, minutesBudget?: number | null) {
