@@ -19,6 +19,9 @@ import { StudentContextQueryService } from './student-context.query.service';
 import { StudyService } from './study.service';
 import { ScoreCenterService } from '../score-center/service';
 import { EffectivenessService } from '../effectiveness/effectiveness.service';
+import { LearningSignalService } from '../adaptive/learning-signal.service';
+import { detectLearningRisks } from '../adaptive/learning-risk';
+import { deriveProactiveInterventions } from '../adaptive/proactive-coach';
 
 @Controller()
 export class DailyBriefController {
@@ -27,6 +30,7 @@ export class DailyBriefController {
     private readonly studentContext: StudentContextQueryService,
     private readonly scoreCenterService?: ScoreCenterService,
     private readonly effectiveness?: EffectivenessService,
+    private readonly learningSignals?: LearningSignalService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -59,6 +63,36 @@ export class DailyBriefController {
       completedTasks: plan.summary.completedTasks,
       totalTasks: plan.summary.totalTasks,
     });
+  }
+
+  /**
+   * V9 Phase 5 — proactive coach: risks derived from the canonical student
+   * context become at most 2 grounded interventions (headline + actions,
+   * evidence-carrying). Pull-based: nothing is pushed; an empty result means
+   * "no risk worth surfacing" and the UI stays quiet.
+   */
+  @Get('coach/proactive')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getProactiveCoach(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    const generatedAt = new Date().toISOString();
+    if (!this.learningSignals) {
+      return { userId, generatedAt, count: 0, interventions: [], hasRisks: false };
+    }
+    const { signals } = await this.learningSignals.getLearningSignals(userId);
+    const risks = detectLearningRisks(signals);
+    const interventions = deriveProactiveInterventions({ signals, risks, asOf: generatedAt }).slice(0, 2);
+    return {
+      userId,
+      generatedAt,
+      count: interventions.length,
+      hasRisks: risks.length > 0,
+      interventions,
+    };
   }
 
   private resolveUserId(user: UserProfile, viewUserId?: string): string {

@@ -123,3 +123,19 @@ test('V9 slice 2: the brief recalculates when the student returns from practice'
   assert.match(card, /daily-brief:refresh/, 'explicit completion signals can force an immediate recompute');
   assert.match(card, /removeEventListener/, 'listeners are cleaned up on unmount');
 });
+
+test('V9 Phase 5: proactive coach endpoint is grounded, capped, and quiet by default', async () => {
+  const controller = await readFile(new URL('../apps/api/src/study/daily-brief.controller.ts', import.meta.url), 'utf8');
+  assert.match(controller, /Get\('coach\/proactive'\)/);
+  assert.match(controller, /detectLearningRisks\(signals\)/);
+  assert.match(controller, /deriveProactiveInterventions\(/);
+  assert.match(controller, /\.slice\(0, 2\)/, 'at most 2 interventions per pull');
+
+  const card = await readFile(new URL('../apps/web/src/features/student/home/components/ProactiveCoachCard.tsx', import.meta.url), 'utf8');
+  assert.match(card, /coach\/proactive/);
+  assert.match(card, /data\.count === 0\) return null/, 'no risks → the card stays silent');
+  assert.match(card, /if \(isStaticDemoMode\(\)\) return null;/, 'demo mode renders nothing');
+
+  const home = await readFile(new URL('../apps/web/src/features/student/home/StudentHome.tsx', import.meta.url), 'utf8');
+  assert.match(home, /<ProactiveCoachCard \/>/);
+});

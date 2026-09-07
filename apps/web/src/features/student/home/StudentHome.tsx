@@ -10,6 +10,7 @@ import { StudentActionCard } from '../actions/StudentActionCard';
 import { useDashboardViewModel } from './useDashboardViewModel';
 import { DashboardHero } from './components/DashboardHero';
 import { DailyBriefCard } from './components/DailyBriefCard';
+import { ProactiveCoachCard } from './components/ProactiveCoachCard';
 import { StudentStateCard } from './components/StudentStateCard';
 import { TodayMission } from './components/TodayMission';
 import { AIInsightCard } from './components/AIInsightCard';
@@ -80,6 +81,7 @@ export function StudentHome({
       <div className="dashboard-main-grid">
         <div className="dashboard-primary-column">
           <DailyBriefCard />
+          <ProactiveCoachCard />
           <StudentStateCard model={model} onNavigate={() => onNavigate('knowledge-catalog')} />
           {canonicalAction ? (
             <section className="dashboard-canonical-action-region" aria-label="首页核心行动">

@@ -117,6 +117,16 @@
 .daily-brief-priorities strong { display: block; font-size: 13px; }
 .daily-brief-priorities small { color: #9793a4; font-size: 11px; }
 .daily-brief-followup { margin: 0; padding-top: 8px; border-top: 1px dashed #d9d6ea; color: #55a68d; font-size: 12px; }
+/* V9 Phase 5 — proactive coach (renders only with grounded risks) */
+.proactive-coach-section { padding: 18px 24px; }
+.proactive-coach-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.proactive-coach-item { position: relative; display: grid; gap: 4px; padding: 10px 12px; border-left: 3px solid #e0a23c; background: #fdf6ec; border-radius: 6px; }
+.proactive-coach-item.severity-high { border-left-color: #d05656; background: #fbeeee; }
+.proactive-coach-head { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.proactive-coach-head strong { font-weight: 700; }
+.proactive-coach-severity { margin-left: auto; color: #9793a4; font-size: 11px; white-space: nowrap; }
+.proactive-coach-item small { color: #6f6c80; font-size: 11px; }
+.proactive-coach-arrow { position: absolute; right: 10px; bottom: 8px; color: #9793a4; }
 .dashboard-task-count { white-space: nowrap; }
 .dashboard-ai-insight { padding: 24px; background: linear-gradient(145deg, #f2efff, #fff 75%); }
 .dashboard-insight-heading { justify-content: flex-start; }
