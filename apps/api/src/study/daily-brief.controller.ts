@@ -14,14 +14,19 @@ import { RoleGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorator';
 import { studyDateKey } from './study-date';
 import { buildDailyBrief } from './daily-brief';
+import { buildProgressStory } from './progress-narrative';
 import { StudentContextQueryService } from './student-context.query.service';
 import { StudyService } from './study.service';
+import { ScoreCenterService } from '../score-center/service';
+import { EffectivenessService } from '../effectiveness/effectiveness.service';
 
 @Controller()
 export class DailyBriefController {
   constructor(
     private readonly studyService: StudyService,
     private readonly studentContext: StudentContextQueryService,
+    private readonly scoreCenterService?: ScoreCenterService,
+    private readonly effectiveness?: EffectivenessService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -64,5 +69,35 @@ export class DailyBriefController {
       return viewUserId;
     }
     throw new ForbiddenException('You can only access your own data');
+  }
+
+  /** V9 Phase 3 — coach-voiced week-over-week progress story. */
+  @Get('coach/progress-narrative')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getProgressNarrative(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    const [context, trend, interventions] = await Promise.all([
+      this.studentContext.getContext(userId),
+      this.scoreCenterService?.getMasteryTrend(userId, 14) ?? null,
+      this.effectiveness?.getInterventions(userId) ?? null,
+    ]);
+    const story = buildProgressStory({
+      masterySeries: trend?.overall ?? [],
+      accuracyTrend: {
+        status: context.practice.recentAccuracy.status,
+        value: context.practice.recentAccuracy.value,
+        baseline: context.practice.recentAccuracy.baseline,
+      },
+      gatesPassed: interventions
+        ? interventions.events.filter((view) => view.outcomeCorrelation.matched).length
+        : 0,
+      resolvedCount: context.review.resolvedCount,
+      streak: context.momentum.studyStreak,
+    });
+    return { userId, generatedAt: new Date().toISOString(), ...story };
   }
 }

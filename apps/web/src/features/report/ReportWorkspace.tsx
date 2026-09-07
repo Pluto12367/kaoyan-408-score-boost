@@ -23,6 +23,7 @@ import { EffectivenessPanel } from './EffectivenessPanel';
 import { FeedbackPanel } from '../feedback/FeedbackPanel';
 import { LearningProfilePanel } from './LearningProfilePanel';
 import { MasteryTrendPanel } from './MasteryTrendPanel';
+import { ProgressStoryCard } from './ProgressStoryCard';
 import { ReportSummaryPanel } from './ReportSummaryPanel';
 import { ReviewResourcesPanel } from './ReviewResourcesPanel';
 import { StageReportPanel } from './StageReportPanel';
@@ -113,6 +114,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
           onRetry={props.onRetryStageReport}
           onNavigate={props.onNavigate}
         />
+        <ProgressStoryCard />
         <StudentProgressOverview
           trialProgress={props.trialProgress}
           studyReminders={props.studyReminders}
