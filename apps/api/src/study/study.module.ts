@@ -55,6 +55,7 @@ import { EffectivenessModule } from '../effectiveness/effectiveness.module';
 import { CoachSessionRepository } from './coach-session.repository';
 import { ExamAlignmentService } from './exam-alignment.service';
 import { ExamDiagnosisService } from './exam-diagnosis.service';
+import { ReviewShadowService } from './review-shadow.service';
 import { SpriteMemoryRepository } from './sprite-memory.repository';
 import { SpriteMemoryService } from './sprite-memory.service';
 import { LearningMemoryService } from '../agent/learning-memory.service';
@@ -86,6 +87,6 @@ import { StudentContextQueryService } from './student-context.query.service';
     provide: ExamScoreHistoryProjectionService,
     useFactory: (sessions: LearningSessionRepository, practiceRecords: PracticeRecordRepository) =>
       new ExamScoreHistoryProjectionService({ sessions, practiceRecords }),    inject: [LearningSessionRepository, PracticeRecordRepository],
-  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, CanonicalEventWriterService, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository, CoachSessionRepository, LearningMemoryService, ExamAlignmentService, ExamDiagnosisService, SpriteMemoryRepository, SpriteMemoryService],
+  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, CanonicalEventWriterService, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository, CoachSessionRepository, LearningMemoryService, ExamAlignmentService, ExamDiagnosisService, ReviewShadowService, SpriteMemoryRepository, SpriteMemoryService],
 })
 export class StudyModule {}

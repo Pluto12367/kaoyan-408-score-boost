@@ -24,6 +24,7 @@ import { detectLearningRisks } from '../adaptive/learning-risk';
 import { deriveProactiveInterventions } from '../adaptive/proactive-coach';
 import { assignExperimentArm, deriveFeedbackInsights } from './coach-experiments';
 import { FeedbackRepository } from './feedback.repository';
+import { ReviewShadowService } from './review-shadow.service';
 
 @Controller()
 export class DailyBriefController {
@@ -34,6 +35,7 @@ export class DailyBriefController {
     private readonly effectiveness?: EffectivenessService,
     private readonly learningSignals?: LearningSignalService,
     private readonly feedbackRepository?: FeedbackRepository,
+    private readonly reviewShadow?: ReviewShadowService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -130,6 +132,30 @@ export class DailyBriefController {
       rating: record.rating,
     })));
     return { generatedAt: new Date().toISOString(), total: records.length, candidates, all };
+  }
+
+  /**
+   * LE-V10 F3 — review shadow baseline: how well the CURRENT scheduler
+   * retains knowledge, from facts that already exist. Admin/teacher only;
+   * the result carries its own sample-size honesty label.
+   */
+  @Get('coach/review-shadow')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
+  async getReviewShadow() {
+    if (!this.reviewShadow) {
+      return {
+        generatedAt: new Date().toISOString(),
+        shadow: null,
+        reason: 'store_unavailable',
+      };
+    }
+    const shadow = await this.reviewShadow.getReviewShadow();
+    return {
+      generatedAt: new Date().toISOString(),
+      shadow,
+      reason: shadow == null ? 'store_unavailable' : null,
+    };
   }
 
   private resolveUserId(user: UserProfile, viewUserId?: string): string {
