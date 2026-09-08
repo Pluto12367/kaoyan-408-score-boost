@@ -52,6 +52,8 @@
 
 > **2026-09-08 LE-V10 F2 前端诊断视图完成（本地提交，未推送）——F2 后端+前端全部落地**：`features/report/ExamDiagnosisPanel.tsx`（自取数面板，EffectivenessPanel 先例）挂载于考试报告 OverlayDialog 内 ExamReportView 之后；渲染 150 估算分（"估算"徽标 + 客观估算/主观自评分解 + basis + 置信度）、分科客观口径行、失分知识点（丢题数×星级考频）、目标差距（估算标注）、**恢复计划闭环率**（未生成 → 显式提示并指向既有"生成考后复习任务"入口）；静态演示隐藏、加载失败显式文案、unmount 取消。types 增 ExamDiagnosis 全套视图接口；exam.ts 增 fetchExamDiagnosis（throw 语义）。验证：定向 6/6、全量 **npm test 2007/2005/0**（1991 基线 + 16 零新增失败）、build:web PASS。报告：`docs/product-evolution-report-feature2.md`。队列：F3 影子评估器 → F4（content-blocked）。
 
+> **2026-09-08 LE-V10 F3 M1（影子评估器基线）完成，待所有者 Review；FSRS 预测器下一循环**：`packages/shared/src/score-center/review-shadow.ts`（纯，零依赖）——从既有事实测当前复习调度器的保持率：`ReviewAttempt.nextIntervalDays`（旧算法排程）+ 同源题后续 `PracticeRecord`（观察窗 17 天）→ post_1d 即时正确率、retention_7d/14d（窗口内首次后续练习定结果）、按旧算法排程间隔分桶的观测保持率；诚实规则：无后续 = 无证据（绝不计为遗忘）、样本 < 30 = insufficient_data（预注册门槛，禁止无证据下迁移结论）。`GET /coach/review-shadow`（teacher/admin，ReviewShadowService 只读有界装载：ReviewAttempt≤500 + PracticeRecord≤2000）。验证：定向 8/8（RED→GREEN，期间修复 study.module 漏 import 连带的 4 个上传测试失败与测试断言错位）、全量 **npm test 2015/2013/0**（2007 基线 + 8 零新增失败）、build:shared/api PASS。提交 `ad718e8`（本地）。下一循环：FSRS 预测器（shared 纯函数，与 ts-fsrs 对照）接入同一结果形状完成双算法对比。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
