@@ -123,7 +123,9 @@ export class RecommendationService {
       prerequisites[relation.fromId] = list;
     }
 
-    // 候选宇宙：有考频快照的节点（契约 §3 退化规则在此不触发——与 legacy 过滤一致）
+    // 候选宇宙：V11-M3 起不再静默排除无考频快照节点——按契约 §3 退化规则携带
+    // 中性证据（频次 0、LOW 置信）进入候选，由引擎按薄弱度决定优先级；
+    // 缺口本体由 GET /admin/data-quality 观测（B4）。
     const nodeStates = [];
     const evidence: Record<string, NonNullable<ReturnType<typeof buildEvidence>>> = {};
     const prerequisitesInUniverse: Record<string, string[]> = {};
@@ -131,7 +133,6 @@ export class RecommendationService {
 
     for (const node of nodes) {
       const snapshot = snapshotByNode.get(node.id);
-      if (!snapshot) continue;
       const masteryRow = masteryByNode.get(node.id);
       const base = masteryRow
         ? {
@@ -151,7 +152,9 @@ export class RecommendationService {
         lastReviewedAt: masteryRow?.lastReviewedAt?.toISOString() ?? null,
         pinned: masteryRow?.pinned ?? false,
       });
-      evidence[node.id] = buildEvidence(node, snapshot);
+      evidence[node.id] = snapshot
+        ? buildEvidence(node, snapshot)
+        : neutralEvidence(node);
       const nodePrerequisites = (prerequisites[node.id] ?? []).filter((id) => nodeById.has(id));
       if (nodePrerequisites.length > 0) prerequisitesInUniverse[node.id] = nodePrerequisites;
     }
@@ -391,6 +394,25 @@ export class RecommendationService {
     ]);
     return { dueCount, overdueCount };
   }
+}
+
+/**
+ * V11-M3 — neutral exam evidence for nodes without a frequency snapshot
+ * (contract §3 degenerate rule, mirroring shared defaultEvidence but with the
+ * node's real subject/importance/difficulty). The engine's own
+ * LOW_EVIDENCE/zero-frequency path then ranks them honestly.
+ */
+function neutralEvidence(node: { subject: string; importance: number; difficulty: number }) {
+  return {
+    subject: node.subject,
+    importance: node.importance,
+    difficulty: node.difficulty,
+    recent3Y: { frequency: 0 },
+    recent5Y: { frequency: 0, primaryScore: 0 },
+    allTimeEvidence: { frequency: 0 },
+    trend: { direction: 'STABLE' as const, delta: 0 },
+    evidenceConfidence: 'LOW' as const,
+  };
 }
 
 function isUniqueConflict(error: unknown): boolean {
