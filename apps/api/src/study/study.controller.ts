@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get,
 import type { AiTutorFollowUpMode, Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { ExamDiagnosisService } from './exam-diagnosis.service';
+import { AdminDataQualityService } from './admin-data-quality.service';
 import { StudentStateProjectionService } from './student-state-projection.service';
 import { StudentStateQueryService } from './student-state-query.service';
 import { StudentStateReminderQueryService } from './student-state-reminder-query.service';
@@ -68,6 +69,7 @@ export class StudyController {
     private readonly recommendationFeedbackService: RecommendationFeedbackService,
     private readonly studentContextQuery: StudentContextQueryService,
     private readonly examDiagnosis: ExamDiagnosisService,
+    private readonly adminDataQuality: AdminDataQualityService,
   ) {}
 
   @Post('recommendation-actions')
@@ -742,6 +744,17 @@ export class StudyController {
   }
 
   // ---- Admin endpoints (admin only, no student access) ----
+
+  /** V11-M1 — catalog data-quality observability (audit B4/B6/B13). */
+  @Get('admin/data-quality')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  async getAdminDataQuality() {
+    if (!this.adminDataQuality) {
+      throw new ServiceUnavailableException('Data quality report is unavailable without a database');
+    }
+    return this.adminDataQuality.getDataQualityReport();
+  }
 
   @Get('admin/metrics')
   @UseGuards(RoleGuard)
