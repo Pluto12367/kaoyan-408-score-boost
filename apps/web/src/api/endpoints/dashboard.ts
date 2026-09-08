@@ -18,6 +18,7 @@ import type {
   SprintPlan,
   MasteryMap,
   LearningProfile,
+  TaskEvidenceBundle,
   PracticeSet,
   ReviewResourceRecommendation,
   AssessmentHistory,
@@ -122,6 +123,13 @@ export async function fetchLearningProfile(userId: string): Promise<LearningProf
   const response = await fetchWithAuth(`${API_BASE_URL}/students/${encodeURIComponent(userId)}/profile`);
   if (!response.ok) throw new Error(`Learning profile request failed with ${response.status}`);
   return response.json() as Promise<LearningProfile>;
+}
+
+/** V11-M2 — learning evidence for recently completed tasks (capability deltas). */
+export async function fetchTaskEvidence(): Promise<TaskEvidenceBundle> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/coach/task-evidence`);
+  if (!response.ok) throw new Error(`Task evidence failed with ${response.status}`);
+  return response.json() as Promise<TaskEvidenceBundle>;
 }
 
 export async function fetchRecommendedPracticeSet(minutesBudget?: number, mode?: string): Promise<PracticeSet> {

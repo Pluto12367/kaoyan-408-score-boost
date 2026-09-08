@@ -354,6 +354,31 @@ export interface ExamDiagnosis {
   source: string;
 }
 
+// ---- V11-M2：学习证据（已完成任务的能力变化，只读投影） ----
+export interface TaskEvidenceMasteryDelta {
+  nodeId: string;
+  before: number | null;
+  current: number | null;
+  delta: number | null;
+}
+
+export interface TaskEvidenceRecord {
+  taskId: string;
+  title: string;
+  completedDate: string | null;
+  completionState: 'completed' | 'pending';
+  practice: { attempts: number; correctCount: number; accuracyRate: number | null };
+  masteryDeltas: TaskEvidenceMasteryDelta[];
+  verdict: 'improved' | 'practiced' | 'practiced_no_gain' | 'insufficient_data';
+  verdictBasis: string;
+  source: string;
+}
+
+export interface TaskEvidenceBundle {
+  generatedAt: string;
+  tasks: TaskEvidenceRecord[];
+}
+
 export interface PracticeSetResult {
   id: string;
   practiceSetId: string;
