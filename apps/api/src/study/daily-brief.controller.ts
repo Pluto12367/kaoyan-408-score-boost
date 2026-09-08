@@ -25,6 +25,7 @@ import { deriveProactiveInterventions } from '../adaptive/proactive-coach';
 import { assignExperimentArm, deriveFeedbackInsights } from './coach-experiments';
 import { FeedbackRepository } from './feedback.repository';
 import { ReviewShadowService } from './review-shadow.service';
+import { TaskEvidenceService } from './task-evidence.service';
 
 @Controller()
 export class DailyBriefController {
@@ -36,6 +37,7 @@ export class DailyBriefController {
     private readonly learningSignals?: LearningSignalService,
     private readonly feedbackRepository?: FeedbackRepository,
     private readonly reviewShadow?: ReviewShadowService,
+    private readonly taskEvidence?: TaskEvidenceService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -158,8 +160,26 @@ export class DailyBriefController {
     };
   }
 
-  private resolveUserId(user: UserProfile, viewUserId?: string): string {
-    if (!viewUserId || viewUserId === user.id) return user.id;
+  /**
+   * V11-M2 — learning evidence for the student's recently completed tasks:
+   * did capability actually change? Read-only projection over completion +
+   * practice + mastery facts; self-only access.
+   */
+  @Get('coach/task-evidence')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getTaskEvidence(@CurrentUser() user: UserProfile) {
+    if (!this.taskEvidence) {
+      return { generatedAt: new Date().toISOString(), tasks: [], reason: 'store_unavailable' };
+    }
+    const result = await this.taskEvidence.getRecentCompletedTaskEvidence(user.id);
+    if (result == null) {
+      return { generatedAt: new Date().toISOString(), tasks: [], reason: 'store_unavailable' };
+    }
+    return result;
+  }
+
+  private resolveUserId(user: UserProfile, viewUserId?: string): string {    if (!viewUserId || viewUserId === user.id) return user.id;
     if (user.role === 'admin') return viewUserId;
     if (user.role === 'teacher') {
       this.studyService.assertTeacherAuthorizedForStudent(user.id, viewUserId);
