@@ -5,3 +5,5 @@ export * from './plan';
 export * from './recommendation';
 export * from './review-shadow';
 export * from './task-evidence';
+export * from './fsrs-scheduler';
+export * from './decay-defense.selector';
