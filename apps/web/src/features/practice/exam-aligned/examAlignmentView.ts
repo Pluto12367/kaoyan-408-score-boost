@@ -42,7 +42,7 @@ export function examHitsText(item: PracticeSetExamAlignmentItem): string {
 
 export function reasonLineFor(item: PracticeSetExamAlignmentItem): string | null {
   if (item.recent5Frequency == null || item.stars === 0) return null;
-  return `★${formatStars(item.stars)} ${frequencyLabel(item.stars)} · 近 5 年 ${item.recent5Frequency} 次 · 掌握度 ${masteryText(item.mastery)}`;
+  return `${formatStars(item.stars)} ${frequencyLabel(item.stars)} · 近 5 年 ${item.recent5Frequency} 次 · 掌握度 ${masteryText(item.mastery)}`;
 }
 
 export interface CoverageSummaryView {

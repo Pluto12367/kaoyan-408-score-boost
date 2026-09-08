@@ -60,6 +60,8 @@
 
 > **2026-09-08 V11-M1 生产部署完成并外部验证 PASS（服务器 HEAD `32ab233`）**：`/health` 200 overall ok；新路由未认证守卫全过——`/api/admin/data-quality` 401、`/api/exam/diagnosis/:id` 401、`/api/coach/review-shadow` 401（全部注册+守卫，非 404）；`/api/practice-sets/recommended?mode=exam_aligned` 401；前端 200 且新 bundle（`index-yCled2yf.js` + 懒加载 `PracticePanel-BAR5HZMB.js`）含 F1 真题强化开关/尚未练习 vm、F2 诊断书/exam/diagnosis、精灵标记——**F1 真题对标、F2 模考诊断、F3 影子基线、V11 数据质量观测全部到达生产**。验证方法备注：F1 组件经 Vite 懒加载在独立 chunk，主 bundle grep 不含属正常，须按 chunk 名抓取验证。LE/V11 队列下一项：V11-M2 Learning Evidence Projection（任务→能力证据只读投影）。
 
+> **2026-09-08 生产实测走查完成（测试账号 jackchou，全功能 PASS）**：浏览器自动化全流程——①精灵真实数据 concern 态（担忧表情+警示点）+ 主动弹泡"连续同型错误（错误占比 100%）"（真实 V4 干预）；②面板全功能：依据展开（风险提醒 severity=high）、去练习、星野记得（手写"我喜欢计组"→持久化→渲染+忘记）、问星野**真实 LLM 对话**（DeepSeek v4-flash 402 已解除！mode=llm 19s，基于 jackchou 真实错题/掌握度输出三大方向复习策略，全部溯源到节点 id）、免打扰；③F1 真题强化开关生产验证（徽标"覆盖 1 个真题知识点"+理由行"★★★★ 偶考·近5年 2 次·掌握度 91%"）；④F2 诊断书 API 真实历史模考验证（8/15 会话 5 题全错 → 诚实 0 分 + nodeLoss 真实归因 Cache基本原理/线性表定义 + recoveryClosure 0/3 真实闭环率）。**发现并修复 1 个视觉缺陷**：F1 理由行多画一颗星（已修，随下次部署上线）。走查报告：`docs/le-production-walkthrough-report.md`。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
