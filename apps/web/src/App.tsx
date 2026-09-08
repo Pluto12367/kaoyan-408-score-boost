@@ -107,6 +107,7 @@ import type { StudentActionCommandDescriptor } from './features/student/actions/
 // Student section workspaces live in features/student/StudentSections (Phase 3.4).
 const ExamSession = lazy(() => import('./components/ExamSession').then((m) => ({ default: m.ExamSession })));
 const ExamReportView = lazy(() => import('./components/ExamReport').then((m) => ({ default: m.ExamReportView })));
+import { ExamDiagnosisPanel } from './features/report/ExamDiagnosisPanel';
 const AdminWorkspace = lazy(() => import('./features/admin/AdminWorkspace').then((m) => ({ default: m.AdminWorkspace })));
 const TeacherWorkspace = lazy(() => import('./features/teacher/TeacherWorkspace').then((m) => ({ default: m.TeacherWorkspace })));
 const TodayPlan = lazy(() => import('./components/TodayPlan').then((m) => ({ default: m.TodayPlan })));
@@ -1736,6 +1737,7 @@ paperId: paper.id,
           <Suspense fallback={sectionFallback('考试报告')}>
             <ExamReportView sessionId={examReportSessionId} onClose={() => setExamReportSessionId(null)} />
           </Suspense>
+          <ExamDiagnosisPanel sessionId={examReportSessionId} />
         </OverlayDialog>
       ) : null}
       {reasonPrompt ? (

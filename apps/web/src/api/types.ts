@@ -297,6 +297,63 @@ export interface PracticeSet {
   examAlignment?: PracticeSetExamAlignment | null;
 }
 
+// ---- LE-V10 F2：模考诊断（exam-diagnosis-v1 只读投影） ----
+export interface ExamDiagnosisScore150 {
+  value: number;
+  objectiveMax: number;
+  objectiveEarnedEstimate: number;
+  subjectiveEarned: number;
+  subjectiveMax: number;
+  subjectiveNote: string;
+  basis: string;
+  confidence: 'medium';
+}
+
+export interface ExamDiagnosisPerSubject {
+  subject: string;
+  questions: number;
+  accuracyRate: number;
+  objectiveMax: number;
+  objectiveEarnedEstimate: number;
+  scopeNote: string;
+}
+
+export interface ExamDiagnosisNodeLoss {
+  knowledgeNodeId: string;
+  name: string;
+  subject: string;
+  lostCount: number;
+  recent5Frequency: number | null;
+  stars: number;
+}
+
+export interface ExamDiagnosisGapDecomposition {
+  targetScore: number;
+  predictedScore150: number;
+  gap: number;
+  note: string;
+}
+
+export interface ExamDiagnosisRecoveryClosure {
+  exposedTasks: number;
+  completedTasks: number;
+  closureRate: number;
+}
+
+export interface ExamDiagnosis {
+  version: 'exam-diagnosis-v1';
+  sessionId: string;
+  asOf: string;
+  score150Estimate: ExamDiagnosisScore150 | null;
+  perSubject: ExamDiagnosisPerSubject[];
+  nodeLoss: ExamDiagnosisNodeLoss[];
+  nodeLossUnmappedCount: number;
+  gapDecomposition: ExamDiagnosisGapDecomposition | null;
+  recoveryClosure: ExamDiagnosisRecoveryClosure | null;
+  recoveryClosureReason: 'recovery_plan_not_generated' | null;
+  source: string;
+}
+
 export interface PracticeSetResult {
   id: string;
   practiceSetId: string;

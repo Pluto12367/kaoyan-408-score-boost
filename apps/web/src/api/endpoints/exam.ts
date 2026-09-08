@@ -1,6 +1,6 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
 import type { Subject } from '@kaoyan408/shared';
-import type { GeneratedPaper } from '../types';
+import type { ExamDiagnosis, GeneratedPaper } from '../types';
 
 export interface PrepareExamPaperInput {
   paperType: '模拟卷' | '专项卷';
@@ -54,6 +54,13 @@ export async function generatePostExamReviewTasks(sessionId: string): Promise<Po
   const response = await fetchWithAuth(`${API_BASE_URL}/exam/review-tasks/${sessionId}`, { method: 'POST' });
   if (!response.ok) throw new Error(`Post-exam review tasks failed with ${response.status}`);
   return response.json() as Promise<PostExamReviewTasks>;
+}
+
+/** LE-V10 F2 — mock-exam diagnosis (score-150 estimate, node loss, gap, closure). */
+export async function fetchExamDiagnosis(sessionId: string): Promise<ExamDiagnosis> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/exam/diagnosis/${sessionId}`);
+  if (!response.ok) throw new Error(`Exam diagnosis failed with ${response.status}`);
+  return response.json() as Promise<ExamDiagnosis>;
 }
 
 export async function fetchScoreHistory(): Promise<ScoreHistory> {
