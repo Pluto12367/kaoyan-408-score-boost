@@ -54,6 +54,8 @@
 
 > **2026-09-08 LE-V10 F3 M1（影子评估器基线）完成，待所有者 Review；FSRS 预测器下一循环**：`packages/shared/src/score-center/review-shadow.ts`（纯，零依赖）——从既有事实测当前复习调度器的保持率：`ReviewAttempt.nextIntervalDays`（旧算法排程）+ 同源题后续 `PracticeRecord`（观察窗 17 天）→ post_1d 即时正确率、retention_7d/14d（窗口内首次后续练习定结果）、按旧算法排程间隔分桶的观测保持率；诚实规则：无后续 = 无证据（绝不计为遗忘）、样本 < 30 = insufficient_data（预注册门槛，禁止无证据下迁移结论）。`GET /coach/review-shadow`（teacher/admin，ReviewShadowService 只读有界装载：ReviewAttempt≤500 + PracticeRecord≤2000）。验证：定向 8/8（RED→GREEN，期间修复 study.module 漏 import 连带的 4 个上传测试失败与测试断言错位）、全量 **npm test 2015/2013/0**（2007 基线 + 8 零新增失败）、build:shared/api PASS。提交 `ad718e8`（本地）。下一循环：FSRS 预测器（shared 纯函数，与 ts-fsrs 对照）接入同一结果形状完成双算法对比。
 
+> **2026-09-08 外部接管审计回应（P0-2 文档失真已修 + B4 证实入册 + 交付就绪）**：所有者转来第三方审计。核实结论：①**证实**——本地领先 origin 7 提交（LE F1/F2/F3-M1 全部完成未交付）；`recommendation.service.ts:134` `if (!snapshot) continue`（B4：147 无快照节点静默排除，无观测端点）；StudyModule 零 exports → Agent/Effectiveness 模块双注册共享 provider；"标记已复习不产生掌握度证据"（applyReview 仅 isReview===true）；任务完成无能力证据（completeStudyTask 只写 StudyTaskCompletion）。②**纠正**——"验证门禁不可执行"是审计沙箱特有（spawn EPERM）：主开发环境本会话实测 `npm test` 2015/2013/0 全绿、build 三端 PASS；替代门禁已登记地雷区。③**已修（本轮）**——current-sprint §1 校正为当前事实（旧 §1-9 标注历史归档）；CLAUDE.md 三处失真（mock 模式条件/19→46 model/8 文件 46 测试→338 文件 ~2015 测试）；地雷区新增沙箱替代门禁；补提交 `docs/optimization-reference-check.md`。④**入册待办**（并入 LE 队列）：B4 观测端点（GET /admin/data-quality，M3 审计项）；M2 任务→能力证据链（方向待所有者定：只读派生投影 vs 扩展 applyReview——后者触写路径需批准）；模块双注册收敛（P2）。⑤**推送/部署**：8 个本地提交（+本轮 docs）就绪，按 AGENTS.md §9 等待所有者明确指令后 push；部署手册沿用 `docs/v10-mvp-deployment-runbook.md` 流程。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
@@ -62,11 +64,13 @@
 
 ## 1. 当前阶段与目标
 
-- **分支**：`feature/v3-product-refactor`
-- **HEAD**：`4f58fe3`（当前工作树含未提交的 Phase 3.x 与其他在途工作线）
-- **当前 Sprint**：Learning Intelligence Platform — Full Learning Loop Hardening（**COMPLETE**，`docs/learning-intelligence-final-report.md`； preceded by SC-1…SC-5）
-- **状态**：Sprint 4 已完成并通过 Release Re-Verification；Phase 2 Baseline Closure 已完成；Phase 3.3A 已完成稳定化验证；Phase 3.4 已完成事件边界实现；Phase 3.5 已完成提交后 best-effort 反馈触发；Phase 3.6.2B-2 已完成 EventKey Schema Migration；Phase 3.6.2C writer 已接入数据库唯一冲突回读；Phase 3.6.3 已限制 `/events` 为 telemetry allowlist，并将 `plan.generated` 迁移到 CanonicalEventWriterService；Phase 3.6.4-D1/D2/D3 已完成 identity contract、StudyPlan 幂等 repository 与 Action key contract；D4-B1 已将 LearningLoop generation context 接入 StudyPlan generation repository；D4-B2 已将 generationKey 接入 RecommendationAction runtime creationKey；D4-B3 已将 `plan.generated` eventKey 切换为 generation-scoped identity，并保留 legacy triggerKey 读取兼容；D4-B4 仍因 ENV-005 宿主环境阻塞。**StudentContext 消费收敛已完成**：StudentHome 五类摘要、ReportWorkspace summary、Contextual Coach base student state 三个 summary 消费者均以 StudentContext 为 canonical source（各有纯展示 adapter/bridge + legacy 兜底）；全仓消费者审计（`docs/student-context-consumer-audit.md`）确认无剩余应迁移消费者，Knowledge/Assessment 等领域 detail 按 Rule 3 保留独立；契约审查产出 mastery 桶语义提案 P-1（`docs/student-context-contract-hardening-proposal.md`，未实施、待人工决策）。定向测试 57/57 PASS，`build:api`/`build:web` PASS。完整 `npm test` 与 PostgreSQL integration 当前仍受本机环境阻塞。
-- **一句话目标**：保持 RecommendationAction.studyTaskId 为唯一 Action-Task 绑定，并让 canonical event 只能由受控 server-side writer 产生、使用数据库级 eventKey 幂等。
+> **本节 2026-09-08 校正**（外部接管审计 P0-2 修复）：以下为当前事实；§2-9 为 2026-09-05 时代的历史快照，仅作归档参考，与顶部账本冲突时以账本为准。
+
+- **分支**：`feature/v3-product-refactor`；**HEAD 随账本最新条目**（见 git log；本节不再维护具体哈希以免再次漂移）。
+- **当前 Mission**：**LE-V10 Learning Engine Upgrade（长期自主线）**——唯一评价标准 = 帮学生获得更多 408 分（四问门禁 + 六指标契约见 `docs/v10-learning-engine-roadmap.md` §0/§0.1）。
+- **进度**：F1 真题对标（M1-M5 关闭）✅；F2 模考诊断（后端+前端）✅；F3 遗忘防线 M1 影子基线 ✅（FSRS 预测器/遗忘防线下一循环）；F4 大题采分点 content-blocked（等 rubric 内容批次）；F5 未启动。
+- **交付状态**：本地领先 origin（LE 线提交未推送，推送/部署时机归所有者）；生产运行 V10 精灵 MVP（`6b17041`）。
+- **一句话目标**：诊断 → 学习 → 训练 → 测评 → 修复 → 再学习 的完整提分闭环，每个变更以六指标之一结算。
 - **Phase 3.6.2B-1/B-2/3.6.2C/3.6.3**：Event Contract v1 已冻结（`docs/event-contract.md`）；`UserEvent.eventKey` nullable 字段与 `(userId,eventKey)` 唯一索引已实现；Feedback writer 已使用数据库唯一冲突回读；`POST /events` 仅接受 telemetry allowlist，`plan.generated` 通过 CanonicalEventWriterService 写入。
 
 ---
@@ -304,6 +308,13 @@ Sprint 4 已提交；当前 working tree 中仍有其他未提交工作线，均
 ---
 
 ## 8. 已知地雷
+
+### 沙箱环境验证门禁替代（2026-09-08 外部审计 P0-4 登记）
+
+部分受限沙箱环境 `npm test`（node --test 逐文件 spawn 子进程）与 `npm run build:web`（esbuild spawn）会 EPERM 失败——这是环境限制，不是代码缺陷。该环境下可用的替代门禁（已在 2026-09-08 审计实测验证）：
+1. **逐文件**：`node --test <file.test.js>`（330 个 .test.js 全跑 ≈ 1945 tests；勿用 `--test-isolation=none`——跨文件状态污染会产生假失败）。
+2. **类型三端**：`tsc -p packages/shared --noEmit` / `apps/api` / `apps/web` 全部 exit 0 等价于 build 门禁的类型部分。
+3. **区分**：主开发环境 `npm test` 正常（本会话实测 2015/2013/0）；只有沙箱会话需要本替代。若在此类沙箱中工作，完成声明须注明所用的替代门禁。
 
 ### PostgreSQL 集成脚本预存断言失败（2026-09-07 V10-1 归因登记）
 

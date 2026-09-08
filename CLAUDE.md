@@ -96,11 +96,11 @@ src/layouts/     Layout components
 
 **API client** (`src/api/client.ts`): Wraps `fetch` with auth token injection, refresh token rotation, and error handling. Endpoint modules in `src/api/endpoints/` cover auth, dashboard, exam, onboarding, practice, review, sessions, teacher, tutor.
 
-**Mock mode**: When `VITE_API_BASE_URL` is empty/unset, the app runs in static demo mode with mock data from `src/mockData.ts` and `src/api/mocks/`.
+**Mock mode**: Static demo mode requires BOTH an empty/unset `VITE_API_BASE_URL` AND a github.io hostname (`isStaticDemoMode()` in `src/api/env.ts`). DEV failures may fall back to mock; production never does.
 
 ### Prisma schema (`prisma/schema.prisma`)
 
-19 models, key entities:
+46 models, key entities (see prisma/schema.prisma for the authoritative list):
 - **Users & Auth**: `User`, `RefreshToken`, `TeacherStudentAuthorization`
 - **Content**: `KnowledgePoint`, `Question`, `QuestionKnowledgePoint`
 - **Learning**: `PracticeRecord`, `WrongQuestionReview`, `LearningSession`, `StudyPlan`, `StudyTask`, `StudyTaskCompletion`
@@ -145,7 +145,7 @@ Production/staging enforces: HTTPS origins, no placeholder values, `ALLOW_DEMO_A
 
 ### Testing
 
-Tests live in `test/` (8 files, 46 tests, Node built-in test runner). No Jest/Vitest — uses `node:test` + `node:assert/strict`. All tests are ESM (`.test.js`). Tests cover:
+Tests live in `test/` (338 files, ~2015 tests, Node built-in test runner). No Jest/Vitest — uses `node:test` + `node:assert/strict`. All tests are ESM (`.test.js`/`.test.mjs`). Tests cover:
 - `appLogic.test.js` — 24 business logic tests (shared package functions)
 - `environment.test.js` — 4 env validation tests
 - `deployment-config.test.js` — 4 Docker/Railway/CI config tests
