@@ -4787,6 +4787,9 @@ export class StudyService implements OnModuleInit {
           const q = questionsById.get(id);
           return { questionId: id, stem: q?.stem ?? id };
         }),
+      // LE-V10 F2 additive: raw lost question ids feeding the diagnosis node
+      // attribution (getExamReport keeps its existing fields untouched).
+      lostQuestionIds,
     };
   }
 

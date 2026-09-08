@@ -1,6 +1,7 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import type { AiTutorFollowUpMode, Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
+import { ExamDiagnosisService } from './exam-diagnosis.service';
 import { StudentStateProjectionService } from './student-state-projection.service';
 import { StudentStateQueryService } from './student-state-query.service';
 import { StudentStateReminderQueryService } from './student-state-reminder-query.service';
@@ -66,6 +67,7 @@ export class StudyController {
     private readonly actionLearningSignalService: ActionLearningSignalService,
     private readonly recommendationFeedbackService: RecommendationFeedbackService,
     private readonly studentContextQuery: StudentContextQueryService,
+    private readonly examDiagnosis: ExamDiagnosisService,
   ) {}
 
   @Post('recommendation-actions')
@@ -627,6 +629,21 @@ export class StudyController {
   @Roles('student', 'teacher', 'admin')
   getExamReport(@CurrentUser() user: UserProfile, @Param('sessionId') sessionId: string) {
     return this.studyService.getExamReport(sessionId, user.id);
+  }
+
+  /** LE-V10 F2 — mock-exam diagnosis: score-150 estimate, node-loss
+   * attribution with exam frequency, target gap, recovery closure. */
+  @Get('exam/diagnosis/:sessionId')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getExamDiagnosis(
+    @CurrentUser() user: UserProfile,
+    @Param('sessionId') sessionId: string,
+  ) {
+    if (!this.examDiagnosis) {
+      throw new ServiceUnavailableException('Exam diagnosis is unavailable without a database');
+    }
+    return this.examDiagnosis.getExamDiagnosis(sessionId, user.id);
   }
 
   @Post('exam/review-tasks/:sessionId')
