@@ -62,6 +62,10 @@
 
 > **2026-09-08 生产实测走查完成（测试账号 jackchou，全功能 PASS）**：浏览器自动化全流程——①精灵真实数据 concern 态（担忧表情+警示点）+ 主动弹泡"连续同型错误（错误占比 100%）"（真实 V4 干预）；②面板全功能：依据展开（风险提醒 severity=high）、去练习、星野记得（手写"我喜欢计组"→持久化→渲染+忘记）、问星野**真实 LLM 对话**（DeepSeek v4-flash 402 已解除！mode=llm 19s，基于 jackchou 真实错题/掌握度输出三大方向复习策略，全部溯源到节点 id）、免打扰；③F1 真题强化开关生产验证（徽标"覆盖 1 个真题知识点"+理由行"★★★★ 偶考·近5年 2 次·掌握度 91%"）；④F2 诊断书 API 真实历史模考验证（8/15 会话 5 题全错 → 诚实 0 分 + nodeLoss 真实归因 Cache基本原理/线性表定义 + recoveryClosure 0/3 真实闭环率）。**发现并修复 1 个视觉缺陷**：F1 理由行多画一颗星（已修，随下次部署上线）。走查报告：`docs/le-production-walkthrough-report.md`。
 
+> **2026-09-08 V11-M2 Learning Evidence Projection 完成（本地提交 `31d2a3f`，未推送）——审计 P1-1 断点关闭**：`packages/shared/src/score-center/task-evidence.ts`（纯）+ `task-evidence.service.ts`（只读装配）+ `GET /coach/task-evidence`（self-only）——对最近 ≤5 个完成任务输出能力证据：任务知识点上完成前后 ±3 天的练习事实（次数/正确率）+ 完成时快照 vs 当前掌握度 Δ；判定 improved/practiced/practiced_no_gain/insufficient_data，**完成标记单独永不构成证据**（宪法诚实条款的投影化）。路由进 DailyBriefController（coach 家族）。验证：定向 8/8（RED→GREEN）、全量 **npm test 2028/2026/0**（2020 基线 + 8 零新增失败）、build:shared/api PASS（中途 tsc 抓到 Date→ISO 与 Edit 错位两处，均修复）。下一循环：M2 前端消费（今日任务/报告页证据卡）→ V11-M3 推荐候选诚实化 → V11-M4 FSRS 预测器。
+
+> **2026-09-09 V11-M3 推荐候选诚实化落地并推送（`914aba0`，origin 同步归零）**：`recommendation.service.ts` 候选宇宙不再静默排除无考频快照节点（B4）——缺快照节点按契约 §3 退化规则携带中性证据（频次 0、LOW 置信、真实科目/重要度/难度）进入候选，由引擎按薄弱度排序；排序公式零改动；缺口观测走 `/admin/data-quality`。教训入册：**候选宇宙扩张曾两度被 daily-plan-parity 测试正确拦下**（legacy 转录不含无快照节点）——最终语义 = parity 夹具补齐 node-os 快照（parity 保证覆盖"全快照宇宙"），无快照宇宙行为由 recommendation-honesty 引擎级测试覆盖。验证：honesty 3/3、parity 3/3、全量 2041/2039/0、build:api PASS。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
