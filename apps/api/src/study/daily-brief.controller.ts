@@ -26,6 +26,7 @@ import { assignExperimentArm, deriveFeedbackInsights } from './coach-experiments
 import { FeedbackRepository } from './feedback.repository';
 import { ReviewShadowService } from './review-shadow.service';
 import { TaskEvidenceService } from './task-evidence.service';
+import { LearningImpactService } from './learning-impact.service';
 
 @Controller()
 export class DailyBriefController {
@@ -38,6 +39,7 @@ export class DailyBriefController {
     private readonly feedbackRepository?: FeedbackRepository,
     private readonly reviewShadow?: ReviewShadowService,
     private readonly taskEvidence?: TaskEvidenceService,
+    private readonly learningImpact?: LearningImpactService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -175,6 +177,36 @@ export class DailyBriefController {
     const result = await this.taskEvidence.getRecentCompletedTaskEvidence(user.id);
     if (result == null) {
       return { generatedAt: new Date().toISOString(), tasks: [], reason: 'store_unavailable' };
+    }
+    return result;
+  }
+
+  /** V11-M4.2 — mastery calibration shadow: stored mastery vs observed accuracy. */
+  @Get('coach/mastery-calibration')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getMasteryCalibration(@CurrentUser() user: UserProfile) {
+    if (!this.learningImpact) {
+      return { generatedAt: new Date().toISOString(), entries: [], reason: 'store_unavailable' };
+    }
+    const result = await this.learningImpact.getMasteryCalibration(user.id);
+    if (result == null) {
+      return { generatedAt: new Date().toISOString(), entries: [], reason: 'store_unavailable' };
+    }
+    return result;
+  }
+
+  /** V11-M4.3 — outcome tracking: did recent recommendations help? */
+  @Get('coach/outcome-tracking')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getOutcomeTracking(@CurrentUser() user: UserProfile) {
+    if (!this.learningImpact) {
+      return { generatedAt: new Date().toISOString(), interventions: [], reason: 'store_unavailable' };
+    }
+    const result = await this.learningImpact.getOutcomeTracking(user.id);
+    if (result == null) {
+      return { generatedAt: new Date().toISOString(), interventions: [], reason: 'store_unavailable' };
     }
     return result;
   }

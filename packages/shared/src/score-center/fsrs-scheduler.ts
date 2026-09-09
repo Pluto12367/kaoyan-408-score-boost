@@ -127,3 +127,28 @@ export function nextStability(
   }
   return { stability: nextStabilityAfterLapse(input, retrievability, weights), difficulty: nextDifficulty(input.difficulty, 1, weights) };
 }
+
+/**
+ * M4.1 — review priority: how urgent is a review right now?
+ *
+ * urgency = 1 − R(t, S): the estimated probability that the student has
+ * ALREADY forgotten (0 = no rush, 1 = review immediately). Returns the
+ * retrievability, the urgency and a suggested interval that would bring
+ * recall back to the target retention.
+ */
+export function reviewPriority(
+  input: { readonly stability: number; readonly elapsedDays: number },
+  targetRetention: number = DEFAULT_TARGET_RETENTION,
+): {
+  readonly retrievability: number;
+  readonly urgency: number;
+  readonly suggestedIntervalDays: number;
+} {
+  const retrievability = recallProbability(input.elapsedDays, input.stability);
+  const urgency = Math.round((1 - retrievability) * 100) / 100;
+  return {
+    retrievability: Math.round(retrievability * 1000) / 1000,
+    urgency,
+    suggestedIntervalDays: nextInterval(input.stability, targetRetention),
+  };
+}

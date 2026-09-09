@@ -66,6 +66,8 @@
 
 > **2026-09-09 V11-M3 推荐候选诚实化落地并推送（`914aba0`，origin 同步归零）**：`recommendation.service.ts` 候选宇宙不再静默排除无考频快照节点（B4）——缺快照节点按契约 §3 退化规则携带中性证据（频次 0、LOW 置信、真实科目/重要度/难度）进入候选，由引擎按薄弱度排序；排序公式零改动；缺口观测走 `/admin/data-quality`。教训入册：**候选宇宙扩张曾两度被 daily-plan-parity 测试正确拦下**（legacy 转录不含无快照节点）——最终语义 = parity 夹具补齐 node-os 快照（parity 保证覆盖"全快照宇宙"），无快照宇宙行为由 recommendation-honesty 引擎级测试覆盖。验证：honesty 3/3、parity 3/3、全量 2041/2039/0、build:api PASS。
 
+> **2026-09-09 V11-M4 Learning Impact Measurement Layer 完成（M4.1/M4.2/M4.3，本地提交未推送）——完成后暂停，不进 F4**：M4.1 补 FSRS reviewPriority 出口（urgency=1−R + 建议间隔，fsrs-scheduler 同步修复重复 nextStability 定义并移除无测试 stepFsrs）；M4.2 mastery-calibration 纯模块（EMA 存储掌握度 vs 真实做题正确率的校准影子：±15pt 方向阈值 raise/lower/hold、样本量置信 high/medium/low，无练习=hold 不伪造）+ 只读服务 + GET /coach/mastery-calibration（最常练 20 节点，30 天窗口）；M4.3 outcome-tracking 纯模块（推荐干预前后 14 天对照：正确率/掌握度快照/错误练习减少，样本 <3 次=insufficient_data）+ GET /coach/outcome-tracking。全部 Selector/Projection 只读派生，零迁移零 SoT 触碰；FSRS 权重显式标注 UNTRAINED（golden 对照 ts-fsrs 待 devDependency 决策）。验证：定向 15/15（RED→GREEN）、全量 **npm test 2049/2047/0**（2041 基线 + 8 零新增失败）、build:shared/api PASS。报告：`docs/product-evolution-report-v11-m4.md`。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）

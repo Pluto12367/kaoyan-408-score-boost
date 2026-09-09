@@ -7,3 +7,5 @@ export * from './review-shadow';
 export * from './task-evidence';
 export * from './fsrs-scheduler';
 export * from './decay-defense.selector';
+export * from './mastery-calibration';
+export * from './outcome-tracking';
