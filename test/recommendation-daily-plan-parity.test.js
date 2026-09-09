@@ -25,6 +25,10 @@ const FIXTURE_NODES = [
 const FIXTURE_SNAPSHOTS = [
   { knowledgeNodeId: 'node-ds', recent3Frequency: 4, recent5Frequency: 4, allTimeEvidence: 4, primaryScore5y: 6, trendDirection: 'STABLE', trendDelta: 0, evidenceConfidence: 'HIGH' },
   { knowledgeNodeId: 'node-co', recent3Frequency: 2, recent5Frequency: 3, allTimeEvidence: 5, primaryScore5y: 4, trendDirection: 'RISING', trendDelta: 1, evidenceConfidence: 'MEDIUM' },
+  // V11-M3: every fixture node carries a snapshot so the parity guarantee
+  // covers the fully-snapshotted universe (no-snapshot nodes are exercised
+  // by the recommendation-honesty tests instead).
+  { knowledgeNodeId: 'node-os', recent3Frequency: 3, recent5Frequency: 3, allTimeEvidence: 3, primaryScore5y: 3, trendDirection: 'STABLE', trendDelta: 0, evidenceConfidence: 'MEDIUM' },
 ];
 
 const FIXTURE_MASTERIES = [
