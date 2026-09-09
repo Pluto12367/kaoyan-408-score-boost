@@ -68,6 +68,8 @@
 
 > **2026-09-09 V11-M4 Learning Impact Measurement Layer 完成（M4.1/M4.2/M4.3，本地提交未推送）——完成后暂停，不进 F4**：M4.1 补 FSRS reviewPriority 出口（urgency=1−R + 建议间隔，fsrs-scheduler 同步修复重复 nextStability 定义并移除无测试 stepFsrs）；M4.2 mastery-calibration 纯模块（EMA 存储掌握度 vs 真实做题正确率的校准影子：±15pt 方向阈值 raise/lower/hold、样本量置信 high/medium/low，无练习=hold 不伪造）+ 只读服务 + GET /coach/mastery-calibration（最常练 20 节点，30 天窗口）；M4.3 outcome-tracking 纯模块（推荐干预前后 14 天对照：正确率/掌握度快照/错误练习减少，样本 <3 次=insufficient_data）+ GET /coach/outcome-tracking。全部 Selector/Projection 只读派生，零迁移零 SoT 触碰；FSRS 权重显式标注 UNTRAINED（golden 对照 ts-fsrs 待 devDependency 决策）。验证：定向 15/15（RED→GREEN）、全量 **npm test 2049/2047/0**（2041 基线 + 8 零新增失败）、build:shared/api PASS。报告：`docs/product-evolution-report-v11-m4.md`。
 
+> **2026-09-10 V12-0 Score Improvement Intelligence Audit 完成（只读审计，报告已推 `e2aee45`）→ STOP 等 V12 路线确认**：所有者下达 V12-0 审计使命（先审计后路线，不预设功能）。Phase A-F 全部完成：行为→证据→掌握度→诊断→测评→分数六层能力地图（CAN PROVE/PARTIAL/CANNOT PROVE 逐层判定）、干预证据链八环审计（2 层 CONFIRMED / 3 层 PARTIAL / 3 层 MISSING，EB-1..EB-5 断点清单带 file:line）、14 特征价值矩阵（发现 AIInsightCard 装饰性智能、ReviewAttempt 数据闲置、EB-1/EB-2/EB-4 三处断环）、Top5 瓶颈（P0 证据断链/双算法/分数验证闭环缺失）。V12 宪法与路线提案已入报告待所有者确认——确认前零实施。报告：`docs/v12-0-score-improvement-audit.md`。另：生产部署（34c4c86）仍待所有者人工执行（server steps 见 `docs/v11-final-release-server-steps.md`）。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
 > 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
