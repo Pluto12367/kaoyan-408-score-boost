@@ -70,9 +70,11 @@
 
 > **2026-09-10 V12-0 Score Improvement Intelligence Audit 完成（只读审计，报告已推 `e2aee45`）→ STOP 等 V12 路线确认**：所有者下达 V12-0 审计使命（先审计后路线，不预设功能）。Phase A-F 全部完成：行为→证据→掌握度→诊断→测评→分数六层能力地图（CAN PROVE/PARTIAL/CANNOT PROVE 逐层判定）、干预证据链八环审计（2 层 CONFIRMED / 3 层 PARTIAL / 3 层 MISSING，EB-1..EB-5 断点清单带 file:line）、14 特征价值矩阵（发现 AIInsightCard 装饰性智能、ReviewAttempt 数据闲置、EB-1/EB-2/EB-4 三处断环）、Top5 瓶颈（P0 证据断链/双算法/分数验证闭环缺失）。V12 宪法与路线提案已入报告待所有者确认——确认前零实施。报告：`docs/v12-0-score-improvement-audit.md`。另：生产部署（34c4c86）仍待所有者人工执行（server steps 见 `docs/v11-final-release-server-steps.md`）。
 
+> **2026-09-10 V12-M1 Evidence Foundation 完成（EB-1/EB-2 闭合；零迁移；本地提交待推送）**：所有者确认 V12 路线并授予自主长程模式。本轮确立并代码化了**活动 / 证据 / 能力**三层语义（此前三者混同正是 EB-1/EB-2 的根因）：Activity = 动作发生（`task.complete`/`wrong.review` 遥测）；Evidence = 系统**观测**到的可解释表现（新增服务器专属事件 `EVIDENCE_RECORDED`）；Ability = 掌握度（唯一写方 `ScoreCenterService` 未动）。新增 `packages/shared/src/score-center/learning-evidence.ts`（纯分类学：`LEARNING_ACTION_TAXONOMY`/`classifyLearningAction`/`buildLearningEvidence`/`learningEvidenceKey`/`summarizeLearningEvidence`，**只有强观测证据 `canInfluenceMastery=true`**）、`apps/api/src/study/learning-evidence.service.ts`（写路径 + 查询）、`GET /coach/learning-evidence`（self-only，不接受 userId 覆盖）、`UserEventRepository.listByType`。**EB-1 三处接线**：已排程任务完成、**score-center 分支（推荐引擎生成的任务，此前直接 return 完全无证据）**、复习重做；`recordTaskCompletionEvidence` 返回两部分——学生自评（弱）/ 系统在该任务范围 ±3 天**实际观测到的已判分练习**（强），无观测则 `observed=null`（缺失即结论，不填零）。**EB-2**：`review.marked` 记为纯活动证据（显式声明不含回忆观测），`review.recalled`（`redoCorrect` 已观测）记为强证据；复习证据在**事务提交后**写入（源码顺序断言钉死）。**防伪**：`EVIDENCE_RECORDED` 进 `RESERVED_CANONICAL_EVENT_TYPES` 而**不进** `TELEMETRY_EVENT_TYPES`（客户端不可伪造证据，测试断言）。**边界测试**：证据层源码零掌握度写原语（`userKnowledgeMastery`/`applyAttempts(`/`applyReview(`/`saveMastery`/`userMasterySnapshot` 全部断言不存在）。**合成数据防护**：`study.service.ts:3424` 的 `correctCount ?? Math.round(questionCount*0.75)` 伪造默认值被测试锁死**不得进入证据**（该既有合成值经 `taskCompletionMetricsByUser` 流入 `computeMasteryReport:866-870`，本轮**未改动**以免动计划调整行为，已登记为遗留风险）。新增测试 3 文件 35 项全绿（17 纯模块 + 10 服务 + 8 边界）；**全量回归 347 文件 2084/2079/3/2**（基线 2049/2047/0 + 35 项零新增失败；3 败 == 沙箱 spawn EPERM 既有项 admin-user-email-ui/deployment-config/question-import-cleanup）。**零 Schema 迁移**（复用 `UserEvent`+`(userId,eventKey)` 唯一索引，回滚 = 删 `type='EVIDENCE_RECORDED'` 行）；**零掌握度写语义变更**。未做（诚实边界）：证据→掌握度回流语义统一（改生产写语义，需批准）归 V12-M3；前端消费归 M2b；推荐曝光遥测 EB-3 归 M2a。报告：`docs/v12-m1-evidence-foundation.md`。**环境实录**：本会话 Docker Desktop 引擎未能在 5 分钟内就绪（宿主级），55432 测试库与 PostgreSQL 集成测试本轮**不可执行**，故未声称任何集成/生产证据。
+
 > 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
 > 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
-> 最后更新：2026-09-05（Learning Intelligence Platform milestone 完成：Phase 1-12 全闭环审计 + 5 份架构文档；全量 npm test 首次本机完整执行 1477/1504 PASS（25 败全部为在途工作线预存债务）；闭环结构验证完整、幂等/掌握度/推荐一致性全证据化；SC-1…SC-5 与 loop milestone 均 PASS；ENV-005 与 D4-B4 仍阻塞）
+> 最后更新：2026-09-10（V12-M1 Evidence Foundation 完成：活动/证据/能力三层语义确立，EB-1/EB-2 闭合，零迁移零掌握度语义变更，新增 35 项测试，全量回归 2084/2079/3（3 == 沙箱 EPERM）。V12 路线见 `docs/v12-0-score-improvement-audit.md` §8；进度账本见本文件顶部）
 
 ---
 
@@ -81,9 +83,9 @@
 > **本节 2026-09-08 校正**（外部接管审计 P0-2 修复）：以下为当前事实；§2-9 为 2026-09-05 时代的历史快照，仅作归档参考，与顶部账本冲突时以账本为准。
 
 - **分支**：`feature/v3-product-refactor`；**HEAD 随账本最新条目**（见 git log；本节不再维护具体哈希以免再次漂移）。
-- **当前 Mission**：**LE-V10 Learning Engine Upgrade（长期自主线）**——唯一评价标准 = 帮学生获得更多 408 分（四问门禁 + 六指标契约见 `docs/v10-learning-engine-roadmap.md` §0/§0.1）。
-- **进度**：F1 真题对标（M1-M5 关闭）✅；F2 模考诊断（后端+前端）✅；F3 遗忘防线 M1 影子基线 ✅（FSRS 预测器/遗忘防线下一循环）；F4 大题采分点 content-blocked（等 rubric 内容批次）；F5 未启动。
-- **交付状态**：本地领先 origin（LE 线提交未推送，推送/部署时机归所有者）；生产运行 V10 精灵 MVP（`6b17041`）。
+- **当前 Mission**：**V12 — Score Improvement Engine**（2026-09-10 所有者确认并授予自主长程模式）。唯一评价标准 = 把"练习闭环"升级为"**提分证据闭环**"：每个学习决策可解释、每次干预可验证、能力变化可对照到分数口径（宪法与路线见 `docs/v12-0-score-improvement-audit.md` §7/§8）。
+- **进度**：**V12-M1 Evidence Foundation ✅ 完成**（EB-1/EB-2 闭合：活动/证据/能力三层语义 + `EVIDENCE_RECORDED` 证据账本 + `GET /coach/learning-evidence`，零迁移，35 项新测试，全量 2084/2079/3）。历史 LE/V10 线：F1 真题对标（M1-M5 关闭）✅；F2 模考诊断（后端+前端）✅；F3 遗忘防线 M1 影子基线 ✅；F4 大题采分点 content-blocked。V11 M1-M4 全部 code-complete 且已推送 origin。
+- **交付状态**：**本地与 origin 同步**（`git rev-list --left-right --count origin/...HEAD` = 0/0，截至 V12-M1 前；V12-M1 提交后需重新同步）；**生产部署 DEFERRED（所有者门控）**——生产运行 `43b715e` 前后构建，V11-M2/M3/M4 端点未上线（404，V12-0 路由探测实证），server steps 见 `docs/v11-final-release-server-steps.md`。
 - **一句话目标**：诊断 → 学习 → 训练 → 测评 → 修复 → 再学习 的完整提分闭环，每个变更以六指标之一结算。
 - **Phase 3.6.2B-1/B-2/3.6.2C/3.6.3**：Event Contract v1 已冻结（`docs/event-contract.md`）；`UserEvent.eventKey` nullable 字段与 `(userId,eventKey)` 唯一索引已实现；Feedback writer 已使用数据库唯一冲突回读；`POST /events` 仅接受 telemetry allowlist，`plan.generated` 通过 CanonicalEventWriterService 写入。
 

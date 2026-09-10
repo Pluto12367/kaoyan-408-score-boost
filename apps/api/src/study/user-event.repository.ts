@@ -61,8 +61,18 @@ export class UserEventRepository {
     }
   }
 
-  async hasTriggerKey(userId: string, triggerKey: string) {
-    if (!this.enabled) return false;
+  /** Read canonical events of one type for a user, newest first. */
+  async listByType(userId: string, type: string, limit = 50): Promise<StoredUserEvent[]> {
+    if (!this.enabled) return [];
+    const rows = await this.prisma.userEvent.findMany({
+      where: { userId, type },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map(toStoredUserEvent);
+  }
+
+  async hasTriggerKey(userId: string, triggerKey: string) {    if (!this.enabled) return false;
     const events = await this.prisma.userEvent.findMany({
       where: { userId, type: 'plan.generated' },
       select: { payload: true },

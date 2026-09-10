@@ -41,6 +41,7 @@ export const RESERVED_CANONICAL_EVENT_TYPES = [
   'learning.insight.created',
   'knowledge.gap.detected',
   'study.strategy.updated',
+  'EVIDENCE_RECORDED',
 ] as const;
 
 export type CanonicalEventType = (typeof RESERVED_CANONICAL_EVENT_TYPES)[number];

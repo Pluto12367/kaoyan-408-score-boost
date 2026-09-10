@@ -26,6 +26,7 @@ import { assignExperimentArm, deriveFeedbackInsights } from './coach-experiments
 import { FeedbackRepository } from './feedback.repository';
 import { ReviewShadowService } from './review-shadow.service';
 import { TaskEvidenceService } from './task-evidence.service';
+import { LearningEvidenceService } from './learning-evidence.service';
 import { LearningImpactService } from './learning-impact.service';
 
 @Controller()
@@ -40,6 +41,7 @@ export class DailyBriefController {
     private readonly reviewShadow?: ReviewShadowService,
     private readonly taskEvidence?: TaskEvidenceService,
     private readonly learningImpact?: LearningImpactService,
+    private readonly learningEvidence?: LearningEvidenceService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -181,8 +183,40 @@ export class DailyBriefController {
     return result;
   }
 
-  /** V11-M4.2 — mastery calibration shadow: stored mastery vs observed accuracy. */
-  @Get('coach/mastery-calibration')
+  /**
+   * V12-M1 — the learning evidence ledger.
+   *
+   * Answers, per recorded action, whether anything was actually OBSERVED:
+   * activity markers (task completed / marked reviewed) are listed but are
+   * explicitly not ability evidence. Self-only: evidence is personal data and
+   * this endpoint never accepts a `userId` override.
+   */
+  @Get('coach/learning-evidence')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getLearningEvidence(@CurrentUser() user: UserProfile, @Query('limit') limit?: string) {
+    if (!this.learningEvidence) {
+      return {
+        generatedAt: new Date().toISOString(),
+        records: [],
+        summary: null,
+        reason: 'store_unavailable',
+      };
+    }
+    const parsedLimit = limit != null && /^\d+$/.test(limit) ? Number(limit) : undefined;
+    const result = await this.learningEvidence.list(user.id, { limit: parsedLimit });
+    if (result == null) {
+      return {
+        generatedAt: new Date().toISOString(),
+        records: [],
+        summary: null,
+        reason: 'store_unavailable',
+      };
+    }
+    return result;
+  }
+
+  /** V11-M4.2 — mastery calibration shadow: stored mastery vs observed accuracy. */  @Get('coach/mastery-calibration')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
   async getMasteryCalibration(@CurrentUser() user: UserProfile) {

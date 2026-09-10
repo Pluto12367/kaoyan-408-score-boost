@@ -84,6 +84,7 @@ import { deriveTaskReasonCodes } from './task-reason-codes';
 import { applyWeeklyIntensity, deriveWeeklyAdjustment } from './weekly-adjustment';
 import type { EffectivenessService } from '../effectiveness/effectiveness.service';
 import { ExamAlignmentService } from './exam-alignment.service';
+import { LearningEvidenceService } from './learning-evidence.service';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
@@ -162,6 +163,7 @@ export class StudyService implements OnModuleInit {
     @Optional() private readonly actionFeedbackTrigger?: ActionFeedbackTriggerService,
     @Optional() private readonly effectiveness?: EffectivenessService,
     @Optional() private readonly examAlignment?: ExamAlignmentService,
+    @Optional() private readonly learningEvidence?: LearningEvidenceService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -170,6 +172,27 @@ export class StudyService implements OnModuleInit {
     } catch (error) {
       this.logger.warn(
         `User event ${type} recording failed`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  /**
+   * V12-M1: record learning evidence for an action that previously produced
+   * none (EB-1 / EB-2). Evidence is supplementary to the write path, so a
+   * failure here is logged and never blocks the student's action; the absence
+   * stays visible as "no evidence" rather than being papered over.
+   */
+  private async recordLearningEvidence(
+    label: string,
+    write: () => Promise<unknown>,
+  ): Promise<void> {
+    if (!this.learningEvidence) return;
+    try {
+      await write();
+    } catch (error) {
+      this.logger.warn(
+        `Learning evidence ${label} recording failed`,
         error instanceof Error ? error.message : String(error),
       );
     }
@@ -2190,6 +2213,13 @@ export class StudyService implements OnModuleInit {
     reviewed.set(questionId, reviewedAt);
     this.wrongQuestionReviewDatesByUser.set(userId, reviewed);
     await this.trackUserEvent(userId, 'wrong.review', { questionId });
+    // V12-M1 (EB-2): the "reviewed" tick is now recorded and auditable. It is
+    // activity evidence only — no recall was observed, so it may not be used to
+    // claim ability. Unifying it with the mastery write path is V12-M3 and
+    // requires owner approval because it changes production write semantics.
+    await this.recordLearningEvidence('review.marked', () =>
+      this.learningEvidence!.recordReviewMarked(userId, { questionId, reviewedAt }),
+    );
 
     return {
       ...wrongQuestion,
@@ -2338,6 +2368,18 @@ export class StudyService implements OnModuleInit {
     const attempts = this.reviewAttemptsByKey.get(key) ?? [];
     this.reviewAttemptsByKey.set(key, [...attempts, attempt]);
     this.triggerActionFeedback(userId, actionId);
+    // V12-M1: recorded after commit so evidence never describes a rolled-back
+    // attempt. An observed redo outcome is strong evidence; applyReview above
+    // remains the only mastery writer.
+    await this.recordLearningEvidence('review.recalled', () =>
+      this.learningEvidence!.recordReviewRecall(userId, {
+        questionId,
+        redoCorrect: input.redoCorrect,
+        timeSpentSec: input.timeSpentSec,
+        recordedAt: now.toISOString(),
+        actionId,
+      }),
+    );
 
     // Also mark as reviewed in the existing tracking
     const reviewed = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
@@ -3392,6 +3434,20 @@ export class StudyService implements OnModuleInit {
     if (!task) {
       const scoreCenterCompleted = await this.scoreCenterService?.completeTask(taskId, userId, input);
       if (scoreCenterCompleted) {
+        // V12-M1 (EB-1): recommendation-generated tasks complete through this
+        // branch, so evidence must be recorded here too — otherwise the very
+        // tasks the engine chose would remain evidence-free.
+        await this.recordLearningEvidence('task.completed.score-center', () =>
+          this.learningEvidence!.recordTaskCompletionEvidence(userId, {
+            taskId,
+            completedDate: todayKey(),
+            completedAt: new Date().toISOString(),
+            completedQuestionCount: input.completedQuestionCount ?? null,
+            correctCount: input.correctCount ?? null,
+            minutesSpent: input.minutesSpent ?? null,
+            selfRating: input.selfRating ?? null,
+          }),
+        );
         await this.triggerLearningLoop(userId, {
           triggerType: 'task.complete', sourceId: taskId,
         });
@@ -3433,6 +3489,20 @@ export class StudyService implements OnModuleInit {
       taskId,
       scheduledDate: (task as { scheduledDate?: string }).scheduledDate,
     });
+    // V12-M1 (EB-1): the completion marker alone is activity, not evidence. We
+    // persist whatever the student actually reported — never a synthesised
+    // accuracy — so the evidence layer can stay honest about its strength.
+    await this.recordLearningEvidence('task.completed', () =>
+      this.learningEvidence!.recordTaskCompletionEvidence(userId, {
+        taskId,
+        completedDate,
+        completedAt,
+        completedQuestionCount: input.completedQuestionCount ?? null,
+        correctCount: input.correctCount ?? null,
+        minutesSpent: input.minutesSpent ?? null,
+        selfRating: input.selfRating ?? null,
+      }),
+    );
     const adjustment = this.createTaskCompletionAdjustment(task, {
       completedQuestionCount: input.completedQuestionCount,
       correctCount: input.correctCount,
