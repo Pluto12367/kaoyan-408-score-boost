@@ -70,34 +70,60 @@ export class ScoreOpportunityService {
     }).catch(() => null);
     const daysToExam = resolveDaysToExam(user as { examDate?: Date | null } | null);
 
-    const snapshots = await this.loadLatestSnapshots(db);
+    // The question this shadow answers is "which of THIS STUDENT's weak points is
+    // most worth training", so the candidate universe is the student's own
+    // mastered nodes. Taking an arbitrary slice of the newest snapshots instead
+    // (the first version of this service) could exclude the student's real weak
+    // points entirely — an end-to-end run showed all 400 candidates blocked for
+    // missing weakness because none of them belonged to the student.
+    const masteryRows = await db.userKnowledgeMastery.findMany({
+      where: { userId },
+      orderBy: { mastery: 'asc' },
+      take: MAX_CANDIDATES,
+      select: {
+        knowledgeNodeId: true,
+        mastery: true,
+        recentAccuracy: true,
+        correctCount: true,
+        retention: true,
+      },
+    });
+    if (masteryRows.length === 0) {
+      return {
+        generatedAt: asOf.toISOString(),
+        authoritative: false,
+        opportunities: [],
+        summary: {
+          candidatesEvaluated: 0,
+          scored: 0,
+          blocked: 0,
+          blockedByFactor: {},
+          confidenceMix: {},
+          basis: '该学生还没有任何掌握度记录，无法评估提分机会——不给出空排名。',
+        },
+        source: 'derived',
+      };
+    }
+
+    const candidateNodeIds = masteryRows.map((row) => row.knowledgeNodeId);
+    const snapshots = await this.loadLatestSnapshots(db, candidateNodeIds);
     if (snapshots.size === 0) {
       return emptyResult();
     }
 
-    const [masteries, nodes, relations] = await Promise.all([
-      db.userKnowledgeMastery.findMany({
-        where: { userId, knowledgeNodeId: { in: [...snapshots.keys()] } },
-        select: {
-          knowledgeNodeId: true,
-          mastery: true,
-          recentAccuracy: true,
-          correctCount: true,
-          retention: true,
-        },
-      }),
+    const [nodes, relations] = await Promise.all([
       db.knowledgeNode.findMany({
-        where: { id: { in: [...snapshots.keys()] } },
+        where: { id: { in: candidateNodeIds } },
         select: { id: true, name: true, difficulty: true },
       }),
       db.knowledgeRelation.findMany({
-        where: { toId: { in: [...snapshots.keys()] }, type: 'PREREQUISITE' },
+        where: { toId: { in: candidateNodeIds }, type: 'PREREQUISITE' },
         select: { fromId: true, toId: true },
       }),
     ]);
 
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
-    const masteryByNode = new Map(masteries.map((row) => [row.knowledgeNodeId, row]));
+    const masteryByNode = new Map(masteryRows.map((row) => [row.knowledgeNodeId, row]));
     const maxPrimaryScore = Math.max(1, ...[...snapshots.values()].map((row) => row.primaryScore5y));
 
     const prerequisiteOf = new Map<string, string[]>();
@@ -177,14 +203,19 @@ export class ScoreOpportunityService {
     };
   }
 
-  /** Latest snapshot per node, mirroring the recommendation engine's selection. */
-  private async loadLatestSnapshots(db: PrismaService): Promise<Map<string, {
+  /**
+   * Latest snapshot per candidate node, mirroring the recommendation engine's
+   * selection. Bounded to the student's own nodes so the shadow cannot drift
+   * into ranking nodes the student has no relationship with.
+   */
+  private async loadLatestSnapshots(db: PrismaService, nodeIds: readonly string[]): Promise<Map<string, {
     primaryScore5y: number;
     evidenceConfidence: 'HIGH' | 'MEDIUM' | 'LOW';
   }>> {
     const rows = await db.knowledgeFrequencySnapshot.findMany({
+      where: { knowledgeNodeId: { in: [...nodeIds] } },
       orderBy: [{ snapshotDate: 'desc' }, { modelVersion: 'desc' }],
-      take: MAX_CANDIDATES,
+      take: nodeIds.length,
       select: { knowledgeNodeId: true, primaryScore5y: true, evidenceConfidence: true },
     });
     const map = new Map<string, { primaryScore5y: number; evidenceConfidence: 'HIGH' | 'MEDIUM' | 'LOW' }>();

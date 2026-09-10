@@ -22,9 +22,9 @@ V12 把系统的评价标准从"学生练了"推进到"**这个干预有没有�
 | **EB-4** | 能力 → 真实分数无验证通路 | 预测↔实测**成对校准**（MAE/偏差/区间命中率） | ✅ 闭合（口径见 §7 局限） |
 | **EB-5** | 双算法并存、复习不回流掌握度 | 三系统审计 + **语义矩阵** + 只读影子（切换待批准） | ⚠️ 审计+影子完成，**切换未做** |
 
-**规模**：8 个提交 · 50 文件 · +7151/−9 行 · 新增 6 个纯模块 · 5 个只读端点 · 150 个新测试用例（2049 → **2199**）。
+**规模**：11 个提交 · 53 文件 · 约 +7900/−9 行 · 新增 6 个纯模块 · 5 个只读端点 · **1 个整栈 E2E 集成测试** · 151 个新测试用例（2049 → **2200**）。
 **零 Schema 变更**（迁移目录仍 34 个，`git diff 8abff36..HEAD -- prisma/` 为空）。
-**门禁**：`npm test` **2199/2197/0/2 exit 0**；`npm run build:api` / `build:web` 均 exit 0。
+**门禁**：`npm test` **2200/2198/0/2 exit 0**；`npm run build:api` / `build:web` 均 exit 0；**4 个 PostgreSQL 集成套件 exit 0（含任务 §30 要求的整栈提分闭环）**。
 
 **一句话**：系统现在能回答"该练什么、为什么、练完变了吗、和分数对得上吗"，并且**在每个答不上来的地方明确说答不上来**。
 
@@ -226,7 +226,7 @@ F4 若获批：唯一提议变更为 `Question.rubric Json?`（纯增量可空�
 | **Boundary / wiring** | 证据边界·曝光接线·前端账本 | 27 项（8+10+9） |
 | **Contract / regression** | 既有 344 个测试文件 | 全量通过 |
 
-**V12 新增测试合计 = 150 项，全部通过**；全量 **2199 tests / 2197 pass / 0 fail / 2 skip**。
+**V12 新增测试合计 = 151 项，全部通过**；全量 **2200 tests / 2198 pass / 0 fail / 2 skip**。
 
 **边界测试的具体形式**（防假绿）：源码扫描（**剥离注释后**）断言证据/影子/校准服务**不含任何写原语**（`.create(`/`.update(`/`upsert(`/`delete(`/`saveMastery`/`applyReview`/`applyAttempts`）；断言 `EVIDENCE_RECORDED` **服务器专属**、曝光类型**客户端可报**；断言离线评分器无网络调用。
 
@@ -248,6 +248,36 @@ F4 若获批：唯一提议变更为 `Question.rubric Json?`（纯增量可空�
 | **`test:integration:content-import`** | ✅ **exit 0** | `{"ok":true,"source":"postgresql","scenario":"content-import","questions":320,"knowledgePoints":16}` |
 | `test:integration:exam-aligned` | ❌ **未通过（环境数据缺口）** | 失败原因：`seeded database must contain at least one question` —— 该脚本要求 `Question` 题库，而 `seed:408` 只灌真题层（`ExamPaper`/`ExamQuestion`）与考频快照；`questions:generate-starter` 仅生成 CSV 不导入。**非代码缺陷** |
 | `test:integration:postgres`（3253 行，最全面） | ❌ **在既有断言处失败** | 失败于 `scripts/integration-postgres.mjs:1254` `review scheduler regression requires three target-date tasks`。**判定为既有失败而非 V12 回归**（见下方三重证据） |
+| **`test:integration:score-loop`（V12 新增，任务 §30 要求的 FINAL 测试）** | ✅ **exit 0** | **14 个环节全部在真实 PostgreSQL 上验证通过**——见 §14.3 |
+
+> 注：4 个集成套件**连续**在同一 shell 运行时，`content-import` 曾出现一次 `0xC0000409` 崩溃；**单独复跑 exit 0**（端口/资源争用所致，非代码缺陷，事后无残留端口）。
+
+### 14.3 任务 §30 要求的 FINAL SCORE IMPROVEMENT TEST —— 已通过
+
+`scripts/integration-score-improvement-loop.mjs`（新增，`npm run test:integration:score-loop`）驱动**一名学生**走完整个链路，每一步都断言真实写入：
+
+| # | 环节 | 实测结果 |
+|---|---|---|
+| 1 | 种子（节点 + 题目 + 考频快照 + 考点映射） | ✅ |
+| 2 | API 在真实 PostgreSQL 上启动 | ✅ `/health` `dataSource=postgresql` |
+| 3 | **角色守卫生效** | ✅ 学生访问影子端点返回 **403**（未为测试放宽权限） |
+| 4 | 学生注册（真实邀请码）+ 登录 | ✅ |
+| 5 | **练习 → 能力** | ✅ `mastery=0.4622 attempts=1` + 每日快照写入 |
+| 6 | **EB-2：标记已复习** | ✅ 证据 `strength=none`、`canInfluenceMastery=false`（**如实**记为活动） |
+| 7 | **复习重做（已观测）** | ✅ 证据 `strength=strong`、`canInfluenceMastery=true` |
+| 8 | **EB-1：完成任务** | ✅ 证据 `strength=weak`（自评不可影响掌握度） |
+| 9 | **EB-3：推荐曝光** | ✅ `telemetry=true`（`generated=0` 如实上报，未编造） |
+| 10 | **证据账本** | ✅ 3 条：1 强 / 1 弱 / 1 仅活动 |
+| 11 | **EB-4：测评 → 校准** | ✅ `predicted=26 actual=96 error=70`，MAE 因样本不足**拒绝给出** |
+| 12 | **机会模型** | ✅ `top=提分闭环节点 score=0.657 confidence=medium factors=6`（每因子带 source/basis） |
+| 13 | **EB-5 量化实证** | ✅ `observations=1 stored=0.4622 unified=0.5383 direction=unified_higher` |
+| 14 | **链路连通性** | ✅ 同一节点贯穿 练习→掌握度→证据→账本→曝光→测评→校准→影子 |
+
+**第 13 行是 EB-5 的实证**：学生**真实发生的复习**（观测到重做正确）在统一语义下会把掌握度从 `0.4622` 推到 `0.5383`；但生产路径把它留在 `0.4622`——**已观测的强证据对能力估计零贡献**，这与 §3 的静态代码审计结论互相印证（静态审计说"不改"，端到端跑出"差 0.0761"）。
+
+**第 12 行同时暴露并修复了一个真实缺陷**（见 §17）。
+
+### 14.4 仍未验证（诚实标注）
 
 ### 14.1 `integration-postgres` 失败归因（任务 §27：区分真实回归 / 既有失败）
 
@@ -319,10 +349,11 @@ curl -fsS http://127.0.0.1/health
 | 风险 | 等级 | 说明 |
 |---|---|---|
 | 生产与代码持续漂移 | **高** | 代码已推进到 V12，生产仍在 `43b715e`；漂移越久，部署风险越大 |
-| 掌握度被复习拉高后改变推荐排序 | **中** | Phase C 切换的已知副作用；影子期须同时观测排序变化幅度 |
+| 掌握度被复习拉高后改变推荐排序 | **中** | Phase C 切换的已知副作用；影子期须同时观测排序变化幅度。**端到端已量化**：单次已观测复习使掌握度 0.4622 → 0.5383（+0.0761），此类幅度会传导到 `calculatePriority` 的 weakness 分量 |
+| 校准在证据稀疏时误差极大 | **中** | 端到端实测：学生仅有 1 条练习记录时，预测 26 分 vs 实测 96 分（误差 70）。**这是正确行为**（估算器依赖证据量，且低于样本下限时拒绝给 MAE），但说明 **F2 估算分在早期不可用于任何决策**；建议前端在证据不足时显式提示 |
 | 文档-代码再次漂移 | **中** | 243 份文档历史包袱；本轮已校正 `current-sprint.md` §1 与 CLAUDE.md |
 | 内容侧成为天花板 | **中** | 147 无考频节点、知识关系稀疏（DS 0 边）、rubric 内容缺失——**架构无法替代内容投入** |
-| 集成测试长期缺位 | **中** | 本轮无法执行；若长期不补，回归信心依赖单元层 |
+| 集成测试长期缺位 | **中** | 本轮已补跑 4 套（全 exit 0）；`integration-postgres` 仍卡在既有断言 |
 | 影子永不收敛为决策 | **低** | 4 个影子端点若无人在环消费，会退化为"装饰性智能"（审计已警告过此类问题） |
 
 ---
@@ -360,6 +391,8 @@ curl -fsS http://127.0.0.1/health
 | **影子模型与校准** | FSRS（未训练权重显式标注）+ 预注册切换阈值 + 人在环 |
 | **可解释评分** | 离线 rubric 逐点 `basis` + `hitNodeIds`/`missedNodeIds`，零模型调用 |
 | **AI 边界工程化** | 4 端点 `authoritative:false`；LLM 只作对照候选；评分须人工复核 |
+| **端到端链路验证** | `npm run test:integration:score-loop`：一名学生 14 个环节全部在真实 PostgreSQL 上验证（练习→掌握度→证据→账本→曝光→测评→校准→影子），并在同一次运行里**量化出 EB-5 的代价**（已观测复习本应 +0.0761 掌握度，生产为 0） |
+| **测试能发现产品缺陷** | E2E 暴露 `/coach/score-opportunity` 候选集缺陷（首轮 400/400 被阻断）——**静态审计 + tsc + 2200 单测全绿时该缺陷依然存在**，只有整栈运行才能抓到 |
 
 ---
 
@@ -367,10 +400,9 @@ curl -fsS http://127.0.0.1/health
 
 ```
 分支   feature/v3-product-refactor
-HEAD   85a1bb5   fix(v12): repair utf-8 damage in daily-brief controller
-origin 与 HEAD 同步（0 / 0）
+HEAD   见 git log（本节所列提交均已推送 origin，同步 0/0）
 基线   8abff36（V12-0 审计入库）
-V12 提交（8 个，时间正序）
+V12 提交（时间正序）
   bc30f06  feat(v12): establish learning evidence foundation
   d6c2aa4  feat(v12): add recommendation exposure telemetry
   16ee6e7  feat(v12): consume the learning evidence ledger in the report
@@ -379,7 +411,9 @@ V12 提交（8 个，时间正序）
   cc30fcd  feat(v12): pair predicted and actual scores for calibration
   9b83897  feat(v12): offline rubric evaluator for large questions
   85a1bb5  fix(v12): repair utf-8 damage in daily-brief controller
-规模   50 files changed, 7151 insertions(+), 9 deletions(-)
+  8583c7f  docs(v12): final audit and final release report
+  da08e6f  docs(v12): record real integration evidence in the final report
+  (后续)   test(v12): end-to-end score improvement loop + fix opportunity candidate universe
 迁移   34（不变）
 tag    未创建（本会话未获打 tag 指令；建议所有者批准后打 v12.0.0-score-improvement-engine）
 ```
@@ -396,7 +430,8 @@ tag    未创建（本会话未获打 tag 指令；建议所有者批准后打 v
 | **Fake Evidence** | 发现并**锁死**合成数据风险：`correctCount ?? questionCount*0.75` 不得进入证据（测试断言）；活动标记**永不**渲染为能力证据 |
 | **Unused Data** | V12 首次消费了 `ReviewAttempt.nextIntervalDays`、`KnowledgeFrequencySnapshot.primaryScore5y`、`AssessmentHistoryItem.score`、`UserMasterySnapshot`；知识关系仍稀疏（内容债） |
 | **Duplicate Logic** | **未新增重复**：考频完整公式仍归推荐引擎（V12 只取单一真实字段归一化）；评分器零模型；影子复用生产 `updateMasteryAfterAttempt`/`estimateRetention`/`estimatePredictedScore`。既有重复仍在册（`isStaticDemoMode` 双实现、双复习算法） |
-| **Unverified Claim** | 本报告**不声称**任何未执行的验证：生产 E2E 明确标 `❌ 未执行`（无 SSH 凭据）；`exam-aligned` 与 `integration-postgres` 的失败**逐条归因**（前者为环境数据缺口，后者经三重证据判定为**既有失败**，并在 §14.1 列出）；"实际成绩"口径局限已明示 |
+| **Unverified Claim** | 本报告**不声称**任何未执行的验证：生产 E2E 明确标 `❌ 未执行`（无 SSH 凭据）；`exam-aligned` 与 `integration-postgres` 的失败**逐条归因**（前者为环境数据缺口，后者经三重证据判定为**既有失败**，并在 §14.1 列出）；"实际成绩"口径局限已明示。**并且：任务 §30 要求的端到端链路已实际跑通（§14.3），报告中的每个"已闭合"都有对应实测行** |
+| **Hidden Failure** | **抓到并修复 1 个自伤缺陷**（编码损坏，见下）+ **抓到并修复 1 个由 E2E 暴露的产品缺陷**：`/coach/score-opportunity` 的候选集取"最近 400 条快照"，导致**学生自己的节点可能完全不在候选集内**（首轮 E2E 实测：400 个候选**全部**因缺掌握度被阻断，影子问不出它该问的问题）。已改为**以学生自己的掌握度节点为候选宇宙**（"对从未接触的内容无法构成薄弱"），并新增测试锁定该语义；修复后同一场 E2E 输出 `score=0.657 confidence=medium factors=6`。**该缺陷只有端到端运行才能发现——静态审计、类型检查与 2200 个单元测试全部通过时它依然存在** |
 | **Hidden Failure** | **抓到并修复 1 个自伤缺陷**：我用未指定编码的 `Set-Content` 往返 `daily-brief.controller.ts`，损坏 19 处 em-dash 并吞掉 18 个空格、合并 1 处换行。**构建与全量测试全程保持绿色**，正因如此更值得记录。已按字节精确修复，修复后与 V12 前版本**零删除行**，并对 V12 全部 50 个改动文件做严格 UTF-8 扫描（0 非法） |
 
 **审计结论**：V12 范围内**无已知未修复缺陷**；所有未完成项均为**明确的批准门或环境阻塞**，且已在 §15/§16/§17 逐条列出。

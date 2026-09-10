@@ -80,7 +80,7 @@ test('nodes with a snapshot and mastery are scored and ranked descending', async
   assert.equal(result.summary.blocked, 0);
 });
 
-test('a node the user never practised blocks on missing weakness instead of assuming 0.5', async () => {
+test('a student with no mastery at all gets an honest empty result, not a ranking', async () => {
   const service = harness({
     snapshots: [snap('node-1', 10)],
     nodes: [{ id: 'node-1', name: 'A', difficulty: 3 }],
@@ -89,10 +89,31 @@ test('a node the user never practised blocks on missing weakness instead of assu
 
   const result = await service.getOpportunities('u1', {});
   assert.ok(result);
-  assert.equal(result.opportunities.length, 0, 'a blocked node is not ranked');
-  assert.equal(result.summary.blocked, 1);
-  assert.equal(result.summary.blockedByFactor.weakness, 1);
-  assert.match(result.summary.basis, /拒绝出分/);
+  assert.equal(result.opportunities.length, 0);
+  assert.equal(result.summary.candidatesEvaluated, 0);
+  // The candidate universe is the student's OWN nodes: you cannot be weak at
+  // something you have never engaged with, so no node is scored and none is
+  // reported as "blocked" either.
+  assert.match(result.summary.basis, /还没有任何掌握度记录/);
+  assert.equal(result.authoritative, false);
+});
+
+test('the candidate universe is the student\'s own nodes, not an arbitrary snapshot slice', async () => {
+  const service = harness({
+    snapshots: [snap('student-node', 10), snap('stranger-node', 10)],
+    nodes: [
+      { id: 'student-node', name: '学的节点', difficulty: 3 },
+      { id: 'stranger-node', name: '别人的节点', difficulty: 3 },
+    ],
+    mastery: [
+      { knowledgeNodeId: 'student-node', mastery: 0.2, recentAccuracy: 0.4, correctCount: 1, retention: 0.3 },
+    ],
+  });
+
+  const result = await service.getOpportunities('u1', {});
+  assert.ok(result);
+  assert.equal(result.opportunities.length, 1, 'only the student\'s own node is evaluated');
+  assert.equal(result.opportunities[0].title, '学的节点');
 });
 
 test('sparse prerequisite data is treated as unknown, not as readiness', async () => {
