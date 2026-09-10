@@ -234,17 +234,40 @@ F4 若获批：唯一提议变更为 `Question.rubric Json?`（纯增量可空�
 
 ## 14. E2E Matrix
 
-| 场景 | 状态 |
+> 本节在会话末段 Docker 引擎最终就绪后**实测补齐**（报告首版曾如实标注"未执行"）。
+
+| 场景 | 状态 | 证据 |
+|---|---|---|
+| 单元/契约/边界层 | ✅ **通过** | 2199 用例 / 2197 pass / 0 fail |
+| 类型检查三端 | ✅ **通过** | `tsc --noEmit` shared / api / web 均 exit 0 |
+| 构建门禁 | ✅ **通过** | `build:api` / `build:web` 均 exit 0 |
+| **API 在真实 PostgreSQL 上启动** | ✅ **通过** | `scripts/integration-postgres.mjs` 内启动 API :3200，`/health` 200、`/auth/login` 201、`/wrong-questions/:id/detail` 200、`/onboarding/status` 200、`/today/plan` 200、`/sessions/practice/*` 200/201、`/exam/report/*` 200、`/dashboard/overview` 200 —— **证明 V12 的 DI 装配在运行时成立**（不只 tsc 通过） |
+| **测试库迁移** | ✅ **通过** | `prisma migrate deploy` → **34 migrations applied** |
+| **`test:integration:effectiveness`** | ✅ **exit 0** | 真实库；`bySurface: {outcomes:5, interventions:2, summary:3, experiments:1}` |
+| **`test:integration:event-key`** | ✅ **exit 0** | "event-key PostgreSQL integration assertions passed" |
+| **`test:integration:content-import`** | ✅ **exit 0** | `{"ok":true,"source":"postgresql","scenario":"content-import","questions":320,"knowledgePoints":16}` |
+| `test:integration:exam-aligned` | ❌ **未通过（环境数据缺口）** | 失败原因：`seeded database must contain at least one question` —— 该脚本要求 `Question` 题库，而 `seed:408` 只灌真题层（`ExamPaper`/`ExamQuestion`）与考频快照；`questions:generate-starter` 仅生成 CSV 不导入。**非代码缺陷** |
+| `test:integration:postgres`（3253 行，最全面） | ❌ **在既有断言处失败** | 失败于 `scripts/integration-postgres.mjs:1254` `review scheduler regression requires three target-date tasks`。**判定为既有失败而非 V12 回归**（见下方三重证据） |
+
+### 14.1 `integration-postgres` 失败归因（任务 §27：区分真实回归 / 既有失败）
+
+| 证据 | 结果 |
 |---|---|
-| 单元/契约/边界层 | ✅ **已执行并通过**（2199 用例） |
-| 类型检查三端 | ✅ `tsc --noEmit` shared / api / web 均 exit 0 |
-| 构建门禁 | ✅ `build:api` / `build:web` 均 exit 0 |
-| **PostgreSQL 集成测试**（`test:integration:*`） | ❌ **本会话未执行** |
-| **生产 E2E / 路由探测** | ❌ **未执行** |
+| V12 对 `scripts/` 的改动文件数 | **0** |
+| V12 对 `prisma/` 的改动文件数 | **0** |
+| V12 对 `study.service.ts` review 路径的改动性质 | **纯附加证据记录**，且被 `recordLearningEvidence` 的 try/catch 包裹（失败仅 warn 并继续）——**不可能改变计划生成的任务数** |
+| 该失败是否在 V12 之前已被登记 | **是**：`docs/v11-architecture-final.md:110` §7「已知债：集成脚本 review-scheduler 断言（所有者定的稍后项）」+ `docs/v12-0-score-improvement-audit.md` §2「已知环境债」——**两份文档均写于任何 V12 代码之前** |
+| 失败点之前的断言 | 全部通过（含 API 启动、并发提交幂等、快照时间保留、报告一致性等） |
 
-**未执行的原因（诚实）**：本会话宿主 Docker 引擎启动后 5 分钟内未就绪（多轮探测均失败），55432 测试库与生产库均不可达，`test:integration:postgres` 等 8 个集成脚本**无法运行**。因此：
+**结论**：`FAIL`，类型 = **PRE-EXISTING FAILURE**，根因疑为 V8 #13 结转重锚 / V9 周强度改计划管线后，计划生成不再为该场景产出 3 个目标日任务（与 `docs/v10-1-sprite-core-final-report.md` 的既有归因一致）。**修复它需要改计划生成逻辑（属生产行为变更），未获授权，本轮不修。**
 
-> **本报告不声称任何"真实数据库端到端"或"生产验证"结果。** 影子与校准端点的**真实数据分布、分歧幅度、样本量**均属未验证。
+### 14.2 仍未验证（诚实标注）
+
+| 项 | 原因 |
+|---|---|
+| 5 个 V12 新端点的**真实数据分布** | 需真实学生数据；测试库为空库 |
+| 影子/校准端点的**分歧幅度、样本量** | 同上 |
+| 生产 E2E / 路由探测 | 无 SSH 凭据 |
 
 ---
 
@@ -256,6 +279,7 @@ PRODUCTION        ❌  DEFERRED（所有者门控）
 ```
 
 **事实**：生产运行 `43b715e` 前后构建；V11-M2/M3/M4 端点未上线（404，V12-0 路由探测实证）；V12 的 5 个新端点同样未部署。
+**已在本机真实 PostgreSQL 上验证的部分**：API 以全部 V12 服务装配启动成功并服务真实请求（§14），3 个集成脚本 exit 0，34 个迁移干净应用——**"代码能在真实数据库上跑起来"已证实；"生产上跑起来"未证实。**
 **权限**：本会话**无服务器 SSH 凭据** → 按任务 §5「不得伪造部署」，仅准备部署包与确切命令。
 
 **确切部署命令**（沿用 `docs/v11-final-release-server-steps.md`；服务器 git 默认 pull 会命中代理陈旧 ref，**必须显式 refspec**）：
@@ -280,7 +304,7 @@ curl -fsS http://127.0.0.1/health
 |---|---|---|---|
 | 1 | **系统无"真实考研分数"表/录入通道** | 校准口径是"预测 vs 模考记录分"，**不是**考研终分 | 需新增录入通道（Schema）→ **需批准** |
 | 2 | **V12-M3 Phase C 未切换** | 复习证据仍**不流入**掌握度；`retention` 仍恒为 1 | 设计与阈值已就绪 → **需批准** |
-| 3 | **无真实 DB 集成验证** | 影子/校准的真实数据表现未知 | 环境恢复后必须补跑 |
+| 3 | **无真实学生数据的端到端验证** | `exam-aligned` 缺题库种子；5 个新端点的真实数据分布/分歧幅度/样本量未观测 | 测试库已就绪（34 迁移 + 1296 节点 + 1149 快照），补题库种子后可复跑 |
 | 4 | **F4 Schema 未应用** | 大题仍无结构化训练 | → **需批准** + 教研内容 |
 | 5 | `recoverability` 是代理指标 | 机会分该维度可靠性有限（置信 low） | 已在输出中标注 |
 | 6 | `trainingCost` 是估算 | 非实测用时（置信 medium） | 已标注 |
@@ -372,7 +396,7 @@ tag    未创建（本会话未获打 tag 指令；建议所有者批准后打 v
 | **Fake Evidence** | 发现并**锁死**合成数据风险：`correctCount ?? questionCount*0.75` 不得进入证据（测试断言）；活动标记**永不**渲染为能力证据 |
 | **Unused Data** | V12 首次消费了 `ReviewAttempt.nextIntervalDays`、`KnowledgeFrequencySnapshot.primaryScore5y`、`AssessmentHistoryItem.score`、`UserMasterySnapshot`；知识关系仍稀疏（内容债） |
 | **Duplicate Logic** | **未新增重复**：考频完整公式仍归推荐引擎（V12 只取单一真实字段归一化）；评分器零模型；影子复用生产 `updateMasteryAfterAttempt`/`estimateRetention`/`estimatePredictedScore`。既有重复仍在册（`isStaticDemoMode` 双实现、双复习算法） |
-| **Unverified Claim** | 本报告**不声称**任何未执行的验证（集成测试/生产 E2E 明确标 `❌ 未执行`）；"实际成绩"口径局限已明示 |
+| **Unverified Claim** | 本报告**不声称**任何未执行的验证：生产 E2E 明确标 `❌ 未执行`（无 SSH 凭据）；`exam-aligned` 与 `integration-postgres` 的失败**逐条归因**（前者为环境数据缺口，后者经三重证据判定为**既有失败**，并在 §14.1 列出）；"实际成绩"口径局限已明示 |
 | **Hidden Failure** | **抓到并修复 1 个自伤缺陷**：我用未指定编码的 `Set-Content` 往返 `daily-brief.controller.ts`，损坏 19 处 em-dash 并吞掉 18 个空格、合并 1 处换行。**构建与全量测试全程保持绿色**，正因如此更值得记录。已按字节精确修复，修复后与 V12 前版本**零删除行**，并对 V12 全部 50 个改动文件做严格 UTF-8 扫描（0 非法） |
 
 **审计结论**：V12 范围内**无已知未修复缺陷**；所有未完成项均为**明确的批准门或环境阻塞**，且已在 §15/§16/§17 逐条列出。
