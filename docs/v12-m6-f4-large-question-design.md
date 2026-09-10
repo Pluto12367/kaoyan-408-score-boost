@@ -1,8 +1,22 @@
-# V12-M6 / F4 — Large Question Training（设计 + 无 Schema 影子实现）
+# V12-M6 / F4 — Large Question Training（设计 + V1 已实施）
 
 > 里程碑：F4（大题采分点训练）
-> 状态：**设计完成 + 无 Schema 影子实现完成**；**`Question.rubric` Schema 变更仍属批准门，本轮未触碰 Prisma**
-> 依据：任务 §12.1「如果没有批准权限：不要修改 Schema，但可以完成 pure module / shadow evaluator / offline rubric / tests」
+> 状态：**所有者已批准 → V1 已实施**（Schema + 迁移 + 版本化离线评分 + 端点 + 测试 + 端到端实证）
+> 依据：任务 §12.1；V1 范围由所有者给定（"不要让 Agent 自己发明一个复杂 rubric DSL"）
+
+---
+
+## 0. V1 实施结果（2026-09-10）
+
+| 项 | 结果 |
+|---|---|
+| Schema | `Question.rubric Json?` **已实施**；迁移 `20260911000000_question_rubric`；回滚 `DROP COLUMN` |
+| 形状 | `version` / `totalPoints` / `criteria[]{id, description, points, required, evidenceHint, matchAny, knowledgeNodeIds}` |
+| 版本化 | 评分结果携带 `rubricVersion` + 确定性内容哈希（键排序 FNV-1a）；哈希写入证据账本 → **改版不污染历史评分** |
+| 端点 | `GET /questions/:questionId/rubric`、`POST /questions/:questionId/subjective-attempt` |
+| 测试 | 纯模块 **18 项** + 服务 **10 项**，全绿 |
+| 端到端 | `score-loop` 增至 **16 环节**，含 `rubric v1 rv1-… scored 10/10` 与 `no-rubric → score=null 且不记录证据` |
+| 未做 | 教研内容批次、教师端编辑 UI、LLM 对照评分器、前端采分点清单 |
 
 ---
 
@@ -24,7 +38,7 @@
 
 ---
 
-## 2. 提议的 Schema（**未实施，待批准**）
+## 2. Schema（**已实施**，所有者批准）
 
 ```prisma
 model Question {
@@ -126,15 +140,18 @@ interface QuestionRubric {
 | 纯模块 | **14/14 pass** |
 | **`npm test`** | 见 V12 最终报告（本轮提交后复跑） |
 
-## 7. 获批后的实施路径（建议）
+## 7. V1 之后（建议路径，均需相应前置）
 
-| 步骤 | 内容 | 前置 |
-|---|---|---|
-| F4-1 | Schema 变更（可空 JSONB）+ 迁移 + 回滚脚本 | **所有者批准** |
-| F4-2 | 教研内容批次：为 N 道综合题编写 rubric（`totalPoints` 与采分点分值自校验） | 教研资源 |
-| F4-3 | 端点：`GET /questions/:id/rubric`（只读）+ 提交主观答案 → 离线评分 | F4-1/F4-2 |
-| F4-4 | 逐点遥测写入 V12-M1 证据层（`EVIDENCE_RECORDED`），使步骤证据进入能力链路 | F4-3 |
-| F4-5 | LLM 评分作为**对照评分器**接入影子，与离线基线比对一致性 | F4-3 + 凭证 |
-| F4-6 | 前端采分点清单 + 逐点反馈 | F4-3 |
+| 步骤 | 内容 | 前置 | 状态 |
+|---|---|---|---|
+| F4-1 | Schema 变更（可空 JSONB）+ 迁移 + 回滚 | 所有者批准 | ✅ **已完成** |
+| F4-1b | 版本化离线评分器 + 端点 + 端到端实证 | — | ✅ **已完成** |
+| F4-2 | 教研内容批次：为真实综合题编写 rubric（`totalPoints` 自校验） | **教研资源**（非工程） | ⬜ 待办 |
+| F4-3 | 逐点遥测进入证据层（`EVIDENCE_RECORDED.detail`） | — | ✅ **已完成**（随 F4-1b） |
+| F4-4 | 教师端 rubric 编辑 UI（编辑即新版本，不覆盖历史） | F4-2 | ⬜ 待办 |
+| F4-5 | LLM 评分作为**对照评分器**接入影子，与离线基线比对一致性 | F4-2 + LLM 凭证 | ⬜ 待办 |
+| F4-6 | 学生端采分点清单 + 逐点反馈 UI | F4-2 | ⬜ 待办 |
 
-**验收标准（对齐六指标之 Q3 大题得分）**：无 rubric 题目行为逐字节不变；逐点得分合计进入既有评分管线；掌握度/报告/错题联动零改动（除 F4-4 的新增证据写入）。
+**验收标准（对齐六指标之 Q3 大题得分）**：无 rubric 题目行为逐字节不变 ✅；逐点得分合计进入既有评分管线 ✅；掌握度/报告/错题联动零改动（F4-3 以新增证据写入方式接入，未改既有写路径）✅。
+
+**V1 的诚实边界**：字段与链路已就绪，但**没有真实 rubric 内容就没有训练价值**——F4 的产品价值当前**被教研内容批次阻塞**，而非被工程阻塞。
