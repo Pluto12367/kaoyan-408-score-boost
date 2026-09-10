@@ -28,6 +28,7 @@ import { ReviewShadowService } from './review-shadow.service';
 import { TaskEvidenceService } from './task-evidence.service';
 import { LearningEvidenceService } from './learning-evidence.service';
 import { RecommendationExposureService } from './recommendation-exposure.service';
+import { ReviewSemanticsShadowService } from './review-semantics-shadow.service';
 import { LearningImpactService } from './learning-impact.service';
 
 @Controller()
@@ -44,6 +45,7 @@ export class DailyBriefController {
     private readonly learningImpact?: LearningImpactService,
     private readonly learningEvidence?: LearningEvidenceService,
     private readonly recommendationExposure?: RecommendationExposureService,
+    private readonly reviewSemanticsShadow?: ReviewSemanticsShadowService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -245,6 +247,36 @@ export class DailyBriefController {
       return { generatedAt: new Date().toISOString(), funnel: null, reason: 'store_unavailable' };
     }
     return result;
+  }
+
+  /**
+   * V12-M3 Phase B — review semantics shadow (NON-AUTHORITATIVE).
+   *
+   * Replays a student's observed review history under the PROPOSED unified
+   * semantics (reviews feed the same EMA as practice) and compares it with what
+   * is stored, plus a time-aware retention against the stored constant.
+   * Read-only; switching production semantics needs owner approval.
+   * teacher/admin only — this is a model-quality instrument, not student UI.
+   */
+  @Get('coach/review-semantics-shadow')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
+  async getReviewSemanticsShadow(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('windowDays') windowDays?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.reviewSemanticsShadow) {
+      return { generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
+    }
+    const result = await this.reviewSemanticsShadow.getShadow(userId, {
+      windowDays: parsePositiveInt(windowDays),
+    });
+    if (result == null) {
+      return { generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
+    }
+    return { userId, ...result };
   }
 
   /** V11-M4.2 — mastery calibration shadow: stored mastery vs observed accuracy. */  @Get('coach/mastery-calibration')

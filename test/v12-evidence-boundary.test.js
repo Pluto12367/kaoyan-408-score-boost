@@ -244,7 +244,14 @@ test('the learning-evidence endpoint exists and cannot be pointed at another stu
 
   const start = source.indexOf("@Get('coach/learning-evidence')");
   const end = source.indexOf('async getLearningEvidence');
-  const body = source.slice(end, source.indexOf('/** V11-M4.2', end));
+  // Bound the slice at the NEXT route, not at a doc comment: inserting another
+  // endpoint between them must not drag its decorators into this assertion.
+  const nextRoute = source.indexOf('@Get(', end);
+  const body = source.slice(end, nextRoute > end ? nextRoute : source.length);
+  // Positive control: the slice must actually cover the method, otherwise the
+  // assertion below would pass vacuously on an empty string.
+  assert.ok(body.includes("user.id"), 'slice must cover the method body');
+  assert.ok(body.includes("@Query('limit')"), 'slice must cover the method signature');
   assert.ok(
     !body.includes("@Query('userId')"),
     'evidence is personal data: the endpoint must not accept a userId override',

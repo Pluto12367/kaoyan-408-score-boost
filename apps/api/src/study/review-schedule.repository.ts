@@ -118,6 +118,36 @@ export class ReviewScheduleRepository {
     await this.prisma.$transaction(save);
   }
 
+  /**
+   * V12-M3 — recent review attempts for one user, newest first.
+   * Read-only input for the review-semantics shadow; never used on a write path.
+   */
+  async listAttemptsByUser(userId: string, limit = 200): Promise<Array<{
+    questionId: string;
+    reviewedAt: string;
+    redoCorrect: boolean;
+    nextIntervalDays: number;
+  }>> {
+    if (!this.enabled) return [];
+    const rows = await this.prisma.reviewAttempt.findMany({
+      where: { schedule: { userId } },
+      orderBy: { reviewedAt: 'desc' },
+      take: limit,
+      select: {
+        reviewedAt: true,
+        redoCorrect: true,
+        nextIntervalDays: true,
+        schedule: { select: { questionId: true } },
+      },
+    });
+    return rows.map((row) => ({
+      questionId: row.schedule.questionId,
+      reviewedAt: row.reviewedAt.toISOString(),
+      redoCorrect: row.redoCorrect,
+      nextIntervalDays: row.nextIntervalDays,
+    }));
+  }
+
   async findAttemptByIdempotencyKey(userId: string, questionId: string, idempotencyKey: string): Promise<ReviewAttemptState | null> {
     if (!this.enabled) return null;
     const schedule = await this.prisma.reviewSchedule.findUnique({ where: { userId_questionId: { userId, questionId } } });

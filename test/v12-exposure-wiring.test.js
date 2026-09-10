@@ -117,7 +117,15 @@ test('the funnel endpoint is self-only and honestly absent when the store is dow
   const source = read('apps/api/src/study/daily-brief.controller.ts');
   assert.ok(source.includes("@Get('coach/recommendation-funnel')"));
   const start = source.indexOf("@Get('coach/recommendation-funnel')");
-  const body = source.slice(start, source.indexOf("/** V11-M4.2", start));
+  // Bound the slice at the NEXT route rather than a doc comment, so inserting a
+  // new endpoint after this one cannot pull its decorators into the assertion.
+  const afterMethod = source.indexOf('async getRecommendationFunnel', start);
+  const nextRoute = source.indexOf('@Get(', afterMethod);
+  const body = source.slice(start, nextRoute > afterMethod ? nextRoute : source.length);
+  // Positive control: a non-empty slice that really covers this method, so the
+  // negative assertion cannot pass vacuously.
+  assert.ok(body.includes('getRecommendationFunnel'), 'slice must cover the method');
+  assert.ok(body.includes("@Query('windowDays')"), 'slice must cover the method signature');
   assert.ok(!body.includes("@Query('userId')"), 'recommendation history is personal data');
   assert.ok(body.includes('store_unavailable'), 'must admit absence rather than return an empty funnel');
 });
