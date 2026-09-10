@@ -29,6 +29,7 @@ import { TaskEvidenceService } from './task-evidence.service';
 import { LearningEvidenceService } from './learning-evidence.service';
 import { RecommendationExposureService } from './recommendation-exposure.service';
 import { ReviewSemanticsShadowService } from './review-semantics-shadow.service';
+import { ScoreOpportunityService } from './score-opportunity.service';
 import { LearningImpactService } from './learning-impact.service';
 
 @Controller()
@@ -46,6 +47,7 @@ export class DailyBriefController {
     private readonly learningEvidence?: LearningEvidenceService,
     private readonly recommendationExposure?: RecommendationExposureService,
     private readonly reviewSemanticsShadow?: ReviewSemanticsShadowService,
+    private readonly scoreOpportunity?: ScoreOpportunityService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -272,6 +274,36 @@ export class DailyBriefController {
     }
     const result = await this.reviewSemanticsShadow.getShadow(userId, {
       windowDays: parsePositiveInt(windowDays),
+    });
+    if (result == null) {
+      return { generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
+    }
+    return { userId, ...result };
+  }
+
+  /**
+   * V12-M4 — score opportunity shadow (NON-AUTHORITATIVE).
+   *
+   * "With limited time right now, which weak point is most worth training?"
+   * The recommendation engine stays the authoritative ranking; this shadow adds
+   * recoverability and benefit-per-unit-time, and refuses to emit a score when a
+   * required factor has no real data behind it.
+   * teacher/admin only — a model-quality instrument, not student UI.
+   */
+  @Get('coach/score-opportunity')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
+  async getScoreOpportunity(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('top') top?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.scoreOpportunity) {
+      return { generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
+    }
+    const result = await this.scoreOpportunity.getOpportunities(userId, {
+      top: parsePositiveInt(top),
     });
     if (result == null) {
       return { generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
