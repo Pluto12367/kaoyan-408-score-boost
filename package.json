@@ -59,6 +59,7 @@
     "test:integration:postgres": "npm run build:api && node scripts/integration-postgres.mjs",
     "test:integration:effectiveness": "npm run build:api && node scripts/integration-effectiveness.mjs",
     "test:integration:score-loop": "npm run build:api && node scripts/integration-score-improvement-loop.mjs",
+    "test:integration:review-shadow-cohort": "npm run build:api && node scripts/integration-review-shadow-cohort.mjs",
     "test:integration:event-key": "npm run build:api && node scripts/integration-event-key.mjs",
     "test:integration:import-first": "npm run build:api && node scripts/integration-import-first.mjs",
     "test:integration:content-import": "npm run build:api && node scripts/integration-content-import.mjs",

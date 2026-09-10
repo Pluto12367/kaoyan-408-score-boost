@@ -22,11 +22,34 @@ V12 把系统的评价标准从"学生练了"推进到"**这个干预有没有�
 | **EB-4** | 能力 → 真实分数无验证通路 | 预测↔实测**成对校准**（MAE/偏差/区间命中率） | ✅ 闭合（口径见 §7 局限） |
 | **EB-5** | 双算法并存、复习不回流掌握度 | 三系统审计 + **语义矩阵** + 只读影子（切换待批准） | ⚠️ 审计+影子完成，**切换未做** |
 
-**规模**：11 个提交 · 53 文件 · 约 +7900/−9 行 · 新增 6 个纯模块 · 5 个只读端点 · **1 个整栈 E2E 集成测试** · 151 个新测试用例（2049 → **2200**）。
+**规模**：11 个提交 · 53 文件 · 约 +7900/−9 行 · 新增 6 个纯模块 · **9 个只读/评分端点** · **2 个整栈集成脚本**（Score Loop + Shadow Cohort） · 165 个新测试用例（2049 → **2214**）。
 **零 Schema 变更**（迁移目录仍 34 个，`git diff 8abff36..HEAD -- prisma/` 为空）。
-**门禁**：`npm test` **2200/2198/0/2 exit 0**；`npm run build:api` / `build:web` 均 exit 0；**4 个 PostgreSQL 集成套件 exit 0（含任务 §30 要求的整栈提分闭环）**。
+**门禁**：`npm test` **2214/2212/0/2 exit 0**；`npm run build:api` / `build:web` 均 exit 0；**4 个 PostgreSQL 集成套件 exit 0（含任务 §30 要求的整栈提分闭环）**。
 
-**一句话**：系统现在能回答"该练什么、为什么、练完变了吗、和分数对得上吗"，并且**在每个答不上来的地方明确说答不上来**。
+**一句话**：系统现在能回答"该练什么、为什么、练完变了没有、和分数对得上吗"，并且**在每个答不上来的地方明确说答不上来**。
+
+---
+
+## 1.5 分层验收状态（正式验收视图）
+
+> 原则：**不把所有东西包装成绿色，而是能解释每一个红色为什么存在。** 完整归因见 `docs/v12-failure-classification.md`。
+
+| 层级 | 状态 |
+|---|---|
+| V12 新增功能（M1 / M2a / M2b / M3 审计+影子 / M4 / M5 / F4-V1） | **PASS** |
+| V12 Score Loop（单学生完整链路） | **PASS** |
+| 新增 Score E2E（`test:integration:score-loop`，**16 环节**） | **PASS** |
+| PostgreSQL Score Loop（真实库 + 真实 HTTP） | **PASS** |
+| `effectiveness` / `event-key` / `content-import` | **PASS** |
+| M3 Shadow 队列（`test:integration:review-shadow-cohort`） | **PASS（只读）** |
+| 全量单测 | **2214 / 2212 / 0 fail / 2 skipped**（2 skip 为既有） |
+| `integration-postgres` | **BLOCKED / PRE-EXISTING**（`scripts/integration-postgres.mjs:1254`，V12 前已登记于 V11 §7 与 V12-0 审计） |
+| `exam-aligned` | **BLOCKED / FIXTURE 缺失**（需 `Question` 题库夹具，脚本未自带） |
+| M3 Phase C（复习语义切换） | **SHADOW**（刻意保持；切换就绪度 **NOT READY**，见 §5.2） |
+| 生产部署 | **PENDING**（无 SSH 凭据；部署包与命令已备） |
+| **NEW REGRESSION** | **0** |
+
+**"零新增回归"的举证**（可核验，非宣称）：V12 对 `scripts/` 既有脚本改动 **0**；对 `prisma/` 仅 1 处**已批准的纯增量可空字段**（`Question.rubric Json?`）；全量单测 exit 0；三端 `tsc --noEmit` 与 `build:api`/`build:web` exit 0；真实库集成 4 套 exit 0；所有既有非绿项**均在 V12 之前已登记**或为环境/夹具缺口。
 
 ---
 
@@ -158,11 +181,43 @@ Student → Behavior → Evidence → Mastery/Ability → Diagnosis
 
 ---
 
-## 8. Large Question Training（F4）
+## 8. Large Question Training（F4 V1 —— 已实施）
 
-`Question.rubric` 属批准门 → **未触碰 Prisma**。按任务 §12.1 交付：提议 Schema（可空 JSONB，`ADD/DROP COLUMN` 可回滚）· Rubric JSON 形状（版本必填校验）· **确定性离线评分器** · 两种"不给分"严格区分（无 rubric → `null`/`no_rubric`；非法 rubric → `null`/`invalid_rubric`；合法 rubric + 空答案 → 真实 `0`）· 逐点 `basis` + `hitNodeIds`/`missedNodeIds`（供未来接入证据层）。
+`Question.rubric` 经所有者批准后**已实施**（V12 唯一 Schema 变更，纯增量可空）：
 
-**AI 边界**：本评分器**完全不含任何模型调用**（测试断言源码无 `fetch(`/`openai`/`deepseek`/`axios`/`http`）；逐条 `authoritative:false` + 明写"关键词匹配**不是语义判定**、最终分数须人工复核"。LLM 若引入，只能作为**与离线基线对照的候选评分器**。
+```prisma
+model Question {
+  /// F4 (V12): 大题采分点评分标准。null = 无 rubric，既有行为逐字节不变。
+  rubric Json?
+}
+```
+迁移 `20260911000000_question_rubric`（`ADD COLUMN JSONB`）；回滚为 `DROP COLUMN`——且因为**每条已记录评分都在证据 payload 中携带了自己的 rubric 版本与哈希**，即使删列，历史评分仍可解释。
+
+**V1 形状**（严格按所有者给定范围，不做 rubric DSL）：
+
+```
+rubric
+├── version            必填整数，参与评分身份
+├── totalPoints        必须等于各采分点之和
+└── criteria[]
+    ├── id
+    ├── description    学生可见
+    ├── points
+    ├── required       未命中 = 关键失分
+    ├── evidenceHint   人工评分依据
+    ├── matchAny       evidenceHint 的机器可判定形式（离线评分用）
+    └── knowledgeNodeIds  能力链路
+```
+
+**rubric 改版不污染历史评分**：评分结果携带 `rubricVersion` + 确定性内容哈希（键排序 FNV-1a，属性顺序无关），并写入证据账本 `detail.kind='rubric_scored_attempt'`。测试证明：改版后哈希变化，而**旧评分仍指名自己的版本**。
+
+**端点**：`GET /questions/:questionId/rubric`、`POST /questions/:questionId/subjective-attempt`（authenticated）。
+
+**诚实边界（保持）**：无 rubric → `score=null`/`no_rubric` 且**不记录证据**（非评分不是观测）；不可读的 rubric 形状按"缺失"处理而非半解释；必答点未命中记为**不成功观测**（`observedCorrectCount=0`）；**零模型调用**（源码断言）；每条结果 `authoritative:false` 且明写"关键词匹配不是语义判定、最终分数须人工复核"。
+
+**端到端已实证**：`F4 rubric → evidence — rubric v1 rv1-f6e73449 scored 10/10, revision stamped into the evidence ledger` + `F4 no-rubric path — score=null, evidence not recorded`。
+
+**未做（诚实的 V1 边界）**：教研内容批次（真实综合题 rubric）、教师端 rubric 编辑 UI、LLM 对照评分器、前端采分点清单。获批后的 F4-2…F4-6 路径见设计文档。
 
 ---
 
@@ -179,12 +234,16 @@ Student → Behavior → Evidence → Mastery/Ability → Diagnosis
 
 ## 10. Data Model
 
-**V12 零 Schema 变更**（`git diff 8abff36..HEAD -- prisma/` 为空；迁移目录 **34 个不变**）。
+**V12 共 1 处 Schema 变更**（所有者批准的纯增量可空字段）：
 
-证据与曝光复用既有表：`UserEvent`（`(userId,eventKey)` 唯一索引提供数据库级幂等）+ `RecommendationAction`（漏斗分母）。
-**回滚方式**：删除 `type='EVIDENCE_RECORDED'` / `'recommendation.exposed'` / `'recommendation.viewed'` 的事件行，无 Schema 变更、无数据形态变更。
+```
+Question.rubric Json?         迁移 20260911000000_question_rubric
+回滚：ALTER TABLE "Question" DROP COLUMN "rubric";
+```
+无删除、无重命名、无回填；无 rubric 的题目行为逐字节不变。迁移目录 34 → **35**。
 
-F4 若获批：唯一提议变更为 `Question.rubric Json?`（纯增量可空）。
+证据、曝光、校准、影子全部复用既有表：`UserEvent`（`(userId,eventKey)` 唯一索引提供数据库级幂等）+ `RecommendationAction`（漏斗分母）+ `AssessmentHistoryItem`（实测成绩）。
+**回滚方式**：删除 `type='EVIDENCE_RECORDED'` / `'recommendation.exposed'` / `'recommendation.viewed'` 的事件行，无数据形态变更。
 
 ---
 
@@ -226,7 +285,7 @@ F4 若获批：唯一提议变更为 `Question.rubric Json?`（纯增量可空�
 | **Boundary / wiring** | 证据边界·曝光接线·前端账本 | 27 项（8+10+9） |
 | **Contract / regression** | 既有 344 个测试文件 | 全量通过 |
 
-**V12 新增测试合计 = 151 项，全部通过**；全量 **2200 tests / 2198 pass / 0 fail / 2 skip**。
+**V12 新增测试合计 = 165 项，全部通过**；全量 **2214 tests / 2212 pass / 0 fail / 2 skip**。
 
 **边界测试的具体形式**（防假绿）：源码扫描（**剥离注释后**）断言证据/影子/校准服务**不含任何写原语**（`.create(`/`.update(`/`upsert(`/`delete(`/`saveMastery`/`applyReview`/`applyAttempts`）；断言 `EVIDENCE_RECORDED` **服务器专属**、曝光类型**客户端可报**；断言离线评分器无网络调用。
 
@@ -276,6 +335,32 @@ F4 若获批：唯一提议变更为 `Question.rubric Json?`（纯增量可空�
 **第 13 行是 EB-5 的实证**：学生**真实发生的复习**（观测到重做正确）在统一语义下会把掌握度从 `0.4622` 推到 `0.5383`；但生产路径把它留在 `0.4622`——**已观测的强证据对能力估计零贡献**，这与 §3 的静态代码审计结论互相印证（静态审计说"不改"，端到端跑出"差 0.0761"）。
 
 **第 12 行同时暴露并修复了一个真实缺陷**（见 §17）。
+
+### 14.3.1 M3 Shadow 队列：单点证据被队列推翻（切换就绪度 NOT READY）
+
+`npm run test:integration:review-shadow-cohort` 播种 **15 名学生**（5 个掌握度区间 × 3 种复习结果，复习次数 1–3、间隔 1/3/7 天），经真实 API 读取影子：
+
+| 掌握度区间 | n | 平均 Δ | unified_higher | 其他 |
+|---|---|---|---|---|
+| 0.00–0.30 | 3 | **+0.1177** | 3 | 0 |
+| 0.30–0.45 | 3 | **+0.0667** | 2 | 1 |
+| 0.45–0.60 | 3 | **+0.0221** | 2 | 1 |
+| 0.60–0.75 | 3 | **−0.0289** | 1 | 2 |
+| 0.75–1.00 | 3 | **−0.0735** | 1 | 2 |
+
+```
+evaluated=15  insufficient=0
+unified_higher=9  unified_lower=5  converged=1
+方向一致率 = 64.3%   （预注册阈值：≥ 70% 且 观测数 ≥ 30）
+判定：NOT READY — 保持 Shadow
+```
+
+**为什么这比"看起来合理"重要**：早期端到端只有**一个**数据点（+0.0761），表面上像是"统一语义更好"。队列推翻了这个直觉——**效果随掌握度区间变号**：低分区系统性**上调**（+0.118 → +0.022 递减），高分区系统性**下调**（−0.029 → −0.074 递减）。
+
+这意味着切换会**压缩掌握度分布**，并对 `calculatePriority` 的 weakness 分量产生**非均匀**影响：弱学生被推高（可能**降低**其训练优先级）、强学生被推低（可能**提高**其优先级）。
+
+> **这正是"Shadow → 看起来合理 → Switch"会踩的坑。** 切换前必须由所有者回答一个**产品判断**：这种分布压缩是否是我们想要的？工程侧只能给出上述分布，不能替产品回答。
+
 
 ### 14.4 仍未验证（诚实标注）
 
@@ -349,8 +434,9 @@ curl -fsS http://127.0.0.1/health
 | 风险 | 等级 | 说明 |
 |---|---|---|
 | 生产与代码持续漂移 | **高** | 代码已推进到 V12，生产仍在 `43b715e`；漂移越久，部署风险越大 |
-| 掌握度被复习拉高后改变推荐排序 | **中** | Phase C 切换的已知副作用；影子期须同时观测排序变化幅度。**端到端已量化**：单次已观测复习使掌握度 0.4622 → 0.5383（+0.0761），此类幅度会传导到 `calculatePriority` 的 weakness 分量 |
+| 掌握度被复习拉高后改变推荐排序 | **中** | Phase C 切换的已知副作用。**队列已量化其非均匀性**：低分区 +0.118→+0.022、高分区 −0.029→−0.074（变号），会压缩掌握度分布并**非均匀**影响 `calculatePriority` 的 weakness 分量。切换前须由所有者回答"这种压缩是否是想要的"——**产品判断，工程不代答** |
 | 校准在证据稀疏时误差极大 | **中** | 端到端实测：学生仅有 1 条练习记录时，预测 26 分 vs 实测 96 分（误差 70）。**这是正确行为**（估算器依赖证据量，且低于样本下限时拒绝给 MAE），但说明 **F2 估算分在早期不可用于任何决策**；建议前端在证据不足时显式提示 |
+| F4 内容侧为空 | **中** | `Question.rubric` 字段与评分链路已就绪，但**真实综合题的 rubric 内容尚未编写**（教研批次）。没有内容的 F4 无法产生训练价值 |
 | 文档-代码再次漂移 | **中** | 243 份文档历史包袱；本轮已校正 `current-sprint.md` §1 与 CLAUDE.md |
 | 内容侧成为天花板 | **中** | 147 无考频节点、知识关系稀疏（DS 0 边）、rubric 内容缺失——**架构无法替代内容投入** |
 | 集成测试长期缺位 | **中** | 本轮已补跑 4 套（全 exit 0）；`integration-postgres` 仍卡在既有断言 |
@@ -402,7 +488,7 @@ curl -fsS http://127.0.0.1/health
 分支   feature/v3-product-refactor
 HEAD   见 git log（本节所列提交均已推送 origin，同步 0/0）
 基线   8abff36（V12-0 审计入库）
-V12 提交（时间正序）
+V12 提交（时间正序，含 Finalization）
   bc30f06  feat(v12): establish learning evidence foundation
   d6c2aa4  feat(v12): add recommendation exposure telemetry
   16ee6e7  feat(v12): consume the learning evidence ledger in the report
@@ -413,8 +499,11 @@ V12 提交（时间正序）
   85a1bb5  fix(v12): repair utf-8 damage in daily-brief controller
   8583c7f  docs(v12): final audit and final release report
   da08e6f  docs(v12): record real integration evidence in the final report
-  (后续)   test(v12): end-to-end score improvement loop + fix opportunity candidate universe
-迁移   34（不变）
+  f8d5db4  test(v12): end-to-end score improvement loop + fix opportunity universe
+  bdb4998  docs(sprint): record the end-to-end score improvement loop verification
+  599fc65  feat(v12): F4 rubric v1 with version-stamped offline scoring
+  (后续)   docs+test(v12): failure classification ledger + shadow cohort + layered acceptance
+迁移   35（+1：Question.rubric，所有者批准）
 tag    未创建（本会话未获打 tag 指令；建议所有者批准后打 v12.0.0-score-improvement-engine）
 ```
 
@@ -457,7 +546,8 @@ V12 FINAL RELEASE REPORT          ✅ COMPLETE（本文件）
    受"需所有者批准"约束，未实施，亦未以任何形式冒充已完成。
 ```
 
-**需要所有者决策的三件事**：
-1. **M3 Phase C**：是否批准统一复习语义（改变 `applyReview` 生产写语义；零迁移、单函数可回滚、预注册阈值）
-2. **F4 Schema**：是否批准 `Question.rubric Json?`（纯增量可空）+ 教研内容批次
-3. **生产部署时机**：是否部署 V12（5 个新端点）及是否创建 `v12.0.0-score-improvement-engine` tag
+**需要所有者决策的三件事**（本轮已按所有者指令收口，此处更新为最终状态）：
+
+1. **M3 Phase C** —— 所有者指令：**暂不切换，保持 Shadow**。本轮已按指令执行，并交付**队列证据**（15 学生 / 5 区间 / 3 结果）证明**切换就绪度 = NOT READY**：方向一致率 64.3% < 70% 阈值、观测数 15 < 30，且效果**随掌握度区间变号**。→ 继续积累真实数据；切换需所有者产品判断，工程不代答。
+2. **F4 `Question.rubric` Schema** —— 所有者已批准并按给定 V1 范围**实施完成**（字段 + 迁移 + 版本化离线评分 + 端点 + 测试 + 端到端实证）。剩余为**教研内容批次**（非工程）。
+3. **生产部署 + Tag** —— 保持 **PENDING**（无 SSH 凭据）。部署包与确切命令已备（§15）；建议 tag `v12.0.0-score-improvement-engine`。
