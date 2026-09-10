@@ -21,6 +21,11 @@ export const TELEMETRY_EVENT_TYPES = [
   'assessment.generate',
   'tutor.ask',
   'sprite.interact',
+  // V12-M2a: exposure is a CLIENT observation of the recommendation surface.
+  // It stays telemetry (not a reserved canonical event) because only the client
+  // can observe that it rendered something for the student.
+  'recommendation.exposed',
+  'recommendation.viewed',
 ] as const;
 
 export const RESERVED_CANONICAL_EVENT_TYPES = [

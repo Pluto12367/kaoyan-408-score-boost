@@ -3,6 +3,7 @@ import { fetchTodayPlan } from '../../api/endpoints/onboarding';
 import { generateScoreCenterPlan } from '../../api/endpoints/score-center';
 import { RecommendationCard } from './RecommendationCard';
 import { WhyRecommendedDrawer } from './WhyRecommendedDrawer';
+import { reportRecommendationExposed, reportRecommendationViewed } from '../recommendation/recommendationExposure';
 import { subjectCopy } from './reason-copy';
 import type { ScoreCenterItem, ScoreCenterPlan } from './types';
 
@@ -68,6 +69,21 @@ export function TodaysScoreCenter() {
   const subjects = useMemo(() => [...new Set((plan?.items ?? []).map((item) => item.subject))], [plan]);
   const isEmptyPlan = !plan || plan.items.length === 0;
 
+  // V12-M2a (EB-3): the student can only have "seen" what this surface actually
+  // rendered. Report the rendered set, de-duplicated per day.
+  const exposedIds = visibleItems.map((item) => item.id).join(',');
+  useEffect(() => {
+    if (visibleItems.length === 0) return;
+    reportRecommendationExposed('score_center', visibleItems.map((item) => ({ actionId: item.id })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exposedIds]);
+
+  // Opening "why recommended" is the only honest source of a `viewed` signal.
+  const explain = useCallback((item: ScoreCenterItem) => {
+    reportRecommendationViewed('score_center', { actionId: item.id });
+    setExplainItem(item);
+  }, []);
+
   const startPractice = useCallback(() => {
     window.location.hash = '#/question';
   }, []);
@@ -129,7 +145,7 @@ export function TodaysScoreCenter() {
           </p>
           <div className="score-center-list">
             {visibleItems.slice(0, 3).map((item) => (
-              <RecommendationCard key={item.id} item={item} onExplain={setExplainItem} onStart={startPractice} />
+              <RecommendationCard key={item.id} item={item} onExplain={explain} onStart={startPractice} />
             ))}
           </div>
           {visibleItems.length > 3 ? (
@@ -137,7 +153,7 @@ export function TodaysScoreCenter() {
               <h4>今日完整建议</h4>
               <div className="score-center-list">
                 {visibleItems.slice(3).map((item) => (
-                  <RecommendationCard key={item.id} item={item} onExplain={setExplainItem} onStart={startPractice} />
+                  <RecommendationCard key={item.id} item={item} onExplain={explain} onStart={startPractice} />
                 ))}
               </div>
             </>

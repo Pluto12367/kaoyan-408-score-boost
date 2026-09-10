@@ -6,6 +6,7 @@ export * from './recommendation';
 export * from './review-shadow';
 export * from './task-evidence';
 export * from './learning-evidence';
+export * from './recommendation-exposure';
 export * from './fsrs-scheduler';
 export * from './decay-defense.selector';
 export * from './mastery-calibration';

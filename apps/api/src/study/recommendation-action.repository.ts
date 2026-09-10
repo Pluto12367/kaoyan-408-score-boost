@@ -18,6 +18,14 @@ export class RecommendationActionRepository {
     return this.action.create({ data: { ...input, studyTaskId: input.studyTaskId ?? null } }) as Promise<RecommendationActionRow>;
   }
   async findById(id: string): Promise<RecommendationActionRow | null> { return this.action.findUnique({ where: { id } }) as Promise<RecommendationActionRow | null>; }
+  /** Recent actions for one user, newest first (read-only funnel denominator). */
+  async listRecentByUser(userId: string, limit = 50): Promise<RecommendationActionRow[]> {
+    return this.action.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    }) as Promise<RecommendationActionRow[]>;
+  }
   async findByUserAndId(userId: string, id: string): Promise<RecommendationActionRow | null> { return this.action.findFirst({ where: { id, userId } }) as Promise<RecommendationActionRow | null>; }
   async findByCreationKey(userId: string, creationKey: string): Promise<RecommendationActionRow | null> { return this.action.findUnique({ where: { userId_creationKey: { userId, creationKey } } }) as Promise<RecommendationActionRow | null>; }
   async updateStatusWithVersion(input: { id: string; userId: string; expectedVersion: number; expectedStatus: ActionStatus; data: { status: ActionStatus; startedAt?: Date; completedAt?: Date; cancelledAt?: Date } }): Promise<RecommendationActionRow | null> {

@@ -27,6 +27,7 @@ import { FeedbackRepository } from './feedback.repository';
 import { ReviewShadowService } from './review-shadow.service';
 import { TaskEvidenceService } from './task-evidence.service';
 import { LearningEvidenceService } from './learning-evidence.service';
+import { RecommendationExposureService } from './recommendation-exposure.service';
 import { LearningImpactService } from './learning-impact.service';
 
 @Controller()
@@ -42,6 +43,7 @@ export class DailyBriefController {
     private readonly taskEvidence?: TaskEvidenceService,
     private readonly learningImpact?: LearningImpactService,
     private readonly learningEvidence?: LearningEvidenceService,
+    private readonly recommendationExposure?: RecommendationExposureService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -216,6 +218,35 @@ export class DailyBriefController {
     return result;
   }
 
+  /**
+   * V12-M2a — recommendation exposure funnel (EB-3).
+   *
+   * Separates "the engine generated a recommendation" from "the student saw
+   * it". When exposure telemetry has never arrived the funnel says so and
+   * reports no exposure number at all, instead of inventing a zero.
+   * Self-only: recommendation history is personal data.
+   */
+  @Get('coach/recommendation-funnel')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRecommendationFunnel(
+    @CurrentUser() user: UserProfile,
+    @Query('windowDays') windowDays?: string,
+    @Query('limit') limit?: string,
+  ) {
+    if (!this.recommendationExposure) {
+      return { generatedAt: new Date().toISOString(), funnel: null, reason: 'store_unavailable' };
+    }
+    const result = await this.recommendationExposure.getFunnel(user.id, {
+      windowDays: parsePositiveInt(windowDays),
+      limit: parsePositiveInt(limit),
+    });
+    if (result == null) {
+      return { generatedAt: new Date().toISOString(), funnel: null, reason: 'store_unavailable' };
+    }
+    return result;
+  }
+
   /** V11-M4.2 — mastery calibration shadow: stored mastery vs observed accuracy. */  @Get('coach/mastery-calibration')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
@@ -283,4 +314,11 @@ export class DailyBriefController {
     });
     return { userId, generatedAt: new Date().toISOString(), ...story };
   }
+}
+
+/** Parse a query-string integer defensively; anything else means "use default". */
+function parsePositiveInt(value: string | undefined): number | undefined {
+  if (value == null || !/^\d+$/.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }

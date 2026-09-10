@@ -4,6 +4,7 @@ import { REASON_LABELS } from '@kaoyan408/shared';
 import type { TodayPlanTask } from '../../../onboarding/todayLearningRoute';
 import type { DashboardTaskViewModel, DashboardViewModel } from '../useDashboardViewModel';
 import { fetchTaskEvidence } from '../../../../api/endpoints/dashboard';
+import { reportRecommendationExposed } from '../../../recommendation/recommendationExposure';
 import '../../../report/task-evidence.css';
 
 function reasonLine(task: DashboardTaskViewModel): string | null {
@@ -48,6 +49,14 @@ function useTaskEvidenceChips(tasks: DashboardTaskViewModel[]) {
 
 export function TodayMission({ model, loading, error, onLaunch, onRefresh }: { model: DashboardViewModel; loading: boolean; error: string; onLaunch: (task: TodayPlanTask) => void; onRefresh: () => void }) {
   const chips = useTaskEvidenceChips(model.tasks.filter((task) => task.completed));
+  // V12-M2a (EB-3): today's tasks ARE the recommendations the engine produced.
+  // Report the set this surface actually rendered, de-duplicated per day.
+  const exposedTaskIds = model.tasks.map((task) => task.id).join(',');
+  useEffect(() => {
+    if (model.tasks.length === 0 || loading || error) return;
+    reportRecommendationExposed('today_mission', model.tasks.map((task) => ({ taskId: task.id })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exposedTaskIds, loading, error]);
   const completionRate = model.completionRate == null ? null : `${model.completionRate}%`;
   const completionCount = model.completedTaskCount == null || model.totalTaskCount == null
     ? '--/--'
