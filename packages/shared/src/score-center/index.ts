@@ -9,6 +9,7 @@ export * from './learning-evidence';
 export * from './recommendation-exposure';
 export * from './review-semantics';
 export * from './score-opportunity';
+export * from './score-calibration';
 export * from './fsrs-scheduler';
 export * from './decay-defense.selector';
 export * from './mastery-calibration';
