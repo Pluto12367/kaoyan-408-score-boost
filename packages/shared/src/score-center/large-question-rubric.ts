@@ -1,26 +1,35 @@
 /**
- * F4 — large-question rubric + offline shadow evaluator (pure module).
+ * F4 V1 — large-question rubric + offline shadow evaluator (pure module).
  *
- * ## Why this exists without a schema change
+ * V1 scope is deliberately small (an owner decision): one versioned criteria
+ * list, no rubric DSL. Shape:
  *
- * The 70/150 marks that depend on written answers had no structured training at
- * all (V12-0 audit: F4 content-blocked). `Question.rubric` is an approval gate,
- * so this module does NOT touch Prisma. What it provides instead:
+ *   rubric
+ *   ├── version            the rubric revision this content was authored at
+ *   ├── totalPoints
+ *   └── criteria[]
+ *       ├── id             stable identity, so per-criterion feedback is trackable
+ *       ├── description    what the student must show (student-facing)
+ *       ├── points
+ *       ├── required       a missing required criterion is a critical miss
+ *       ├── evidenceHint   what evidence in an answer earns this point (human)
+ *       └── matchAny       the machine-readable form of the same hint (offline)
+ *       └── knowledgeNodeIds  which nodes the point exercises (ability linkage)
  *
- *   • the proposed rubric JSON shape, versioned, with validation
- *   • a deterministic OFFLINE evaluator that awards points per 采分点 and
- *     explains every award, so the pipeline can be built and tested before any
- *     content or schema decision
- *   • explicit fallbacks: no rubric → no score (not zero); invalid rubric →
- *     refused (not approximated)
+ * ## Why historical scores cannot be polluted by a rubric edit
  *
- * ## The AI boundary (mission §12.2)
+ * Every score result carries the `version` and a `contentHash` of the exact
+ * rubric used. A later edit produces a different hash, so a stored score can
+ * always be re-explained against the rubric revision it was actually scored
+ * under — and can be told apart from a score produced by the new revision.
+ * Nothing here mutates a rubric; the caller stores revisions.
  *
- * AI may assist evaluation; it must never be the absolute source of truth. This
- * module therefore contains no model call at all: it is the auditable,
- * explainable, versioned baseline that an assistant evaluator would be compared
- * against, and every result states that keyword matching is not a semantic
- * judgement and that a human confirms the final mark.
+ * ## AI boundary
+ *
+ * This module contains no model call. It is the explainable, versioned offline
+ * baseline that an assistant evaluator would be compared against, and every
+ * result states that keyword matching is not a semantic judgement and that a
+ * human confirms the final mark.
  *
  * Pure: zero imports, deterministic.
  */
@@ -29,21 +38,25 @@ export const RUBRIC_SCHEMA_VERSION = 'rubric-v1';
 
 export const RUBRIC_EVALUATION_BASIS = 'offline_keyword_match';
 
-export interface RubricPoint {
+export interface RubricCriterion {
   readonly id: string;
-  readonly label: string;
+  readonly description: string;
   readonly points: number;
-  /** Any of these appearing in the answer earns the point (offline criterion). */
-  readonly matchAny: readonly string[];
-  /** Missing a required point is a critical miss. */
   readonly required?: boolean;
+  /** Human-facing: what evidence earns this point. */
+  readonly evidenceHint: string;
+  /** Machine-readable form of evidenceHint, used by the offline evaluator. */
+  readonly matchAny: readonly string[];
   readonly knowledgeNodeIds?: readonly string[];
 }
 
 export interface QuestionRubric {
-  readonly schemaVersion: string;
+  readonly version: number;
   readonly totalPoints: number;
-  readonly points: readonly RubricPoint[];
+  readonly criteria: readonly RubricCriterion[];
+  /** Optional provenance: who authored this revision and when. */
+  readonly authoredBy?: string;
+  readonly authoredAt?: string;
 }
 
 export interface RubricValidation {
@@ -51,14 +64,15 @@ export interface RubricValidation {
   readonly errors: readonly string[];
 }
 
-export interface RubricPointOutcome {
+export interface RubricCriterionOutcome {
   readonly id: string;
-  readonly label: string;
+  readonly description: string;
   readonly points: number;
   readonly awarded: number;
   readonly matched: boolean;
   readonly required: boolean;
   readonly matchedTerm: string | null;
+  readonly evidenceHint: string;
   readonly basis: string;
 }
 
@@ -68,47 +82,61 @@ export interface LargeQuestionScore {
   readonly maxScore: number | null;
   readonly verdict: 'perfect' | 'partial' | 'zero' | 'no_rubric' | 'invalid_rubric';
   readonly criticalMiss: boolean;
-  readonly points: readonly RubricPointOutcome[];
-  readonly missingLabels: readonly string[];
+  readonly criteria: readonly RubricCriterionOutcome[];
+  readonly missingDescriptions: readonly string[];
   readonly hitNodeIds: readonly string[];
   readonly missedNodeIds: readonly string[];
+  /** The rubric revision this score was produced under. */
+  readonly rubricVersion: number | null;
+  /** Content hash of that revision, so a later edit is detectable. */
+  readonly rubricHash: string | null;
   readonly evaluationBasis: string;
   readonly limitations: string;
   readonly authoritative: false;
   readonly basis: string;
 }
 
+const LIMITATIONS =
+  '本评分基于关键词匹配，不是语义判定：表述正确但用词不同的答案可能被判未命中，反之亦然。结果仅供参考，最终分数须由人工复核确认。';
+
 export function validateRubric(rubric: QuestionRubric | null | undefined): RubricValidation {
   const errors: string[] = [];
-  if (!rubric) {
-    return { valid: false, errors: ['缺少评分标准（rubric）。'] };
+  if (!rubric) return { valid: false, errors: ['缺少评分标准（rubric）。'] };
+
+  if (typeof rubric.version !== 'number' || !Number.isInteger(rubric.version) || rubric.version < 1) {
+    errors.push('评分标准必须带一个 ≥1 的整数 version，否则历史评分无法与修订对应。');
   }
-  if (!Array.isArray(rubric.points) || rubric.points.length === 0) {
-    errors.push('评分标准没有任何采分点。');
+  if (!Array.isArray(rubric.criteria) || rubric.criteria.length === 0) {
+    errors.push('评分标准没有任何采分点（criteria）。');
   }
+
   const seen = new Set<string>();
   let sum = 0;
-  for (const point of rubric.points ?? []) {
-    if (!point || typeof point.id !== 'string' || point.id.trim().length === 0) {
-      errors.push('存在没有 id 的采分点，无法审计。');
+  for (const criterion of rubric.criteria ?? []) {
+    if (!criterion || typeof criterion.id !== 'string' || criterion.id.trim().length === 0) {
+      errors.push('存在没有 id 的采分点，无法逐点审计。');
       continue;
     }
-    if (seen.has(point.id)) errors.push(`采分点 id 重复：${point.id}。`);
-    seen.add(point.id);
-    if (typeof point.points !== 'number' || !Number.isFinite(point.points) || point.points <= 0) {
-      errors.push(`采分点 ${point.id} 的分值非法。`);
+    if (seen.has(criterion.id)) errors.push(`采分点 id 重复：${criterion.id}。`);
+    seen.add(criterion.id);
+    if (typeof criterion.description !== 'string' || criterion.description.trim().length === 0) {
+      errors.push(`采分点 ${criterion.id} 缺少 description（学生看不到评分依据）。`);
+    }
+    if (typeof criterion.points !== 'number' || !Number.isFinite(criterion.points) || criterion.points <= 0) {
+      errors.push(`采分点 ${criterion.id} 的分值非法。`);
       continue;
     }
-    if (!Array.isArray(point.matchAny) || point.matchAny.length === 0) {
-      errors.push(`采分点 ${point.id} 没有任何匹配依据。`);
+    if (typeof criterion.evidenceHint !== 'string' || criterion.evidenceHint.trim().length === 0) {
+      errors.push(`采分点 ${criterion.id} 缺少 evidenceHint（人工评分无从判断）。`);
     }
-    sum += point.points;
+    if (!Array.isArray(criterion.matchAny) || criterion.matchAny.length === 0) {
+      errors.push(`采分点 ${criterion.id} 没有任何机器可判定依据（matchAny）。`);
+    }
+    sum += criterion.points;
   }
+
   if (typeof rubric.totalPoints !== 'number' || rubric.totalPoints !== sum) {
     errors.push(`采分点分值合计 ${sum} 与总分 totalPoints ${rubric.totalPoints} 不一致。`);
-  }
-  if (rubric.schemaVersion !== RUBRIC_SCHEMA_VERSION) {
-    errors.push(`评分标准版本 ${rubric.schemaVersion} 与当前支持的 ${RUBRIC_SCHEMA_VERSION} 不一致。`);
   }
   return { valid: errors.length === 0, errors };
 }
@@ -129,34 +157,35 @@ export function scoreLargeQuestion(input: {
   }
 
   const haystack = normalise(input.answerText ?? '');
-  const points: RubricPointOutcome[] = [];
+  const criteria: RubricCriterionOutcome[] = [];
   const hitNodes = new Set<string>();
   const missedNodes = new Set<string>();
 
-  for (const point of input.rubric.points) {
-    const matchedTerm = point.matchAny.find((term) => haystack.includes(normalise(term))) ?? null;
+  for (const criterion of input.rubric.criteria) {
+    const matchedTerm = criterion.matchAny.find((term) => haystack.includes(normalise(term))) ?? null;
     const matched = matchedTerm != null;
-    for (const nodeId of point.knowledgeNodeIds ?? []) {
+    for (const nodeId of criterion.knowledgeNodeIds ?? []) {
       (matched ? hitNodes : missedNodes).add(nodeId);
     }
-    points.push({
-      id: point.id,
-      label: point.label,
-      points: point.points,
-      awarded: matched ? point.points : 0,
+    criteria.push({
+      id: criterion.id,
+      description: criterion.description,
+      points: criterion.points,
+      awarded: matched ? criterion.points : 0,
       matched,
-      required: point.required === true,
+      required: criterion.required === true,
       matchedTerm,
+      evidenceHint: criterion.evidenceHint,
       basis: matched
-        ? `命中「${matchedTerm}」，得 ${point.points} 分。`
-        : `未出现任一依据（${point.matchAny.join(' / ')}），得 0 分。`,
+        ? `命中「${matchedTerm}」，得 ${criterion.points} 分。`
+        : `未出现任一依据（${criterion.matchAny.join(' / ')}），得 0 分。`,
     });
   }
 
-  const score = points.reduce((sum, point) => sum + point.awarded, 0);
+  const score = criteria.reduce((sum, row) => sum + row.awarded, 0);
   const maxScore = input.rubric.totalPoints;
-  const criticalMiss = points.some((point) => point.required && !point.matched);
-  const missingLabels = points.filter((point) => !point.matched).map((point) => point.label);
+  const criticalMiss = criteria.some((row) => row.required && !row.matched);
+  const missingDescriptions = criteria.filter((row) => !row.matched).map((row) => row.description);
   const verdict: LargeQuestionScore['verdict'] =
     score === 0 ? 'zero' : score === maxScore ? 'perfect' : 'partial';
 
@@ -165,19 +194,57 @@ export function scoreLargeQuestion(input: {
     maxScore,
     verdict,
     criticalMiss,
-    points,
-    missingLabels,
+    criteria,
+    missingDescriptions,
     hitNodeIds: [...hitNodes].sort(),
     missedNodeIds: [...missedNodes].sort(),
+    rubricVersion: input.rubric.version,
+    rubricHash: hashRubric(input.rubric),
     evaluationBasis: RUBRIC_EVALUATION_BASIS,
     limitations: LIMITATIONS,
     authoritative: false,
-    basis: `离线按采分点判定：${score}/${maxScore} 分${criticalMiss ? '；存在必答采分点未命中（关键失分）' : ''}。`,
+    basis: `按评分标准 v${input.rubric.version}（${hashRubric(input.rubric)}）离线判定：${score}/${maxScore} 分${criticalMiss ? '；存在必答采分点未命中（关键失分）' : ''}。`,
   };
 }
 
-const LIMITATIONS =
-  '本评分基于关键词匹配，不是语义判定：表述正确但用词不同的答案可能被判未命中，反之亦然。结果仅供参考，最终分数须由人工复核确认。';
+/**
+ * Deterministic content hash of a rubric revision.
+ *
+ * Key-sorted so semantically identical content hashes identically regardless of
+ * property order, and stable so a stored score can always be tied to the exact
+ * revision it was produced under.
+ */
+export function hashRubric(rubric: QuestionRubric): string {
+  const payload = stableStringify({
+    version: rubric.version,
+    totalPoints: rubric.totalPoints,
+    criteria: rubric.criteria.map((criterion) => ({
+      id: criterion.id,
+      description: criterion.description,
+      points: criterion.points,
+      required: criterion.required === true,
+      evidenceHint: criterion.evidenceHint,
+      matchAny: [...criterion.matchAny],
+      knowledgeNodeIds: [...(criterion.knowledgeNodeIds ?? [])],
+    })),
+  });
+  // FNV-1a (32-bit) — small, dependency-free, deterministic across runs.
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < payload.length; index += 1) {
+    hash ^= payload.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return `rv${rubric.version}-${hash.toString(16).padStart(8, '0')}`;
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value) ?? 'null';
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const entries = Object.entries(value as Record<string, unknown>)
+    .filter(([, item]) => item !== undefined)
+    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+  return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${stableStringify(item)}`).join(',')}}`;
+}
 
 function fallback(verdict: 'no_rubric' | 'invalid_rubric', basis: string): LargeQuestionScore {
   return {
@@ -185,10 +252,12 @@ function fallback(verdict: 'no_rubric' | 'invalid_rubric', basis: string): Large
     maxScore: null,
     verdict,
     criticalMiss: false,
-    points: [],
-    missingLabels: [],
+    criteria: [],
+    missingDescriptions: [],
     hitNodeIds: [],
     missedNodeIds: [],
+    rubricVersion: null,
+    rubricHash: null,
     evaluationBasis: RUBRIC_EVALUATION_BASIS,
     limitations: LIMITATIONS,
     authoritative: false,

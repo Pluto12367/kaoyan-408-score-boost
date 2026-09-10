@@ -404,6 +404,9 @@ model Question {
   expectedTimeSec      Int                        @default(100)
   formulas             Json                       @default("[]")
   sourceRegion         Json?
+  /// F4 (V12): 大题采分点评分标准。null = 无 rubric，既有行为逐字节不变。
+  /// 形状见 docs/v12-m6-f4-large-question-design.md（version/criteria[]/totalPoints）。
+  rubric               Json?
   knowledgePoints      QuestionKnowledgePoint[]
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]

@@ -168,6 +168,8 @@ export class LearningEvidenceService {
       recordedAt: string;
       scope?: string;
       actionId?: string | null;
+      /** Structured detail carried verbatim (e.g. a rubric-scored breakdown). */
+      detail?: Readonly<Record<string, unknown>> | null;
     },
   ): Promise<LearningEvidenceRecord> {
     const scope = input.scope ?? input.recordedAt.slice(0, 10);
@@ -181,6 +183,7 @@ export class LearningEvidenceService {
         scope,
         observedAttempts: input.observedAttempts,
         observedCorrectCount: input.observedCorrectCount,
+        detail: input.detail ?? null,
       },
       scope,
     );
@@ -386,6 +389,9 @@ function toEvidenceRecord(userId: string, payload: unknown): LearningEvidenceRec
     actionId: typeof row.actionId === 'string' ? row.actionId : null,
     recordedAt: typeof row.recordedAt === 'string' ? row.recordedAt : '',
     source: 'derived',
+    detail: row.detail && typeof row.detail === 'object' && !Array.isArray(row.detail)
+      ? (row.detail as Record<string, unknown>)
+      : null,
   };
 }
 

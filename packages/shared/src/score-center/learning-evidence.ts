@@ -90,6 +90,12 @@ export interface LearningEvidenceRecord {
   readonly actionId: string | null;
   readonly recordedAt: string;
   readonly source: 'derived';
+  /**
+   * Optional structured detail (for example a rubric-scored breakdown with its
+   * rubric version and hash). Kept opaque here: the evidence layer records it so
+   * a later rubric edit cannot make a historical score unexplainable.
+   */
+  readonly detail?: Readonly<Record<string, unknown>> | null;
 }
 
 export interface LearningEvidenceSummary {
@@ -109,6 +115,8 @@ export interface LearningEvidenceInput extends LearningActionFacts {
   readonly recordedAt: string;
   /** Distinguishes repeated occurrences of the same action on the same source. */
   readonly scope?: string | null;
+  /** Optional structured detail carried into the evidence record verbatim. */
+  readonly detail?: Readonly<Record<string, unknown>> | null;
 }
 
 /**
@@ -279,6 +287,7 @@ export function buildLearningEvidence(input: LearningEvidenceInput): LearningEvi
     actionId: input.actionId ?? null,
     recordedAt: input.recordedAt,
     source: 'derived',
+    detail: input.detail ?? null,
   };
 }
 

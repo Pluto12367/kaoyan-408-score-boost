@@ -396,6 +396,78 @@ async function main() {
     );
 
     // ---------------------------------------------------------------------
+    // 12b. F4 — large question: rubric served, offline-scored, revision-stamped
+    // ---------------------------------------------------------------------
+    await prisma.question.update({
+      where: { id: ids.question },
+      data: {
+        rubric: {
+          version: 1,
+          totalPoints: 10,
+          criteria: [
+            {
+              id: 'c1',
+              description: '写出页表项结构',
+              points: 6,
+              evidenceHint: '答案中出现"页表项"',
+              matchAny: ['页表项'],
+              knowledgeNodeIds: [ids.node],
+            },
+            {
+              id: 'c2',
+              description: '结论正确',
+              points: 4,
+              required: true,
+              evidenceHint: '答案有结论性表述',
+              matchAny: ['因此'],
+              knowledgeNodeIds: [ids.node],
+            },
+          ],
+        },
+      },
+    });
+
+    const rubricView = await getJson(`${apiUrl}/questions/${ids.question}/rubric`, headers);
+    assert.equal(rubricView.hasRubric, true, 'the rubric must be served');
+    assert.equal(rubricView.rubric.version, 1);
+    assert.equal(rubricView.rubric.criteria.length, 2);
+    assert.ok(rubricView.rubricHash, 'the content hash must be published');
+    assert.equal(rubricView.validation.valid, true);
+
+    const attempt = await postJson(`${apiUrl}/questions/${ids.question}/subjective-attempt`, {
+      answerText: '页表项记录了物理帧号；因此该方案可行。',
+    }, headers);
+    assert.equal(attempt.score.score, 10, 'a full answer must earn every point');
+    assert.equal(attempt.score.verdict, 'perfect');
+    assert.equal(attempt.score.rubricVersion, 1);
+    assert.equal(attempt.score.rubricHash, rubricView.rubricHash, 'the score names the revision it used');
+    assert.equal(attempt.evidenceRecorded, true, 'a scored attempt is observed performance');
+
+    const rubricEvidence = (await prisma.userEvent.findMany({
+      where: { userId, type: 'EVIDENCE_RECORDED' },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    })).map((row) => row.payload).find((payload) => payload?.detail?.kind === 'rubric_scored_attempt');
+    assert.ok(rubricEvidence, 'the rubric-scored attempt must reach the evidence ledger');
+    assert.equal(rubricEvidence.detail.rubricVersion, 1, 'the ledger keeps the revision that scored it');
+    assert.equal(rubricEvidence.detail.rubricHash, rubricView.rubricHash);
+    assert.equal(rubricEvidence.detail.criteria.length, 2, 'per-criterion awards stay auditable');
+    record(
+      'F4 rubric → evidence',
+      `rubric v${rubricView.rubric.version} ${rubricView.rubricHash} scored ${attempt.score.score}/${attempt.score.maxScore}, revision stamped into the evidence ledger`,
+    );
+
+    // A question without a rubric must refuse to score and to record evidence.
+    await prisma.question.update({ where: { id: ids.question }, data: { rubric: null } });
+    const noRubric = await postJson(`${apiUrl}/questions/${ids.question}/subjective-attempt`, {
+      answerText: '页表项',
+    }, headers);
+    assert.equal(noRubric.score.score, null, 'a missing rubric is not a zero score');
+    assert.equal(noRubric.score.verdict, 'no_rubric');
+    assert.equal(noRubric.evidenceRecorded, false, 'a non-score is not an observation');
+    record('F4 no-rubric path', 'score=null, evidence not recorded (absence is not zero)');
+
+    // ---------------------------------------------------------------------
     // 13. The chain is connected: one node, seen end to end
     // ---------------------------------------------------------------------
     assert.ok(masteryAfterPractice, 'chain: practice → mastery');
