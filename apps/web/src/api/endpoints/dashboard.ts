@@ -19,6 +19,7 @@ import type {
   MasteryMap,
   LearningProfile,
   TaskEvidenceBundle,
+  LearningEvidenceBundle,
   PracticeSet,
   ReviewResourceRecommendation,
   AssessmentHistory,
@@ -130,6 +131,17 @@ export async function fetchTaskEvidence(): Promise<TaskEvidenceBundle> {
   const response = await fetchWithAuth(`${API_BASE_URL}/coach/task-evidence`);
   if (!response.ok) throw new Error(`Task evidence failed with ${response.status}`);
   return response.json() as Promise<TaskEvidenceBundle>;
+}
+
+/**
+ * V12-M1 — the learning evidence ledger: what the system actually OBSERVED per
+ * action, with strength labels. Activity markers are returned too, explicitly
+ * marked as unable to influence mastery.
+ */
+export async function fetchLearningEvidence(limit = 30): Promise<LearningEvidenceBundle> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/coach/learning-evidence?limit=${limit}`);
+  if (!response.ok) throw new Error(`Learning evidence failed with ${response.status}`);
+  return response.json() as Promise<LearningEvidenceBundle>;
 }
 
 export async function fetchRecommendedPracticeSet(minutesBudget?: number, mode?: string): Promise<PracticeSet> {

@@ -1,0 +1,99 @@
+/* V12-M1/M2b — learning evidence ledger. Token-only (DESIGN.md §7):
+   zero hex/rgb, spacing on the --space ladder. Vocabulary mirrors the sibling
+   task-evidence.css so both panels stay visually consistent. */
+
+.ledger-panel {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.ledger-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.ledger-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+.ledger-summary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ledger-refusal {
+  color: var(--amber-strong);
+}
+
+.ledger-list {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.ledger-item {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line-faint);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.ledger-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.ledger-item-head strong {
+  font-size: 12px;
+  color: var(--text-strong);
+}
+
+.ledger-badge {
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-soft-2);
+  color: var(--text-secondary);
+  font-size: 11px;
+}
+
+.ledger-badge.strength-strong {
+  background: var(--primary-faint);
+  color: var(--primary-strong);
+}
+
+.ledger-badge.strength-weak {
+  background: var(--amber-soft);
+  color: var(--amber-strong);
+}
+
+.ledger-facts {
+  margin: var(--space-1) 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ledger-item.strength-none .ledger-facts {
+  color: var(--text-muted);
+}
+
+.ledger-basis {
+  margin: var(--space-1) 0 0;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}

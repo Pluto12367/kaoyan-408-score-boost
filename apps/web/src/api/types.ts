@@ -379,6 +379,51 @@ export interface TaskEvidenceBundle {
   tasks: TaskEvidenceRecord[];
 }
 
+// ---- V12-M1：学习证据账本（活动 vs 证据 vs 能力，只读） ----
+export type LearningEvidenceStrength = 'strong' | 'weak' | 'none';
+export type LearningEvidenceAction =
+  | 'practice.answered'
+  | 'task.completed'
+  | 'review.marked'
+  | 'review.recalled'
+  | 'assessment.submitted';
+
+export interface LearningEvidenceRecord {
+  id: string;
+  action: LearningEvidenceAction;
+  kind: string;
+  strength: LearningEvidenceStrength;
+  canInfluenceMastery: boolean;
+  basis: string;
+  metrics: {
+    attempts: number | null;
+    correctCount: number | null;
+    accuracyRate: number | null;
+    minutesSpent: number | null;
+    selfRating: number | null;
+    selfReported: boolean;
+  };
+  sourceId: string | null;
+  recordedAt: string;
+}
+
+export interface LearningEvidenceSummary {
+  total: number;
+  strong: number;
+  weak: number;
+  none: number;
+  abilityEvidenceCount: number;
+  hasAbilityEvidence: boolean;
+  basis: string;
+}
+
+export interface LearningEvidenceBundle {
+  generatedAt: string;
+  records: LearningEvidenceRecord[];
+  summary: LearningEvidenceSummary | null;
+  reason?: string;
+}
+
 export interface PracticeSetResult {
   id: string;
   practiceSetId: string;
