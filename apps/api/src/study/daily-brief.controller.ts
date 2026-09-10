@@ -1,5 +1,5 @@
 /**
- * V9 Phase 1 â€?Daily Coach endpoint.
+ * V9 Phase 1 â€” Daily Coach endpoint.
  *
  * GET /coach/daily-brief composes the today plan with the canonical
  * StudentContext into a single grounded briefing (see
@@ -85,7 +85,7 @@ export class DailyBriefController {
   }
 
   /**
-   * V9 Phase 5 â€?proactive coach: risks derived from the canonical student
+   * V9 Phase 5 â€” proactive coach: risks derived from the canonical student
    * context become at most 2 grounded interventions (headline + actions,
    * evidence-carrying). Pull-based: nothing is pushed; an empty result means
    * "no risk worth surfacing" and the UI stays quiet.
@@ -115,8 +115,8 @@ export class DailyBriefController {
   }
 
   /**
-   * V9 Phase 6 â€?deterministic A/B arm for the current user + experiment.
-   * Sticky by hash; the endpoint only labels â€?features decide what varies.
+   * V9 Phase 6 â€” deterministic A/B arm for the current user + experiment.
+   * Sticky by hash; the endpoint only labels â€” features decide what varies.
    */
   @Get('coach/experiment-assignment')
   @UseGuards(RoleGuard)
@@ -133,7 +133,7 @@ export class DailyBriefController {
   }
 
   /**
-   * V9 Phase 6 â€?feedback reflow: scenes with repeated low ratings become
+   * V9 Phase 6 â€” feedback reflow: scenes with repeated low ratings become
    * experiment candidates. A signal for the owner, never an auto-change.
    */
   @Get('coach/feedback-insight')
@@ -149,7 +149,7 @@ export class DailyBriefController {
   }
 
   /**
-   * LE-V10 F3 â€?review shadow baseline: how well the CURRENT scheduler
+   * LE-V10 F3 â€” review shadow baseline: how well the CURRENT scheduler
    * retains knowledge, from facts that already exist. Admin/teacher only;
    * the result carries its own sample-size honesty label.
    */
@@ -173,7 +173,7 @@ export class DailyBriefController {
   }
 
   /**
-   * V11-M2 â€?learning evidence for the student's recently completed tasks:
+   * V11-M2 â€” learning evidence for the student's recently completed tasks:
    * did capability actually change? Read-only projection over completion +
    * practice + mastery facts; self-only access.
    */
@@ -192,7 +192,7 @@ export class DailyBriefController {
   }
 
   /**
-   * V12-M1 â€?the learning evidence ledger.
+   * V12-M1 â€” the learning evidence ledger.
    *
    * Answers, per recorded action, whether anything was actually OBSERVED:
    * activity markers (task completed / marked reviewed) are listed but are
@@ -225,7 +225,7 @@ export class DailyBriefController {
   }
 
   /**
-   * V12-M2a â€?recommendation exposure funnel (EB-3).
+   * V12-M2a â€” recommendation exposure funnel (EB-3).
    *
    * Separates "the engine generated a recommendation" from "the student saw
    * it". When exposure telemetry has never arrived the funnel says so and
@@ -254,13 +254,13 @@ export class DailyBriefController {
   }
 
   /**
-   * V12-M3 Phase B â€?review semantics shadow (NON-AUTHORITATIVE).
+   * V12-M3 Phase B â€” review semantics shadow (NON-AUTHORITATIVE).
    *
    * Replays a student's observed review history under the PROPOSED unified
    * semantics (reviews feed the same EMA as practice) and compares it with what
    * is stored, plus a time-aware retention against the stored constant.
    * Read-only; switching production semantics needs owner approval.
-   * teacher/admin only â€?this is a model-quality instrument, not student UI.
+   * teacher/admin only â€” this is a model-quality instrument, not student UI.
    */
   @Get('coach/review-semantics-shadow')
   @UseGuards(RoleGuard)
@@ -284,13 +284,13 @@ export class DailyBriefController {
   }
 
   /**
-   * V12-M4 â€?score opportunity shadow (NON-AUTHORITATIVE).
+   * V12-M4 â€” score opportunity shadow (NON-AUTHORITATIVE).
    *
    * "With limited time right now, which weak point is most worth training?"
    * The recommendation engine stays the authoritative ranking; this shadow adds
    * recoverability and benefit-per-unit-time, and refuses to emit a score when a
    * required factor has no real data behind it.
-   * teacher/admin only â€?a model-quality instrument, not student UI.
+   * teacher/admin only â€” a model-quality instrument, not student UI.
    */
   @Get('coach/score-opportunity')
   @UseGuards(RoleGuard)
@@ -314,16 +314,16 @@ export class DailyBriefController {
   }
 
   /**
-   * V12-M5 â€?real score calibration (EB-4, NON-AUTHORITATIVE).
+   * V12-M5 â€” real score calibration (EB-4, NON-AUTHORITATIVE).
    *
    * Pairs the score the system would have predicted before each recorded
    * assessment with the score actually recorded, then reports MAE / signed bias
    * / range coverage once the sample floor is met.
    *
    * Prediction, evidence and outcome stay three separate things: the response
-   * carries the prediction range, the facts it rested on, and the real score â€?   * never a merged number. Below the floor the calibration reports
+   * carries the prediction range, the facts it rested on, and the real score â€”   * never a merged number. Below the floor the calibration reports
    * insufficient_data rather than a mean over too few pairs.
-   * teacher/admin only â€?a model-quality instrument, not student UI.
+   * teacher/admin only â€” a model-quality instrument, not student UI.
    */
   @Get('coach/score-calibration')
   @UseGuards(RoleGuard)
@@ -343,7 +343,8 @@ export class DailyBriefController {
     return { userId, ...result };
   }
 
-  /** V11-M4.2 â€?mastery calibration shadow: stored mastery vs observed accuracy. */  @Get('coach/mastery-calibration')
+  /** V11-M4.2 â€” mastery calibration shadow: stored mastery vs observed accuracy. */
+  @Get('coach/mastery-calibration')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
   async getMasteryCalibration(@CurrentUser() user: UserProfile) {
@@ -357,7 +358,7 @@ export class DailyBriefController {
     return result;
   }
 
-  /** V11-M4.3 â€?outcome tracking: did recent recommendations help? */
+  /** V11-M4.3 â€” outcome tracking: did recent recommendations help? */
   @Get('coach/outcome-tracking')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
@@ -381,7 +382,7 @@ export class DailyBriefController {
     throw new ForbiddenException('You can only access your own data');
   }
 
-  /** V9 Phase 3 â€?coach-voiced week-over-week progress story. */
+  /** V9 Phase 3 â€” coach-voiced week-over-week progress story. */
   @Get('coach/progress-narrative')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
