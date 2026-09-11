@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import { describeMasterySemantics } from '@kaoyan408/shared';
 import { AppModule } from './app.module';
 import { OperationLogService } from './operations/operation-log.service';
 import { validatePublicEnvironment } from './public-environment';
@@ -72,6 +73,10 @@ async function bootstrap() {
   logger.log(`API running on http://localhost:${port}`);
   logger.log(`Environment: ${process.env.NODE_ENV ?? 'development'}`);
   logger.log(`Demo auth: ${process.env.ALLOW_DEMO_AUTH === 'true' ? 'enabled' : 'disabled'}`);
+  // M3 Phase-C: state which mastery semantics this process is using, so an
+  // operator can confirm from the logs that the approved candidate is off
+  // unless it was explicitly opted into.
+  logger.log(describeMasterySemantics());
 }
 
 void bootstrap();

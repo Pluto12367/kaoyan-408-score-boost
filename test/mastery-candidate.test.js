@@ -233,6 +233,33 @@ test('the candidate preserves the production equilibrium (same fixed point)', ()
   assert.ok(Math.abs(candidateState.mastery - masteryTargetProfile(difficulty).correctTarget) < 0.01);
 });
 
+test('the candidate is bit-identical to production on every in-band state', () => {
+  // This is the property that makes the migration safe: whenever mastery is
+  // already on the outcome's side of its target the clamp is inactive, so the
+  // two models must agree EXACTLY — not approximately. A rounded result would
+  // manufacture differences the migration does not actually cause.
+  let checked = 0;
+  for (let step = 0; step <= 200; step += 1) {
+    const m = Math.round((step / 200) * 1000) / 1000;
+    for (const difficulty of [1, 2, 3, 4, 5]) {
+      const profile = masteryTargetProfile(difficulty);
+      for (const isCorrect of [true, false]) {
+        const inBand = isCorrect ? m <= profile.correctTarget : m >= profile.wrongTarget;
+        if (!inBand) continue;
+        const signal = primary(isCorrect, difficulty);
+        const candidate = updateMasteryDirectionPreserving(state(m), signal);
+        const production = updateMasteryAfterAttempt(state(m), signal);
+        assert.ok(
+          Object.is(candidate.mastery, production.mastery),
+          `in-band state must be bit-identical: mastery ${m}, d${difficulty}, correct=${isCorrect} gave ${candidate.mastery} vs ${production.mastery}`,
+        );
+        checked += 1;
+      }
+    }
+  }
+  assert.ok(checked > 1000, `expected to check a broad in-band grid, checked ${checked}`);
+});
+
 test('the candidate is deterministic', () => {
   const before = state(0.4);
   const signal = primary(false, 2);

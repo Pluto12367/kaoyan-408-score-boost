@@ -16,7 +16,8 @@ import {
   deriveNodeMasteryStatus,
   estimateRetention,
   QUEST_PASS_THRESHOLD,
-  updateMasteryAfterAttempt,
+  applyMasterySemantics,
+  resolveMasterySemantics,
   updateStabilityAfterReview,
 } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -117,7 +118,11 @@ export class ScoreCenterService {
       if (!node) continue;
       const saved = await saveMasteryWithOptimisticRetry(db, userId, node.id, (row) => {
         const current = row ? toMasteryState(row) : neutralMastery();
-        const next = updateMasteryAfterAttempt(current, {
+        // M3 Phase-C: the mastery transition is selected by the audited switch.
+        // The default is `legacy`, which is bit-identical to the previous
+        // direct call, so deploying the switch changes no behaviour until an
+        // operator explicitly opts into the approved candidate.
+        const next = applyMasterySemantics(resolveMasterySemantics(), current, {
           isCorrect: record.correct,
           difficulty: clampDifficulty(node.difficulty),
           role: tag.role,

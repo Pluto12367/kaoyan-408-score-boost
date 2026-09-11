@@ -47,8 +47,11 @@ export function updateMasteryDirectionPreserving(
     ? Math.max(rawTarget, state.mastery)
     : Math.min(rawTarget, state.mastery);
   const mastery = clamp01(state.mastery + alpha * (effectiveTarget - state.mastery));
-  void production;
-  return { ...production, mastery: round6(mastery) };
+  // Deliberately NOT rounded. Whenever the clamp is inactive (mastery already on
+  // the outcome's side of the target) this must be bit-identical to production;
+  // rounding the result manufactured a difference where none existed, which
+  // would make the migration appear to change behaviour it never touches.
+  return { ...production, mastery };
 }
 
 export function applyMasteryModel(

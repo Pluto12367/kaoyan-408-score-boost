@@ -14,6 +14,7 @@ export * from './large-question-rubric';
 export * from './shadow-decision-chain';
 export * from './mastery-semantics';
 export * from './mastery-candidate';
+export * from './mastery-semantics-switch';
 export * from './fsrs-scheduler';
 export * from './decay-defense.selector';
 export * from './mastery-calibration';
