@@ -29,7 +29,7 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_TOP = 10;
 const MAX_TOP = 50;
 const MAX_CANDIDATES = 400;
-const DAYS_FALLBACK = 120;
+const DAYS_FALLBACK = 96;
 
 export interface ScoreOpportunityShadowResult {
   readonly generatedAt: string;
@@ -64,11 +64,13 @@ export class ScoreOpportunityService {
     const top = clampTop(options.top);
     const asOf = new Date();
 
-    const user = await db.user.findUnique({
-      where: { id: userId },
-      select: { targetScore: true, examDate: true } as never,
-    }).catch(() => null);
-    const daysToExam = resolveDaysToExam(user as { examDate?: Date | null } | null);
+    const user = await db.user
+      .findUnique({
+        where: { id: userId },
+        select: { targetScore: true, remainingDays: true },
+      })
+      .catch(() => null);
+    const daysToExam = resolveDaysToExam(user as { remainingDays?: number | null } | null);
 
     // The question this shadow answers is "which of THIS STUDENT's weak points is
     // most worth training", so the candidate universe is the student's own
@@ -242,10 +244,19 @@ function readinessOf(
   return Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 1000) / 1000;
 }
 
-function resolveDaysToExam(user: { examDate?: Date | null } | null): number {
-  const examDate = user?.examDate ? new Date(user.examDate) : null;
-  if (!examDate || Number.isNaN(examDate.getTime())) return DAYS_FALLBACK;
-  return Math.max(0, Math.round((examDate.getTime() - Date.now()) / 86_400_000));
+/**
+ * Days to the exam, mirroring the production source of truth
+ * (recommendation.service.ts): `User.remainingDays`, else 96.
+ *
+ * This used to read a non-existent `User.examDate` behind a `.catch(() => null)`,
+ * so every student silently fell back to a constant and the urgency factor was
+ * never personalised. The field is now read explicitly and the fallback is the
+ * same one production uses.
+ */
+function resolveDaysToExam(user: { remainingDays?: number | null } | null): number {
+  const remaining = user?.remainingDays;
+  if (typeof remaining !== 'number' || !Number.isFinite(remaining)) return DAYS_FALLBACK;
+  return Math.max(0, Math.round(remaining));
 }
 
 function emptyResult(): ScoreOpportunityShadowResult {

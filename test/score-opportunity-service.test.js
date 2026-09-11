@@ -187,6 +187,26 @@ test('the endpoint is teacher/admin only and admits absence', () => {
   assert.ok(body.includes('store_unavailable'));
 });
 
+test('daysToExam reads the real production field and cannot silently become a constant', () => {
+  const raw = readFileSync(
+    fileURLToPath(new URL('../apps/api/src/study/score-opportunity.service.ts', import.meta.url)),
+    'utf8',
+  );
+  // Scan code, not prose: the docblock legitimately explains the field that was
+  // wrong, and a naive substring check would flag that explanation.
+  const source = raw
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  assert.ok(
+    source.includes('remainingDays'),
+    'User.remainingDays is the production source of truth for days-to-exam',
+  );
+  assert.ok(
+    !source.includes('examDate'),
+    'User has no examDate field: selecting it failed and was swallowed, so every student fell back to a constant',
+  );
+});
+
 test('the service writes nothing', () => {
   const raw = readFileSync(
     fileURLToPath(new URL('../apps/api/src/study/score-opportunity.service.ts', import.meta.url)),

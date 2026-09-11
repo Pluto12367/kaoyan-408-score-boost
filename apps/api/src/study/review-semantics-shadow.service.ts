@@ -21,6 +21,7 @@ import {
   REVIEW_SEMANTICS_MATRIX,
   type ReviewMasteryBaseline,
   type ReviewMasteryReplay,
+  type ReviewMasteryReplayRow,
   type ReviewObservation,
   type RetentionShadowInputRow,
   type RetentionShadow,
@@ -43,6 +44,32 @@ export interface ReviewSemanticsShadowResult {
   readonly source: 'derived';
 }
 
+export interface ReplayAssemblyNode {
+  readonly nodeId: string;
+  readonly replay: ReviewMasteryReplayRow;
+  readonly trigger: { eventId: string; eventType: string; at: string } | null;
+  readonly observed: {
+    mastery: number;
+    accuracy: number;
+    recentAccuracy: number;
+    attempts: number;
+    correctCount: number;
+    wrongCount: number;
+    confidence: number;
+    retention: number | null;
+    stabilityDays: number | null;
+    lastReviewedAt: Date | null;
+    pinned: boolean;
+  } | null;
+}
+
+/** Read-only assembly result shared by the review shadow and the decision chain. */
+export interface ReplayAssembly {
+  readonly windowDays: number;
+  readonly asOf: Date;
+  readonly nodes: readonly ReplayAssemblyNode[];
+}
+
 @Injectable()
 export class ReviewSemanticsShadowService {
   constructor(
@@ -52,6 +79,162 @@ export class ReviewSemanticsShadowService {
 
   get enabled(): boolean {
     return Boolean(this.prisma && this.reviewSchedules?.enabled);
+  }
+
+  /**
+   * Read-only assembly shared with the downstream shadow chain.
+   *
+   * Exposed so the decision-chain shadow can consume the SAME observations,
+   * baselines and replay instead of assembling them a second time (which is how
+   * two divergent 口径 get created). Writes nothing.
+   */
+  async assembleReplayInputs(
+    userId: string,
+    options: { windowDays?: number } = {},
+  ): Promise<ReplayAssembly | null> {
+    if (!this.enabled) return null;
+    const db = this.prisma!;
+    const windowDays = clampWindow(options.windowDays);
+    const since = new Date(Date.now() - windowDays * 86_400_000);
+    const asOf = new Date();
+
+    const attempts = (await this.reviewSchedules!.listAttemptsByUser(userId, MAX_ATTEMPTS))
+      .filter((row) => new Date(row.reviewedAt).getTime() >= since.getTime());
+    if (attempts.length === 0) return { windowDays, asOf, nodes: [] };
+
+    const questionIds = [...new Set(attempts.map((row) => row.questionId))];
+    const tags = await db.questionKnowledgeNodeTag.findMany({
+      where: { questionId: { in: questionIds } },
+      select: { questionId: true, knowledgeNodeId: true, role: true },
+    });
+    const nodeIds = [...new Set(tags.map((tag) => tag.knowledgeNodeId))];
+    if (nodeIds.length === 0) return { windowDays, asOf, nodes: [] };
+
+    const [nodes, masteryRows, snapshotRows] = await Promise.all([
+      db.knowledgeNode.findMany({
+        where: { id: { in: nodeIds } },
+        select: { id: true, difficulty: true },
+      }),
+      db.userKnowledgeMastery.findMany({
+        where: { userId, knowledgeNodeId: { in: nodeIds } },
+        select: {
+          knowledgeNodeId: true,
+          mastery: true,
+          accuracy: true,
+          recentAccuracy: true,
+          attempts: true,
+          correctCount: true,
+          wrongCount: true,
+          confidence: true,
+          retention: true,
+          stabilityDays: true,
+          lastReviewedAt: true,
+          pinned: true,
+        },
+      }),
+      db.userMasterySnapshot.findMany({
+        where: { userId, knowledgeNodeId: { in: nodeIds } },
+        orderBy: { snapshotDate: 'asc' },
+        select: {
+          knowledgeNodeId: true,
+          mastery: true,
+          attempts: true,
+          correctCount: true,
+          wrongCount: true,
+          snapshotDate: true,
+        },
+      }),
+    ]);
+
+    const nodeDifficulty = new Map(nodes.map((node) => [node.id, Number(node.difficulty) || 3]));
+    const nodeByQuestion = new Map<string, string>();
+    for (const tag of [...tags].sort((left, right) => rankRole(left.role) - rankRole(right.role))) {
+      if (!nodeByQuestion.has(tag.questionId)) nodeByQuestion.set(tag.questionId, tag.knowledgeNodeId);
+    }
+
+    const observations: ReviewObservation[] = [];
+    // Newest attempt per node, for attribution of the divergence.
+    const triggerByNode = new Map<string, { eventId: string; eventType: string; at: string }>();
+    const attemptById = new Map<string, { questionId: string; reviewedAt: string; redoCorrect: boolean }>();
+    for (const attempt of attempts) {
+      const nodeId = nodeByQuestion.get(attempt.questionId);
+      if (!nodeId) continue;
+      observations.push({
+        nodeId,
+        questionId: attempt.questionId,
+        reviewedAt: attempt.reviewedAt,
+        redoCorrect: attempt.redoCorrect,
+        difficulty: nodeDifficulty.get(nodeId) ?? 3,
+      });
+    }
+
+    const masteryByNode = new Map(masteryRows.map((row) => [row.knowledgeNodeId, row]));
+    const firstObservationByNode = new Map<string, string>();
+    for (const observation of observations) {
+      const current = firstObservationByNode.get(observation.nodeId);
+      if (!current || observation.reviewedAt < current) {
+        firstObservationByNode.set(observation.nodeId, observation.reviewedAt);
+      }
+    }
+
+    const baselines: ReviewMasteryBaseline[] = [];
+    for (const [nodeId, firstAt] of firstObservationByNode) {
+      const candidate = [...snapshotRows]
+        .filter((row) => row.knowledgeNodeId === nodeId && row.snapshotDate.toISOString().slice(0, 10) <= firstAt.slice(0, 10))
+        .at(-1);
+      if (!candidate) continue;
+      const attemptsCount = candidate.attempts;
+      const derivedAccuracy = attemptsCount > 0
+        ? Math.round((candidate.correctCount / attemptsCount) * 10000) / 10000
+        : 0.55;
+      baselines.push({
+        nodeId,
+        mastery: candidate.mastery,
+        accuracy: derivedAccuracy,
+        recentAccuracy: derivedAccuracy,
+        attempts: attemptsCount,
+        correctCount: candidate.correctCount,
+        wrongCount: candidate.wrongCount,
+        confidence: 0,
+        at: candidate.snapshotDate.toISOString(),
+      });
+    }
+
+    const stored: StoredNodeMastery[] = masteryRows.map((row) => ({
+      nodeId: row.knowledgeNodeId,
+      mastery: row.mastery,
+      stabilityDays: row.stabilityDays,
+    }));
+
+    // Newest observation per node becomes the attribution trigger.
+    for (const observation of [...observations].sort((left, right) => right.reviewedAt.localeCompare(left.reviewedAt))) {
+      if (triggerByNode.has(observation.nodeId)) continue;
+      triggerByNode.set(observation.nodeId, {
+        eventId: `review-attempt:${observation.nodeId}:${observation.reviewedAt}`,
+        eventType: 'review.recalled',
+        at: observation.reviewedAt,
+      });
+    }
+
+    void attemptById;
+
+    const replay = replayUnifiedReviewMastery({
+      observations,
+      baselines,
+      stored,
+      baselineApproximated: baselines.length > 0,
+    });
+
+    return {
+      windowDays,
+      asOf,
+      nodes: replay.rows.map((row) => ({
+        nodeId: row.nodeId,
+        replay: row,
+        trigger: triggerByNode.get(row.nodeId) ?? null,
+        observed: masteryByNode.get(row.nodeId) ?? null,
+      })),
+    };
   }
 
   /** null = store unavailable (honestly absent, never an empty shadow). */

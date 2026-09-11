@@ -159,6 +159,13 @@ export interface ReviewMasteryReplayRow {
   readonly delta: number | null;
   readonly direction: ReplayDirection;
   readonly basis: string;
+  /**
+   * The full replayed memory state, so downstream shadows (priority /
+   * opportunity / ranking) can consume the SAME number this module computed
+   * instead of replaying it a second time with their own formula.
+   * null when there was nothing to replay.
+   */
+  readonly replayState: MasteryState | null;
 }
 
 export interface ReviewMasteryReplay {
@@ -220,6 +227,7 @@ export function replayUnifiedReviewMastery(input: {
         delta: null,
         direction: 'insufficient_data',
         basis: '该节点无复习观测，无法重放统一语义。',
+        replayState: null,
       });
       continue;
     }
@@ -258,6 +266,7 @@ export function replayUnifiedReviewMastery(input: {
       replayMastery,
       delta,
       direction,
+      replayState: state,
       basis: describeReplay({
         hasBaseline: baseline != null,
         hasStored: storedMastery != null,

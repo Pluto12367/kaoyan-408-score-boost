@@ -31,6 +31,7 @@ import { RecommendationExposureService } from './recommendation-exposure.service
 import { ReviewSemanticsShadowService } from './review-semantics-shadow.service';
 import { ScoreOpportunityService } from './score-opportunity.service';
 import { ScoreCalibrationService } from './score-calibration.service';
+import { ShadowDecisionChainService } from './shadow-decision-chain.service';
 import { LearningImpactService } from './learning-impact.service';
 
 @Controller()
@@ -50,6 +51,7 @@ export class DailyBriefController {
     private readonly reviewSemanticsShadow?: ReviewSemanticsShadowService,
     private readonly scoreOpportunity?: ScoreOpportunityService,
     private readonly scoreCalibration?: ScoreCalibrationService,
+    private readonly shadowDecisionChain?: ShadowDecisionChainService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -341,6 +343,43 @@ export class DailyBriefController {
       return { generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
     }
     return { userId, ...result };
+  }
+
+  /**
+   * V12-M3 — Shadow Decision Chain (NON-AUTHORITATIVE).
+   *
+   * Carries the unified-mastery shadow all the way downstream: mastery →
+   * priority → opportunity → recommendation ranking, with per-node attribution
+   * back to the review that caused the divergence. Both paths run the SAME
+   * production primitives on the SAME student-scoped universe.
+   *
+   * Reads only. No mastery, schedule, recommendation or event is written, and
+   * production semantics are untouched — this produces the evidence for the
+   * Phase C decision, not the decision.
+   * teacher/admin only — a model-quality instrument, not student UI.
+   */
+  @Get('coach/shadow-decision-chain')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
+  async getShadowDecisionChain(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('windowDays') windowDays?: string,
+    @Query('maxItems') maxItems?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.shadowDecisionChain) {
+      return { generatedAt: new Date().toISOString(), chain: null, reason: 'store_unavailable' };
+    }
+    const chain = await this.shadowDecisionChain.getChain(userId, {
+      windowDays: parsePositiveInt(windowDays),
+      maxItems: parsePositiveInt(maxItems),
+    });
+    if (chain == null) {
+      return { generatedAt: new Date().toISOString(), chain: null, reason: 'store_unavailable' };
+    }
+    // The chain already carries userId; spreading it avoids declaring it twice.
+    return { ...chain };
   }
 
   /** V11-M4.2 — mastery calibration shadow: stored mastery vs observed accuracy. */
