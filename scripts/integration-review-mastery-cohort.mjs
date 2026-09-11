@@ -216,10 +216,19 @@ async function main() {
     }
 
     const afterShadow = await masteryFingerprint(prisma, userIds);
+    // Six tables, including the two a mastery shadow would most plausibly reach
+    // for (UserMasterySnapshot / RecommendationAction): reading the shadow must
+    // change nothing anywhere.
     assert.deepEqual(
       afterShadow,
       afterReviews,
       'authoritative writes = 0: reading the shadow must change nothing at all',
+    );
+    console.log(
+      `[review-mastery] authoritative writes = 0 across 6 tables `
+      + `(mastery rows ${afterShadow.masteryRows}, snapshots ${afterShadow.snapshots}, `
+      + `schedules ${afterShadow.schedules}, attempts ${afterShadow.attempts}, `
+      + `evidence ${afterShadow.evidence}, actions ${afterShadow.actions})`,
     );
 
     // -------------------------------------------------------------------
@@ -562,24 +571,32 @@ async function seedStudent(prisma, design) {
  * The authoritative state. `masteryByKey` deliberately excludes stability:
  * `applyReview` is SUPPOSED to move stability (that is what it writes today), so
  * only the ability estimate is the gap under measurement.
+ *
+ * Every table a review→mastery shadow could plausibly touch is counted, so
+ * "authoritative writes = 0" is a real claim rather than one that happens to
+ * omit the table the shadow would have used.
  */
 async function masteryFingerprint(prisma, userIds) {
-  const [mastery, attempts, events, schedules] = await Promise.all([
+  const [mastery, snapshots, attempts, events, schedules, actions] = await Promise.all([
     prisma.userKnowledgeMastery.findMany({
       where: { userId: { in: userIds } },
-      select: { userId: true, knowledgeNodeId: true, mastery: true, retention: true },
+      select: { userId: true, knowledgeNodeId: true, mastery: true, retention: true, stabilityDays: true },
       orderBy: { knowledgeNodeId: 'asc' },
     }),
+    prisma.userMasterySnapshot.count({ where: { userId: { in: userIds } } }),
     prisma.reviewAttempt.count({ where: { schedule: { userId: { in: userIds } } } }),
     prisma.userEvent.count({ where: { userId: { in: userIds } } }),
     prisma.reviewSchedule.count({ where: { userId: { in: userIds } } }),
+    prisma.recommendationAction.count({ where: { userId: { in: userIds } } }),
   ]);
   return {
     masteryByKey: mastery.map((row) => `${row.userId}:${row.knowledgeNodeId}=${row.mastery}/${row.retention}`),
     masteryRows: mastery.length,
+    snapshots,
     attempts,
     evidence: events,
     schedules,
+    actions,
   };
 }
 

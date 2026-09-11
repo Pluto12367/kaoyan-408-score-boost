@@ -213,7 +213,7 @@ review.recalled:{reviewEventId} → mastery? → priority? → opportunity? → 
 | 在 `applyReview` 内写 `UserKnowledgeMastery` | ✅ 未做 |
 | 修改权威掌握度 | ✅ 未做。真实 E2E：复核前后 `userKnowledgeMastery` 逐行 deep-equal（含 `retention`） |
 | 修改 `score-center/service.ts` 生产语义 | ✅ **0 行改动**（该文件本轮未被编辑） |
-| 把 review 影子写入权威表 | ✅ 未做。读影子前后**五表指纹 deep-equal**（`userKnowledgeMastery` + `reviewSchedule` + `reviewAttempt` + `userEvent` + 计数） |
+| 把 review 影子写入权威表 | ✅ 未做。**6 张表指纹**在"读影子前 vs 读影子后"deep-equal：`userKnowledgeMastery`（**90 行逐行 mastery + retention**）、`userMasterySnapshot`（105）、`reviewSchedule`（15）、`reviewAttempt`（31）、`userEvent`（15）、`recommendationAction`（0）。指纹**特意包含** `UserMasterySnapshot` 与 `RecommendationAction`——即影子最可能误写的两张表（初版指纹漏了这两张，等于让声明比证据宽，已收紧并复跑） |
 | 修改 F4 Evidence → Ability | ✅ 未做（F4 文件未触碰） |
 | 部署 | ✅ 未做 |
 | 修改验收标准 / 弱化既有断言 | ✅ 未做。既有 2270 项基线全部保留；新增 35 项；既有集成套件全部 exit 0 |
@@ -225,9 +225,11 @@ review.recalled:{reviewEventId} → mastery? → priority? → opportunity? → 
 - `npm test`：**2305 / 2303 通过 / 0 失败 / 2 跳过**，exit 0（基线 2270/2268/0/2；**+35 新增，零新增失败**）
 - `npm run build:api`：exit 0
 - `npm run build:web`：exit 0
-- `npm run test:integration:review-mastery-cohort`（本轮新增）：exit 0
+- `npm run test:integration:review-mastery-cohort`（本轮新增）：exit 0（真实 E2E 实测两次，输出**逐行一致**——管线确定性）
 - 既有集成套件：`score-loop`、`review-shadow-cohort`、`event-key`、`mastery-semantics-migration`、`effectiveness` 全部 exit 0
 - 既有失败分类未变（`docs/v12-failure-classification.md`）：**NEW REGRESSION = 0**；`integration-postgres:1254`（PRE-EXISTING）、`exam-aligned` 缺题库夹具（FIXTURE/DATA GAP）、生产部署（PENDING，无 SSH 凭据）均如实保留，**未被包装成绿色**。
+
+**指纹计数的一个附带观察**：`userMasterySnapshot` 为 **105 = 90（夹具）+ 15（生产 `applyReview` 自己写的）**。即复习路径确实会写快照（写的是**未改变的**掌握度），这是生产既有行为；因此该表必须在指纹内，否则"零权威写入"会漏掉生产本来就在写的那张表。
 
 **新增文件**：`packages/shared/src/score-center/review-mastery-pipeline.ts`（纯模块）、`apps/api/src/study/review-mastery-shadow.service.ts`（只读装配）、`scripts/integration-review-mastery-cohort.mjs`、`test/review-mastery-pipeline.test.js`（24 项）、`test/review-mastery-shadow-service.test.js`（11 项）。
 **改动文件**：`daily-brief.controller.ts`（+1 端点 `GET /coach/review-mastery-shadow`，teacher/admin）、`study.module.ts`（+1 provider）、`review-schedule.repository.ts`（`listAttemptsByUser` 只读返回增补 `attemptId`/`scheduleId`/`idempotencyKey`，纯增量）、`packages/shared/src/score-center/index.ts`（+1 export）、`package.json`（+1 脚本）。
