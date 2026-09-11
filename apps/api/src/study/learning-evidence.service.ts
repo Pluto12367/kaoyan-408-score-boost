@@ -15,6 +15,7 @@
  */
 
 import { Injectable, Optional } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import {
   buildLearningEvidence,
   summarizeLearningEvidence,
@@ -97,7 +98,7 @@ export class LearningEvidenceService {
         selfRating: normalize(input.selfRating),
       },
       input.completedDate,
-    );
+    ).then((result) => result.record);
   }
 
   /**
@@ -122,10 +123,17 @@ export class LearningEvidenceService {
         scope,
       },
       scope,
-    );
+    ).then((result) => result.record);
   }
 
-  /** A review whose redo/recall outcome was actually observed. */
+  /**
+   * A review whose redo/recall outcome was actually observed.
+   *
+   * V12-M3-A: `occurrence` is the stable per-occurrence identity (the
+   * ReviewAttempt row id). Supplying it makes the receipt occurrence-scoped, so
+   * N distinct redos of one question on one day produce N receipts instead of
+   * collapsing into a single day-scoped row.
+   */
   async recordReviewRecall(
     userId: string,
     input: {
@@ -135,26 +143,35 @@ export class LearningEvidenceService {
       recordedAt: string;
       scope?: string;
       actionId?: string | null;
+      occurrence?: string | null;
     },
+    tx?: Prisma.TransactionClient,
   ): Promise<LearningEvidenceRecord> {
-    const scope = input.scope ?? input.recordedAt.slice(0, 10);
-    return this.record(
-      {
-        userId,
-        action: 'review.recalled',
-        sourceId: input.questionId,
-        actionId: input.actionId ?? null,
-        recordedAt: input.recordedAt,
-        scope,
-        recallObserved: true,
-        recallCorrect: input.redoCorrect,
-        minutesSpent:
-          typeof input.timeSpentSec === 'number' && Number.isFinite(input.timeSpentSec)
-            ? Math.round((input.timeSpentSec / 60) * 100) / 100
-            : null,
-      },
-      scope,
-    );
+    return (await this.record(reviewRecallInput(userId, input), input.scope ?? dayScope(input.recordedAt), tx)).record;
+  }
+
+  /**
+   * V12-M3-A — the same receipt, but reporting whether it is actually DURABLE.
+   *
+   * The review→mastery projection must not move the ability estimate on the
+   * strength of an observation the ledger failed to record, so this variant
+   * exposes `persisted` instead of discarding it the way `record()` does for
+   * callers that only need the honest verdict.
+   */
+  async recordReviewRecallDurable(
+    userId: string,
+    input: {
+      questionId: string;
+      redoCorrect: boolean;
+      timeSpentSec?: number | null;
+      recordedAt: string;
+      scope?: string;
+      actionId?: string | null;
+      occurrence?: string | null;
+    },
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ record: LearningEvidenceRecord; persisted: boolean }> {
+    return this.record(reviewRecallInput(userId, input), input.scope ?? dayScope(input.recordedAt), tx);
   }
 
   /** Graded practice/assessment attempts observed in the source-of-truth tables. */
@@ -186,7 +203,7 @@ export class LearningEvidenceService {
         detail: input.detail ?? null,
       },
       scope,
-    );
+    ).then((result) => result.record);
   }
 
   /**
@@ -310,12 +327,16 @@ export class LearningEvidenceService {
   private async record(
     input: Parameters<typeof buildLearningEvidence>[0],
     scope: string,
-  ): Promise<LearningEvidenceRecord> {
+    tx?: Prisma.TransactionClient,
+  ): Promise<{ record: LearningEvidenceRecord; persisted: boolean }> {
     const record = buildLearningEvidence(input);
     const eventKey = learningEvidenceKey({
       userId: record.userId,
       action: record.action,
       sourceId: record.sourceId,
+      // The occurrence is part of the identity, so the key rebuilt here must
+      // carry the same discriminator `buildLearningEvidence` used.
+      occurrence: record.occurrence,
       scope,
     });
     const stored = await this.canonicalEvents?.recordCanonicalEvent({
@@ -323,12 +344,46 @@ export class LearningEvidenceService {
       type: LEARNING_EVIDENCE_EVENT_TYPE,
       eventKey,
       payload: { ...record, id: eventKey },
+      tx,
     });
     // When the store is unavailable the record is still returned so callers can
     // render the honest verdict; durability is what is missing, not the meaning.
-    void stored;
-    return { ...record, id: eventKey };
+    return { record: { ...record, id: eventKey }, persisted: stored != null };
   }
+}
+
+/** The day bucket an event key used before V12-M3-A introduced occurrence identity. */
+function dayScope(recordedAt: string): string {
+  return recordedAt.slice(0, 10);
+}
+
+/** Shared mapping so the durable and verdict-only recall receipts cannot drift. */
+function reviewRecallInput(
+  userId: string,
+  input: {
+    questionId: string;
+    redoCorrect: boolean;
+    timeSpentSec?: number | null;
+    recordedAt: string;
+    actionId?: string | null;
+    occurrence?: string | null;
+  },
+): Parameters<typeof buildLearningEvidence>[0] {
+  return {
+    userId,
+    action: 'review.recalled',
+    sourceId: input.questionId,
+    actionId: input.actionId ?? null,
+    recordedAt: input.recordedAt,
+    scope: dayScope(input.recordedAt),
+    occurrence: input.occurrence ?? null,
+    recallObserved: true,
+    recallCorrect: input.redoCorrect,
+    minutesSpent:
+      typeof input.timeSpentSec === 'number' && Number.isFinite(input.timeSpentSec)
+        ? Math.round((input.timeSpentSec / 60) * 100) / 100
+        : null,
+  };
 }
 
 function normalize(value: number | null | undefined): number | null {
@@ -388,6 +443,9 @@ function toEvidenceRecord(userId: string, payload: unknown): LearningEvidenceRec
     sourceId: typeof row.sourceId === 'string' ? row.sourceId : null,
     actionId: typeof row.actionId === 'string' ? row.actionId : null,
     recordedAt: typeof row.recordedAt === 'string' ? row.recordedAt : '',
+    occurrence: typeof row.occurrence === 'string' && row.occurrence.trim().length > 0
+      ? row.occurrence
+      : null,
     source: 'derived',
     detail: row.detail && typeof row.detail === 'object' && !Array.isArray(row.detail)
       ? (row.detail as Record<string, unknown>)

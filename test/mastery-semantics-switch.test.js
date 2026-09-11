@@ -12,7 +12,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import {
   MASTERY_SEMANTICS_ENV,
   DEFAULT_MASTERY_SEMANTICS,
@@ -172,18 +172,68 @@ test('the switch introduces no schema, no migration and no API change', () => {
   assert.ok(!/ALTER TABLE|CREATE TABLE/.test(source), 'no schema work belongs in the switch');
 });
 
-test('exactly one production call site consults the switch', () => {
+test('the switch is consulted only from the audited mastery entry points', () => {
+  // V12-M3-C added a second mastery entry point (review→mastery projection), so
+  // "exactly one occurrence" is no longer the right invariant. What must stay
+  // true — and is what makes switching auditable — is that mastery has ONE owner
+  // module, that only a KNOWN set of methods may apply the semantics, and that
+  // every one of them resolves the switch instead of hard-coding a model. A
+  // third silent site is precisely how a second 口径 would appear.
   const service = readFileSync(
     new URL('../apps/api/src/score-center/service.ts', import.meta.url),
     'utf8',
   );
-  const applications = service.match(/applyMasterySemantics\(/g) ?? [];
-  assert.equal(applications.length, 1, 'production must apply the semantics from exactly one place');
-  assert.ok(
-    service.includes('resolveMasterySemantics'),
-    'the call site must resolve the switch rather than hard-code a semantics',
+  const applications = [...service.matchAll(/applyMasterySemantics\(/g)];
+  assert.equal(applications.length, 2, 'mastery must be applied from the audited entry points only');
+
+  const owners = applications.map((match) => enclosingAsyncMethod(service, match.index));
+  assert.deepEqual(
+    owners,
+    ['applySingleAttempt', 'applyReviewObservation'],
+    'a new call site must be a deliberate, reviewed decision — this list is the audit record',
   );
+  for (const match of applications) {
+    // Check the whole enclosing METHOD body, not just the text before the call:
+    // one entry point inlines `applyMasterySemantics(resolveMasterySemantics(), …)`
+    // and the other hoists the resolve into a local first, and both are correct.
+    const methodStart = service.lastIndexOf('async ', match.index);
+    const nextMethod = service.indexOf('\n  async ', match.index);
+    const methodBody = service.slice(methodStart, nextMethod > match.index ? nextMethod : service.length);
+    assert.ok(
+      methodBody.includes('resolveMasterySemantics'),
+      `${enclosingAsyncMethod(service, match.index)} must resolve the switch rather than hard-code a semantics`,
+    );
+  }
+
+  // One owner module in the whole API: no other file may apply the transition.
+  const offenders = [];
+  for (const file of listTypeScriptFiles(new URL('../apps/api/src/', import.meta.url))) {
+    const source = readFileSync(file, 'utf8');
+    if (source.includes('applyMasterySemantics(')) {
+      offenders.push(file.pathname.split('/src/').pop());
+    }
+  }
+  assert.deepEqual(offenders, ['score-center/service.ts'], 'mastery semantics have exactly one owner module');
 });
+
+/** The nearest preceding `async name(` — enough to attribute a call site. */
+function enclosingAsyncMethod(source, index) {
+  const matches = [...source.slice(0, index).matchAll(/(?:private |public |protected )?async (\w+)\(/g)];
+  return matches.length > 0 ? matches[matches.length - 1][1] : null;
+}
+
+function listTypeScriptFiles(dirUrl) {
+  const found = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), dir);
+      if (entry.isDirectory()) walk(child);
+      else if (entry.name.endsWith('.ts')) found.push(child);
+    }
+  };
+  walk(dirUrl);
+  return found;
+}
 
 test('production no longer calls the legacy transition directly for attempts', () => {
   const service = readFileSync(

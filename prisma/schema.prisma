@@ -773,6 +773,13 @@ model ReviewAttempt {
   inferredReason   String?
   nextIntervalDays Int
   reviewedAt       DateTime              @default(now())
+  // V12-M3-B — single-attempt schedule facts. Nullable on purpose: historical
+  // rows are genuinely unknown and must not be read as `false`. Factual only;
+  // no derived model output (mastery/priority/opportunity/score) is stored here.
+  isReview         Boolean?
+  scheduleDriven   Boolean?
+  source           String?
+  dueAt            DateTime?
   schedule         ReviewSchedule        @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   action           RecommendationAction? @relation(fields: [actionId], references: [id], onDelete: Restrict)
 

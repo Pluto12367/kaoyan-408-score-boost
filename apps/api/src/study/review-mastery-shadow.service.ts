@@ -152,10 +152,13 @@ export class ReviewMasteryShadowService {
         reviewedAt: attempt.reviewedAt,
         redoCorrect: attempt.redoCorrect,
         difficulty: nodeId ? difficultyByNode.get(nodeId) ?? 3 : 3,
-        // The attempt row does not record whether the caller passed `isReview`,
-        // so whether the authoritative writer ran is genuinely unknown here and
-        // is reported as unknown rather than assumed.
-        scheduledReview: null,
+        // V12-M3-A — the occurrence identity the receipt is keyed by, so the
+        // receipt attaches to exactly this event.
+        occurrence: attempt.attemptId,
+        // V12-M3-B now records the caller's declaration, so this is a fact for
+        // rows written after the migration. Historical rows are still NULL and
+        // stay reported as unknown rather than being read as `false`.
+        scheduledReview: attempt.isReview,
       };
     });
 
@@ -312,6 +315,9 @@ export class ReviewMasteryShadowService {
         questionId: record.sourceId,
         recordedAt: record.recordedAt,
         scope: record.recordedAt.slice(0, 10),
+        // V12-M3-A: null for every legacy day-scoped receipt, which is what
+        // keeps the coalescing path (and its honest accounting) alive.
+        occurrence: record.occurrence,
         kind: record.kind,
         strength: record.strength,
         canInfluenceMastery: record.canInfluenceMastery,

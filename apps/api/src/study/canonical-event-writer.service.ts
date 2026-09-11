@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { UserEventRepository, type StoredUserEvent } from './user-event.repository';
 
 export const TELEMETRY_EVENT_TYPES = [
@@ -47,6 +48,11 @@ export const RESERVED_CANONICAL_EVENT_TYPES = [
   'knowledge.gap.detected',
   'study.strategy.updated',
   'EVIDENCE_RECORDED',
+  // V12-M3-A: the exactly-once claim that one piece of review evidence has been
+  // projected into authoritative mastery. It is a canonical (server-only) event
+  // because it must be attributable and replay-safe: the unique eventKey is what
+  // makes "applied exactly once" structural rather than hoped for.
+  'REVIEW_MASTERY_APPLIED',
 ] as const;
 
 export type CanonicalEventType = (typeof RESERVED_CANONICAL_EVENT_TYPES)[number];
@@ -64,6 +70,12 @@ export type CanonicalEventInput = {
   type: CanonicalEventType;
   eventKey?: string;
   payload?: Record<string, unknown>;
+  /**
+   * V12-M3-A — write inside the caller's transaction. Required when the event
+   * must be atomic with the business write it describes (the review→mastery
+   * application is committed or rolled back with the review attempt itself).
+   */
+  tx?: Prisma.TransactionClient;
 };
 
 @Injectable()
@@ -80,7 +92,16 @@ export class CanonicalEventWriterService {
       throw new BadRequestException(`Canonical event ${input.type} requires an eventKey`);
     }
 
-    return this.userEvents.recordCanonical(input.userId, input.type, eventKey, input.payload);
+    return this.userEvents.recordCanonical(input.userId, input.type, eventKey, input.payload, input.tx);
+  }
+
+  /** Read half of an exactly-once claim; accepts the caller's transaction. */
+  async findCanonicalEvent(
+    userId: string,
+    eventKey: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<StoredUserEvent | null> {
+    return this.userEvents.findCanonical(userId, eventKey, tx);
   }
 }
 

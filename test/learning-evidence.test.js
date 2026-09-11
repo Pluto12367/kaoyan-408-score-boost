@@ -191,6 +191,63 @@ test('a scoped evidence key can distinguish repeated reviews of the same questio
   assert.notEqual(first, second, 'a later recall of the same question is new evidence');
 });
 
+test('V12-M3-A: an occurrence gives every review its own stable identity', () => {
+  const day = '2026-09-11';
+  const legacy = learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day });
+  const a1 = learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day, occurrence: 'att-1' });
+  const a2 = learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day, occurrence: 'att-2' });
+
+  // The measured defect: 31 same-day reviews collapsed into 15 rows because the
+  // day was the whole identity. Now three genuinely distinct observations are
+  // three distinct identities — and the same observation is always the same one.
+  assert.notEqual(a1, a2, 'two observations must not share an identity');
+  assert.notEqual(a1, legacy, 'an occurrence-keyed row must not collide with the legacy day-scoped row');
+  assert.equal(a1, learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day, occurrence: 'att-1' }),
+    'the identity must be deterministic (replay safe)');
+  assert.notEqual(a1, learningEvidenceKey({ userId: 'u2', action: 'review.recalled', sourceId: 'q1', scope: day, occurrence: 'att-1' }));
+
+  // Backward compatibility by construction: the legacy key is a strict PREFIX of
+  // the new one, so history keeps its shape and no new key can be mistaken for
+  // an old one.
+  assert.ok(a1.startsWith(`${legacy}:`), 'the occurrence is appended, so the legacy key stays a prefix');
+  assert.equal(legacy, learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day }),
+    'omitting the occurrence reproduces the historical key byte for byte');
+
+  // An empty discriminator is absence, never an extra empty segment.
+  assert.equal(learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day, occurrence: '' }), legacy);
+  assert.equal(learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day, occurrence: '   ' }), legacy);
+  assert.equal(learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: day, occurrence: null }), legacy);
+});
+
+test('V12-M3-A: a record carries its occurrence, and legacy records decode as null', () => {
+  const withOccurrence = buildLearningEvidence({
+    userId: 'u1',
+    action: 'review.recalled',
+    sourceId: 'q1',
+    recordedAt: '2026-09-11T10:00:00.000Z',
+    scope: '2026-09-11',
+    occurrence: 'att-9',
+    recallObserved: true,
+    recallCorrect: true,
+  });
+  assert.equal(withOccurrence.occurrence, 'att-9');
+  assert.ok(withOccurrence.id.endsWith(':att-9'), 'the id and the key must agree');
+
+  // A historical payload has no `occurrence` field at all; the decoder must read
+  // that as "legacy", never invent one.
+  const legacy = buildLearningEvidence({
+    userId: 'u1',
+    action: 'review.recalled',
+    sourceId: 'q1',
+    recordedAt: '2026-09-11T10:00:00.000Z',
+    scope: '2026-09-11',
+    recallObserved: true,
+    recallCorrect: true,
+  });
+  assert.equal(legacy.occurrence, null);
+  assert.equal(legacy.id, learningEvidenceKey({ userId: 'u1', action: 'review.recalled', sourceId: 'q1', scope: '2026-09-11' }));
+});
+
 // ---------------------------------------------------------------------------
 // Summary
 // ---------------------------------------------------------------------------

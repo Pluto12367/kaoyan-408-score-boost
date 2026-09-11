@@ -172,12 +172,18 @@ async function main() {
     }
 
     const afterReviews = await masteryFingerprint(prisma, userIds);
-    // The measured gap: review outcomes reach the schedule and the evidence
-    // ledger, but the authoritative ability estimate does not move.
-    assert.deepEqual(
-      afterReviews.masteryByKey,
-      beforeReviews.masteryByKey,
-      'the review path must not change authoritative mastery (that is the gap being shadowed)',
+    // V12-M3-C inverted this assertion on purpose. Until the production
+    // integration landed, the correct statement was "reviews must NOT change
+    // authoritative mastery" — that was the gap being shadowed. The gap is now
+    // closed, so the same measurement must show the opposite, and the cohort is
+    // the place that proves it holds at scale rather than in one hand-built case.
+    const movedKeys = afterReviews.masteryByKey.filter(
+      (key, index) => key !== beforeReviews.masteryByKey[index],
+    );
+    assert.equal(
+      movedKeys.length,
+      cohort.length,
+      `every reviewed node must move now: expected ${cohort.length} changed rows, got ${movedKeys.length}`,
     );
     assert.ok(
       afterReviews.attempts > beforeReviews.attempts,
@@ -187,9 +193,27 @@ async function main() {
       afterReviews.evidence > beforeReviews.evidence,
       'the evidence layer must have issued receipts through production code',
     );
+
+    // M3-A fidelity at cohort scale: one occurrence-keyed receipt per attempt.
+    // Before the fix this was 31 attempts → 15 receipts.
+    const fidelity = await receiptFidelity(prisma, userIds);
+    assert.equal(
+      fidelity.attempts,
+      fidelity.occurrenceReceipts,
+      `M3-A: every attempt needs its own receipt (attempts ${fidelity.attempts} vs occurrence receipts ${fidelity.occurrenceReceipts})`,
+    );
+    assert.equal(
+      fidelity.markers,
+      fidelity.occurrenceReceipts,
+      'M3-C: every receipt must be projected exactly once',
+    );
     console.log(
       `[review-mastery] reviews persisted: attempts ${beforeReviews.attempts} → ${afterReviews.attempts}, `
-      + `evidence receipts ${beforeReviews.evidence} → ${afterReviews.evidence}, authoritative mastery unchanged`,
+      + `authoritative mastery changed on ${movedKeys.length}/${cohort.length} reviewed nodes`,
+    );
+    console.log(
+      `[review-mastery] M3-A fidelity: ${fidelity.attempts} attempts → ${fidelity.occurrenceReceipts} occurrence-keyed receipts `
+      + `(1:1), ${fidelity.markers} mastery applications; ${fidelity.legacyReceipts} pre-migration day-scoped receipts`,
     );
 
     // -------------------------------------------------------------------
@@ -333,7 +357,30 @@ async function main() {
 
       const node = shadow.mastery.nodeRows.find((item) => item.nodeId === student.nodeIds[0]);
       assert.ok(node, `${owner}: the reviewed node must be in the shadow`);
-      assert.equal(node.authoritativeMastery, student.mastery, `${owner}: authoritative value must be unchanged`);
+      // V12-M3-C: the authoritative value must have moved by exactly the unified
+      // semantics applied to this student's own observed outcomes (C1 OFF), and
+      // it must have moved at all — otherwise the integration did nothing.
+      let expected = {
+        mastery: student.mastery, accuracy: 0, recentAccuracy: 0,
+        attempts: 0, correctCount: 0, wrongCount: 0, confidence: 0,
+      };
+      for (const correct of student.outcomes) {
+        expected = updateMasteryAfterAttempt(expected, {
+          isCorrect: correct,
+          difficulty: student.difficulty,
+          role: 'PRIMARY',
+        });
+      }
+      assert.equal(
+        node.authoritativeMastery,
+        Math.round(expected.mastery * 10000) / 10000,
+        `${owner}: authoritative mastery must equal the legacy production model applied to its own outcomes`,
+      );
+      assert.notEqual(
+        node.authoritativeMastery,
+        student.mastery,
+        `${owner}: the review must have moved authoritative mastery (the M3 gap is closed)`,
+      );
       rows.push({
         owner: student.userId,
         band: student.band,
@@ -600,6 +647,36 @@ async function masteryFingerprint(prisma, userIds) {
   };
 }
 
+/**
+ * V12-M3-A fidelity at cohort scale: how many review attempts exist, how many
+ * carry their own occurrence-keyed receipt, and how many were projected into
+ * mastery exactly once. Before the fix this cohort measured 31 attempts → 15
+ * receipts.
+ */
+async function receiptFidelity(prisma, userIds) {
+  const attempts = await prisma.reviewAttempt.count({
+    where: { schedule: { userId: { in: userIds } } },
+  });
+  const events = await prisma.userEvent.findMany({
+    where: { userId: { in: userIds }, type: 'EVIDENCE_RECORDED' },
+    select: { payload: true },
+  });
+  const recallReceipts = events.filter((row) => row.payload?.action === 'review.recalled');
+  const occurrenceReceipts = recallReceipts.filter(
+    (row) => typeof row.payload?.occurrence === 'string' && row.payload.occurrence.length > 0,
+  );
+  const markers = await prisma.userEvent.count({
+    where: { userId: { in: userIds }, type: 'REVIEW_MASTERY_APPLIED' },
+  });
+  return {
+    attempts,
+    recallReceipts: recallReceipts.length,
+    occurrenceReceipts: occurrenceReceipts.length,
+    legacyReceipts: recallReceipts.length - occurrenceReceipts.length,
+    markers,
+  };
+}
+
 function report(rows, summary) {
   console.log('');
   console.log('[review-mastery] per student (reviewed node only)');
@@ -616,6 +693,16 @@ function report(rows, summary) {
   console.log('');
   console.log(`[review-mastery] checked ${summary.totalSteps} mastery steps; `
     + `${summary.correctLowered} correct reviews moved down, ${summary.incorrectRaised} incorrect reviews moved up`);
+  // After V12-M3-C the shadow's baseline is no longer the pre-review state: the
+  // production path writes a same-day snapshot WITH the review already applied,
+  // and the shadow picks the nearest snapshot at or before the observation. So
+  // the `base` column below already contains the review and `delta` is one extra
+  // step from a same-day baseline — it is a baseline artefact, NOT a
+  // production-vs-shadow semantics divergence. The production movement is the
+  // difference between the seeded pre-review value and `auth`.
+  console.log('[review-mastery] NOTE: `base` is the review-day snapshot and already');
+  console.log('[review-mastery]       includes the review, so `delta` is a baseline artefact,');
+  console.log('[review-mastery]       not a semantics divergence. `auth` is the authoritative value.');
 }
 
 function clamp01(value) {

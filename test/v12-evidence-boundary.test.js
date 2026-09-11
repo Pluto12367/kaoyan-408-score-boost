@@ -222,16 +222,55 @@ test('the evidence layer contains no mastery write primitive', () => {
   }
 });
 
-test('recall evidence is recorded after the review transaction commits', () => {
+test('recall evidence is written INSIDE the review transaction, atomically with the attempt', () => {
+  // V12-M1 recorded recall evidence after commit, so it could never describe a
+  // rolled-back attempt. V12-M3-C needs the receipt to EXIST before mastery is
+  // decided, and needs the two to be one atomic unit — so the write moved inside
+  // the transaction. That is a strictly stronger guarantee for the property
+  // V12-M1 wanted: the receipt and the attempt now commit or roll back together,
+  // so the receipt still cannot describe an attempt that rolled back, and the
+  // mastery change cannot survive a rolled-back receipt.
   const source = readFileSync(`${root}apps/api/src/study/study.service.ts`, 'utf8');
-  const commitMarker = source.indexOf('Only committed attempts may become visible');
-  const recallEvidence = source.indexOf("recordLearningEvidence('review.recalled'");
-  assert.ok(commitMarker > 0, 'the commit marker must still exist');
-  assert.ok(recallEvidence > 0, 'recall evidence must be recorded');
-  assert.ok(
-    recallEvidence > commitMarker,
-    'evidence must never describe an attempt that could still roll back',
+  const start = source.indexOf('const persistReview = async (');
+  assert.ok(start > 0, 'the review transaction body must exist');
+  const end = source.indexOf('\n    };', start);
+  assert.ok(end > start, 'positive control: the closure must be bounded');
+  const body = source.slice(start, end);
+  assert.ok(body.includes('applyFromReviewObservation('), 'positive control: the projection is in this closure');
+  // Whitespace-normalised so the assertion tests the argument list, not the
+  // formatter's line breaks.
+  const flat = body.replace(/\s+/g, ' ');
+
+  assert.match(body, /saveReview\(schedule, attempt, tx\)/, 'the attempt must be written through the transaction');
+  assert.match(
+    flat,
+    /applyFromReviewObservation\( userId, \{[\s\S]*?\}, tx, \)/,
+    'the projection must run inside the transaction and receive the transaction client as its last argument',
   );
+  assert.ok(
+    body.indexOf('applyFromReviewObservation(') < body.indexOf('applyReview(userId, questionId'),
+    'evidence→mastery must precede the schedule/stability writer, which never assigns mastery',
+  );
+  assert.equal(
+    source.includes("recordLearningEvidence('review.recalled'"),
+    false,
+    'the receipt for a review now comes from the projection; a second write would be a duplicate receipt',
+  );
+});
+
+test('the evidence layer still contains no mastery write primitive after V12-M3-C', () => {
+  // The integration service is the orchestrator: it may CALL the mastery writer
+  // but must not write mastery itself, and the evidence layer must stay clean.
+  const evidence = readFileSync(`${root}apps/api/src/study/learning-evidence.service.ts`, 'utf8');
+  for (const primitive of ['userKnowledgeMastery', 'applyAttempts(', 'applyReview(', 'saveMastery']) {
+    assert.ok(
+      !evidence.includes(primitive),
+      `learning-evidence.service.ts must not reference ${primitive}`,
+    );
+  }
+  const integration = readFileSync(`${root}apps/api/src/study/review-mastery-integration.service.ts`, 'utf8');
+  assert.ok(!integration.includes('userKnowledgeMastery'), 'the integration must not touch mastery storage');
+  assert.match(integration, /scoreCenter!?\.applyReviewObservation\(/, 'it must delegate to the mastery owner');
 });
 
 // ---------------------------------------------------------------------------

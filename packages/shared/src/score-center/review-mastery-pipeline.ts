@@ -70,6 +70,12 @@ const NEUTRAL_MASTERY = 0.5;
  */
 export interface ReviewEventFact {
   readonly reviewEventId: string;
+  /**
+   * V12-M3-A — the stable per-occurrence discriminator (the ReviewAttempt row
+   * id). This is the identity the evidence receipt is keyed by, so an event and
+   * its receipt can be matched one-to-one instead of by timestamp or by day.
+   */
+  readonly occurrence: string | null;
   readonly scheduleId: string;
   readonly questionId: string;
   /** Resolved by the assembly layer (question → PRIMARY-preferred node). */
@@ -93,6 +99,8 @@ export interface ReviewEvidenceReceiptFact {
   readonly questionId: string;
   readonly recordedAt: string;
   readonly scope: string | null;
+  /** V12-M3-A occurrence identity; null for every legacy/day-scoped receipt. */
+  readonly occurrence: string | null;
   readonly kind: EvidenceKind;
   readonly strength: EvidenceStrength;
   readonly canInfluenceMastery: boolean;
@@ -109,7 +117,14 @@ export interface ProjectedReviewObservation {
   readonly scheduledReview: boolean | null;
   readonly receiptId: string | null;
   /** How the receipt was attached. `none` means no receipt was issued. */
-  readonly receiptMatch: 'exact' | 'day_scope' | 'coalesced_day_scope' | 'none';
+  readonly receiptMatch: 'occurrence' | 'exact' | 'day_scope' | 'none';
+  /**
+   * Whether this event shares its receipt with another event. Kept separate
+   * from `receiptMatch` on purpose: the match kind says HOW the receipt was
+   * found, this says whether it is exclusive. Overloading one field with both
+   * facts loses one of them.
+   */
+  readonly sharedReceipt: boolean;
   readonly evidenceKind: EvidenceKind;
   readonly evidenceStrength: EvidenceStrength;
   /** The published V12-M1 taxonomy verdict for an observed recall. */
@@ -130,6 +145,16 @@ export interface ReviewEvidenceReconciliation {
   readonly markedReceipts: number;
   readonly receiptsMatched: number;
   readonly receiptsOrphaned: number;
+  /**
+   * V12-M3-A — how many events were matched to their receipt by occurrence
+   * identity rather than by timestamp or day. After the fidelity fix this must
+   * equal the number of occurrences that have receipts; the day-scoped counters
+   * then describe only legacy rows.
+   */
+  readonly matchedByOccurrence: number;
+  readonly occurrenceReceipts: number;
+  /** Legacy receipts: no occurrence discriminator, therefore day-scoped. */
+  readonly legacyReceipts: number;
   /**
    * Receipts attached to more than one review event. The ledger's event key is
    * scoped by day (`LEARNING_EVIDENCE:{user}:review.recalled:{question}:{day}`),
@@ -175,14 +200,16 @@ export function reviewEventIdOf(input: {
 /**
  * Project review events through the evidence boundary.
  *
- * Matching is two-pass and deterministic:
+ * Matching is three-pass and deterministic, strongest identity first:
+ *  0. occurrence identity (`attemptId`) — one-to-one, exact by construction;
  *  1. exact `recordedAt === reviewedAt` on the same question, one-to-one;
  *  2. same question and same day scope, many-to-one, flagged as `coalesced`.
  *
- * The second pass exists because the ledger genuinely cannot represent two
- * reviews of one question on one day. Dropping those events would understate the
- * review history; silently inventing receipts would fake the boundary. So the
- * shared receipt is attached to each event and the coalescing is counted.
+ * Pass 0 exists because of M3-A: a receipt keyed by a real per-occurrence
+ * identity must attach to exactly the event it describes, not to whichever
+ * event happens to share a timestamp. Passes 1 and 2 remain so that legacy
+ * day-scoped receipts — which genuinely cannot distinguish same-day repeats —
+ * are still attached and reported as coalesced rather than silently dropped.
  */
 export function projectReviewEvidence(input: {
   readonly events: readonly ReviewEventFact[];
@@ -192,10 +219,30 @@ export function projectReviewEvidence(input: {
   const receipts = [...input.receipts];
 
   const claimed = new Set<string>();
-  const matchByEvent = new Map<string, { receipt: ReviewEvidenceReceiptFact; kind: 'exact' | 'day_scope' }>();
+  const matchByEvent = new Map<
+    string,
+    { receipt: ReviewEvidenceReceiptFact; kind: 'occurrence' | 'exact' | 'day_scope' }
+  >();
+
+  // Pass 0 — occurrence identity, the strongest possible match.
+  for (const event of events) {
+    if (!event.occurrence) continue;
+    const receipt = receipts.find(
+      (row) =>
+        !claimed.has(row.receiptId)
+        && row.action === 'review.recalled'
+        && row.occurrence != null
+        && row.occurrence === event.occurrence,
+    );
+    if (receipt) {
+      claimed.add(receipt.receiptId);
+      matchByEvent.set(event.reviewEventId, { receipt, kind: 'occurrence' });
+    }
+  }
 
   // Pass 1 — exact timestamp match, one receipt per event.
   for (const event of events) {
+    if (matchByEvent.has(event.reviewEventId)) continue;
     const receipt = receipts.find(
       (row) =>
         !claimed.has(row.receiptId)
@@ -209,7 +256,8 @@ export function projectReviewEvidence(input: {
     }
   }
 
-  // Pass 2 — day-scoped match; a receipt may legitimately cover several events.
+  // Pass 2 — day-scoped match; a legacy receipt may legitimately cover several
+  // events, because the legacy key could not tell them apart.
   for (const event of events) {
     if (matchByEvent.has(event.reviewEventId)) continue;
     const day = event.reviewedAt.slice(0, 10);
@@ -244,11 +292,8 @@ export function projectReviewEvidence(input: {
     const usage = match ? usageByReceipt.get(match.receipt.receiptId) ?? 1 : 0;
     const receiptMatch: ProjectedReviewObservation['receiptMatch'] = !match
       ? 'none'
-      : match.kind === 'exact'
-        ? 'exact'
-        : usage > 1
-          ? 'coalesced_day_scope'
-          : 'day_scope';
+      : match.kind;
+    const sharedReceipt = usage > 1;
     const eligible = match != null && taxonomy.canInfluenceMastery;
     observations.push({
       reviewEventId: event.reviewEventId,
@@ -261,11 +306,12 @@ export function projectReviewEvidence(input: {
       scheduledReview: event.scheduledReview,
       receiptId: match?.receipt.receiptId ?? null,
       receiptMatch,
+      sharedReceipt,
       evidenceKind: match?.receipt.kind ?? 'none',
       evidenceStrength: match?.receipt.strength ?? 'none',
       taxonomyCanInfluenceMastery: taxonomy.canInfluenceMastery,
       eligibleForMastery: eligible,
-      basis: describeProjection(event, match?.receipt ?? null, receiptMatch, eligible, taxonomy.basis),
+      basis: describeProjection(event, match?.receipt ?? null, receiptMatch, sharedReceipt, eligible, taxonomy.basis),
     });
   }
 
@@ -278,6 +324,9 @@ export function projectReviewEvidence(input: {
   const eventsWithoutReceipt = observations.length - eventsWithReceipt;
   const observedNotScheduled = observations.filter((row) => row.scheduledReview === false).length;
   const scheduleUnknown = observations.filter((row) => row.scheduledReview == null).length;
+  const matchedByOccurrence = observations.filter((row) => row.receiptMatch === 'occurrence').length;
+  const occurrenceReceipts = receipts.filter((row) => row.occurrence != null).length;
+  const legacyReceipts = recalledReceipts - occurrenceReceipts;
 
   return {
     observations,
@@ -293,6 +342,9 @@ export function projectReviewEvidence(input: {
       markedReceipts,
       receiptsMatched: matchedReceiptIds.size,
       receiptsOrphaned: recalledReceipts - matchedReceiptIds.size,
+      matchedByOccurrence,
+      occurrenceReceipts,
+      legacyReceipts,
       coalescedReceipts,
       maxEventsPerReceipt,
       observedNotScheduled,
@@ -301,7 +353,9 @@ export function projectReviewEvidence(input: {
       basis: events.length === 0
         ? '窗口内没有复习事件，证据投影为空。'
         : `投影 ${events.length} 个复习事件：${observations.length} 个解析到知识节点、${eventsWithReceipt} 个附带证据回执、${eventsWithoutReceipt} 个缺回执（不进入掌握度影子）；`
-          + `回执 ${receipts.length} 条（回忆结果 ${recalledReceipts}、仅标记 ${markedReceipts}），其中 ${coalescedReceipts} 条被同日多次复习共用（台账事件键按天去重）；`
+          + `回执 ${receipts.length} 条（回忆结果 ${recalledReceipts}、仅标记 ${markedReceipts}），`
+          + `其中 ${occurrenceReceipts} 条带逐次事件身份（按身份精确匹配 ${matchedByOccurrence} 个）、`
+          + `${legacyReceipts} 条为历史按天回执、${coalescedReceipts} 条被同日多次复习共用；`
           + `其中 ${observedNotScheduled} 个已知未走排程复习、${scheduleUnknown} 个排程状态未记录。结果非权威。`,
     },
     authoritative: false,
@@ -312,6 +366,7 @@ function describeProjection(
   event: ReviewEventFact,
   receipt: ReviewEvidenceReceiptFact | null,
   match: ProjectedReviewObservation['receiptMatch'],
+  shared: boolean,
   eligible: boolean,
   taxonomyBasis: string,
 ): string {
@@ -319,11 +374,15 @@ function describeProjection(
   if (!receipt) {
     return `${event.reviewedAt} 观测到${outcome}，但证据台账没有对应回执，按边界规则不参与掌握度影子。`;
   }
-  const shared = match === 'coalesced_day_scope' ? '（同日多次复习共用一条按天去重的回执）' : '';
+  const how = match === 'occurrence'
+    ? '（按逐次事件身份精确匹配）'
+    : shared
+      ? '（该回执是历史按天回执，被同日多次复习共用）'
+      : '';
   const verdict = eligible
     ? '构成强证据，可进入统一掌握度影子。'
     : '该回执不允许能力推断，不进入掌握度影子。';
-  return `${event.reviewedAt} 观测到${outcome}${shared}；回执 ${receipt.receiptId}（${receipt.kind}/${receipt.strength}）：${taxonomyBasis}${verdict}`;
+  return `${event.reviewedAt} 观测到${outcome}${how}；回执 ${receipt.receiptId}（${receipt.kind}/${receipt.strength}）：${taxonomyBasis}${verdict}`;
 }
 
 // ---------------------------------------------------------------------------

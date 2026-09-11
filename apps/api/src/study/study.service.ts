@@ -85,6 +85,11 @@ import { applyWeeklyIntensity, deriveWeeklyAdjustment } from './weekly-adjustmen
 import type { EffectivenessService } from '../effectiveness/effectiveness.service';
 import { ExamAlignmentService } from './exam-alignment.service';
 import { LearningEvidenceService } from './learning-evidence.service';
+import {
+  REVIEW_MASTERY_APPLIED_EVENT_TYPE,
+  ReviewMasteryIntegrationService,
+  type ReviewMasteryIntegrationResult,
+} from './review-mastery-integration.service';
 import { BetaMetricsService } from './beta-metrics.service';
 import { AuthenticatedUserRegistry } from '../auth/authenticated-user.registry';
 import { TeacherStudentAuthorizationRepository } from './teacher-student-authorization.repository';
@@ -164,6 +169,7 @@ export class StudyService implements OnModuleInit {
     @Optional() private readonly effectiveness?: EffectivenessService,
     @Optional() private readonly examAlignment?: ExamAlignmentService,
     @Optional() private readonly learningEvidence?: LearningEvidenceService,
+    @Optional() private readonly reviewMasteryIntegration?: ReviewMasteryIntegrationService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -2343,15 +2349,55 @@ export class StudyService implements OnModuleInit {
       inferredReason,
       nextIntervalDays,
       reviewedAt: now.toISOString(),
+      // V12-M3-B — record the caller's own declaration and the factual origin.
+      // `isReview` gated the authoritative review writer but was never persisted,
+      // so per-attempt auditability was impossible. `undefined` stays NULL.
+      isReview: typeof input.isReview === 'boolean' ? input.isReview : null,
+      source: actionId ? 'recommendation_action' : 'wrong_question',
     };
+    // V12-M3-C — the projected application, captured for logging/audit. The
+    // mastery change itself happens inside the transaction below.
+    const masteryProjections: ReviewMasteryIntegrationResult[] = [];
+
     const persistReview = async (tx?: Prisma.TransactionClient) => {
-      if (tx) await this.reviewScheduleRepository.saveReview(schedule, attempt, tx);
-      else await this.reviewScheduleRepository.saveReview(schedule, attempt);
+      const savedAttempt = tx
+        ? await this.reviewScheduleRepository.saveReview(schedule, attempt, tx)
+        : await this.reviewScheduleRepository.saveReview(schedule, attempt);
+
+      // V12-M3-A/C — Review Observation → Evidence Receipt → Projection →
+      // Mastery, all inside this transaction. The evidence receipt is written
+      // BEFORE the mastery decision and its durability is checked, so a review
+      // can never move the ability estimate without a receipt that explains it.
+      // Doing it here (rather than after commit) is what makes the attempt, its
+      // receipt, the exactly-once claim and the mastery write one atomic unit:
+      // either all of them exist or none of them do.
+      if (savedAttempt && this.reviewMasteryIntegration) {
+        masteryProjections.push(
+          await this.reviewMasteryIntegration.applyFromReviewObservation(
+            userId,
+            {
+              attemptId: savedAttempt.attemptId,
+              scheduleId: savedAttempt.scheduleId,
+              questionId,
+              reviewedAt: now,
+              redoCorrect: input.redoCorrect,
+              timeSpentSec: input.timeSpentSec,
+              actionId,
+              isReview: typeof input.isReview === 'boolean' ? input.isReview : null,
+            },
+            tx,
+          ),
+        );
+      }
+
       await this.learningProgressRepository.saveWrongQuestionReview(userId, questionId, now.toISOString(), tx);
       if (stability === 'mastered' && this.prisma) {
         await resolveWrongQuestion(tx ?? this.prisma, userId, questionId, now);
       }
       if (input.isReview === true) {
+        // Still schedule/stability only: applyReview must never assign mastery
+        // directly, because the ability estimate is reached through the evidence
+        // projection above.
         await this.scoreCenterService?.applyReview(userId, questionId, {
           reviewedAt: now,
           redoCorrect: input.redoCorrect,
@@ -2359,7 +2405,17 @@ export class StudyService implements OnModuleInit {
       }
     };
     if (this.prisma && this.reviewScheduleRepository.enabled && typeof this.prisma.$transaction === 'function') {
-      await this.prisma.$transaction((tx) => persistReview(tx));
+      try {
+        await this.prisma.$transaction((tx) => persistReview(tx));
+      } catch (error) {
+        // A concurrent duplicate request can lose the race on the attempt's
+        // unique (scheduleId, idempotencyKey) or on the mastery claim marker.
+        // The constraint did its job — nothing was applied twice — so the caller
+        // gets the already-persisted attempt instead of a raw Prisma error.
+        const replayed = await this.replayDuplicateReview(userId, questionId, input.idempotencyKey, error);
+        if (replayed) return replayed;
+        throw error;
+      }
     } else {
       await persistReview();
     }
@@ -2368,18 +2424,11 @@ export class StudyService implements OnModuleInit {
     const attempts = this.reviewAttemptsByKey.get(key) ?? [];
     this.reviewAttemptsByKey.set(key, [...attempts, attempt]);
     this.triggerActionFeedback(userId, actionId);
-    // V12-M1: recorded after commit so evidence never describes a rolled-back
-    // attempt. An observed redo outcome is strong evidence; applyReview above
-    // remains the only mastery writer.
-    await this.recordLearningEvidence('review.recalled', () =>
-      this.learningEvidence!.recordReviewRecall(userId, {
-        questionId,
-        redoCorrect: input.redoCorrect,
-        timeSpentSec: input.timeSpentSec,
-        recordedAt: now.toISOString(),
-        actionId,
-      }),
-    );
+    for (const projection of masteryProjections) {
+      this.logger.log(
+        `Review mastery projection ${projection.reason} (evidence ${projection.evidenceEventKey ?? '—'})`,
+      );
+    }
 
     // Also mark as reviewed in the existing tracking
     const reviewed = this.wrongQuestionReviewDatesByUser.get(userId) ?? new Map<string, string>();
@@ -2398,6 +2447,36 @@ export class StudyService implements OnModuleInit {
           ? `连续正确 ${consecutiveCorrect} 次，${nextIntervalDays} 天后复习。`
           : '重做仍有错误，建议先复述考点再进入下一次。',
     };
+  }
+
+  /**
+   * V12-M3 §9 — a duplicate review request that lost a concurrency race must
+   * still be idempotent.
+   *
+   * The unique constraints did their job (nothing was applied twice); what is
+   * left is to answer the loser with the attempt the winner persisted instead of
+   * surfacing a raw Prisma error. Only possible when the client supplied an
+   * idempotency key — without one, two requests are indistinguishable from two
+   * genuine reviews, and an error is the honest outcome.
+   */
+  private async replayDuplicateReview(
+    userId: string,
+    questionId: string,
+    idempotencyKey: string | undefined,
+    error: unknown,
+  ): Promise<ReviewAttemptState | null> {
+    if (!idempotencyKey || !isUniqueConstraintFailure(error)) return null;
+    const persisted = await this.reviewScheduleRepository.findAttemptByIdempotencyKey(
+      userId,
+      questionId,
+      idempotencyKey,
+    );
+    if (persisted) {
+      this.logger.warn(
+        `Duplicate review request for ${questionId} lost the race; returning the persisted attempt ${persisted.id ?? '—'}`,
+      );
+    }
+    return persisted;
   }
 
   async updateWrongQuestionNote(questionId: string, userId: string, noteInput?: string) {
@@ -5308,6 +5387,11 @@ export interface ReviewSchedule {
 
 function toJsonSnapshot<T>(value: T): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+/** V12-M3 §9 — a unique-constraint violation is a lost race, not a failure. */
+function isUniqueConstraintFailure(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { code?: unknown }).code === 'P2002');
 }
 
 function serializeFailure(error: unknown): Prisma.InputJsonObject {

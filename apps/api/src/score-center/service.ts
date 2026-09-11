@@ -60,6 +60,34 @@ const SCORE_SUBJECT_NAME_BY_CODE: Record<string, string> = {
   OS: '操作系统',
   CN: '计算机网络',
 };
+
+/**
+ * V12-M3-C — what one review observation did to one knowledge node.
+ * `authoritative: true` is deliberate and rare in this codebase: unlike every
+ * shadow artefact, this describes a real write to the ability estimate.
+ */
+export interface ReviewMasteryNodeApplication {
+  readonly nodeId: string;
+  readonly role: string;
+  readonly masteryBefore: number;
+  readonly masteryAfter: number;
+  readonly masteryDelta: number;
+  readonly attemptsAfter: number;
+}
+
+export interface ReviewMasteryApplication {
+  readonly questionId: string;
+  readonly evidenceEventKey: string;
+  readonly isCorrect: boolean;
+  /** Which audited semantics actually ran ('legacy' unless explicitly opted in). */
+  readonly semantics: ReturnType<typeof resolveMasterySemantics>;
+  readonly nodes: readonly ReviewMasteryNodeApplication[];
+  readonly authoritative: true;
+}
+
+function round6(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
 function clampDifficulty(value: number): 1 | 2 | 3 | 4 | 5 {
   return Math.min(5, Math.max(1, Math.round(value))) as 1 | 2 | 3 | 4 | 5;
 }
@@ -180,6 +208,91 @@ export class ScoreCenterService {
     };
     if (transaction) await apply(transaction);
     else await this.prisma.$transaction(apply);
+  }
+
+  /**
+   * V12-M3-C — the authoritative Review → Mastery projection.
+   *
+   * This is the ONLY path by which a review observation reaches the ability
+   * estimate, and it is deliberately NOT reachable from `applyReview` on its own:
+   * the caller must already hold a durable evidence receipt for the observation,
+   * so the production chain is literally
+   *
+   *   Review Observation → Evidence Receipt → Evidence Projection → Mastery
+   *
+   * `applyReview` keeps its existing responsibility (stability / retention /
+   * schedule fields) and still never assigns mastery.
+   *
+   * The transition is the SAME one practice uses — `applyMasterySemantics` with
+   * whatever the audited switch resolves — so review and practice share one 口径.
+   * With `MASTERY_SEMANTICS` unset that is the legacy production EMA, bit for
+   * bit. The C1 direction guard is NOT enabled here and this method does not
+   * depend on it: review evidence and the semantics switch are two independent
+   * variables by construction.
+   */
+  async applyReviewObservation(
+    userId: string,
+    input: {
+      questionId: string;
+      isCorrect: boolean;
+      occurredAt: Date;
+      /** The receipt this projection is conditioned on; carried for attribution. */
+      evidenceEventKey: string;
+    },
+    transaction?: Prisma.TransactionClient,
+  ): Promise<ReviewMasteryApplication | null> {
+    if (!this.enabled) return null;
+    const db: DbClient = transaction ?? this.prisma;
+    const tags = await resolveKnowledgeNodesForQuestion(db, input.questionId);
+    if (tags.length === 0) return null;
+    const nodes = await loadActiveKnowledgeNodes(
+      db,
+      tags.map((tag) => tag.knowledgeNodeId),
+    );
+    const nodeById = new Map(nodes.map((node) => [node.id, node]));
+
+    const semantics = resolveMasterySemantics();
+    const applied: ReviewMasteryNodeApplication[] = [];
+
+    for (const tag of tags) {
+      const node = nodeById.get(tag.knowledgeNodeId);
+      if (!node) continue;
+      // Captured from inside the mutation so it reflects the row the retry loop
+      // actually used, not a stale pre-read.
+      let before: MasteryState | null = null;
+      const saved = await saveMasteryWithOptimisticRetry(db, userId, node.id, (row) => {
+        const current = row ? toMasteryState(row) : neutralMastery();
+        before = current;
+        const next = applyMasterySemantics(semantics, current, {
+          isCorrect: input.isCorrect,
+          difficulty: clampDifficulty(node.difficulty),
+          role: tag.role,
+        });
+        return {
+          ...next,
+          lastLearnedAt: input.occurredAt,
+        };
+      });
+      const next = toMasteryState(saved);
+      await saveMasterySnapshot(db, userId, node.id, next, startOfUtcDay(input.occurredAt));
+      applied.push({
+        nodeId: node.id,
+        role: tag.role,
+        masteryBefore: round6(before ? (before as MasteryState).mastery : next.mastery),
+        masteryAfter: round6(next.mastery),
+        masteryDelta: round6(next.mastery - (before ? (before as MasteryState).mastery : next.mastery)),
+        attemptsAfter: next.attempts,
+      });
+    }
+
+    return {
+      questionId: input.questionId,
+      evidenceEventKey: input.evidenceEventKey,
+      isCorrect: input.isCorrect,
+      semantics,
+      nodes: applied,
+      authoritative: true,
+    };
   }
 
   async getKnowledgeDetail(userId: string, knowledgePointId: string) {

@@ -30,6 +30,27 @@ export interface ReviewAttemptState {
   inferredReason?: string;
   nextIntervalDays: number;
   reviewedAt: string;
+  /**
+   * V12-M3-B — the caller's own declaration, recorded verbatim. `undefined`
+   * means "not supplied" and is stored as NULL, which readers must treat as
+   * unknown rather than as false.
+   */
+  isReview?: boolean | null;
+  /** V12-M3-B — closed set: 'recommendation_action' | 'wrong_question'. */
+  source?: string | null;
+}
+
+/** The factual outcome of persisting one review attempt. */
+export interface SavedReviewAttempt {
+  /** V12-M3-A — the stable per-occurrence identity used by the evidence key. */
+  attemptId: string;
+  /** The schedule row this attempt belongs to (already the attempt's FK). */
+  scheduleId: string;
+  /** The schedule's nextReviewAt immediately BEFORE this attempt (the due time). */
+  dueAt: string | null;
+  /** Whether an existing schedule row was already due when the attempt happened. */
+  scheduleDriven: boolean;
+  reviewedAt: string;
 }
 
 @Injectable()
@@ -89,15 +110,42 @@ export class ReviewScheduleRepository {
     });
   }
 
-  async saveReview(schedule: ReviewScheduleState, attempt: ReviewAttemptState, tx?: Prisma.TransactionClient) {
-    if (!this.enabled) return;
-    const save = async (db: Prisma.TransactionClient | PrismaService) => {
+  /**
+   * Persists the schedule and one attempt, and returns the attempt's factual
+   * identity (V12-M3-A: the evidence receipt is keyed by it) plus the
+   * schedule-time facts V12-M3-B asked for.
+   *
+   * `dueAt` and `scheduleDriven` are read from the schedule row INSIDE the same
+   * transaction, before the upsert overwrites `nextReviewAt` — so they describe
+   * the due time this attempt actually answered, and cannot be clobbered by a
+   * concurrent review of the same question.
+   *
+   * Returns null when the store is unavailable: there is then no durable
+   * attempt, and the caller must not project mastery from a non-existent one.
+   */
+  async saveReview(
+    schedule: ReviewScheduleState,
+    attempt: ReviewAttemptState,
+    tx?: Prisma.TransactionClient,
+  ): Promise<SavedReviewAttempt | null> {
+    if (!this.enabled) return null;
+    const save = async (db: Prisma.TransactionClient | PrismaService): Promise<SavedReviewAttempt> => {
+      const prior = await db.reviewSchedule.findUnique({
+        where: { userId_questionId: { userId: schedule.userId, questionId: schedule.questionId } },
+        select: { nextReviewAt: true },
+      });
+      const reviewedAt = new Date(attempt.reviewedAt);
+      const dueAt = prior?.nextReviewAt ?? null;
+      // A factual timestamp comparison, not a derived score: was the schedule
+      // already due when this redo happened.
+      const scheduleDriven = dueAt != null && dueAt.getTime() <= reviewedAt.getTime();
+
       const saved = await db.reviewSchedule.upsert({
         where: { userId_questionId: { userId: schedule.userId, questionId: schedule.questionId } },
         create: toScheduleData(schedule),
         update: toScheduleUpdate(schedule),
       });
-      await db.reviewAttempt.create({
+      const created = await db.reviewAttempt.create({
         data: {
           scheduleId: saved.id,
           redoCorrect: attempt.redoCorrect,
@@ -107,15 +155,23 @@ export class ReviewScheduleRepository {
           actionId: attempt.actionId ?? null,
           idempotencyKey: attempt.idempotencyKey ?? null,
           nextIntervalDays: attempt.nextIntervalDays,
-          reviewedAt: new Date(attempt.reviewedAt),
-        } as any,
+          reviewedAt,
+          isReview: attempt.isReview ?? null,
+          source: attempt.source ?? null,
+          scheduleDriven,
+          dueAt,
+        },
       });
+      return {
+        attemptId: created.id,
+        scheduleId: saved.id,
+        dueAt: dueAt ? dueAt.toISOString() : null,
+        scheduleDriven,
+        reviewedAt: reviewedAt.toISOString(),
+      };
     };
-    if (tx) {
-      await save(tx);
-      return;
-    }
-    await this.prisma.$transaction(save);
+    if (tx) return save(tx);
+    return this.prisma.$transaction(save);
   }
 
   /**
@@ -134,6 +190,10 @@ export class ReviewScheduleRepository {
     redoCorrect: boolean;
     nextIntervalDays: number;
     idempotencyKey: string | null;
+    isReview: boolean | null;
+    scheduleDriven: boolean | null;
+    source: string | null;
+    dueAt: string | null;
   }>> {
     if (!this.enabled) return [];
     const rows = await this.prisma.reviewAttempt.findMany({
@@ -147,6 +207,10 @@ export class ReviewScheduleRepository {
         redoCorrect: true,
         nextIntervalDays: true,
         idempotencyKey: true,
+        isReview: true,
+        scheduleDriven: true,
+        source: true,
+        dueAt: true,
         schedule: { select: { questionId: true } },
       },
     });
@@ -158,6 +222,10 @@ export class ReviewScheduleRepository {
       redoCorrect: row.redoCorrect,
       nextIntervalDays: row.nextIntervalDays,
       idempotencyKey: row.idempotencyKey ?? null,
+      isReview: row.isReview ?? null,
+      scheduleDriven: row.scheduleDriven ?? null,
+      source: row.source ?? null,
+      dueAt: row.dueAt ? row.dueAt.toISOString() : null,
     }));
   }
 

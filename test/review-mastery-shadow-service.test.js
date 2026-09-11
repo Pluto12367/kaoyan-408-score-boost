@@ -222,20 +222,53 @@ test('applyReview still leaves mastery untouched — the gap is real, not papere
   const source = readFileSync(SCORE_CENTER_SOURCE, 'utf8');
   const start = source.indexOf('async applyReview(');
   assert.ok(start > 0, 'applyReview must still exist');
-  const end = source.indexOf('async getKnowledgeDetail(', start);
-  assert.ok(end > start, 'positive control: the slice is bounded by the next real method');
+  // Bound at the NEXT method, not at a later one: V12-M3-C inserted
+  // `applyReviewObservation` between applyReview and getKnowledgeDetail, and
+  // that method legitimately DOES assign mastery. Slicing past it dragged the
+  // new authoritative writer into this assertion.
+  const end = source.indexOf('async applyReviewObservation(', start);
+  assert.ok(end > start, 'positive control: the slice is bounded by the next method');
   const body = source.slice(start, end);
   assert.ok(body.length > 400, 'positive control: the extracted body is not empty');
+  // Strip comments: the doc comment of the NEXT method also names the switch,
+  // and matching prose is how an assertion stops testing behaviour.
+  const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
-  // The gap this whole milestone exists to shadow: an observed review outcome
-  // never reaches the ability estimate.
-  assert.match(body, /\.\.\.current,/, 'applyReview must still spread the existing mastery state');
-  assert.match(body, /updateStabilityAfterReview/, 'stability is still what review updates');
-  assert.match(body, /retention = 1/, 'the stored retention constant is unchanged');
-  assert.equal(/mastery\s*:/.test(body.replace(/mastery\s*:\s*current\.mastery/g, '')), false,
+  // The gap this milestone exists to close: applyReview itself never assigns
+  // mastery. The ability estimate is reached through the evidence projection
+  // (applyReviewObservation), which is asserted separately below.
+  assert.match(code, /\.\.\.current,/, 'applyReview must still spread the existing mastery state');
+  assert.match(code, /updateStabilityAfterReview/, 'stability is still what review updates');
+  assert.match(code, /retention = 1/, 'the stored retention constant is unchanged');
+  assert.equal(/mastery\s*:/.test(code.replace(/mastery\s*:\s*current\.mastery/g, '')), false,
     'applyReview must not assign a new mastery value');
-  assert.equal(/applyMasterySemantics/.test(body), false, 'the switch must not have been wired into review');
-  assert.equal(/userKnowledgeMastery|userMasterySnapshot\s*\.\s*(update|upsert|create)/.test(body.replace(/saveMasteryWithOptimisticRetry|saveMasterySnapshot/g, '')), false);
+  assert.equal(/applyMasterySemantics/.test(code), false, 'the review writer must not apply the transition itself');
+  assert.equal(/userKnowledgeMastery|userMasterySnapshot\s*\.\s*(update|upsert|create)/.test(code.replace(/saveMasteryWithOptimisticRetry|saveMasterySnapshot/g, '')), false);
+});
+
+test('the authoritative review→mastery projection is conditioned on a receipt', () => {
+  const source = readFileSync(
+    new URL('../apps/api/src/study/review-mastery-integration.service.ts', import.meta.url),
+    'utf8',
+  );
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  // The literal production chain, in order: receipt → projection → mastery.
+  const receipt = code.indexOf('recordReviewRecallDurable');
+  const projection = code.indexOf('projectReviewEvidence(');
+  const apply = code.indexOf('applyReviewObservation(');
+  assert.ok(receipt > 0, 'the receipt must be recorded');
+  assert.ok(projection > receipt, 'the receipt must exist before the projection decides');
+  assert.ok(apply > projection, 'mastery must be applied after the projection');
+  assert.match(code, /if \(!durable\.persisted\)/, 'a non-durable receipt must block the mastery write');
+  assert.match(code, /if \(!observation\.eligibleForMastery\)/, 'an ineligible receipt must block the mastery write');
+  assert.match(code, /findCanonicalEvent/, 'the exactly-once claim must be checked');
+  assert.match(code, /REVIEW_MASTERY_APPLIED_EVENT_TYPE/, 'the claim must be recorded for replay safety');
+
+  // It must NOT go around the evidence layer.
+  assert.equal(/applyReview\(/.test(code), false, 'the integration must not call the review writer directly');
+  assert.equal(/userKnowledgeMastery/.test(code), false, 'the integration must not write mastery itself');
+  assert.ok(!/updateMasteryAfterAttempt\(/.test(code), 'the transition belongs to the mastery engine, not here');
 });
 
 test('mastery semantics remain unswitched and unreachable from the shadow', () => {

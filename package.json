@@ -61,6 +61,7 @@
     "test:integration:score-loop": "npm run build:api && node scripts/integration-score-improvement-loop.mjs",
     "test:integration:review-shadow-cohort": "npm run build:api && node scripts/integration-review-shadow-cohort.mjs",
     "test:integration:review-mastery-cohort": "npm run build:api && node scripts/integration-review-mastery-cohort.mjs",
+    "test:integration:review-mastery-production": "npm run build:api && node scripts/integration-review-mastery-production.mjs",
     "test:integration:event-key": "npm run build:api && node scripts/integration-event-key.mjs",
     "test:integration:import-first": "npm run build:api && node scripts/integration-import-first.mjs",
     "test:integration:content-import": "npm run build:api && node scripts/integration-content-import.mjs",

@@ -57,6 +57,10 @@ function receipt(input) {
     questionId: input.questionId,
     recordedAt: input.recordedAt,
     scope: input.scope ?? input.recordedAt.slice(0, 10),
+    // V12-M3-A: explicit null = a legacy day-scoped receipt with no
+    // per-occurrence identity. Present but null is not the same as absent, and
+    // the tests below rely on that distinction.
+    occurrence: 'occurrence' in input ? input.occurrence : null,
     kind: input.kind ?? 'recall_outcome',
     strength: input.strength ?? 'strong',
     canInfluenceMastery: input.canInfluenceMastery ?? true,
@@ -75,6 +79,7 @@ function event(input) {
     redoCorrect: input.redoCorrect,
     difficulty: input.difficulty ?? 3,
     scheduledReview: 'scheduledReview' in input ? input.scheduledReview : true,
+    occurrence: 'occurrence' in input ? input.occurrence : null,
   };
 }
 
@@ -143,10 +148,12 @@ test('a matched receipt makes the event eligible and preserves its identity', ()
   assert.equal(projection.observations.every((row) => row.receiptMatch === 'exact'), true);
 });
 
-test('day-scoped receipts are shared honestly instead of duplicating observations', () => {
-  // The ledger's event key is scoped by day, so three reviews of one question on
-  // one day genuinely share one receipt. Dropping two of them would understate
-  // the history; inventing receipts would fake the boundary.
+test('legacy day-scoped receipts are still shared, and the sharing is reported', () => {
+  // A legacy receipt has no occurrence identity, so it genuinely cannot tell
+  // three same-day redos apart. Dropping two of them would understate the
+  // history; inventing receipts would fake the boundary. So the shared receipt
+  // is attached to every event AND flagged, with the match kind kept separate
+  // from the sharing fact so neither is lost.
   const events = [
     event({ reviewEventId: 'd1', questionId: 'q9', nodeId: 'node-mid', reviewedAt: '2026-03-05T08:00:00.000Z', redoCorrect: true }),
     event({ reviewEventId: 'd2', questionId: 'q9', nodeId: 'node-mid', reviewedAt: '2026-03-05T12:00:00.000Z', redoCorrect: false }),
@@ -158,10 +165,70 @@ test('day-scoped receipts are shared honestly instead of duplicating observation
   assert.equal(projection.reconciliation.eventsWithReceipt, 3);
   assert.equal(projection.reconciliation.coalescedReceipts, 1);
   assert.equal(projection.reconciliation.maxEventsPerReceipt, 3);
-  assert.equal(projection.observations.filter((row) => row.receiptMatch === 'coalesced_day_scope').length, 2);
-  assert.equal(projection.observations.filter((row) => row.receiptMatch === 'exact').length, 1);
+  assert.equal(projection.reconciliation.legacyReceipts, 1);
+  assert.equal(projection.reconciliation.occurrenceReceipts, 0);
+  assert.equal(projection.reconciliation.matchedByOccurrence, 0);
+
+  const byId = new Map(projection.observations.map((row) => [row.reviewEventId, row]));
+  assert.equal(byId.get('d1').receiptMatch, 'exact', 'the exact-timestamp match is still identified');
+  assert.equal(byId.get('d2').receiptMatch, 'day_scope');
+  assert.equal(byId.get('d3').receiptMatch, 'day_scope');
+  for (const row of projection.observations) {
+    assert.equal(row.receiptId, 'rcpt-day');
+    assert.equal(row.sharedReceipt, true, 'sharing must be reported, not folded into the match kind');
+  }
   assert.match(projection.reconciliation.basis, /共用/);
-  for (const row of projection.observations) assert.equal(row.receiptId, 'rcpt-day');
+});
+
+test('V12-M3-A: occurrence-scoped receipts match one-to-one with no coalescing', () => {
+  // The fidelity fix. Three distinct redos on one day, each with its own
+  // receipt keyed by the attempt identity — the exact case that used to
+  // collapse into a single day-scoped row (measured: 31 attempts → 15 receipts).
+  const events = [
+    event({ reviewEventId: 'o1', questionId: 'q1', nodeId: 'node-mid', reviewedAt: '2026-03-06T08:00:00.000Z', redoCorrect: true, occurrence: 'att-1' }),
+    event({ reviewEventId: 'o2', questionId: 'q1', nodeId: 'node-mid', reviewedAt: '2026-03-06T12:00:00.000Z', redoCorrect: false, occurrence: 'att-2' }),
+    event({ reviewEventId: 'o3', questionId: 'q1', nodeId: 'node-mid', reviewedAt: '2026-03-06T20:00:00.000Z', redoCorrect: true, occurrence: 'att-3' }),
+  ];
+  const receipts = [
+    receipt({ receiptId: 'r1', questionId: 'q1', recordedAt: '2026-03-06T08:00:00.000Z', occurrence: 'att-1' }),
+    receipt({ receiptId: 'r2', questionId: 'q1', recordedAt: '2026-03-06T12:00:00.000Z', occurrence: 'att-2' }),
+    receipt({ receiptId: 'r3', questionId: 'q1', recordedAt: '2026-03-06T20:00:00.000Z', occurrence: 'att-3' }),
+  ];
+  const projection = projectReviewEvidence({ events, receipts });
+
+  assert.equal(projection.reconciliation.eventsWithReceipt, 3);
+  assert.equal(projection.reconciliation.occurrenceReceipts, 3);
+  assert.equal(projection.reconciliation.legacyReceipts, 0);
+  assert.equal(projection.reconciliation.matchedByOccurrence, 3);
+  assert.equal(projection.reconciliation.coalescedReceipts, 0, 'occurrence identity means no sharing');
+  assert.equal(projection.reconciliation.maxEventsPerReceipt, 1);
+  for (const row of projection.observations) {
+    assert.equal(row.receiptMatch, 'occurrence');
+    assert.equal(row.sharedReceipt, false);
+  }
+  assert.deepEqual(
+    projection.observations.map((row) => row.receiptId),
+    ['r1', 'r2', 'r3'],
+    'each event must receive ITS OWN receipt, not whichever shares a timestamp',
+  );
+});
+
+test('occurrence matching wins over a same-timestamp legacy receipt', () => {
+  // Strongest-identity-first ordering: if a legacy receipt happens to share a
+  // timestamp with an event, the occurrence-keyed receipt must still be the one
+  // that attaches — otherwise a stray legacy row could hijack the match.
+  const events = [
+    event({ reviewEventId: 'x1', questionId: 'q5', nodeId: 'node-mid', reviewedAt: '2026-03-07T10:00:00.000Z', redoCorrect: true, occurrence: 'att-x' }),
+  ];
+  const receipts = [
+    receipt({ receiptId: 'legacy-same-second', questionId: 'q5', recordedAt: '2026-03-07T10:00:00.000Z' }),
+    receipt({ receiptId: 'by-occurrence', questionId: 'q5', recordedAt: '2026-03-07T10:00:00.000Z', occurrence: 'att-x' }),
+  ];
+  const projection = projectReviewEvidence({ events, receipts });
+
+  assert.equal(projection.observations[0].receiptId, 'by-occurrence');
+  assert.equal(projection.observations[0].receiptMatch, 'occurrence');
+  assert.equal(projection.reconciliation.receiptsOrphaned, 1, 'the unused legacy receipt is reported, not hidden');
 });
 
 test('a "marked reviewed" receipt is activity only and never licenses a mastery step', () => {

@@ -89,6 +89,17 @@ export interface LearningEvidenceRecord {
   readonly sourceId: string | null;
   readonly actionId: string | null;
   readonly recordedAt: string;
+  /**
+   * V12-M3-A — the stable identity of the single occurrence this receipt
+   * describes (for a review redo, the ReviewAttempt row id). null means the
+   * caller supplied no per-occurrence discriminator, which is the case for
+   * every legacy row and for actions whose occurrence has no natural identity.
+   *
+   * Legacy rows are NOT rewritten: a null occurrence is read as "day-scoped
+   * aggregate", never as "missing data to be back-filled" — inventing an
+   * occurrence for a historical row would fabricate an event identity.
+   */
+  readonly occurrence: string | null;
   readonly source: 'derived';
   /**
    * Optional structured detail (for example a rubric-scored breakdown with its
@@ -115,6 +126,15 @@ export interface LearningEvidenceInput extends LearningActionFacts {
   readonly recordedAt: string;
   /** Distinguishes repeated occurrences of the same action on the same source. */
   readonly scope?: string | null;
+  /**
+   * V12-M3-A — a stable discriminator for ONE occurrence (e.g. the review
+   * attempt id). When supplied, the event key becomes occurrence-scoped, so N
+   * genuinely distinct observations of the same source on the same day produce
+   * N receipts instead of collapsing into one. When omitted, the key keeps its
+   * original day-scoped shape, which is what every existing caller and every
+   * historical row uses.
+   */
+  readonly occurrence?: string | null;
   /** Optional structured detail carried into the evidence record verbatim. */
   readonly detail?: Readonly<Record<string, unknown>> | null;
 }
@@ -268,6 +288,7 @@ export function buildLearningEvidence(input: LearningEvidenceInput): LearningEvi
       action: input.action,
       sourceId: input.sourceId ?? null,
       scope: input.scope ?? undefined,
+      occurrence: input.occurrence ?? null,
     }),
     userId: input.userId,
     action: input.action,
@@ -286,6 +307,7 @@ export function buildLearningEvidence(input: LearningEvidenceInput): LearningEvi
     sourceId: input.sourceId ?? null,
     actionId: input.actionId ?? null,
     recordedAt: input.recordedAt,
+    occurrence: normalizeOccurrence(input.occurrence),
     source: 'derived',
     detail: input.detail ?? null,
   };
@@ -297,10 +319,26 @@ export function learningEvidenceKey(input: {
   readonly sourceId?: string | null;
   /** Distinguishes repeated occurrences of the same action on the same source. */
   readonly scope?: string | null;
+  /**
+   * V12-M3-A — per-occurrence discriminator. Appended as a final segment so the
+   * legacy day-scoped key stays a strict PREFIX of the new one: an old key can
+   * still be recognised as a day-scoped aggregate, and no new key can collide
+   * with an old one.
+   */
+  readonly occurrence?: string | null;
 }): string {
   const source = input.sourceId ?? 'none';
   const scope = input.scope ? `:${input.scope}` : '';
-  return `LEARNING_EVIDENCE:${input.userId}:${input.action}:${source}${scope}`;
+  const occurrence = normalizeOccurrence(input.occurrence);
+  const suffix = occurrence ? `:${occurrence}` : '';
+  return `LEARNING_EVIDENCE:${input.userId}:${input.action}:${source}${scope}${suffix}`;
+}
+
+/** An empty or whitespace-only discriminator is treated as absent, never as a segment. */
+function normalizeOccurrence(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 export function summarizeLearningEvidence(
