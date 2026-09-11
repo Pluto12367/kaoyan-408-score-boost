@@ -198,9 +198,11 @@ async function seedStudent(prisma, { band, outcome, reviewCount, intervalDays })
     const nodeFamilyId = `${familyId}-${index}`;
     familyIds.push(nodeFamilyId);
     const isReviewed = index === 0;
-    // Context nodes are spread around the band so the reviewed node has room to
-    // move up or down the ranking.
-    const offset = (index - Math.floor(NODES_PER_STUDENT / 2)) * 0.07;
+    // Context nodes are spread around the band; the REVIEWED node sits exactly
+    // at the band mastery so the reported band describes the node whose delta is
+    // being measured (an earlier version offset it too, which made the labels
+    // misleading).
+    const offset = index === 0 ? 0 : (index - Math.floor(NODES_PER_STUDENT / 2)) * 0.07;
     const mastery = clamp01(band.mastery + offset);
 
     await prisma.knowledgeNode.create({
@@ -209,8 +211,10 @@ async function seedStudent(prisma, { band, outcome, reviewCount, intervalDays })
         subject: index % 2 === 0 ? 'DATA_STRUCTURE' : 'OPERATING_SYSTEM',
         nodeType: 'knowledge_point',
         name: `cohort node ${tag} #${index}`,
-        importance: 3 + (index % 3),
-        difficulty: 2 + (index % 3),
+        // Uniform across a student's nodes so the mastery delta is the ONLY
+        // variable under study and any rank movement is attributable to it.
+        importance: 4,
+        difficulty: 3,
         syllabusVersion: '2026',
       },
     });
@@ -236,10 +240,10 @@ async function seedStudent(prisma, { band, outcome, reviewCount, intervalDays })
       data: {
         knowledgeNodeId: nodeId,
         snapshotDate: new Date('2026-01-01T00:00:00.000Z'),
-        recent3Frequency: 3 + (index % 4),
-        recent5Frequency: 4 + (index % 3),
-        allTimeEvidence: 6 + (index % 5),
-        primaryScore5y: 8 + (index % 6),
+        recent3Frequency: 4,
+        recent5Frequency: 5,
+        allTimeEvidence: 8,
+        primaryScore5y: 12,
         trendDirection: 'STABLE',
         trendDelta: 0,
         evidenceConfidence: 'HIGH',
