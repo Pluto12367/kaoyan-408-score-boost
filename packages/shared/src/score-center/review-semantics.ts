@@ -28,7 +28,9 @@
  * comparison meaningless).
  */
 
-import { estimateRetention, updateMasteryAfterAttempt } from './mastery';
+import { estimateRetention } from './mastery';
+import { applyMasteryModel } from './mastery-candidate';
+import type { MasteryModelId } from './mastery-semantics';
 import type { MasteryState } from './types';
 
 /** Divergence smaller than this is reported as converged (float noise). */
@@ -192,6 +194,12 @@ export function replayUnifiedReviewMastery(input: {
    * passed off as a full baseline.
    */
   readonly baselineApproximated?: boolean;
+  /**
+   * Which mastery transition to replay with. Defaults to the production model,
+   * so existing callers are unaffected; the candidate is opt-in and never the
+   * default.
+   */
+  readonly model?: MasteryModelId;
 }): ReviewMasteryReplay {
   const baselineByNode = new Map(input.baselines.map((row) => [row.nodeId, row]));
   const storedByNode = new Map(input.stored.map((row) => [row.nodeId, row]));
@@ -245,7 +253,7 @@ export function replayUnifiedReviewMastery(input: {
       : neutralState();
 
     for (const observation of observations) {
-      state = updateMasteryAfterAttempt(state, {
+      state = applyMasteryModel(input.model ?? 'production', state, {
         isCorrect: observation.redoCorrect,
         difficulty: clampDifficulty(observation.difficulty),
         role: 'PRIMARY',

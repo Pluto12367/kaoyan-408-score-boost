@@ -23,6 +23,7 @@ import {
   type RecommendationExamEvidence,
   type ShadowChainNodeInput,
   type ShadowDecisionChain,
+  type MasteryModelId,
 } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReviewSemanticsShadowService } from './review-semantics-shadow.service';
@@ -34,6 +35,8 @@ const DAYS_FALLBACK = 96;
 
 export interface ShadowDecisionChainResult extends ShadowDecisionChain {
   readonly windowDays: number;
+  /** Which mastery semantics produced the shadow path. */
+  readonly shadowModel: MasteryModelId;
   readonly source: 'derived';
 }
 
@@ -51,13 +54,14 @@ export class ShadowDecisionChainService {
   /** null = store unavailable (honestly absent, never an empty chain). */
   async getChain(
     userId: string,
-    options: { windowDays?: number; maxItems?: number } = {},
+    options: { windowDays?: number; maxItems?: number; shadowModel?: MasteryModelId } = {},
   ): Promise<ShadowDecisionChainResult | null> {
     if (!this.enabled) return null;
     const db = this.prisma!;
 
     const assembly = await this.reviewShadow!.assembleReplayInputs(userId, {
       windowDays: options.windowDays,
+      model: options.shadowModel ?? 'production',
     });
     if (assembly == null) return null;
 
@@ -205,7 +209,12 @@ export class ShadowDecisionChainService {
       maxItems: clampMaxItems(options.maxItems),
     });
 
-    return { ...chain, windowDays: assembly.windowDays, source: 'derived' };
+    return {
+      ...chain,
+      windowDays: assembly.windowDays,
+      shadowModel: options.shadowModel ?? 'production',
+      source: 'derived',
+    };
   }
 }
 

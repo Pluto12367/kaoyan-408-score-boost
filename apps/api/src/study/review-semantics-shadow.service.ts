@@ -22,6 +22,7 @@ import {
   type ReviewMasteryBaseline,
   type ReviewMasteryReplay,
   type ReviewMasteryReplayRow,
+  type MasteryModelId,
   type ReviewObservation,
   type RetentionShadowInputRow,
   type RetentionShadow,
@@ -90,7 +91,7 @@ export class ReviewSemanticsShadowService {
    */
   async assembleReplayInputs(
     userId: string,
-    options: { windowDays?: number } = {},
+    options: { windowDays?: number; model?: MasteryModelId } = {},
   ): Promise<ReplayAssembly | null> {
     if (!this.enabled) return null;
     const db = this.prisma!;
@@ -223,6 +224,7 @@ export class ReviewSemanticsShadowService {
       baselines,
       stored,
       baselineApproximated: baselines.length > 0,
+      model: options.model ?? 'production',
     });
 
     return {

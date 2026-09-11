@@ -366,6 +366,7 @@ export class DailyBriefController {
     @Query('userId') viewUserId?: string,
     @Query('windowDays') windowDays?: string,
     @Query('maxItems') maxItems?: string,
+    @Query('shadowModel') shadowModel?: string,
   ) {
     const userId = this.resolveUserId(user, viewUserId);
     if (!this.shadowDecisionChain) {
@@ -374,6 +375,10 @@ export class DailyBriefController {
     const chain = await this.shadowDecisionChain.getChain(userId, {
       windowDays: parsePositiveInt(windowDays),
       maxItems: parsePositiveInt(maxItems),
+      // 'candidate' selects the direction-preserving candidate; anything else
+      // keeps the production transition. The candidate is a comparison input,
+      // never a default.
+      shadowModel: shadowModel === 'candidate' ? 'direction_preserving' : 'production',
     });
     if (chain == null) {
       return { generatedAt: new Date().toISOString(), chain: null, reason: 'store_unavailable' };

@@ -12,6 +12,8 @@ export * from './score-opportunity';
 export * from './score-calibration';
 export * from './large-question-rubric';
 export * from './shadow-decision-chain';
+export * from './mastery-semantics';
+export * from './mastery-candidate';
 export * from './fsrs-scheduler';
 export * from './decay-defense.selector';
 export * from './mastery-calibration';

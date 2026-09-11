@@ -436,6 +436,28 @@ async function verifyDecisionChain(prisma, cohort, adminHeaders, shadowRows) {
   for (const student of cohort) {
     const url = `${apiUrl}/coach/shadow-decision-chain?userId=${student.userId}&windowDays=365&maxItems=8`;
     const chain = await getJson(url, adminHeaders);
+    // The same chain under the direction-preserving candidate, so the semantic
+    // repair can be checked downstream rather than only on the mastery number.
+    const candidateChain = await getJson(`${url}&shadowModel=candidate`, adminHeaders);
+    assert.equal(candidateChain.shadowModel, 'direction_preserving', 'the candidate must be selectable');
+    assert.equal(candidateChain.authoritative, false);
+    assert.equal(
+      candidateChain.summary.candidateUniverse.consistent,
+      true,
+      'the candidate must run on the same universe',
+    );
+    // Invariant A across the whole cohort: the candidate must never let a wrong
+    // review raise mastery, and must never let a correct one lower it.
+    for (const row of candidateChain.rows) {
+      if (row.masteryDelta == null || row.triggerEventType == null) continue;
+      const observedCorrect = student.outcome === 'all_wrong' ? false : student.outcome === 'all_correct' ? true : null;
+      if (observedCorrect === false) {
+        assert.ok(row.masteryDelta <= 0, `candidate raised mastery on a failed review: ${student.userId}`);
+      }
+      if (observedCorrect === true) {
+        assert.ok(row.masteryDelta >= 0, `candidate lowered mastery on a correct review: ${student.userId}`);
+      }
+    }
 
     // Shadow-only semantics
     assert.equal(chain.authoritative, false, 'the chain must never be authoritative');
@@ -504,6 +526,10 @@ async function verifyDecisionChain(prisma, cohort, adminHeaders, shadowRows) {
       confidence: row.confidence,
       riskCodes: chain.risks.map((risk) => risk.code),
       authoritative: row.authoritative,
+      // Semantic repair comparison, measured on the same student and event.
+      candidateMasteryDelta: candidateChain.rows.find((item) => item.knowledgeNodeId === student.nodeId)?.masteryDelta ?? null,
+      candidatePriorityDelta: candidateChain.rows.find((item) => item.knowledgeNodeId === student.nodeId)?.priorityDelta ?? null,
+      candidateRankDelta: candidateChain.rows.find((item) => item.knowledgeNodeId === student.nodeId)?.rankDelta ?? null,
     });
   }
 
@@ -584,7 +610,51 @@ async function verifyDecisionChain(prisma, cohort, adminHeaders, shadowRows) {
   console.log('  determinism                = PASS (repeat calls produced identical decisions)');
   console.log('  attribution                = PASS (every divergence named its review event)');
   console.log('');
-  console.log('[decision-chain] M3 Phase C DECISION DATA READY');
+  console.log('[semantic-repair] old unified vs direction-preserving candidate (same students, same events)');
+  console.log('  case                          oldDMastery  candDMastery   oldDPrio  candDPrio  oldDRank  candDRank');
+  for (const entry of dataset) {
+    console.log(
+      `  ${entry.case.padEnd(28)} ${fmtSigned(entry.masteryDelta).padStart(11)}  ${fmtSigned(entry.candidateMasteryDelta).padStart(12)}  `
+      + `${String(entry.priorityDelta).padStart(9)}  ${String(entry.candidatePriorityDelta).padStart(9)}  `
+      + `${String(entry.rankDelta).padStart(8)}  ${String(entry.candidateRankDelta).padStart(9)}`,
+    );
+  }
+
+  const wrongOnly = dataset.filter((entry) => entry.case.includes('all_wrong'));
+  const correctOnly = dataset.filter((entry) => entry.case.includes('all_correct'));
+  const oldWrongRaised = wrongOnly.filter((entry) => (entry.masteryDelta ?? 0) > 0);
+  const candWrongRaised = wrongOnly.filter((entry) => (entry.candidateMasteryDelta ?? 0) > 0);
+  const oldCorrectLowered = correctOnly.filter((entry) => (entry.masteryDelta ?? 0) < 0);
+  const candCorrectLowered = correctOnly.filter((entry) => (entry.candidateMasteryDelta ?? 0) < 0);
+
+  console.log('');
+  console.log('[semantic-repair] invariant checks on the real cohort');
+  console.log(`  all_wrong: old raised mastery in ${oldWrongRaised.length}/${wrongOnly.length}, candidate in ${candWrongRaised.length}/${wrongOnly.length}`);
+  console.log(`  all_correct: old lowered mastery in ${oldCorrectLowered.length}/${correctOnly.length}, candidate in ${candCorrectLowered.length}/${correctOnly.length}`);
+  assert.equal(candWrongRaised.length, 0, 'the candidate must not raise mastery on failure anywhere in the cohort');
+  assert.equal(candCorrectLowered.length, 0, 'the candidate must not lower mastery on success anywhere in the cohort');
+
+  const origProblem = dataset.find((entry) => entry.case.startsWith('0.00-0.30/all_wrong'));
+  if (origProblem) {
+    console.log('');
+    console.log('[semantic-repair] the original reported problem');
+    console.log(`  0.00-0.30 + all_wrong: old unified delta ${fmtSigned(origProblem.masteryDelta)}, candidate delta ${fmtSigned(origProblem.candidateMasteryDelta)}`);
+    assert.ok(
+      (origProblem.candidateMasteryDelta ?? 0) <= 0,
+      'the reported symptom (a failed review raising mastery) must be gone under the candidate',
+    );
+    console.log('  → symptom removed: a failed review no longer raises mastery');
+  }
+
+  const candPriorities = dataset.map((entry) => Math.abs(entry.candidatePriorityDelta ?? 0));
+  const candRanks = dataset.map((entry) => Math.abs(entry.candidateRankDelta ?? 0));
+  console.log('');
+  console.log('[semantic-repair] new-problem checks under the candidate');
+  console.log(`  max |candidate priority delta| = ${candPriorities.length > 0 ? Math.max(...candPriorities) : 0}  (explosion threshold 25)`);
+  console.log(`  max |candidate rank delta|     = ${candRanks.length > 0 ? Math.max(...candRanks) : 0}`);
+  console.log(`  candidate PRIORITY_SWING rows  = ${dataset.filter((entry) => entry.riskCodes.includes('PRIORITY_SWING')).length}`);
+  console.log('  production semantics           = unchanged (candidate is a shadow input only)');
+
   console.log('  Decision data ready; owner decision still required.');
 }
 
