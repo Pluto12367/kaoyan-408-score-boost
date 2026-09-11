@@ -377,17 +377,60 @@ cohort：   authoritative mastery changed on 15/15 reviewed nodes   （修复前
            PASS — review→mastery shadow is computable, attributable, non-authoritative
 ```
 
-### 16.7 判定修正
+### 16.7 判定修正（已由生产复验闭环）
 
 ```
 原判定：M3 REVIEW → MASTERY PRODUCTION INTEGRATION = READY
-修正为：READY（代码层，V12.1 修复后）  /  线上部署 = NOT VERIFIED（待重新部署复验）
+中间态：READY（代码层，V12.1 修复后）  /  线上部署 = NOT VERIFIED（待重新部署复验）
+最终：  M3 REVIEW → MASTERY PRODUCTION INTEGRATION = VERIFIED
 ```
 
 严格说明：
 - 原报告的**每一项本地结论仍成立**（事件保真、幂等、隔离、C1 OFF、零权威写入）；缺陷在于**"POSTGRESQL E2E PASS" 被夹具形状放大了覆盖面**。
-- 线上生产（`c7d9093`）处于**安全状态**：投影按设计拒绝（不写错数据），C1 OFF，基础设施与迁移全部正常。但 **M3 的功能目标未达成**。
-- 修复需**重新部署**（字面 SHA）并重跑六环 smoke 复验 `mastery_claim` 非空，才能宣布线上 VERIFIED。
+- 第一/二次部署的提交（`c7d9093`）曾处于**安全状态**（投影按设计拒绝、C1 OFF、基础设施与迁移正常），但 M3 功能目标未达成 —— 该状态**已结束**。
+- **V12.1 修复后重新部署并复验通过，判定升级为 VERIFIED**（生产证据见 §16.9）。判定升级的条件正是本节先前写明的两条：`mastery_claim` 非空（实际为 `applied`）、`semantics = legacy`。
+
+### 16.9 生产部署与复验记录（V12.1，2026-09-11）
+
+服务器：腾讯云轻量 `43.128.30.191`，仓库目录 `~/kaoyan-408-score-boost`，运行于 Docker Compose（`postgres` / `app` / `gateway`）。
+
+**部署过程的关键事实（含一处环境陷阱）**
+
+| 项 | 值 |
+|---|---|
+| 回滚点（部署前 HEAD） | `32ab233ce8bdd6f4cc0de53c51819d8d49b675f1`（V11-M1，有效祖先，落后 38 提交） |
+| 第一次部署提交 | `c7d9093685ed82070b312a575e2ac5eac49d0f3a`（M3 基础设施） |
+| **最终部署提交** | **`ffb3af85831da55c3b7060af901acf073736194c`**（V12.1 节点解析修复） |
+| 部署用的 ref | **`FETCH_HEAD` / 字面 SHA** —— **不能用 `origin/feature/v3-product-refactor`** |
+| **环境陷阱（实测）** | 该服务器 `git fetch origin <branch>` **只更新 `FETCH_HEAD`，不更新 `origin/<branch>`**；读出的 remote-tracking ref 是 `a0de9ee`（2026-08-31），**落后 161 个提交且不含本次任何内容**。若按它部署会静默上线一个 161 提交前的版本 |
+| 迁移 | **+2**：`20260911000000_question_rubric` + `20260912000000_review_attempt_schedule_metadata`，**34 → 36** |
+| 备份（自动门禁） | `kaoyan408-20260911T135052Z.dump`、`kaoyan408-20260911T143349Z.dump` |
+| 数据卷 | `postgres` **未被重建**（两次部署后仍 `Up 5 days`）→ 历史数据未受扰动 |
+
+**生产硬门禁（全部 PASS）**
+
+| 项 | 实测 |
+|---|---|
+| 服务 | `app ... (healthy)`、`gateway`、`postgres ... (healthy)` |
+| `/health` | 200，`status:"ok"`、`checks.database:"connected"`、`dataSource:"postgresql"`、`operational.overall:"ok"` |
+| 迁移 | `36 migrations found` / `Database schema is up to date!` |
+| M3-B 四列 | `dueAt / isReview / scheduleDriven / source` 全 `is_nullable=YES`、`column_default` 空 |
+| F4 列 | `rubric \| jsonb \| YES` |
+| 历史行 | `total = 9, null_meta = 9` → **全部保持 NULL，未被回填** |
+| C1 OFF | 容器内 `MASTERY_SEMANTICS = unset`；启动日志 `Mastery semantics: legacy …（未设置，使用默认）`；认领事件 `semantics = legacy` |
+| 路由注册 | 6 个端点**全部 401**（无 404、无 200） |
+| 复习 | `consecutiveCorrect: 2`、`stability: "review"`、`nextReviewInDays: 7` |
+| **投影** | 日志 **`Review mastery projection applied`**（修复前为 `no_knowledge_node`） |
+| **掌握度写入** | `CO-C03-S05-P01`：`mastery 0.9258780201143995`、`version 49`、`lastLearnedAt 2026-09-11T14:41:19.704Z` —— **与复习响应的 `lastReviewedAt` 毫秒级一致** |
+| **恰好一次** | 全库 `REVIEW_MASTERY_APPLIED` = **1** 条 |
+| **生产幂等** | 同幂等键重发 → 返回**已持久化的 attempt**（`reviewedAt` 与首次毫秒级相同），`mastery/version` **均未变化** |
+| 学生隔离 | 同节点的**另一名学生**（`version 0`、`lastLearnedAt 2026-08-20`）**未受影响** |
+
+**复验用的那道题恰是修复前失效的那一类**：`q-003`（`knowledgePointId = co-cache`，**只有 legacy 桥接、没有直接标注**）。它现在通过 → 说明修复覆盖的是**全部 332 道题**，而不是单题特例。
+
+**一项未在生产侧直接复验**（如实记录）：`priority / opportunity / recommendation` 三条下游腿需要 teacher/admin 令牌读取 `/coach/shadow-decision-chain`，本次未在生产上执行。它们已在构建机的真实 HTTP + PostgreSQL E2E（六案例，含真实 Δpriority / Δopportunity / Δrank）与 15×6 队列上验证，且生产侧的权威掌握度已被确认更新。
+
+**结论**：`M3 PRODUCTION DEPLOYMENT = VERIFIED`；P0 事件 0、P1 事件 0。
 
 ### 16.8 本轮新增的 Owner 决策项
 
