@@ -109,7 +109,7 @@ async function main() {
 
     const plan = [
       { key: 'A', label: 'review correct', mastery: 0.6, difficulty: 3, nodes: [{ role: 'reviewed', reviews: [{ correct: true }] }] },
-      { key: 'B', label: 'review incorrect', mastery: 0.6, difficulty: 3, nodes: [{ role: 'reviewed', reviews: [{ correct: false }] }] },
+      { key: 'B', label: 'review incorrect', mastery: 0.6, difficulty: 3, nodes: [{ role: 'reviewed', reviews: [{ correct: false }], tagMode: 'direct' }] },
       {
         key: 'C',
         label: 'repeated review (correct / incorrect / correct)',
@@ -577,9 +577,7 @@ async function seedLegacyRows(prisma, student) {
       source: 'integration',
     },
   });
-  await prisma.questionKnowledgeNodeTag.create({
-    data: { questionId, knowledgeNodeId: nodeId, role: 'PRIMARY' },
-  });
+  await bridgeQuestionToNode(prisma, { questionId, nodeId, pointId: `m3p-point-legacy-${runId}` });
   const correctCount = Math.round(4 * masteryAtSeed);
   await prisma.userKnowledgeMastery.create({
     data: {
@@ -666,6 +664,7 @@ async function seedLegacyRows(prisma, student) {
     nodeId,
     questionId,
     familyId,
+    pointId: `m3p-point-legacy-${runId}`,
     masteryAtSeed,
     count: 1,
     userId: student.userId,
@@ -728,6 +727,50 @@ async function assertMigrationShape(prisma) {
 // Seeding
 // ---------------------------------------------------------------------------
 
+/**
+ * The KnowledgePoint row is needed in EVERY case: it is the
+ * `PracticeRecord.knowledgePointId` FK target, and it is also the bridge source.
+ */
+async function createBridgeKnowledgePoint(prisma, pointId) {
+  await prisma.knowledgePoint.create({
+    data: {
+      id: pointId,
+      subject: 'DATA_STRUCTURE',
+      chapter: 'm3p',
+      title: `m3p point ${pointId}`,
+      importance: 4,
+      frequency: 4,
+      prerequisites: [],
+    },
+  });
+}
+
+/**
+ * V12.1 — reproduce the PRODUCTION node association path.
+ *
+ * Production's `resolveKnowledgeNodesForQuestion` has three tiers, and in the
+ * real database only the third one can fire: `QuestionKnowledgeNodeTag` is empty
+ * (332 questions, 0 rows), while every question reaches a node through
+ * `QuestionKnowledgePoint` → `KnowledgePointNodeMap`. A fixture that writes the
+ * direct tag instead tests the tier production never uses — which is exactly how
+ * the `no_knowledge_node` regression stayed invisible until the live smoke.
+ */
+async function bridgeQuestionToNode(prisma, { questionId, nodeId, pointId }) {
+  await createBridgeKnowledgePoint(prisma, pointId);
+  await prisma.questionKnowledgePoint.create({
+    data: { questionId, knowledgePointId: pointId },
+  });
+  await prisma.knowledgePointNodeMap.create({
+    data: {
+      knowledgePointId: pointId,
+      knowledgeNodeId: nodeId,
+      mappingType: 'PRIMARY',
+      confidence: 0.9,
+      taggedBy: 'HYBRID',
+    },
+  });
+}
+
 async function createNode(prisma, nodeId, difficulty) {
   await prisma.knowledgeNode.create({
     data: {
@@ -782,11 +825,17 @@ async function seedStudent(prisma, spec, sharedNodeId) {
 
   const nodeSpecs = [];
   for (let index = 0; index < spec.nodes.length; index += 1) {
-    nodeSpecs.push({ kind: spec.nodes[index].role, reviews: spec.nodes[index].reviews, idempotent: spec.nodes[index].idempotent, shared: spec.shared === true && index === 0 });
+    nodeSpecs.push({
+      kind: spec.nodes[index].role,
+      reviews: spec.nodes[index].reviews,
+      idempotent: spec.nodes[index].idempotent,
+      tagMode: spec.nodes[index].tagMode,
+      shared: spec.shared === true && index === 0,
+    });
   }
   // Context nodes keep the reviewed node's rank observable.
   for (let index = 0; index < CONTEXT_NODES; index += 1) {
-    nodeSpecs.push({ kind: `context${index}`, reviews: [], idempotent: false, shared: false });
+    nodeSpecs.push({ kind: `context${index}`, reviews: [], idempotent: false, tagMode: undefined, shared: false });
   }
 
   for (let index = 0; index < nodeSpecs.length; index += 1) {
@@ -816,9 +865,20 @@ async function seedStudent(prisma, spec, sharedNodeId) {
         source: 'integration',
       },
     });
-    await prisma.questionKnowledgeNodeTag.create({
-      data: { questionId, knowledgeNodeId: nodeId, role: 'PRIMARY' },
-    });
+    // V12.1 — the fixture must reproduce the PRODUCTION data shape, not a
+    // cleaner one. In production `QuestionKnowledgeNodeTag` is empty and every
+    // node association comes from the legacy bridge, so the default is `bridge`.
+    // A directly tagged question is kept as the contrasting case: if the fixture
+    // only ever built the ideal shape, the bridge path would never be exercised
+    // and this exact defect would stay invisible (it did, until the live smoke).
+    if (nodeSpec.tagMode === 'direct') {
+      await createBridgeKnowledgePoint(prisma, pointId);
+      await prisma.questionKnowledgeNodeTag.create({
+        data: { questionId, knowledgeNodeId: nodeId, role: 'PRIMARY' },
+      });
+    } else {
+      await bridgeQuestionToNode(prisma, { questionId, nodeId, pointId });
+    }
 
     // Context nodes sit away from the band so the reviewed node's movement is
     // attributable; the reviewed node sits exactly at its band mastery. The
@@ -857,17 +917,8 @@ async function seedStudent(prisma, spec, sharedNodeId) {
     });
 
     if (isReviewed) {
-      await prisma.knowledgePoint.create({
-        data: {
-          id: pointId,
-          subject: 'DATA_STRUCTURE',
-          chapter: 'm3p',
-          title: `m3p point ${tag}`,
-          importance: 4,
-          frequency: 4,
-          prerequisites: [],
-        },
-      });
+      // The KnowledgePoint row already exists: `bridgeQuestionToNode` created it
+      // as the bridge source (and it is the PracticeRecord FK target).
       for (let attempt = 0; attempt < 2; attempt += 1) {
         await prisma.practiceRecord.create({
           data: {
@@ -931,18 +982,28 @@ async function cleanup(prisma, cohort) {
   if (cohort.adminId) await prisma.user.deleteMany({ where: { id: cohort.adminId } });
   const nodeIds = [...new Set(cohort.students.flatMap((student) => student.nodeIds))];
   if (cohort.legacy) nodeIds.push(cohort.legacy.nodeId);
+  const questionIds = cohort.students.flatMap((student) => student.reviewTargets.map((target) => target.questionId));
+  if (cohort.legacy) questionIds.push(cohort.legacy.questionId);
+  const pointIds = cohort.students.flatMap((student) => student.pointIds);
+  if (cohort.legacy) pointIds.push(cohort.legacy.pointId);
+
+  // Bridge rows first: both cascade, but deleting them explicitly keeps the
+  // teardown order obvious and independent of cascade behaviour.
+  if (pointIds.length > 0) {
+    await prisma.knowledgePointNodeMap.deleteMany({ where: { knowledgePointId: { in: pointIds } } });
+  }
+  if (questionIds.length > 0) {
+    await prisma.questionKnowledgePoint.deleteMany({ where: { questionId: { in: questionIds } } });
+  }
   if (nodeIds.length > 0) {
     await prisma.knowledgeFrequencySnapshot.deleteMany({ where: { knowledgeNodeId: { in: nodeIds } } });
     await prisma.questionKnowledgeNodeTag.deleteMany({ where: { knowledgeNodeId: { in: nodeIds } } });
     await prisma.knowledgeNode.deleteMany({ where: { id: { in: nodeIds } } });
   }
-  const questionIds = cohort.students.flatMap((student) => student.reviewTargets.map((target) => target.questionId));
-  if (cohort.legacy) questionIds.push(cohort.legacy.questionId);
   if (questionIds.length > 0) await prisma.question.deleteMany({ where: { id: { in: questionIds } } });
   const familyIds = cohort.students.flatMap((student) => student.familyIds);
   if (cohort.legacy) familyIds.push(cohort.legacy.familyId);
   if (familyIds.length > 0) await prisma.questionFamily.deleteMany({ where: { id: { in: familyIds } } });
-  const pointIds = cohort.students.flatMap((student) => student.pointIds);
   if (pointIds.length > 0) await prisma.knowledgePoint.deleteMany({ where: { id: { in: pointIds } } });
 }
 

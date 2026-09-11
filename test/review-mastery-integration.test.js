@@ -29,12 +29,27 @@ const ATTEMPT = 'att-1';
 const RECEIPT = `LEARNING_EVIDENCE:u1:review.recalled:q1:2026-09-11:${ATTEMPT}`;
 
 function harness(options = {}) {
-  const calls = { evidence: [], markerReads: [], markerWrites: [], mastery: [] };
+  const calls = { evidence: [], markerReads: [], markerWrites: [], mastery: [], nodeResolution: [] };
+  // The fake mirrors the SHAPE production's resolver queries, so each tier can be
+  // exercised independently:
+  //   tagRows  → QuestionKnowledgeNodeTag   (tiers 1 and 2)
+  //   linkRows → QuestionKnowledgePoint     (tier 3, via KnowledgePoint.nodeMaps)
+  const tagRows = options.tagRows === undefined
+    ? [{ knowledgeNodeId: 'node-1', role: 'PRIMARY' }]
+    : options.tagRows;
+  const linkRows = options.linkRows === undefined ? [] : options.linkRows;
   const prisma = {
     questionKnowledgeNodeTag: {
-      findMany: async () => (options.tags === undefined
-        ? [{ knowledgeNodeId: 'node-1', role: 'PRIMARY' }]
-        : options.tags),
+      findMany: async () => {
+        calls.nodeResolution.push('tag');
+        return tagRows;
+      },
+    },
+    questionKnowledgePoint: {
+      findMany: async () => {
+        calls.nodeResolution.push('bridge');
+        return linkRows;
+      },
     },
     knowledgeNode: { findUnique: async () => ({ difficulty: 3 }) },
   };
@@ -188,7 +203,10 @@ test('the claim key is deterministic and derived from the receipt', async () => 
 });
 
 test('a question with no knowledge node keeps the receipt but changes no mastery', async () => {
-  const { service, calls, tx } = harness({ tags: [] });
+  // No direct tag AND no legacy bridge link → genuinely unresolvable. The
+  // observation is still recorded (the absence is the finding) but nothing may
+  // move the ability estimate, and no node may be invented.
+  const { service, calls, tx } = harness({ tagRows: [], linkRows: [] });
   const result = await service.applyFromReviewObservation('u1', input(), tx);
 
   assert.equal(result.applied, false);
@@ -196,6 +214,59 @@ test('a question with no knowledge node keeps the receipt but changes no mastery
   assert.equal(calls.evidence.length, 1, 'the observation is still recorded — the absence is the finding');
   assert.equal(calls.mastery.length, 0);
   assert.match(result.basis, /知识节点/);
+  // The resolver must have walked BOTH tiers before giving up.
+  assert.deepEqual(calls.nodeResolution, ['tag', 'bridge'], 'production resolution order must be respected');
+});
+
+test('V12.1 fix: a question whose node lives only in the legacy bridge still projects', async () => {
+  // This is the production shape that broke: QuestionKnowledgeNodeTag is empty
+  // (332 questions, 0 rows) and every node association comes from
+  // QuestionKnowledgePoint → KnowledgePointNodeMap. The old implementation
+  // queried the tag table directly and declined all of them.
+  const { service, calls, tx } = harness({
+    tagRows: [],
+    linkRows: [{
+      knowledgePoint: {
+        nodeMaps: [{ knowledgeNodeId: 'node-bridge', confidence: 0.9, taggedBy: 'HYBRID' }],
+      },
+    }],
+  });
+  const result = await service.applyFromReviewObservation('u1', input(), tx);
+
+  assert.deepEqual(calls.nodeResolution, ['tag', 'bridge'], 'the bridge tier must be consulted');
+  assert.equal(result.applied, true, `expected the bridge-resolved question to project, got ${result.reason}`);
+  assert.equal(result.observation.nodeId, 'node-bridge');
+  assert.equal(calls.mastery.length, 1, 'mastery must be applied exactly once');
+  assert.equal(calls.markerWrites.length, 1, 'the exactly-once claim must be recorded');
+});
+
+test('V12.1 fix: a directly tagged question still projects exactly once', async () => {
+  // The bridge fallback must not change behaviour for the normal shape.
+  const { service, calls, tx } = harness({
+    tagRows: [{ knowledgeNodeId: 'node-direct', role: 'PRIMARY' }],
+    linkRows: [{
+      knowledgePoint: {
+        nodeMaps: [{ knowledgeNodeId: 'node-wrong', confidence: 0.1, taggedBy: 'HYBRID' }],
+      },
+    }],
+  });
+  const result = await service.applyFromReviewObservation('u1', input(), tx);
+
+  assert.equal(result.applied, true);
+  assert.equal(result.observation.nodeId, 'node-direct', 'a direct tag must win over the bridge fallback');
+  assert.deepEqual(calls.nodeResolution, ['tag'], 'the bridge must not even be consulted when a tag exists');
+  assert.equal(calls.mastery.length, 1);
+});
+
+test('V12.1 fix: PRIMARY wins over SECONDARY within the resolved set', async () => {
+  const { service, tx } = harness({
+    tagRows: [
+      { knowledgeNodeId: 'node-secondary', role: 'SECONDARY' },
+      { knowledgeNodeId: 'node-primary', role: 'PRIMARY' },
+    ],
+  });
+  const result = await service.applyFromReviewObservation('u1', input(), tx);
+  assert.equal(result.observation.nodeId, 'node-primary');
 });
 
 test('a mastery writer that declines does not leave a false claim behind', async () => {
@@ -213,7 +284,7 @@ test('every decline path leaves the mastery engine untouched', async () => {
     harness({ prismaEnabled: false }),
     harness({ durable: { record: { id: RECEIPT, occurrence: ATTEMPT }, persisted: false } }),
     harness({ existingMarker: { id: 'm' } }),
-    harness({ tags: [] }),
+    harness({ tagRows: [], linkRows: [] }),
     harness({ masteryReturnsNull: true }),
   ];
   for (const { service, calls, tx } of declines) {

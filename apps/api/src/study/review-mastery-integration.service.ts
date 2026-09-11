@@ -46,6 +46,7 @@ import {
   type ReviewEvidenceProjection,
 } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveKnowledgeNodesForQuestion } from '../score-center/repository';
 import { ScoreCenterService, type ReviewMasteryApplication } from '../score-center/service';
 import { CanonicalEventWriterService } from './canonical-event-writer.service';
 import { LearningEvidenceService } from './learning-evidence.service';
@@ -265,20 +266,30 @@ export class ReviewMasteryIntegrationService {
   }
 
   /**
-   * PRIMARY tag wins, matching both the shadow's resolution and production's
-   * ordering, so the projected observation describes the same node the
-   * authoritative writer will move first.
+   * PRIMARY first, so the projected observation describes the same node the
+   * authoritative writer moves first.
+   *
+   * V12.1 fix — this MUST go through production's `resolveKnowledgeNodesForQuestion`
+   * rather than querying `QuestionKnowledgeNodeTag` directly. That function has
+   * three tiers: trusted direct tag → bridge-sourced tag → the legacy fallback
+   * chain `QuestionKnowledgePoint` → `KnowledgePointNodeMap`. A narrower query
+   * here silently declined every question whose node association lives only in
+   * the legacy bridge — which turned out to be **100% of the production catalog**,
+   * because `QuestionKnowledgeNodeTag` is empty there (332 questions, 0 rows).
+   * Measured symptom: the evidence receipt was written and the occurrence
+   * identity matched, but no `REVIEW_MASTERY_APPLIED` claim ever appeared and
+   * mastery never moved.
+   *
+   * Reusing the production resolver also removes the second 口径 this method had
+   * introduced: the projection and the writer now resolve nodes identically.
    */
   private async resolvePrimaryNode(
     db: Prisma.TransactionClient | PrismaService,
     questionId: string,
   ): Promise<{ nodeId: string; difficulty: number } | null> {
-    const tags = await db.questionKnowledgeNodeTag.findMany({
-      where: { questionId },
-      select: { knowledgeNodeId: true, role: true },
-    });
-    if (tags.length === 0) return null;
-    const ordered = [...tags].sort((left, right) => rankRole(left.role) - rankRole(right.role));
+    const resolutions = await resolveKnowledgeNodesForQuestion(db, questionId);
+    if (resolutions.length === 0) return null;
+    const ordered = [...resolutions].sort((left, right) => rankRole(left.role) - rankRole(right.role));
     const nodeId = ordered[0].knowledgeNodeId;
     const node = await db.knowledgeNode.findUnique({
       where: { id: nodeId },

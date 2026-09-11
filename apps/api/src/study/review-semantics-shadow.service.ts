@@ -30,6 +30,7 @@ import {
 } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { ReviewScheduleRepository } from './review-schedule.repository';
+import { resolvePrimaryNodeByQuestion } from './question-node-resolution';
 
 const DEFAULT_WINDOW_DAYS = 60;
 const MAX_WINDOW_DAYS = 365;
@@ -104,11 +105,10 @@ export class ReviewSemanticsShadowService {
     if (attempts.length === 0) return { windowDays, asOf, nodes: [] };
 
     const questionIds = [...new Set(attempts.map((row) => row.questionId))];
-    const tags = await db.questionKnowledgeNodeTag.findMany({
-      where: { questionId: { in: questionIds } },
-      select: { questionId: true, knowledgeNodeId: true, role: true },
-    });
-    const nodeIds = [...new Set(tags.map((tag) => tag.knowledgeNodeId))];
+    // V12.1 — production's resolver, not the tag table alone (that table is empty
+    // in production; nodes come from the legacy bridge).
+    const resolvedByQuestion = await resolvePrimaryNodeByQuestion(db, questionIds);
+    const nodeIds = [...new Set([...resolvedByQuestion.values()].map((row) => row.nodeId))];
     if (nodeIds.length === 0) return { windowDays, asOf, nodes: [] };
 
     const [nodes, masteryRows, snapshotRows] = await Promise.all([
@@ -148,10 +148,9 @@ export class ReviewSemanticsShadowService {
     ]);
 
     const nodeDifficulty = new Map(nodes.map((node) => [node.id, Number(node.difficulty) || 3]));
-    const nodeByQuestion = new Map<string, string>();
-    for (const tag of [...tags].sort((left, right) => rankRole(left.role) - rankRole(right.role))) {
-      if (!nodeByQuestion.has(tag.questionId)) nodeByQuestion.set(tag.questionId, tag.knowledgeNodeId);
-    }
+    const nodeByQuestion = new Map<string, string>(
+      [...resolvedByQuestion].map(([questionId, row]) => [questionId, row.nodeId]),
+    );
 
     const observations: ReviewObservation[] = [];
     // Newest attempt per node, for attribution of the divergence.
@@ -257,18 +256,18 @@ export class ReviewSemanticsShadowService {
     }
 
     const questionIds = [...new Set(attempts.map((row) => row.questionId))];
-    const [tags, questions] = await Promise.all([
-      db.questionKnowledgeNodeTag.findMany({
-        where: { questionId: { in: questionIds } },
-        select: { questionId: true, knowledgeNodeId: true, role: true },
-      }),
+    // V12.1 — production's resolver (see resolvePrimaryNodeByQuestion): the tag
+    // table alone is empty in production, which made this shadow blind to every
+    // real review.
+    const [resolvedByQuestion, questions] = await Promise.all([
+      resolvePrimaryNodeByQuestion(db, questionIds),
       db.question.findMany({
         where: { id: { in: questionIds } },
         select: { id: true, difficulty: true },
       }),
     ]);
 
-    const nodeIds = [...new Set(tags.map((tag) => tag.knowledgeNodeId))];
+    const nodeIds = [...new Set([...resolvedByQuestion.values()].map((row) => row.nodeId))];
     if (nodeIds.length === 0) return emptyResult(windowDays, asOf);
 
     const [nodes, masteryRows, snapshotRows] = await Promise.all([
@@ -295,11 +294,10 @@ export class ReviewSemanticsShadowService {
     ]);
 
     const nodeDifficulty = new Map(nodes.map((node) => [node.id, Number(node.difficulty) || 3]));
-    // PRIMARY tag wins; otherwise the first tag we saw for that question.
-    const nodeByQuestion = new Map<string, string>();
-    for (const tag of [...tags].sort((left, right) => rankRole(left.role) - rankRole(right.role))) {
-      if (!nodeByQuestion.has(tag.questionId)) nodeByQuestion.set(tag.questionId, tag.knowledgeNodeId);
-    }
+    // PRIMARY already won inside the resolver.
+    const nodeByQuestion = new Map<string, string>(
+      [...resolvedByQuestion].map(([questionId, row]) => [questionId, row.nodeId]),
+    );
 
     const observations: ReviewObservation[] = [];
     for (const attempt of attempts) {
@@ -395,11 +393,6 @@ function emptyResult(windowDays: number, asOf: Date): ReviewSemanticsShadowResul
     retention: reviewRetentionShadow({ rows: [] }),
     source: 'derived',
   };
-}
-
-/** PRIMARY tags outrank SECONDARY when several nodes describe one question. */
-function rankRole(role: string): number {
-  return role === 'PRIMARY' ? 0 : 1;
 }
 
 function clampWindow(value: number | undefined): number {

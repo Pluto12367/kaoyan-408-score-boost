@@ -2,9 +2,11 @@
 
 - 日期：2026-09-11
 - 基线：`HEAD d4e4348`（工作区先核实，未信任历史报告）
-- 最终判定：**`M3 REVIEW → MASTERY PRODUCTION INTEGRATION = READY`**
+- 最终判定（原）：**`M3 REVIEW → MASTERY PRODUCTION INTEGRATION = READY`**
+  > ⚠️ **已被 §16 追加章节修正**：本报告的"本地验证 READY"成立，但**该结论在真实生产数据上不成立**——线上部署后的真实 smoke 抓到一处缺陷，导致复习→掌握度对 100% 的题目不生效。请看 **§16 Post-deployment addendum（V12.1）**。
 - `MASTERY_SEMANTICS`：**未设置**，C1 **保持 OFF**
-- 门禁：`npm test` **2321 / 2319 通过 / 0 失败 / 2 跳过**（exit 0）；`build:api` exit 0；`build:web` exit 0；**7 个集成套件全部 exit 0**
+- 门禁（原）：`npm test` **2321 / 2319 通过 / 0 失败 / 2 跳过**（exit 0）；`build:api` exit 0；`build:web` exit 0；**7 个集成套件全部 exit 0**
+- 门禁（V12.1 修复后）：`npm test` **2324 / 2322 通过 / 0 失败 / 2 跳过**；`build:api` / `build:web` exit 0；7 个集成套件全部 exit 0
 
 ---
 
@@ -255,3 +257,138 @@ PRODUCTION INTEGRATION = READY
 ```
 
 含义：Event fidelity PASS、ReviewAttempt metadata PASS、Review → Mastery PASS、Evidence attribution PASS、Idempotency PASS、Student isolation PASS、PostgreSQL E2E PASS、Priority propagation PASS、Opportunity propagation PASS、Recommendation propagation PASS、C1 remains OFF PASS、NEW REGRESSION 0。**未自行部署、未开启 C1、未修改 F4、未替所有者决定 rollout。**
+
+---
+
+## 16. Post-deployment addendum（V12.1）— 真实部署暴露的一处缺陷与修复
+
+> 本节由**生产部署后的真实 smoke** 驱动。原始报告的 READY 判定建立在本地验证之上；本节记录本地验证**漏掉了什么**、为什么漏、以及修复与复验。**任何读者以后引用本报告时，必须连读本节。**
+
+### 16.1 症状（生产实测，非推断）
+
+部署到 `c7d9093` 后，用真实测试账号在生产库执行一次真实复习，六环 SQL 结果：
+
+```
+attempt_id                | isReview | source         | evidence_receipt                                    | id_matches_attempt | mastery_claim | semantics
+cmtx12zmv00suy3tx6svz1a37 | t        | wrong_question | LEARNING_EVIDENCE:...:q-003:2026-09-11:cmtx12zmv... | t                  |               |
+```
+
+- ✅ `evidence_receipt` 非空、`id_matches_attempt = t` → **M3-A 事件身份在生产上生效**
+- ❌ **`mastery_claim` 与 `semantics` 均为空** → `REVIEW_MASTERY_APPLIED` 未写入，**掌握度未变化**
+
+`apps/api/src/study/review-mastery-integration.service.ts` 的日志给出确定性原因：
+
+```
+[StudyService] Review mastery projection no_knowledge_node (evidence LEARNING_EVIDENCE:...)
+```
+
+### 16.2 根因：两层问题叠加
+
+**第 1 层（既有数据缺口，非本次部署引入）**
+
+```
+QuestionKnowledgeNodeTag  全库 0 行
+tagged_questions          0 / 332
+QuestionKnowledgePoint    332 题全部有 legacy 关联
+KnowledgePointNodeMap     16 条，全部 PRIMARY
+```
+
+- 仓库内**没有任何 seed 脚本写 `QuestionKnowledgeNodeTag`**（全仓 grep 为空）→ 该表为空是**既有状况**。
+- V11-M1 的 `GET /admin/data-quality` **本来就在观测它**（`untaggedSamples = question.findMany({ where: { knowledgeNodeTags: { none: {} } } })`，即 ledger 中记录的「B13 无节点标签题」）。
+- 结论：**332 道题 100% 只能通过 legacy 桥接解析节点。**
+
+**第 2 层（本报告的实现缺陷）**
+
+`ReviewMasteryIntegrationService.resolvePrimaryNode` 只查询了 `QuestionKnowledgeNodeTag` 单层，而生产 `score-center/repository.ts:80-114` 的 `resolveKnowledgeNodesForQuestion` 有**三层**：
+
+| 层 | 来源 | 生产 | 原实现 |
+|---|---|---|---|
+| 1 | `QuestionKnowledgeNodeTag`（可信 source） | ✅ | ✅ |
+| 2 | `QuestionKnowledgeNodeTag`（bridge source） | ✅ | ✅ |
+| 3 | `QuestionKnowledgePoint` → `KnowledgePointNodeMap` | ✅ | ❌ **缺失** |
+
+→ 第 3 层缺失 ⇒ 解析返回 null ⇒ 投影层按设计**安全拒绝**（`no_knowledge_node`）⇒ 回执被记录但掌握度不动。
+
+**影响的不对称性**：练习路径（`applyAttempts`）用三层函数，**一直正常工作**；只有复习路径不动。根因是**我在本应复用同一口径的地方引入了第二套口径**。
+
+### 16.3 为什么本地"真实 PostgreSQL + HTTP" E2E 全绿却没抓到
+
+```
+integration-review-mastery-production.mjs:580  await prisma.questionKnowledgeNodeTag.create({...})
+integration-review-mastery-production.mjs:819  await prisma.questionKnowledgeNodeTag.create({...})
+integration-review-mastery-cohort.mjs          await prisma.questionKnowledgeNodeTag.create({...})
+integration-review-shadow-cohort.mjs:236       await prisma.questionKnowledgeNodeTag.create({...})
+（共 8 处）
+```
+
+**夹具手工创建了 `QuestionKnowledgeNodeTag`** → E2E 跑在**比生产更干净的数据形状**上。
+
+> **教训（已入册）**：*真实数据库 + 真实 HTTP ≠ 真实数据形状*。夹具的理想化会整条掩盖解析路径。这是"本地全绿"最危险的一种成因。
+
+### 16.4 第二个同根因缺陷（由夹具修正暴露）
+
+把夹具改为桥接形状后，cohort 脚本立即失败：
+
+```
+FAILED: rm-user-...-low-d1-correct-r1: all questions must resolve to a node  (1 !== 0)
+```
+
+原因：**两个影子服务也只查 `QuestionKnowledgeNodeTag`**（4 处）：
+
+| 位置 | 函数 |
+|---|---|
+| `review-mastery-integration.service.ts` | `resolvePrimaryNode`（缺陷 1，生产写路径） |
+| `review-mastery-shadow.service.ts` | `getShadow` 的节点解析 |
+| `review-semantics-shadow.service.ts` | `assembleReplayInputs` |
+| `review-semantics-shadow.service.ts` | `getShadow` |
+
+→ 在 332 题 0 标注的生产库上，**两个影子端点对 100% 的真实复习都是盲的**（`eventsWithoutNode = 1`）。
+
+### 16.5 修复（V12.1，均复用同一实现）
+
+| 改动 | 内容 |
+|---|---|
+| **新增** `apps/api/src/study/question-node-resolution.ts` | `resolvePrimaryNodeByQuestion`：快路径一次批量查 tag；仅对 tag 表答不出的题回退到生产的 `resolveKnowledgeNodesForQuestion`。PRIMARY 优先规则收敛于此 |
+| `review-mastery-integration.service.ts` | `resolvePrimaryNode` → 复用该助手（**根因修复**） |
+| `review-mastery-shadow.service.ts` | 2 处 → 复用该助手 |
+| `review-semantics-shadow.service.ts` | 2 处 → 复用该助手 |
+| 测试 | +3 条：**桥接题可投影** / 直接标注题仍恰好一次 / PRIMARY 优先；"无关联题"改为断言**走完两层才放弃** |
+| E2E 夹具 | 两个脚本改为**桥接形状**（真实生产形状），Case B 保留 `direct` 作对照；清理补桥接表删除 |
+
+**未改动**：`applyReview`、`ScoreCenter` 写入语义、C1 开关、Prisma schema、迁移、F4。
+
+### 16.6 修复后复验
+
+| 门禁 | 结果 |
+|---|---|
+| `npm test` | **2324 / 2322 通过 / 0 失败 / 2 跳过**（+3 新测试，零回归） |
+| `build:api` / `build:web` | exit 0 |
+| **7 个集成套件** | **全部 exit 0** |
+
+**桥接形状（= 真实生产形状）下的关键证据**：
+
+```
+生产 E2E： 10 attempts → 10 markers；六案例 A–F 全部通过；Case D 幂等 attempts=1 / receipts=1 / markers=1
+           Case B（直接标注）+ 其余（桥接）→ 两条路径端到端均验证
+
+cohort：   authoritative mastery changed on 15/15 reviewed nodes   （修复前 0/15）
+           31 attempts → 31 occurrence-keyed receipts (1:1)，31 mastery applications
+           authoritative writes = 0 across 6 tables
+           PASS — review→mastery shadow is computable, attributable, non-authoritative
+```
+
+### 16.7 判定修正
+
+```
+原判定：M3 REVIEW → MASTERY PRODUCTION INTEGRATION = READY
+修正为：READY（代码层，V12.1 修复后）  /  线上部署 = NOT VERIFIED（待重新部署复验）
+```
+
+严格说明：
+- 原报告的**每一项本地结论仍成立**（事件保真、幂等、隔离、C1 OFF、零权威写入）；缺陷在于**"POSTGRESQL E2E PASS" 被夹具形状放大了覆盖面**。
+- 线上生产（`c7d9093`）处于**安全状态**：投影按设计拒绝（不写错数据），C1 OFF，基础设施与迁移全部正常。但 **M3 的功能目标未达成**。
+- 修复需**重新部署**（字面 SHA）并重跑六环 smoke 复验 `mastery_claim` 非空，才能宣布线上 VERIFIED。
+
+### 16.8 本轮新增的 Owner 决策项
+
+5. **是否补齐 `QuestionKnowledgeNodeTag` 数据（B13 缺口）**：332 题可由 16 条桥接映射 100% 推导。**本轮明确不做**——理由：① 用数据写入去修代码缺陷是错的工具；② 只补数据无法覆盖未来新增题目（代码回退层仍是必需的，现已修复）；③ 16 条映射覆盖 332 题 ≈ 平均 1 条对应 20 题，把**粗粒度推导**写进**逐题精确表**等于让启发式冒充人工标注；④ 会**抹掉** `/admin/data-quality` 的 B13 指标（用插入让指标变绿）。若所有者要做，须作为**独立内容任务**：dry-run → 写入时标注 `source='bridge_derived'` 等 provenance 使 `direct` 与 `bridge` 可区分 → 精确记录插入集以便回滚 → 表述为"推导"而非"已核实"。

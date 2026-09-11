@@ -439,6 +439,13 @@ async function main() {
       await prisma.knowledgeFrequencySnapshot
         .deleteMany({ where: { knowledgeNodeId: { in: student.nodeIds } } })
         .catch(() => {});
+      // Bridge rows first (both cascade, but explicit order keeps teardown obvious).
+      await prisma.knowledgePointNodeMap
+        .deleteMany({ where: { knowledgePointId: { in: student.pointIds } } })
+        .catch(() => {});
+      await prisma.questionKnowledgePoint
+        .deleteMany({ where: { questionId: { in: student.questionIds } } })
+        .catch(() => {});
       await prisma.questionKnowledgeNodeTag
         .deleteMany({ where: { knowledgeNodeId: { in: student.nodeIds } } })
         .catch(() => {});
@@ -514,8 +521,34 @@ async function seedStudent(prisma, design) {
         source: 'integration',
       },
     });
-    await prisma.questionKnowledgeNodeTag.create({
-      data: { questionId, knowledgeNodeId: nodeId, role: 'PRIMARY' },
+    // V12.1 — reproduce the PRODUCTION node association path. In the real
+    // database `QuestionKnowledgeNodeTag` is empty (332 questions, 0 rows) and
+    // nodes are reached only through the legacy bridge
+    // `QuestionKnowledgePoint` → `KnowledgePointNodeMap`. Writing a direct tag
+    // here would exercise the tier production never uses and would hide exactly
+    // the defect the live smoke found.
+    await prisma.knowledgePoint.create({
+      data: {
+        id: pointId,
+        subject: index % 2 === 0 ? 'DATA_STRUCTURE' : 'OPERATING_SYSTEM',
+        chapter: 'rm',
+        title: `rm point ${tag} #${index}`,
+        importance: 4,
+        frequency: 4,
+        prerequisites: [],
+      },
+    });
+    await prisma.questionKnowledgePoint.create({
+      data: { questionId, knowledgePointId: pointId },
+    });
+    await prisma.knowledgePointNodeMap.create({
+      data: {
+        knowledgePointId: pointId,
+        knowledgeNodeId: nodeId,
+        mappingType: 'PRIMARY',
+        confidence: 0.9,
+        taggedBy: 'HYBRID',
+      },
     });
     await prisma.knowledgeFrequencySnapshot.create({
       data: {
@@ -565,20 +598,10 @@ async function seedStudent(prisma, design) {
 
     // Practice history is a precondition of the review endpoint: production
     // refuses to schedule a review for a question the student never answered.
-    // `PracticeRecord.knowledgePointId` is a real foreign key, so the legacy
-    // KnowledgePoint row has to exist.
+    // `PracticeRecord.knowledgePointId` is a real foreign key, and that
+    // KnowledgePoint row is already created above as the bridge source — so it
+    // must NOT be created again here (same id ⇒ unique violation).
     if (isReviewed) {
-      await prisma.knowledgePoint.create({
-        data: {
-          id: pointId,
-          subject: 'DATA_STRUCTURE',
-          chapter: 'cohort',
-          title: `rm point ${tag}`,
-          importance: 4,
-          frequency: 4,
-          prerequisites: [],
-        },
-      });
       for (let index2 = 0; index2 < 2; index2 += 1) {
         await prisma.practiceRecord.create({
           data: {

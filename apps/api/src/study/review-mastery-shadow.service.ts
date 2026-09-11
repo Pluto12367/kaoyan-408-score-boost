@@ -44,6 +44,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { ReviewScheduleRepository } from './review-schedule.repository';
 import { LearningEvidenceService } from './learning-evidence.service';
+import { resolvePrimaryNodeByQuestion } from './question-node-resolution';
 import { ShadowDecisionChainService } from './shadow-decision-chain.service';
 
 const DEFAULT_WINDOW_DAYS = 60;
@@ -114,14 +115,12 @@ export class ReviewMasteryShadowService {
       .filter((row) => new Date(row.reviewedAt).getTime() >= since.getTime());
 
     const questionIds = [...new Set(attempts.map((row) => row.questionId))];
-    const tags = questionIds.length > 0
-      ? await db.questionKnowledgeNodeTag.findMany({
-          where: { questionId: { in: questionIds } },
-          select: { questionId: true, knowledgeNodeId: true, role: true },
-        })
-      : [];
-
-    const nodeIds = [...new Set(tags.map((tag) => tag.knowledgeNodeId))];
+    // V12.1 — must go through production's resolver, not the tag table alone:
+    // in production `QuestionKnowledgeNodeTag` is empty and every node comes from
+    // the legacy bridge, so a direct-only query made this shadow blind to 100% of
+    // real reviews (measured: eventsWithoutNode = 1 for a single-review student).
+    const resolvedByQuestion = await resolvePrimaryNodeByQuestion(db, questionIds);
+    const nodeIds = [...new Set([...resolvedByQuestion.values()].map((row) => row.nodeId))];
     const nodes = nodeIds.length > 0
       ? await db.knowledgeNode.findMany({
           where: { id: { in: nodeIds } },
@@ -130,11 +129,10 @@ export class ReviewMasteryShadowService {
       : [];
     const difficultyByNode = new Map(nodes.map((node) => [node.id, Number(node.difficulty) || 3]));
 
-    // PRIMARY tag wins, matching the review-semantics shadow's resolution.
-    const nodeByQuestion = new Map<string, string>();
-    for (const tag of [...tags].sort((left, right) => rankRole(left.role) - rankRole(right.role))) {
-      if (!nodeByQuestion.has(tag.questionId)) nodeByQuestion.set(tag.questionId, tag.knowledgeNodeId);
-    }
+    // PRIMARY already won inside the resolver.
+    const nodeByQuestion = new Map<string, string>(
+      [...resolvedByQuestion].map(([questionId, row]) => [questionId, row.nodeId]),
+    );
 
     const events: ReviewEventFact[] = attempts.map((attempt) => {
       const nodeId = nodeByQuestion.get(attempt.questionId) ?? null;
@@ -379,11 +377,6 @@ export class ReviewMasteryShadowService {
       facts,
     };
   }
-}
-
-/** PRIMARY tags outrank SECONDARY when several nodes describe one question. */
-function rankRole(role: string): number {
-  return role === 'PRIMARY' ? 0 : 1;
 }
 
 function clampWindow(value: number | undefined): number {
