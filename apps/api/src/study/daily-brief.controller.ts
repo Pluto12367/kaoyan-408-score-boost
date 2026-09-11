@@ -32,6 +32,7 @@ import { ReviewSemanticsShadowService } from './review-semantics-shadow.service'
 import { ScoreOpportunityService } from './score-opportunity.service';
 import { ScoreCalibrationService } from './score-calibration.service';
 import { ShadowDecisionChainService } from './shadow-decision-chain.service';
+import { ReviewMasteryShadowService } from './review-mastery-shadow.service';
 import { LearningImpactService } from './learning-impact.service';
 
 @Controller()
@@ -52,6 +53,7 @@ export class DailyBriefController {
     private readonly scoreOpportunity?: ScoreOpportunityService,
     private readonly scoreCalibration?: ScoreCalibrationService,
     private readonly shadowDecisionChain?: ShadowDecisionChainService,
+    private readonly reviewMasteryShadow?: ReviewMasteryShadowService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -385,6 +387,49 @@ export class DailyBriefController {
     }
     // The chain already carries userId; spreading it avoids declaring it twice.
     return { ...chain };
+  }
+
+  /**
+   * V12-M3 — Review → Unified Mastery Shadow (NON-AUTHORITATIVE).
+   *
+   * The product gap this closes: `applyReview` never reaches the ability
+   * estimate, so an observed redo outcome (STRONG evidence per V12-M1) is
+   * invisible to mastery. This endpoint runs the whole missing link as a shadow:
+   *
+   *   Review Attempt → Evidence Receipt → Evidence Projection
+   *     → per-event mastery trajectory
+   *     → priority / opportunity / recommendation ranking (reused chain)
+   *
+   * Every artefact is marked non-authoritative. No table is written, the
+   * authoritative writer is never called, and mastery semantics are not
+   * switched — this produces the evidence for an owner decision, not the
+   * decision.
+   *
+   * teacher/admin only — a model-quality instrument, not student UI.
+   */
+  @Get('coach/review-mastery-shadow')
+  @UseGuards(RoleGuard)
+  @Roles('teacher', 'admin')
+  async getReviewMasteryShadow(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('windowDays') windowDays?: string,
+    @Query('shadowModel') shadowModel?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.reviewMasteryShadow) {
+      return { userId, generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
+    }
+    const result = await this.reviewMasteryShadow.getShadow(userId, {
+      windowDays: parsePositiveInt(windowDays),
+      shadowModel: shadowModel === 'candidate' ? 'direction_preserving' : 'production',
+    });
+    if (result == null) {
+      return { userId, generatedAt: new Date().toISOString(), result: null, reason: 'store_unavailable' };
+    }
+    // `result` is always present, so the unavailable and available shapes agree
+    // and a caller never has to distinguish "missing" from "flattened".
+    return { userId, result };
   }
 
   /** V11-M4.2 — mastery calibration shadow: stored mastery vs observed accuracy. */

@@ -120,13 +120,20 @@ export class ReviewScheduleRepository {
 
   /**
    * V12-M3 — recent review attempts for one user, newest first.
-   * Read-only input for the review-semantics shadow; never used on a write path.
+   * Read-only input for the review-semantics shadow and the review→mastery
+   * shadow; never used on a write path.
+   *
+   * `attemptId` / `scheduleId` / `idempotencyKey` exist so each attempt can be
+   * given a stable, collision-free identity downstream (`reviewEventIdOf`).
    */
   async listAttemptsByUser(userId: string, limit = 200): Promise<Array<{
+    attemptId: string;
+    scheduleId: string;
     questionId: string;
     reviewedAt: string;
     redoCorrect: boolean;
     nextIntervalDays: number;
+    idempotencyKey: string | null;
   }>> {
     if (!this.enabled) return [];
     const rows = await this.prisma.reviewAttempt.findMany({
@@ -134,17 +141,23 @@ export class ReviewScheduleRepository {
       orderBy: { reviewedAt: 'desc' },
       take: limit,
       select: {
+        id: true,
+        scheduleId: true,
         reviewedAt: true,
         redoCorrect: true,
         nextIntervalDays: true,
+        idempotencyKey: true,
         schedule: { select: { questionId: true } },
       },
     });
     return rows.map((row) => ({
+      attemptId: row.id,
+      scheduleId: row.scheduleId,
       questionId: row.schedule.questionId,
       reviewedAt: row.reviewedAt.toISOString(),
       redoCorrect: row.redoCorrect,
       nextIntervalDays: row.nextIntervalDays,
+      idempotencyKey: row.idempotencyKey ?? null,
     }));
   }
 
