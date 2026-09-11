@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { buildLearningInsights, estimatePredictedScore } from '@kaoyan408/shared';
 import type { StageReport, UserProfile, WeaknessReport } from '@kaoyan408/shared';
 import type { CanonicalOverview, MasteryMap, LearningProfile, StudentContext } from '../../api';
@@ -12,6 +12,8 @@ import { toRoleSection } from '../student/actions/studentActionDestination';
 import { toReportWorkspaceSummary } from '../student/report/reportWorkspaceContextAdapter';
 import { formatRatePercent } from '../../displayFormat';
 import { resolveReportTopFocus } from '../student/actions/reportTopFocus';
+import { isStaticDemoMode } from '../../api/env';
+import { recordScorePrediction } from '../../api/endpoints/scores';
 
 const verdictLabels: Record<StageReport['verdict'], string> = {
   improved: '较上阶段提升',
@@ -70,6 +72,31 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
       scoreTrend: stageReport?.assessmentTrend.delta ?? undefined,
     });
   }, [averageMastery, canonicalOverview, contextSummary, hasEnoughData, report.accuracyRate, stageReport?.assessmentTrend.delta, student.currentScore, student.remainingDays, student.targetScore]);
+
+  // S1 Score Anchor: the report-page prediction is persisted (best-effort,
+  // idempotent per account+day) so calibration can later compare it with real
+  // recorded scores. A ledger failure never disturbs the report page, and the
+  // displayed estimate itself is unchanged.
+  useEffect(() => {
+    if (isStaticDemoMode()) return;
+    if (!predicted) return;
+    const dayKey = new Date().toISOString().slice(0, 10);
+    recordScorePrediction({
+      predictionKey: `report-summary:${student.id}:${dayKey}`,
+      modelVersion: 'estimate-predicted-score@v1',
+      predictedScore: predicted.bestEstimate,
+      predictedMinScore: predicted.minScore,
+      predictedMaxScore: predicted.maxScore,
+      generatedFor: 'report',
+      inputsSnapshot: {
+        currentScore: student.currentScore ?? null,
+        targetScore: student.targetScore ?? null,
+        remainingDays: student.remainingDays ?? null,
+      },
+    }).catch(() => {
+      // best-effort by design
+    });
+  }, [predicted, student.id, student.currentScore, student.targetScore, student.remainingDays]);
 
   const improvements: string[] = [];
   if (canonicalOverview?.progress.last7d.status === 'up' && canonicalOverview.progress.last7d.current !== null && canonicalOverview.progress.last7d.baseline !== null) {

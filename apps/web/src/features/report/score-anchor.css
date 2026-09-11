@@ -1,0 +1,148 @@
+/* S1 Score Anchor panel — pure tokens, prediction/assessment/outcome kept
+   visually separate. Prediction rows carry the warning-tone badge so an
+   estimate can never be read as an actual score. */
+
+.score-anchor {
+  border: 1px solid var(--line-faint);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.score-anchor-title {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-strong);
+}
+
+.score-anchor-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.score-anchor-exam-date {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.score-anchor-muted {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.score-anchor-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--red-strong, var(--text-strong));
+}
+
+.score-anchor-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.score-anchor-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.score-anchor-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--surface-soft-2, var(--surface-soft));
+}
+
+.score-anchor-row-prediction {
+  border: 1px dashed var(--amber-strong, var(--line-faint));
+}
+
+.score-anchor-row-outcome {
+  border: 1px solid var(--green-strong, var(--line-faint));
+}
+
+.score-anchor-badge {
+  font-size: 12px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--primary-faint);
+  color: var(--primary-strong);
+}
+
+.score-anchor-badge-prediction {
+  background: var(--amber-soft);
+  color: var(--amber-strong);
+}
+
+.score-anchor-badge-verified {
+  background: var(--green-soft, var(--primary-faint));
+  color: var(--green-strong, var(--primary-strong));
+}
+
+.score-anchor-anchorbox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-faint);
+  background: var(--surface-soft-2, var(--surface-soft));
+}
+
+.score-anchor-value {
+  font-size: 14px;
+  color: var(--text-strong);
+}
+
+.score-anchor-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.score-anchor-calibration {
+  margin-top: 4px;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: var(--surface-soft-2, var(--surface-soft));
+}
+
+.score-anchor-calibration-passed {
+  border: 1px solid var(--green-strong, var(--line-faint));
+}
+
+.score-anchor-calibration-preliminary {
+  border: 1px solid var(--amber-strong, var(--line-faint));
+}
+
+.score-anchor-calibration-insufficient,
+.score-anchor-calibration-idle {
+  border: 1px dashed var(--line-faint);
+}
+
+.score-anchor-strata {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}

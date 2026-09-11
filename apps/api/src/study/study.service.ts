@@ -104,6 +104,7 @@ import {
 } from './mastery-summary-projection.service';
 import { computePracticeRecordRequestHash, PRACTICE_RECORD_HASH_VERSION } from './answer-request-hash';
 import { ScoreCenterService } from '../score-center/service';
+import { ScoreAnchorService } from '../score-anchor/score-anchor.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
 import { ActionFeedbackTriggerService } from './action-feedback-trigger.service';
@@ -170,6 +171,7 @@ export class StudyService implements OnModuleInit {
     @Optional() private readonly examAlignment?: ExamAlignmentService,
     @Optional() private readonly learningEvidence?: LearningEvidenceService,
     @Optional() private readonly reviewMasteryIntegration?: ReviewMasteryIntegrationService,
+    @Optional() private readonly scoreAnchor?: ScoreAnchorService,
   ) {}
 
   private async trackUserEvent(userId: string, type: string, payload?: Record<string, unknown>) {
@@ -2099,6 +2101,13 @@ export class StudyService implements OnModuleInit {
     };
     this.assessmentHistoryItems.push(historyItem);
     await this.assessmentHistoryRepository.save(historyItem);
+    // S1 Score Anchor: best-effort ledger dual-write (the authoritative exam
+    // path above is untouched; a ledger failure never fails the submission).
+    await this.scoreAnchor?.recordPaperAssessment(userId, {
+      originId: paperId,
+      accuracyRate: result.score,
+      title: historyItem.title,
+    });
 
     return result;
   }
@@ -4734,6 +4743,12 @@ export class StudyService implements OnModuleInit {
     };
     this.assessmentHistoryItems.push(historyItem);
     await this.assessmentHistoryRepository.save(historyItem);
+    // S1 Score Anchor: best-effort ledger dual-write (see submitPaper).
+    await this.scoreAnchor?.recordPaperAssessment(userId, {
+      originId: sessionId,
+      accuracyRate,
+      title: historyItem.title,
+    });
   }
 
   private applySessionProgress(session: PracticeSession, input: {

@@ -154,6 +154,10 @@ model User {
   weakestSubject         String?
   diagnosis              String?
   examYear               Int?
+  // S1 Score Anchor — the exam date is a FACT entered by the user; the legacy
+  // `remainingDays` above is a manually maintained derived cache and is never
+  // promoted back into a fact. Never backfill this from remainingDays.
+  examDate               DateTime?
   onboardingCompletedAt  DateTime?
   createdAt              DateTime                      @default(now())
   updatedAt              DateTime                      @updatedAt
@@ -180,6 +184,10 @@ model User {
   answerReceipts         AnswerReceipt[]
   studyTaskProgresses    StudyTaskProgress[]
   recommendationActions  RecommendationAction[]
+  scorePredictions       ScorePrediction[]
+  scoreAssessments       ScoreAssessment[]
+  scoreOutcomes          ScoreOutcome[]
+  scoreCorrections       ScoreCorrection[]
 }
 
 model AnswerReceipt {
@@ -1058,4 +1066,118 @@ model UserNodeQuest {
 
   @@unique([userId, knowledgeNodeId])
   @@index([userId, passed])
+}
+
+// ---------------------------------------------------------------------------
+// S1 Score Anchor — Score Ledger (append-only evidence)
+//
+// Three STRUCTURALLY separate kinds of score evidence. They are separate
+// tables, separate write paths and separate guards on purpose: a bug in one
+// writer must not be able to fabricate rows of another kind, and "promote a
+// prediction into an outcome" is not an operation this schema can express.
+// Every row keeps its raw scale next to the normalized 150-scale value, and
+// every row answers "where did this number come from" (source + provenance
+// fields). Corrections are appended to ScoreCorrection; evidence rows are
+// never updated. See docs/score-ledger.md.
+// ---------------------------------------------------------------------------
+
+model ScorePrediction {
+  id                   String   @id @default(cuid())
+  userId               String
+  // Caller-supplied deterministic key; a retry with the same key reads back
+  // the existing prediction instead of duplicating it.
+  predictionKey        String
+  modelVersion         String
+  predictedScore       Float
+  predictedMinScore    Float?
+  predictedMaxScore    Float?
+  normalizedTotalScale Int      @default(150)
+  semantic             String   @default("exam_total")
+  // Predictions are model output; the field exists so every row answers the
+  // provenance question with the same vocabulary as assessments/outcomes.
+  source               String   @default("MODEL_OUTPUT")
+  // report | diagnosis | calibration — where the prediction was surfaced.
+  generatedFor         String?
+  // The state the prediction was made from (accuracy/mastery/remainingDays/...)
+  inputsSnapshot       Json?
+  generatedAt          DateTime @default(now())
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, predictionKey])
+  @@index([userId, generatedAt])
+}
+
+model ScoreAssessment {
+  id                   String    @id @default(cuid())
+  userId               String
+  // paper_session | external_import | teacher_entry | diagnostic
+  originType           String
+  originId             String
+  rawScore             Float
+  rawTotalScale        Float
+  normalizedScore      Float?
+  normalizedTotalScale Int       @default(150)
+  // exam_total | accuracy_rate — an in-app paper mock's percentage is stored
+  // as accuracy_rate and is structurally barred from exam-total calibration.
+  semantic             String
+  source               String
+  // exact_match | self_report | teacher_graded | rubric
+  gradingMethod        String?
+  // When the exam HAPPENED. Unknown stays null — recordedAt must never
+  // impersonate it.
+  examDate             DateTime?
+  title                String?
+  evidenceRefs         Json?
+  recordedAt           DateTime  @default(now())
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, originType, originId])
+  @@index([userId, examDate])
+}
+
+model ScoreOutcome {
+  id                   String   @id @default(cuid())
+  userId               String
+  // real_exam | institution_verified | teacher_verified_mock
+  examType             String
+  // Dedup identity: real_exam:{examYear} or a content fingerprint for
+  // imported/verified mock outcomes. Rows without one are never deduped.
+  dedupKey             String?
+  rawScore             Float
+  rawTotalScale        Float
+  normalizedScore      Float?
+  normalizedTotalScale Int      @default(150)
+  semantic             String   @default("exam_total")
+  source               String
+  // unverified -> verified is the ONLY allowed transition, and only by
+  // teacher/admin. Unverified outcomes never enter the primary stratum.
+  verificationStatus   String   @default("unverified")
+  verifiedBy           String?
+  verifiedAt           DateTime?
+  // When the exam happened — must be in the past at write time.
+  occurredAt           DateTime
+  evidenceRefs         Json?
+  recordedAt           DateTime @default(now())
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, dedupKey])
+  @@index([userId, occurredAt])
+}
+
+model ScoreCorrection {
+  id              String   @id @default(cuid())
+  userId          String
+  // prediction | assessment | outcome — the kind of evidence being corrected
+  targetKind      String
+  targetId        String
+  // Field-level new values ({ rawScore, rawTotalScale, normalizedScore, ... }).
+  // The original row is fetched by targetId when auditing 原值 -> 新值.
+  correctedFields Json
+  reason          String
+  correctedBy     String
+  correctedAt     DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([targetKind, targetId])
+  @@index([userId, correctedAt])
 }

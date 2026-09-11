@@ -57,3 +57,4 @@ export {
   summarizeSubject,
   buildKnowledgeCatalogFirstScreenHighlights,
 } from './knowledgeCatalog';
+export * from './score-anchor/score-anchor';

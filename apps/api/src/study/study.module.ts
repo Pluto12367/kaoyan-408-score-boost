@@ -71,6 +71,8 @@ import { LearningImpactService } from './learning-impact.service';
 import { AdminDataQualityService } from './admin-data-quality.service';
 import { SpriteMemoryRepository } from './sprite-memory.repository';
 import { SpriteMemoryService } from './sprite-memory.service';
+import { ScoreAnchorController } from '../score-anchor/score-anchor.controller';
+import { ScoreAnchorService } from '../score-anchor/score-anchor.service';
 import { LearningMemoryService } from '../agent/learning-memory.service';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
 import { LearningLoopRepository } from './learning-loop.repository';
@@ -94,12 +96,12 @@ import { StudentContextQueryService } from './student-context.query.service';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule, RagModule, EffectivenessModule],
-  controllers: [StudyController, DailyBriefController, SpriteController, LargeQuestionController],
+  controllers: [StudyController, DailyBriefController, SpriteController, LargeQuestionController, ScoreAnchorController],
   
   providers: [StudyService, LearningSignalService, RecommendationActionService, RecommendationActionRepository, LearningSessionActionService, ActionOutcomeAuditRepository, ActionOutcomeAuditService, ActionLearningSignalService, RecommendationFeedbackService, StudentStateFeedbackAdapter, StudentStateFeedbackRepository, ActionLearningSignalConsumerService, ActionFeedbackTriggerService, OverviewReportProjectionService, OverviewQueryService, StudentStateProjectionService, StudentStateQueryService, StudentStateReminderQueryService, StudentStateSprintPlanQueryService, StudentStateTrialProgressQueryService, StudentStateLearningCalendarQueryService, ActivityProjectionService, PracticeProjectionService, MasterySummaryProjectionService, WrongQuestionProjectionService, WrongQuestionQueryService, TodayPlanProjectionService, TodayPlanQueryService, DashboardProjectionService, DashboardQueryService, AssessmentProjectionService, StageAssessmentProjectionService, StageAssessmentQueryService, AssessmentHistoryProjectionService, AssessmentHistoryQueryService, ContextualCoachService, ContextualCoachContextAssembler, StudentContextQueryService, ExamScoreHistoryQueryService, {
     provide: ExamScoreHistoryProjectionService,
     useFactory: (sessions: LearningSessionRepository, practiceRecords: PracticeRecordRepository) =>
       new ExamScoreHistoryProjectionService({ sessions, practiceRecords }),    inject: [LearningSessionRepository, PracticeRecordRepository],
-  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, CanonicalEventWriterService, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository, CoachSessionRepository, LearningMemoryService, ExamAlignmentService, ExamDiagnosisService, ReviewShadowService, AdminDataQualityService, TaskEvidenceService, LearningImpactService, LearningEvidenceService, RecommendationExposureService, ReviewSemanticsShadowService, ScoreOpportunityService, ScoreCalibrationService, LargeQuestionService, ShadowDecisionChainService, ReviewMasteryShadowService, ReviewMasteryIntegrationService, SpriteMemoryRepository, SpriteMemoryService],
+  }, AiTutorService, AiTutorLogRepository, BetaMetricsService, TeacherStudentAuthorizationRepository, AdminUserRepository, FeedbackRepository, UserEventRepository, CanonicalEventWriterService, LearningLoopRepository, LearningLoopTriggerService, PracticeRecordRepository, AnswerReceiptRepository, LearningProgressRepository, LearningProfileRepository, KnowledgePointRepository, AssessmentHistoryRepository, PaperRepository, SystemConfigRepository, RuntimeStateRepository, LearningSessionRepository, ReviewScheduleRepository, ExamReviewPlanRepository, OnboardingPlanRepository, CoachSessionRepository, LearningMemoryService, ExamAlignmentService, ExamDiagnosisService, ReviewShadowService, AdminDataQualityService, TaskEvidenceService, LearningImpactService, LearningEvidenceService, RecommendationExposureService, ReviewSemanticsShadowService, ScoreOpportunityService, ScoreCalibrationService, LargeQuestionService, ShadowDecisionChainService, ReviewMasteryShadowService, ReviewMasteryIntegrationService, SpriteMemoryRepository, SpriteMemoryService, ScoreAnchorService],
 })
 export class StudyModule {}

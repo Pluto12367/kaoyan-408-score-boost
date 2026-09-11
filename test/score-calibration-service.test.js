@@ -34,6 +34,7 @@ function harness(options = {}) {
 }
 
 const assessment = (overrides = {}) => ({
+  id: 'imported-test-1',
   sessionId: 's1',
   submittedAt: new Date(base),
   score: 96,
@@ -145,4 +146,113 @@ test('the calibration never fabricates a score from mastery alone', () => {
     assert.ok(!code.includes(primitive), `the calibration must not contain ${primitive}`);
   }
   assert.ok(code.includes('estimatePredictedScore'), 'it must reuse the production estimator');
+});
+
+// ---------------------------------------------------------------------------
+// S1 — the 150-vs-100 mismatch is now an exclusion, not an error
+// ---------------------------------------------------------------------------
+
+test('a paper row whose score is an accuracy rate can never pair with a 150-scale prediction', async () => {
+  // In-app paper rows carry id "assessment-history-*" and totalScore 100:
+  // their "score" is a percentage of questions correct, not exam points.
+  const service = harness({
+    assessments: [assessment({ id: 'assessment-history-1', score: 96, totalScore: 100, accuracyRate: 96 })],
+    practice: [practice(base - 10 * DAY, true), practice(base - 9 * DAY, true)],
+    snapshots: [snapshot(base - 3 * DAY, 0.5)],
+  });
+
+  const result = await service.getCalibration('u1');
+  assert.ok(result);
+  assert.equal(result.rows.length, 0, 'no mixed-scale error row may exist');
+  assert.ok(
+    result.exclusions.some((row) => row.reason.includes('semantic_mismatch')),
+    'the exclusion names the semantic mismatch explicitly',
+  );
+});
+
+test('an unverified ledger outcome is never calibrated (honest pending state)', async () => {
+  const prisma = {
+    user: { findUnique: async () => ({ targetScore: 120 }) },
+    practiceRecord: { findMany: async () => [] },
+    userMasterySnapshot: { findMany: async () => [] },
+    scorePrediction: {
+      findMany: async () => [
+        {
+          id: 'p1',
+          predictedScore: 100,
+          predictedMinScore: 90,
+          predictedMaxScore: 110,
+          generatedAt: new Date(base - 5 * DAY),
+          modelVersion: 'estimate-predicted-score@v1',
+        },
+      ],
+    },
+    scoreAssessment: { findMany: async () => [] },
+    scoreOutcome: {
+      findMany: async () => [
+        {
+          id: 'o1',
+          rawScore: 120,
+          rawTotalScale: 150,
+          normalizedScore: 120,
+          semantic: 'exam_total',
+          source: 'REAL_EXAM',
+          verificationStatus: 'unverified',
+          occurredAt: new Date(base + 5 * DAY),
+        },
+      ],
+    },
+  };
+  const anchor = new (require('../apps/api/src/score-anchor/score-anchor.service.ts').ScoreAnchorService)(prisma);
+  const service = new (require('../apps/api/src/study/score-calibration.service.ts').ScoreCalibrationService)(prisma, anchor);
+  const result = await service.getCalibration('u1');
+  assert.ok(result);
+  assert.equal(result.rows.length, 0, 'unverified outcomes never enter calibration');
+  assert.equal(result.pendingVerification, 1);
+  assert.ok(result.exclusions.some((row) => row.reason.includes('outcome_unverified')));
+});
+
+test('a verified ledger outcome pairs with the persisted prediction on the normalized 150 scale', async () => {
+  const prisma = {
+    user: { findUnique: async () => ({ targetScore: 120 }) },
+    practiceRecord: { findMany: async () => [] },
+    userMasterySnapshot: { findMany: async () => [] },
+    scorePrediction: {
+      findMany: async () => [
+        {
+          id: 'p1',
+          predictedScore: 100,
+          predictedMinScore: 90,
+          predictedMaxScore: 110,
+          generatedAt: new Date(base - 5 * DAY),
+          modelVersion: 'estimate-predicted-score@v1',
+        },
+      ],
+    },
+    scoreAssessment: { findMany: async () => [] },
+    scoreOutcome: {
+      findMany: async () => [
+        {
+          id: 'o1',
+          rawScore: 96,
+          rawTotalScale: 150,
+          normalizedScore: 96,
+          semantic: 'exam_total',
+          source: 'REAL_EXAM',
+          verificationStatus: 'verified',
+          occurredAt: new Date(base + 5 * DAY),
+        },
+      ],
+    },
+  };
+  const anchor = new (require('../apps/api/src/score-anchor/score-anchor.service.ts').ScoreAnchorService)(prisma);
+  const service = new (require('../apps/api/src/study/score-calibration.service.ts').ScoreCalibrationService)(prisma, anchor);
+  const result = await service.getCalibration('u1');
+  assert.ok(result);
+  assert.equal(result.rows.length, 1);
+  assert.equal(result.rows[0].actual, 96);
+  assert.equal(result.rows[0].error, -4);
+  assert.equal(result.rows[0].scalePair, '150/150');
+  assert.ok(result.strata.length === 1, 'rows with provenance produce exactly one stratum');
+  assert.equal(result.strata[0].source, 'REAL_EXAM');
 });

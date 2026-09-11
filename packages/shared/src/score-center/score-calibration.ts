@@ -1,5 +1,5 @@
 /**
- * V12-M5 — Real score calibration (pure module).
+ * V12-M5 — Real score calibration (pure module). S1 refactored.
  *
  * ## The broken link this closes (EB-4)
  *
@@ -19,14 +19,42 @@
  * when there is nothing to calibrate against: "no error" and "no data" are
  * different statements, and below the sample floor the mean is null.
  *
+ * ## S1 — the 150-vs-100 mismatch is now inexpressible
+ *
+ * The first honest comparison this module ever made paired a 150-scale
+ * prediction against a 100-scale accuracy rate (measured: predicted=26,
+ * actual=96/100, error=70 — a number that meant nothing). S1 closes that:
+ *
+ *   • when a caller supplies `actualNormalizedScore` (the Score Ledger always
+ *     does), the pair must pass FULL compatibility — same normalized scale,
+ *     same semantic (`exam_total`), non-UNKNOWN provenance, evidence not
+ *     predating the prediction — or it is EXCLUDED with the reason, never
+ *     averaged
+ *   • even a legacy caller that supplies no normalization is blocked from
+ *     mixing scales: a pair whose `totalScore` is present and is not 150 can
+ *     no longer produce an error row
+ *   • rows carrying provenance are stratified per source group; the summary
+ *     never merges strata, and the preregistered E1 gate (n ≥ 5, median
+ *     absolute error < 15) is evaluated per group
+ *
  * Two further honesty rules, both deliberate:
  *   • an assessment whose prediction cannot be honestly reconstructed is
  *     EXCLUDED and listed — it is not treated as a perfect prediction
  *   • mastery growth is never converted into a score claim; predicted and
  *     actual improvement are carried as two separate series
  *
- * Pure: zero imports, deterministic.
+ * Pure: deterministic; the only imports are the S1 score-anchor primitives.
  */
+
+import {
+  evaluateCalibrationGate,
+  deriveCalibrationEvidenceStatus,
+  isCalibrationCompatible,
+  type CalibrationGateEntry,
+  type CalibrationEvidenceStatus,
+  type ScoreSemantic,
+  type ScoreSource,
+} from '../score-anchor/score-anchor';
 
 /** Below this many paired observations no calibration claim is made. */
 export const CALIBRATION_MIN_SAMPLE = 5;
@@ -42,9 +70,19 @@ export interface CalibrationPairInput {
   readonly predictedBest: number | null;
   readonly predictedMin: number | null;
   readonly predictedMax: number | null;
+  /** When the prediction was generated (ledger predictions know; reconstructions do not). */
+  readonly predictedAt?: string | null;
   /** The recorded score. null = no outcome recorded. */
   readonly actualScore: number | null;
   readonly totalScore: number | null;
+  /**
+   * S1 strict path: the actual score already normalized onto the 150 scale
+   * (rawScore / rawTotalScale × 150). When present, full compatibility is
+   * enforced and `actualScore` is only kept for display.
+   */
+  readonly actualNormalizedScore?: number | null;
+  readonly actualSemantic?: ScoreSemantic;
+  readonly actualSource?: ScoreSource;
   /** How many facts the prediction rested on. */
   readonly evidenceSampleSize: number;
   readonly evidenceBasis: string;
@@ -61,6 +99,10 @@ export interface CalibrationRow {
   readonly withinRange: boolean;
   readonly evidence: { readonly sampleSize: number; readonly basis: string };
   readonly basis: string;
+  /** S1: the provenance group this row belongs to (stratified, never mixed). */
+  readonly source?: ScoreSource;
+  readonly semantic?: ScoreSemantic;
+  readonly scalePair?: string;
 }
 
 export interface CalibrationExclusion {
@@ -88,6 +130,9 @@ export interface ScoreCalibration {
     readonly gap: number | null;
     readonly basis: string;
   };
+  /** S1: per-provenance gate strata — empty when rows carry no provenance. */
+  readonly strata: readonly CalibrationGateEntry[];
+  readonly gateStatus: CalibrationEvidenceStatus;
   readonly disclaimer: string;
   readonly authoritative: false;
 }
@@ -110,6 +155,64 @@ export function buildScoreCalibration(
       exclusions.push({
         sessionId: pair.sessionId,
         reason: '该次测评没有记录成绩（分数缺失），无法与预测对照。',
+      });
+      continue;
+    }
+
+    // S1 strict path: the Score Ledger supplies a normalized actual with
+    // provenance. Compatibility is enforced HERE — an incompatible pair can
+    // never reach the error computation.
+    if (pair.actualNormalizedScore != null) {
+      const verdict = isCalibrationCompatible(
+        {
+          predictedScore: pair.predictedBest,
+          predictedMinScore: pair.predictedMin,
+          predictedMaxScore: pair.predictedMax,
+          semantic: 'exam_total',
+          generatedAt: pair.predictedAt ?? null,
+        },
+        {
+          normalizedScore: pair.actualNormalizedScore,
+          normalizedTotalScale: 150,
+          semantic: pair.actualSemantic ?? 'exam_total',
+          source: pair.actualSource ?? 'UNKNOWN',
+          occurredAt: pair.assessedAt,
+        },
+      );
+      if (!verdict.compatible) {
+        exclusions.push({
+          sessionId: pair.sessionId,
+          reason: `校准兼容性检查未通过（${verdict.reasons.join('、')}）：不同量纲/语义/来源的证据不得与预测直接比较，已排除而非混算。`,
+        });
+        continue;
+      }
+      const actual = pair.actualNormalizedScore;
+      const error = round2(actual - pair.predictedBest);
+      rows.push({
+        sessionId: pair.sessionId,
+        assessedAt: pair.assessedAt,
+        predicted: pair.predictedBest,
+        actual,
+        error,
+        direction: error > 0 ? 'actual_above_prediction' : error < 0 ? 'actual_below_prediction' : 'on_target',
+        withinRange:
+          pair.predictedMin != null && pair.predictedMax != null
+            ? actual >= pair.predictedMin && actual <= pair.predictedMax
+            : false,
+        evidence: { sampleSize: pair.evidenceSampleSize, basis: pair.evidenceBasis },
+        basis: `预测 ${pair.predictedBest}（区间 ${pair.predictedMin ?? '—'}–${pair.predictedMax ?? '—'}），实测 ${pair.actualScore}/${pair.totalScore ?? '—'} 归一为 ${actual}/150，偏差 ${error > 0 ? '+' : ''}${error}。来源 ${pair.actualSource ?? 'UNKNOWN'}。证据：${pair.evidenceBasis}（样本 ${pair.evidenceSampleSize}）。`,
+        source: pair.actualSource,
+        semantic: pair.actualSemantic ?? 'exam_total',
+        scalePair: '150/150',
+      });
+      continue;
+    }
+
+    // Legacy path (no normalization supplied): the scale guard still holds.
+    if (pair.totalScore != null && pair.totalScore !== 150) {
+      exclusions.push({
+        sessionId: pair.sessionId,
+        reason: `量纲不匹配：预测为 150 分制，实测记录为 ${pair.totalScore} 分制且未归一，禁止直接相减，已排除。`,
       });
       continue;
     }
@@ -142,6 +245,20 @@ export function buildScoreCalibration(
     ? Math.round((rows.filter((row) => row.withinRange).length / rows.length) * 100)
     : null;
 
+  // S1: stratify rows that carry provenance; never merge groups. Rows without
+  // provenance (legacy callers) produce no strata instead of a fake group.
+  const observations = rows
+    .filter((row) => row.source != null)
+    .map((row) => ({
+      key: row.sessionId,
+      source: row.source as ScoreSource,
+      absoluteError: Math.abs(row.error),
+      error: row.error,
+      withinRange: row.withinRange,
+    }));
+  const strata = evaluateCalibrationGate(observations);
+  const gateStatus = deriveCalibrationEvidenceStatus(strata);
+
   return {
     rows,
     exclusions,
@@ -155,6 +272,8 @@ export function buildScoreCalibration(
       basis: describeSummary(rows.length, sufficient, meanAbsoluteError, bias, withinRangeRate),
     },
     improvement: buildImprovement(rows),
+    strata,
+    gateStatus,
     disclaimer: PREDICTION_IS_NOT_ACTUAL,
     authoritative: false,
   };
