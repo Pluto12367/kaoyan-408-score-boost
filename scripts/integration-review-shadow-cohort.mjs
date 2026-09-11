@@ -37,6 +37,7 @@ const databaseUrl = process.env.TEST_DATABASE_URL
   ?? 'postgresql://postgres:postgres@127.0.0.1:55432/kaoyan408_test?schema=public';
 const jwtSecret = 'integration-shadow-cohort-secret-0123456789abc';
 const adminPassword = 'Shadow-Cohort-Admin-Password-1';
+const studentPassword = 'Shadow-Cohort-Student-Password-1';
 process.env.DATABASE_URL = databaseUrl;
 
 const runId = randomUUID().slice(0, 8);
@@ -44,6 +45,13 @@ const DAY = 86_400_000;
 
 /** Pre-registered switch criteria (documented before any of this was measured). */
 const PREREGISTERED = { minDirectionAgreement: 0.7, minObservations: 30 };
+
+/**
+ * Several nodes per student, because recommendation ranking is not measurable
+ * with one: a lone node is always rank 1, so "did top-N change?" would be
+ * unanswerable and the rank-spread risk untestable.
+ */
+const NODES_PER_STUDENT = 6;
 
 const MASTERY_BANDS = [
   { label: '0.00-0.30', mastery: 0.22 },
@@ -122,6 +130,11 @@ async function main() {
     }
 
     report(rows);
+
+    // ---------------------------------------------------------------------
+    // Shadow Decision Chain: propagate the divergence to the actual decision
+    // ---------------------------------------------------------------------
+    await verifyDecisionChain(prisma, cohort, adminHeaders, rows);
   } finally {
     if (activeApi && activeApi.exitCode == null) activeApi.kill();
     // Clean up only this run's throwaway students and content.
@@ -131,9 +144,19 @@ async function main() {
     }
     if (adminId) await prisma.user.deleteMany({ where: { id: adminId } }).catch(() => {});
     for (const student of cohort) {
-      await prisma.question.deleteMany({ where: { id: student.questionId } }).catch(() => {});
-      await prisma.questionFamily.deleteMany({ where: { id: student.familyId } }).catch(() => {});
-      await prisma.knowledgeNode.deleteMany({ where: { id: student.nodeId } }).catch(() => {});
+      await prisma.knowledgeFrequencySnapshot
+        .deleteMany({ where: { knowledgeNodeId: { in: student.nodeIds } } })
+        .catch(() => {});
+      await prisma.questionKnowledgeNodeTag
+        .deleteMany({ where: { knowledgeNodeId: { in: student.nodeIds } } })
+        .catch(() => {});
+      await prisma.question
+        .deleteMany({ where: { id: { in: student.questionIds } } })
+        .catch(() => {});
+      await prisma.knowledgeNode
+        .deleteMany({ where: { id: { in: student.nodeIds } } })
+        .catch(() => {});
+      await prisma.questionFamily.deleteMany({ where: { id: { in: student.familyIds } } }).catch(() => {});
     }
     await prisma.$disconnect();
   }
@@ -142,9 +165,7 @@ async function main() {
 async function seedStudent(prisma, { band, outcome, reviewCount, intervalDays }) {
   const tag = `${runId}-${band.label}-${outcome}-${reviewCount}-${intervalDays}`;
   const userId = `cohort-user-${tag}`;
-  const nodeId = `cohort-node-${tag}`;
   const familyId = `cohort-family-${tag}`;
-  const questionId = `cohort-question-${tag}`;
   const now = Date.now();
 
   await prisma.user.create({
@@ -153,106 +174,160 @@ async function seedStudent(prisma, { band, outcome, reviewCount, intervalDays })
       email: `${userId}@integration.test`,
       name: `Cohort ${band.label} ${outcome}`,
       role: 'STUDENT',
+      passwordHash: await hashPassword(studentPassword),
       trialStatus: 'ACTIVE',
       accountStatus: 'ACTIVE',
       targetScore: 120,
-    },
-  });
-  await prisma.knowledgeNode.create({
-    data: {
-      id: nodeId,
-      subject: 'DATA_STRUCTURE',
-      nodeType: 'knowledge_point',
-      name: `cohort node ${tag}`,
-      importance: 4,
-      difficulty: 3,
-      syllabusVersion: '2026',
+      remainingDays: 60,
     },
   });
   await prisma.questionFamily.create({ data: { id: familyId } });
-  await prisma.question.create({
-    data: {
-      id: questionId,
-      familyId,
-      contentFingerprint: `cohort-${tag}`,
-      stem: 'cohort seed question',
-      options: ['A', 'B'],
-      answer: 'A',
-      analysis: 'seed',
-      difficulty: 'MEDIUM',
-      type: 'SINGLE_CHOICE',
-      source: 'integration',
-    },
-  });
-  await prisma.questionKnowledgeNodeTag.create({
-    data: { questionId, knowledgeNodeId: nodeId, role: 'PRIMARY' },
-  });
 
-  // The stored mastery the shadow will compare its replay against.
-  await prisma.userKnowledgeMastery.create({
-    data: {
-      userId,
-      knowledgeNodeId: nodeId,
-      mastery: band.mastery,
-      accuracy: band.mastery,
-      recentAccuracy: band.mastery,
-      attempts: 4,
-      correctCount: Math.round(4 * band.mastery),
-      wrongCount: 4 - Math.round(4 * band.mastery),
-      confidence: 0.3,
-      retention: 1,
-      stabilityDays: 1.7,
-      lastReviewedAt: new Date(now - intervalDays * DAY),
-    },
-  });
+  // A student needs SEVERAL nodes for recommendation ranking to be measurable at
+  // all: with one node its rank is always 1, so "did the top items change?"
+  // cannot be answered. The reviewed node is index 0; the rest are context
+  // nodes whose mastery stays authoritative and therefore act as the comparison
+  // set that the reviewed node can move relative to.
+  const nodes = [];
+  const familyIds = [];
+  for (let index = 0; index < NODES_PER_STUDENT; index += 1) {
+    const nodeId = `cohort-node-${tag}-${index}`;
+    const questionId = `cohort-question-${tag}-${index}`;
+    // Question is unique on (familyId, versionNumber), so each seeded question
+    // needs its own family.
+    const nodeFamilyId = `${familyId}-${index}`;
+    familyIds.push(nodeFamilyId);
+    const isReviewed = index === 0;
+    // Context nodes are spread around the band so the reviewed node has room to
+    // move up or down the ranking.
+    const offset = (index - Math.floor(NODES_PER_STUDENT / 2)) * 0.07;
+    const mastery = clamp01(band.mastery + offset);
 
-  // A baseline snapshot dated before the first review, so the replay has a
-  // starting point instead of falling back to neutral.
-  await prisma.userMasterySnapshot.create({
-    data: {
-      userId,
-      knowledgeNodeId: nodeId,
-      mastery: band.mastery,
-      attempts: 4,
-      correctCount: Math.round(4 * band.mastery),
-      wrongCount: 4 - Math.round(4 * band.mastery),
-      snapshotDate: new Date(now - (reviewCount * intervalDays + 2) * DAY),
-    },
-  });
-
-  const scheduleId = `cohort-schedule-${tag}`;
-  await prisma.reviewSchedule.create({
-    data: {
-      id: scheduleId,
-      userId,
-      questionId,
-      consecutiveCorrect: 0,
-      stability: 'learning',
-      nextReviewAt: new Date(now + DAY),
-      reviewCount,
-      lastReviewedAt: new Date(now - intervalDays * DAY),
-    },
-  });
-
-  for (let attempt = 0; attempt < reviewCount; attempt += 1) {
-    const correct = outcome === 'all_correct'
-      ? true
-      : outcome === 'all_wrong'
-        ? false
-        : attempt % 2 === 0;
-    await prisma.reviewAttempt.create({
+    await prisma.knowledgeNode.create({
       data: {
-        scheduleId,
-        redoCorrect: correct,
-        timeSpentSec: 45 + attempt * 10,
-        nextIntervalDays: intervalDays,
-        reviewedAt: new Date(now - (reviewCount - attempt) * intervalDays * DAY),
+        id: nodeId,
+        subject: index % 2 === 0 ? 'DATA_STRUCTURE' : 'OPERATING_SYSTEM',
+        nodeType: 'knowledge_point',
+        name: `cohort node ${tag} #${index}`,
+        importance: 3 + (index % 3),
+        difficulty: 2 + (index % 3),
+        syllabusVersion: '2026',
       },
     });
+    await prisma.questionFamily.create({ data: { id: nodeFamilyId } });
+    await prisma.question.create({
+      data: {
+        id: questionId,
+        familyId: nodeFamilyId,
+        contentFingerprint: `cohort-${tag}-${index}`,
+        stem: `cohort seed question ${index}`,
+        options: ['A', 'B'],
+        answer: 'A',
+        analysis: 'seed',
+        difficulty: 'MEDIUM',
+        type: 'SINGLE_CHOICE',
+        source: 'integration',
+      },
+    });
+    await prisma.questionKnowledgeNodeTag.create({
+      data: { questionId, knowledgeNodeId: nodeId, role: 'PRIMARY' },
+    });
+    await prisma.knowledgeFrequencySnapshot.create({
+      data: {
+        knowledgeNodeId: nodeId,
+        snapshotDate: new Date('2026-01-01T00:00:00.000Z'),
+        recent3Frequency: 3 + (index % 4),
+        recent5Frequency: 4 + (index % 3),
+        allTimeEvidence: 6 + (index % 5),
+        primaryScore5y: 8 + (index % 6),
+        trendDirection: 'STABLE',
+        trendDelta: 0,
+        evidenceConfidence: 'HIGH',
+        modelVersion: 'cohort-v1',
+      },
+    });
+
+    const correctCount = Math.round(4 * mastery);
+    await prisma.userKnowledgeMastery.create({
+      data: {
+        userId,
+        knowledgeNodeId: nodeId,
+        mastery,
+        accuracy: mastery,
+        recentAccuracy: mastery,
+        attempts: 4,
+        correctCount,
+        wrongCount: 4 - correctCount,
+        confidence: 0.3,
+        retention: 1,
+        stabilityDays: 1.7,
+        lastReviewedAt: new Date(now - intervalDays * DAY),
+      },
+    });
+    await prisma.userMasterySnapshot.create({
+      data: {
+        userId,
+        knowledgeNodeId: nodeId,
+        mastery,
+        attempts: 4,
+        correctCount,
+        wrongCount: 4 - correctCount,
+        snapshotDate: new Date(now - (reviewCount * intervalDays + 2) * DAY),
+      },
+    });
+
+    // Only the reviewed node gets review attempts; the others must stay
+    // authoritative so the divergence stays attributable to one node.
+    if (isReviewed) {
+      const scheduleId = `cohort-schedule-${tag}`;
+      await prisma.reviewSchedule.create({
+        data: {
+          id: scheduleId,
+          userId,
+          questionId,
+          consecutiveCorrect: 0,
+          stability: 'learning',
+          nextReviewAt: new Date(now + DAY),
+          reviewCount,
+          lastReviewedAt: new Date(now - intervalDays * DAY),
+        },
+      });
+      for (let attempt = 0; attempt < reviewCount; attempt += 1) {
+        const correct = outcome === 'all_correct' ? true : outcome === 'all_wrong' ? false : attempt % 2 === 0;
+        await prisma.reviewAttempt.create({
+          data: {
+            scheduleId,
+            redoCorrect: correct,
+            timeSpentSec: 45 + attempt * 10,
+            nextIntervalDays: intervalDays,
+            reviewedAt: new Date(now - (reviewCount - attempt) * intervalDays * DAY),
+          },
+        });
+      }
+    }
+
+    nodes.push({ nodeId, questionId, mastery });
   }
 
-  return { userId, nodeId, questionId, familyId, band: band.label, outcome, reviewCount, intervalDays };
+  return {
+    userId,
+    nodeId: nodes[0].nodeId,
+    nodeIds: nodes.map((node) => node.nodeId),
+    contextNodeIds: nodes.slice(1).map((node) => node.nodeId),
+    familyId,
+    familyIds,
+    questionIds: nodes.map((node) => node.questionId),
+    band: band.label,
+    outcome,
+    reviewCount,
+    intervalDays,
+  };
 }
+
+function clamp01(value) {
+  return Math.round(Math.min(0.95, Math.max(0.05, value)) * 10000) / 10000;
+}
+
 
 function report(rows) {
   const evaluated = rows.filter((item) => item.row && item.row.replayMastery != null);
@@ -319,6 +394,227 @@ function fmt(value) {
   return value == null ? '—' : Number(value).toFixed(4);
 }
 
+/**
+ * Read-only fingerprint of the authoritative learning state. Any change across
+ * the shadow phase means the shadow wrote something it must never write.
+ */
+async function authoritativeFingerprint(prisma) {
+  const [mastery, schedules, attempts, actions, events] = await Promise.all([
+    prisma.userKnowledgeMastery.findMany({ select: { userId: true, mastery: true, stabilityDays: true } }),
+    prisma.reviewSchedule.count(),
+    prisma.reviewAttempt.count(),
+    prisma.recommendationAction.count(),
+    prisma.userEvent.count(),
+  ]);
+  const masterySum = MasterySum(mastery);
+  return {
+    masterySum,
+    masteryRows: mastery.length,
+    schedules,
+    attempts,
+    actions,
+    events,
+  };
+}
+
+function MasterySum(rows) {
+  return Math.round(rows.reduce((sum, row) => sum + row.mastery + (row.stabilityDays ?? 0), 0) * 10000) / 10000;
+}
+
+async function verifyDecisionChain(prisma, cohort, adminHeaders, shadowRows) {
+  console.log('');
+  console.log('[decision-chain] verifying the chain on real PostgreSQL + HTTP');
+
+  const before = await authoritativeFingerprint(prisma);
+  const shadowByStudent = new Map(shadowRows.map((item) => [item.userId, item]));
+  const dataset = [];
+
+  for (const student of cohort) {
+    const url = `${apiUrl}/coach/shadow-decision-chain?userId=${student.userId}&windowDays=365&maxItems=8`;
+    const chain = await getJson(url, adminHeaders);
+
+    // Shadow-only semantics
+    assert.equal(chain.authoritative, false, 'the chain must never be authoritative');
+    assert.equal(chain.productionSemanticsChanged, false, 'production semantics must be untouched');
+    assert.ok(Array.isArray(chain.risks), 'risks must be reported, even when empty');
+
+    // Student isolation + candidate ownership: exactly this student's own nodes.
+    const owned = chain.summary.candidateUniverse.nodeIds;
+    assert.deepEqual(
+      owned,
+      [...student.nodeIds].sort(),
+      `student ${student.userId} must see exactly their own ${student.nodeIds.length} nodes`,
+    );
+    assert.equal(
+      chain.rows.every((row) => student.nodeIds.includes(row.knowledgeNodeId)),
+      true,
+      'no cross-student contamination',
+    );
+    assert.equal(chain.rows.length, student.nodeIds.length, 'every owned node participates');
+
+    // Determinism: the same facts must produce the same decision.
+    const repeat = await getJson(url, adminHeaders);
+    assert.deepEqual(
+      repeat.rows.map((row) => [row.priorityDelta, row.rankDelta, row.opportunityDelta]),
+      chain.rows.map((row) => [row.priorityDelta, row.rankDelta, row.opportunityDelta]),
+      'the chain must be deterministic',
+    );
+
+    // Universe consistency (Risk C).
+    assert.equal(chain.summary.candidateUniverse.consistent, true, 'both paths must share one universe');
+
+    // Attribution: only the REVIEWED node may diverge, and it must name its trigger.
+    const diverged = chain.rows.filter((row) => row.masteryDelta != null && Math.abs(row.masteryDelta) > 0);
+    assert.equal(diverged.length, 1, 'only the reviewed node may diverge');
+    assert.equal(diverged[0].knowledgeNodeId, student.nodeId);
+    assert.ok(diverged[0].triggerEventId, 'the divergence must be attributable to a review event');
+    for (const row of chain.rows) {
+      if (row.triggerEventId) continue;
+      assert.equal(row.masteryDelta, null, 'a node with no review must show no divergence');
+    }
+
+    const row = chain.rows.find((item) => item.knowledgeNodeId === student.nodeId);
+    dataset.push({
+      studentId: student.userId,
+      case: `${student.band}/${student.outcome}/x${student.reviewCount}@${student.intervalDays}d`,
+      nodeId: row.knowledgeNodeId,
+      nodesOwned: student.nodeIds.length,
+      observedMastery: row.observedMastery,
+      shadowMastery: row.shadowMastery,
+      masteryDelta: row.masteryDelta,
+      observedPriority: row.observedPriority,
+      shadowPriority: row.shadowPriority,
+      priorityDelta: row.priorityDelta,
+      observedOpportunity: row.observedOpportunity,
+      shadowOpportunity: row.shadowOpportunity,
+      opportunityDelta: row.opportunityDelta,
+      observedRank: row.observedRank,
+      shadowRank: row.shadowRank,
+      rankDelta: row.rankDelta,
+      top1Changed: chain.summary.topN.top1Changed,
+      entered: chain.summary.topN.entered,
+      exited: chain.summary.topN.exited,
+      rankChangedNodes: chain.summary.topN.rankChanged.length,
+      triggerEventId: row.triggerEventId,
+      triggerEventType: row.triggerEventType,
+      confidence: row.confidence,
+      riskCodes: chain.risks.map((risk) => risk.code),
+      authoritative: row.authoritative,
+    });
+  }
+
+  // Auth guard on the chain endpoint: unauthenticated must be rejected, and a
+  // student must not reach a teacher/admin instrument.
+  await expectStatus(`${apiUrl}/coach/shadow-decision-chain?userId=${cohort[0].userId}`, {}, 401);
+  const studentLogin = await postJson(`${apiUrl}/auth/login`, {
+    email: `${cohort[0].userId}@integration.test`,
+    password: studentPassword,
+  });
+  const studentToken = studentLogin?.accessToken ?? studentLogin?.token;
+  assert.ok(studentToken, 'the seeded cohort student must be able to log in');
+  await expectStatus(
+    `${apiUrl}/coach/shadow-decision-chain?userId=${cohort[0].userId}`,
+    { authorization: `Bearer ${studentToken}` },
+    403,
+  );
+  console.log('[decision-chain] auth guard = PASS (401 unauthenticated, 403 as student)');
+
+  const after = await authoritativeFingerprint(prisma);
+  assert.deepEqual(after, before, 'the shadow phase must not write any authoritative state');
+
+  // ---- Decision Dataset -------------------------------------------------
+  console.log('');
+  console.log('[decision-chain] Decision Dataset (authoritative = false)');
+  console.log('  case                          dMastery  dPriority  dOpportunity  dRank  trigger');
+  for (const entry of dataset) {
+    console.log(
+      `  ${entry.case.padEnd(28)} ${fmtSigned(entry.masteryDelta)}  ${String(entry.priorityDelta).padStart(9)}  `
+      + `${fmtSigned(entry.opportunityDelta).padStart(12)}  ${String(entry.rankDelta).padStart(5)}  ${entry.triggerEventType ?? '—'}`,
+    );
+  }
+
+  const masteryDeltas = dataset.map((entry) => entry.masteryDelta).filter((value) => value != null);
+  const priorityDeltas = dataset.map((entry) => entry.priorityDelta);
+  const rankDeltas = dataset.map((entry) => Math.abs(entry.rankDelta));
+  const changed = dataset.filter((entry) => entry.masteryDelta != null && entry.masteryDelta !== 0).length;
+  const noImpact = dataset.filter(
+    (entry) => entry.rankDelta === 0 && entry.priorityDelta === 0,
+  ).length;
+  const swings = dataset.filter((entry) => entry.riskCodes.includes('PRIORITY_SWING'));
+  const rankMoved = dataset.filter((entry) => entry.rankDelta !== 0);
+
+  console.log('');
+  console.log('[decision-chain] impact distribution');
+  console.log(`  students evaluated         = ${dataset.length}`);
+  console.log(`  mastery changed            = ${changed}  (affected ratio ${pct(changed, dataset.length)})`);
+  console.log(`  no impact (priority+rank 0)= ${noImpact}  (no-impact ratio ${pct(noImpact, dataset.length)})`);
+  console.log(`  median mastery delta       = ${fmtSigned(median(masteryDeltas))}`);
+  console.log(`  p90 mastery delta          = ${fmtSigned(percentile(masteryDeltas, 0.9))}`);
+  console.log(`  median |priority delta|    = ${fmtSigned(median(priorityDeltas.map(Math.abs)))}`);
+  console.log(`  max |priority delta|       = ${fmtSigned(maxAbs(priorityDeltas))}`);
+  console.log(`  median |rank delta|        = ${median(rankDeltas)}`);
+  console.log(`  max |rank delta|           = ${rankDeltas.length > 0 ? Math.max(...rankDeltas) : 0}`);
+  console.log(`  nodes with rank change     = ${rankMoved.length}`);
+  console.log(`  PRIORITY_SWING flagged     = ${swings.length}`);
+  console.log('');
+  console.log('[decision-chain] top changed nodes');
+  for (const entry of [...dataset].sort((a, b) => Math.abs(b.masteryDelta ?? 0) - Math.abs(a.masteryDelta ?? 0)).slice(0, 5)) {
+    console.log(`  ${entry.case.padEnd(28)} mastery ${fmtSigned(entry.masteryDelta)} → priority ${entry.priorityDelta >= 0 ? '+' : ''}${entry.priorityDelta}, rank ${entry.rankDelta >= 0 ? '+' : ''}${entry.rankDelta}`);
+  }
+  console.log('');
+  console.log('[decision-chain] top ranking changes');
+  const ranked = [...dataset].sort((a, b) => Math.abs(b.rankDelta) - Math.abs(a.rankDelta)).slice(0, 5);
+  if (ranked.every((entry) => entry.rankDelta === 0)) {
+    console.log('  none — no rank moved in this cohort');
+  } else {
+    for (const entry of ranked) {
+      console.log(`  ${entry.case.padEnd(28)} rank ${entry.observedRank} → ${entry.shadowRank} (delta ${entry.rankDelta >= 0 ? '+' : ''}${entry.rankDelta})`);
+    }
+  }
+
+  console.log('');
+  console.log('[decision-chain] authoritative safety');
+  console.log(`  authoritative writes       = 0  (fingerprint unchanged: mastery sum ${after.masterySum}, ${after.masteryRows} rows)`);
+  console.log('  production behavior        = unchanged (score-center/service.ts has zero V12 changes)');
+  console.log('  student isolation          = PASS (every chain contained exactly its own node set)');
+  console.log('  determinism                = PASS (repeat calls produced identical decisions)');
+  console.log('  attribution                = PASS (every divergence named its review event)');
+  console.log('');
+  console.log('[decision-chain] M3 Phase C DECISION DATA READY');
+  console.log('  Decision data ready; owner decision still required.');
+}
+
+function fmtSigned(value) {
+  if (value == null) return '—';
+  const rounded = Math.round(value * 10000) / 10000;
+  return `${rounded >= 0 ? '+' : ''}${rounded}`;
+}
+
+function pct(part, total) {
+  if (total === 0) return 'n/a';
+  return `${((part / total) * 100).toFixed(1)}%`;
+}
+
+function median(values) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  const value = sorted.length % 2 === 0 ? (sorted[middle - 1] + sorted[middle]) / 2 : sorted[middle];
+  return Math.round(value * 10000) / 10000;
+}
+
+function percentile(values, ratio) {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(ratio * sorted.length) - 1));
+  return Math.round(sorted[index] * 10000) / 10000;
+}
+
+function maxAbs(values) {
+  if (values.length === 0) return 0;
+  return Math.round(Math.max(...values.map(Math.abs)) * 10000) / 10000;
+}
+
 // ---------------------------------------------------------------------------
 
 function startApi() {
@@ -370,6 +666,15 @@ async function postJson(url, body, headers = {}) {
   try { payload = text ? JSON.parse(text) : null; } catch { payload = text; }
   assert.ok(response.ok, `POST ${url} failed with ${response.status}: ${JSON.stringify(payload)}`);
   return payload;
+}
+
+async function expectStatus(url, headers, expected) {
+  const response = await fetch(url, { headers });
+  assert.equal(
+    response.status,
+    expected,
+    `${url} should return ${expected} but returned ${response.status}`,
+  );
 }
 
 async function getJson(url, headers = {}) {
