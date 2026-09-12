@@ -33,6 +33,7 @@ import {
   SCORE_NORMALIZED_TOTAL_SCALE,
   calculateCalibrationError,
   deriveCalibrationEvidenceStatus,
+  deriveExamDateState,
   evaluateCalibrationGate,
   isCalibrationCompatible,
   normalizeScore,
@@ -79,6 +80,48 @@ export class ScoreAnchorService {
 
   get enabled(): boolean {
     return Boolean(process.env.DATABASE_URL && this.prisma);
+  }
+
+  /**
+   * G1.8 — the first and only writer of `User.examDate` (owner decision A6).
+   *
+   * Before this the column existed but nothing ever wrote it, while
+   * `User.remainingDays` was a hand-typed integer that silently became the
+   * engine's `daysToExam`; the two could disagree forever and the student could
+   * not tell where the number came from.
+   *
+   * `examDate` is now the single fact: the same shared derivation the UI uses
+   * validates the input AND computes `remainingDays`, and both are written in
+   * one update so they can never drift. Passing `null` clears both.
+   */
+  async setExamDate(
+    userId: string,
+    input: { examDate: string | null; todayIso?: string },
+  ): Promise<{
+    examDate: string | null;
+    remainingDays: number | null;
+    daysLabel: string | null;
+    source: 'exam_date' | 'unset';
+  } | null> {
+    if (!this.enabled) return null;
+    const todayIso = input.todayIso ?? new Date().toISOString();
+    const state = deriveExamDateState({ examDate: input.examDate, todayIso });
+    if (state.error) throw new BadRequestException(state.error);
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        examDate: state.examDate ? new Date(`${state.examDate}T00:00:00.000Z`) : null,
+        // Derived, never hand-filled, so the two can never disagree.
+        remainingDays: state.remainingDays,
+      },
+    });
+    return {
+      examDate: state.examDate,
+      remainingDays: state.remainingDays,
+      daysLabel: state.daysLabel,
+      source: state.source,
+    };
   }
 
   // ---------------------------------------------------------------------------

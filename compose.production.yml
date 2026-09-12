@@ -72,6 +72,15 @@ services:
       WEB_ORIGIN: ${WEB_ORIGIN:-http://${PUBLIC_IP}}
       VITE_API_BASE_URL: "/api"
       ALLOW_DEMO_AUTH: "false"
+      # G1.7 (owner decision A5 = APPROVED): the transfer re-test is a product
+      # surface now, not a report-only experiment. Enabled explicitly here so it
+      # does not depend on the host shell; the single-point parse still treats an
+      # unset/unknown value as OFF, and MASTERY_SEMANTICS stays deliberately
+      # absent so C1 remains OFF.
+      # With no `transfer_probe_pool` content yet, the scheduler honestly reports
+      # `no_probe_available` and the student card stays silent — it never falls
+      # back to reusing an old question.
+      TRANSFER_PROBE_ENABLED: ${TRANSFER_PROBE_ENABLED:-true}
       ALLOW_INSECURE_HTTP_IP: ${ALLOW_INSECURE_HTTP_IP:-true}
       AUDIT_LOG_RETENTION_DAYS: "90"
       QUESTION_IMPORT_DATA_DIR: /var/lib/kaoyan408/question-imports

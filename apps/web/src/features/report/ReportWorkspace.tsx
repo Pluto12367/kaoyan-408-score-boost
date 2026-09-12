@@ -24,6 +24,7 @@ import { FeedbackPanel } from '../feedback/FeedbackPanel';
 import { TaskEvidencePanel } from './TaskEvidencePanel';
 import { LearningEvidenceLedger } from './LearningEvidenceLedger';
 import { ScoreAnchorPanel } from './ScoreAnchorPanel';
+import { ExamDateCard } from './ExamDateCard';
 import { TransferProbeCard } from '../transfer-probe/TransferProbeCard';
 import { LearningProfilePanel } from './LearningProfilePanel';
 import { MasteryTrendPanel } from './MasteryTrendPanel';
@@ -123,6 +124,7 @@ export function ReportWorkspace(props: ReportWorkspaceProps) {
         <LearningEvidenceLedger />
         <TransferProbeCard />
         <ScoreAnchorPanel />
+        <ExamDateCard />
         <StudentProgressOverview
           trialProgress={props.trialProgress}
           studyReminders={props.studyReminders}

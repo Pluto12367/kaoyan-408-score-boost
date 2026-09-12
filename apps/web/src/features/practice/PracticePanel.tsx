@@ -9,6 +9,8 @@ import type { RoleSection } from '../../layouts/RoleNavigation';
 import { GoalProgressInsight } from '../student/GoalProgressInsight';
 import { RecommendationEvidence } from '../student/RecommendationEvidence';
 import { buildPracticeNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
+import { describeVerification } from '@kaoyan408/shared';
+import { VerificationBanner } from '../guidance/GuidanceCards';
 import { RecommendationReasonCard } from './exam-aligned/RecommendationReasonCard';
 import { ExamCoverageSummary } from './exam-aligned/ExamCoverageSummary';
 import { reasonLineFor } from './exam-aligned/examAlignmentView';
@@ -116,6 +118,22 @@ export function PracticePanel({
         knowledgePointTitle: set?.focus ?? targetWeakPointTitle,
       })
     : null;
+
+  /**
+   * G1.4 — what this attempt actually produced. The verdict comes from the
+   * evidence that was really recorded for the attempt; a completed answer with
+   * no observation says so instead of implying ability.
+   */
+  const verification = answerResult
+    ? describeVerification({
+        domain: 'practice',
+        // A graded answer is an observed performance; the strength is 'strong'
+        // because it is an objective judgement, not a self-report.
+        strength: 'strong',
+        attempts: 1,
+        hasTransferEvidence: false,
+      })
+    : null;
   return (
     <article id="question" className="panel">
       <p className="eyebrow">题库训练</p>
@@ -189,6 +207,9 @@ export function PracticePanel({
           <details className="answer-learning-details">
             <summary>学习影响与推荐依据</summary>
             <div>
+          {verification && onNavigate ? (
+            <VerificationBanner view={verification} onNavigate={onNavigate} />
+          ) : null}
           <div className="answer-impact-card">
             <strong>本次学习影响</strong>
             <p><span>知识点</span>{answerResult.knowledgePointTitle ?? '当前题目关联考点'}</p>

@@ -59,3 +59,4 @@ export {
 } from './knowledgeCatalog';
 export * from './score-anchor/score-anchor';
 export * from './transfer-probe/transfer-probe';
+export * from './guidance/index';

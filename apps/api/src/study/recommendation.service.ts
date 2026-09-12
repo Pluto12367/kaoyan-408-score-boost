@@ -1,7 +1,7 @@
 import { Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
 import type { RecommendationInput } from '@kaoyan408/shared';
-import { calculatePriority, runRecommendation } from '@kaoyan408/shared';
+import { calculatePriority, REASON_LABELS, runRecommendation } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { todayKey } from './study-date';
 import {
@@ -26,6 +26,29 @@ import { StudyPlanRepository } from './study-plan.repository';
 // 依赖方向：ScoreCenterService / StudyService → 本服务 → shared 引擎；本服务不依赖 StudyService。
 
 const MODEL_VERSION = 'score-center-v1';
+
+/**
+ * G1.1 — the `reason` column is a STUDENT-FACING string (it is rendered verbatim
+ * by TodayMission / TodayPlan / DailyBrief). It used to be
+ * `draft.reasonCodes.join('、')`, which leaked raw engine codes such as
+ * `LOW_MASTERY、REPEATED_WRONG`, and fell back to the machine token
+ * `recommendation:${action}` when the list was empty.
+ *
+ * Both are gone: codes are translated through the shared `REASON_LABELS` table,
+ * and an empty list produces an honest insufficiency sentence instead of a
+ * fabricated or machine-readable reason. `reasonCodes` remains the
+ * machine-readable field on the same payload.
+ */
+function studentReasonText(reasonCodes: readonly string[] | null | undefined): string {
+  const labels = (reasonCodes ?? [])
+    .map((code) => REASON_LABELS[code as keyof typeof REASON_LABELS] ?? null)
+    .filter((label): label is string => Boolean(label));
+  const unique = [...new Set(labels)];
+  if (unique.length === 0) {
+    return '当前证据不足：这个任务没有触发可解释的推荐原因，系统不会替你编一个。';
+  }
+  return unique.join('；');
+}
 
 export interface DailyPlanGenerationInput {
   targetExamDate: Date;
@@ -242,7 +265,7 @@ export class RecommendationService {
         questionCount: draft.action === 'MOCK' ? 30 : 8,
         scheduledDate,
         priority: priorityLabel(draft.score),
-        reason: draft.reasonCodes.join('、'),
+        reason: studentReasonText(draft.reasonCodes),
         nextAction: ACTION_LABELS[draft.action] ?? draft.action,
         status: 'pending',
         priorityScore: draft.score,
@@ -315,7 +338,7 @@ export class RecommendationService {
         actionType: draft.action,
         targetType: 'KNOWLEDGE_NODE' as const,
         targetId: draft.knowledgeNodeId,
-        reason: draft.reasonCodes.join('、') || `recommendation:${draft.action}`,
+        reason: studentReasonText(draft.reasonCodes),
         evidenceRefs: [{
           kind: 'recommendation-result',
           id: `${userId}:${scheduledDate}`,

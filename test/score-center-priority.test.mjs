@@ -97,11 +97,27 @@ test('deterministic reason codes fire on threshold conditions', () => {
   assert.ok(result.reasons.includes('EXAM_NEAR'));
 });
 
-test('every result carries at least two reasons and a full breakdown', () => {
+test('G1.1 (was: at least two reasons): reasons are never fabricated to pad the list', () => {
+  // This assertion previously encoded the defect fixed by G1.1 / owner decision
+  // A1: `reasons` used to be padded to a minimum of two from a generic pool,
+  // which let the UI print causes that had never been observed. The contract is
+  // now "1 real reason > 2 real + fabricated", so the count is no longer forced.
   for (const user of [undefined, weakUser, strongUser]) {
     for (const daysToExam of [10, 60, 200]) {
       const result = calculatePriority(hot, user, { daysToExam });
-      assert.ok(result.reasons.length >= 2, `reasons ${result.reasons} for days ${daysToExam}`);
+      // Description parity: every fired code has a detail with a real basis.
+      assert.deepEqual(
+        result.reasonDetails.map((detail) => detail.code),
+        result.reasons,
+        `reasonDetails must describe exactly the fired reasons (days ${daysToExam})`,
+      );
+      for (const detail of result.reasonDetails) {
+        assert.ok(detail.basis && detail.basis.length > 0, 'each reason carries a checkable basis');
+      }
+      // Fabricated codes never enter `reasons`.
+      for (const code of result.fallbackReasons) {
+        assert.ok(!result.reasons.includes(code), `${code} was padding and must not be presented as a reason`);
+      }
       for (const key of ['examValue', 'weakness', 'forgetting', 'difficulty', 'trend', 'pinned']) {
         assert.ok(Number.isFinite(result.breakdown[key]), `breakdown.${key} must be finite`);
       }

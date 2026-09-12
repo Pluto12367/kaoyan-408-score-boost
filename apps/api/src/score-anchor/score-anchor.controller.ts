@@ -23,6 +23,7 @@ import {
   RecordScoreCorrectionDto,
   RecordScoreOutcomeDto,
   RecordScorePredictionDto,
+  SetExamDateDto,
 } from './dto/score-evidence.dto';
 import { ScoreAnchorService, type ScoreAnchorActor } from './score-anchor.service';
 
@@ -112,6 +113,24 @@ export class ScoreAnchorController {
       return { userId: user.id, generatedAt: new Date().toISOString(), storeAvailable: false, reason: 'store_unavailable' };
     }
     return evidence;
+  }
+
+  /**
+   * G1.8 — exam-date entry (owner decision A6). SELF-ONLY: the handler never
+   * reads a target user from the body, so a caller can only set their own date.
+   * Format validation, the past-date refusal and the `remainingDays` derivation
+   * all happen inside the service via the shared helper.
+   */
+  @Post('coach/exam-date')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async setExamDate(
+    @CurrentUser() user: UserProfile,
+    @Body() dto: SetExamDateDto,
+  ) {
+    const result = await this.scoreAnchor.setExamDate(user.id, { examDate: dto.examDate ?? null });
+    if (!result) return { storeAvailable: false, reason: 'store_unavailable' };
+    return { storeAvailable: true, ...result };
   }
 
   private actor(user: UserProfile): ScoreAnchorActor {

@@ -15,8 +15,10 @@ import {
   IsOptional,
   IsString,
   Length,
+  Matches,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 
 const SCORE_SOURCES = ['MOCK', 'DIAGNOSTIC', 'TEACHER_GRADED', 'RUBRIC_GRADED', 'REAL_EXAM', 'IMPORTED', 'UNKNOWN'];
@@ -96,6 +98,21 @@ export class RecordScoreAssessmentDto {
   @IsString()
   @Length(8, 120)
   clientKey?: string;
+}
+
+/**
+ * G1.8 — exam-date entry (owner decision A6).
+ *
+ * `null` clears the date. The service validates the format, rejects past dates
+ * and derives `remainingDays` through the shared helper, so the API and the UI
+ * cannot disagree about how many days are left.
+ */
+export class SetExamDateDto {
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'examDate must be YYYY-MM-DD' })
+  examDate?: string | null;
 }
 
 export class RecordScoreOutcomeDto {

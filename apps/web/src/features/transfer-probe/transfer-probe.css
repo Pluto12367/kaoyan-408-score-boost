@@ -92,3 +92,7 @@
   border-radius: 8px;
   background: var(--surface-soft-2);
 }
+
+/* G1.7 — first-use explanation and the NEXT line on the transfer re-test. */
+.transfer-probe-intro { border: 1px solid var(--border-subtle, var(--border)); border-radius: 8px; margin: 8px 0; padding: 8px; }
+.transfer-probe-how { color: var(--text-secondary); font-size: 0.82rem; margin: 6px 0; padding-left: 1.1rem; }

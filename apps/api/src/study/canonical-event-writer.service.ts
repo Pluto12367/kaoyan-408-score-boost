@@ -27,6 +27,17 @@ export const TELEMETRY_EVENT_TYPES = [
   // can observe that it rendered something for the student.
   'recommendation.exposed',
   'recommendation.viewed',
+  // G1.9 (owner decision A3): the guidance funnel. Six stages, mirroring the
+  // requirement that guidance be measurable end-to-end — shown → accepted →
+  // action started → action completed, plus dismissal and correction success.
+  // `userId` comes from the authenticated request; `trigger`/`action`/`guidanceId`
+  // ride in the payload. No learning content is recorded.
+  'guidance.shown',
+  'guidance.accepted',
+  'guidance.action_started',
+  'guidance.action_completed',
+  'guidance.dismissed',
+  'guidance.correction_success',
 ] as const;
 
 export const RESERVED_CANONICAL_EVENT_TYPES = [

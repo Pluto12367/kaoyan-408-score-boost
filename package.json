@@ -70,6 +70,7 @@
     "test:integration:exam-aligned": "npm run build:api && node scripts/integration-exam-aligned.mjs",
     "test:integration:score-anchor": "node scripts/integration-score-anchor.mjs",
     "test:integration:transfer-probe": "node scripts/integration-transfer-probe.mjs",
+    "test:integration:guidance-protocol": "node scripts/integration-guidance-protocol.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }

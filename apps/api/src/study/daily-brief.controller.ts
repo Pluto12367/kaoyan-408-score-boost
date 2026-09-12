@@ -34,6 +34,7 @@ import { ScoreCalibrationService } from './score-calibration.service';
 import { ShadowDecisionChainService } from './shadow-decision-chain.service';
 import { ReviewMasteryShadowService } from './review-mastery-shadow.service';
 import { LearningImpactService } from './learning-impact.service';
+import { PracticePatternService } from './practice-pattern.service';
 
 @Controller()
 export class DailyBriefController {
@@ -54,6 +55,7 @@ export class DailyBriefController {
     private readonly scoreCalibration?: ScoreCalibrationService,
     private readonly shadowDecisionChain?: ShadowDecisionChainService,
     private readonly reviewMasteryShadow?: ReviewMasteryShadowService,
+    private readonly practicePatterns?: PracticePatternService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -462,7 +464,36 @@ export class DailyBriefController {
     return result;
   }
 
-  private resolveUserId(user: UserProfile, viewUserId?: string): string {    if (!viewUserId || viewUserId === user.id) return user.id;
+  /**
+   * G1.6 — behaviour-pattern read model feeding the wrong-usage guardrails
+   * (task §8 A–G). READ-ONLY and self-only; detection and thresholds live in
+   * the shared pure module so the API cannot drift from the UI. Returns
+   * `storeAvailable: false` instead of inventing signals when there is no store.
+   */
+  @Get('coach/practice-patterns')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getPracticePatterns(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.practicePatterns) {
+      return {
+        userId,
+        generatedAt: new Date().toISOString(),
+        storeAvailable: false,
+        reason: 'store_unavailable',
+        windowDays: 14,
+        signals: [],
+        basis: { attempts: 0, sessions: 0, probeExpired: 0, probeEvents: 0, assessments: 0 },
+      };
+    }
+    return this.practicePatterns.getPracticePatterns(userId);
+  }
+
+  private resolveUserId(user: UserProfile, viewUserId?: string): string {
+    if (!viewUserId || viewUserId === user.id) return user.id;
     if (user.role === 'admin') return viewUserId;
     if (user.role === 'teacher') {
       this.studyService.assertTeacherAuthorizedForStudent(user.id, viewUserId);

@@ -166,3 +166,37 @@
 @media (max-width: 980px) { .dashboard-main-grid { grid-template-columns: 1fr; } .dashboard-secondary-column { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-streak-strip { align-self: stretch; } }
 @media (max-width: 680px) { .dashboard-home-hero { align-items: flex-start; padding: 25px 22px; } .dashboard-ai-orbit { display: none; } .dashboard-hero-stats { flex-wrap: wrap; gap: 18px; } .dashboard-subject-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dashboard-secondary-column { grid-template-columns: 1fr; } .dashboard-section, .dashboard-ai-insight { padding: 18px; } }
 @media (prefers-reduced-motion: reduce) { .dashboard-quick-grid button { transition: none; } }
+
+/* G1.2 — home information hierarchy (owner decision A4).
+   Three levels: PRIMARY (one learning action), SECONDARY (supports it),
+   CONTEXT (collapsed by default). Presentation only; no behaviour. */
+.dashboard-secondary-level { display: flex; flex-direction: column; gap: var(--space-4, 16px); margin-top: var(--space-4, 16px); }
+
+.dashboard-context-level {
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: var(--radius-lg, 12px);
+  margin-top: var(--space-4, 16px);
+  padding: var(--space-3, 12px);
+}
+.dashboard-context-level > summary { color: var(--text-secondary); cursor: pointer; font-weight: 600; }
+.dashboard-context-level[open] > summary { margin-bottom: var(--space-3, 12px); }
+.dashboard-context-grid { display: grid; gap: var(--space-3, 12px); grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* G1.1/G1.5 — honest why lines and the NEXT line under the task list. */
+.dashboard-task-context { color: var(--text-muted); display: block; font-size: 0.78rem; }
+.dashboard-task-insufficient { color: var(--text-muted); font-style: italic; }
+.dashboard-task-next { align-items: center; display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); margin-top: var(--space-3, 12px); }
+
+/* G1.6 — the proactive coach card is now actionable, not an inert list item. */
+.proactive-coach-action {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: block;
+  padding: 0;
+  text-align: left;
+  width: 100%;
+}
+.proactive-coach-steps { color: var(--text-muted); display: block; font-size: 0.78rem; margin-top: 2px; }
+.proactive-coach-go { color: var(--text-secondary); display: inline-flex; align-items: center; gap: 2px; font-size: 0.78rem; margin-top: 4px; }

@@ -7,6 +7,7 @@ import type {
   TrendDirection,
   UserKnowledgeState,
 } from './types';
+import { buildReasonDetail, type PriorityReasonDetail, type ReasonFacts } from './reason-integrity';
 
 const COMPONENT_WEIGHTS = {
   examValue: 0.37,
@@ -85,19 +86,42 @@ export function calculatePriority(
     )),
   );
 
+  const forgettingValue = forgetting;
+  const reasonsResult = buildReasons(
+    evidence,
+    { mastery, recentAccuracy, wrongCount, forgetting: forgettingValue },
+    context.daysToExam,
+    breakdown,
+  );
+
   return {
     score,
-    reasons: buildReasons(evidence, { mastery, recentAccuracy, wrongCount, forgetting }, context.daysToExam, breakdown),
+    reasons: reasonsResult.reasons,
+    reasonDetails: reasonsResult.reasonDetails,
+    fallbackReasons: reasonsResult.fallbackReasons,
     breakdown,
   };
 }
 
+/**
+ * G1.1 — Reason Integrity (owner decision A1 = APPROVED).
+ *
+ * Only thresholds that actually fired produce a reason. The generic pool that
+ * used to pad the list to a minimum of two no longer feeds `reasons`; it is
+ * returned separately as `fallbackReasons` for diagnostics, because a padded
+ * code is indistinguishable from a real one downstream and was being printed
+ * to students under 「为什么推荐」.
+ */
 function buildReasons(
   evidence: ExamEvidence,
   user: { mastery: number; recentAccuracy: number; wrongCount: number; forgetting: number },
   daysToExam: number,
   breakdown: PriorityBreakdown,
-): PriorityReasonCode[] {
+): {
+  reasons: PriorityReasonCode[];
+  reasonDetails: PriorityReasonDetail[];
+  fallbackReasons: PriorityReasonCode[];
+} {
   const reasons: PriorityReasonCode[] = [];
   if (evidence.recent3Y.frequency >= 4) reasons.push('HIGH_RECENT_FREQUENCY');
   if (user.mastery < 0.55) reasons.push('LOW_MASTERY');
@@ -108,6 +132,22 @@ function buildReasons(
   if (daysToExam <= 45) reasons.push('EXAM_NEAR');
   if (evidence.evidenceConfidence === 'LOW') reasons.push('LOW_EVIDENCE');
 
+  const facts: ReasonFacts = {
+    recent3YFrequency: evidence.recent3Y.frequency,
+    mastery: user.mastery,
+    recentAccuracy: user.recentAccuracy,
+    wrongCount: user.wrongCount,
+    forgetting: user.forgetting,
+    trendDirection: evidence.trend.direction,
+    daysToExam,
+    evidenceConfidence: evidence.evidenceConfidence,
+  };
+  const reasonDetails = reasons.map((code) => buildReasonDetail(code, facts));
+
+  // Diagnostics-only fallback (formerly the "must have two reasons" filler).
+  // Kept so the padding is still observable in tests and shadow tooling, but
+  // it never enters `reasons` and therefore never reaches a student.
+  const fallbackReasons: PriorityReasonCode[] = [];
   if (reasons.length < 2) {
     const genericPool: Array<{ code: PriorityReasonCode; value: number }> = [
       { code: 'HIGH_RECENT_FREQUENCY', value: breakdown.examValue },
@@ -115,9 +155,12 @@ function buildReasons(
       { code: 'REVIEW_DUE', value: breakdown.forgetting },
     ];
     for (const candidate of [...genericPool].sort((left, right) => right.value - left.value)) {
-      if (reasons.length >= 2) break;
-      if (!reasons.includes(candidate.code)) reasons.push(candidate.code);
+      if (fallbackReasons.length >= 2) break;
+      if (!reasons.includes(candidate.code) && !fallbackReasons.includes(candidate.code)) {
+        fallbackReasons.push(candidate.code);
+      }
     }
   }
-  return reasons;
+
+  return { reasons, reasonDetails, fallbackReasons };
 }

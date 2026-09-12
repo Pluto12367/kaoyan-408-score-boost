@@ -1,5 +1,6 @@
 export * from './types';
 export * from './mastery';
+export * from './reason-integrity';
 export * from './priority';
 export * from './plan';
 export * from './recommendation';

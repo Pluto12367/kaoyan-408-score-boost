@@ -14,6 +14,8 @@ export type AttemptSignal = {
   role: 'PRIMARY' | 'SECONDARY';
 };
 
+import type { PriorityReasonDetail } from './reason-integrity';
+
 export type ReviewQuality = 0 | 1 | 2 | 3 | 4 | 5;
 
 export type PriorityReasonCode =
@@ -68,7 +70,17 @@ export type PriorityBreakdown = {
 
 export type PriorityResult = {
   score: number;
+  /**
+   * Threshold-triggered reason codes ONLY (G1.1 / owner decision A1).
+   * Before G1.1 this array was padded to a minimum of two entries from a
+   * generic pool, which let the UI print causes that had never been observed.
+   * The padded codes now live in `fallbackReasons` and must never be rendered.
+   */
   reasons: PriorityReasonCode[];
+  /** Tier + machine-checkable basis + FACT-form sentence for each reason. */
+  reasonDetails: PriorityReasonDetail[];
+  /** Diagnostics only: the old generic pool. Never a student-facing "why". */
+  fallbackReasons: PriorityReasonCode[];
   breakdown: PriorityBreakdown;
 };
 

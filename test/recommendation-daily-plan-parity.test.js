@@ -9,6 +9,19 @@ process.env.TS_NODE_PROJECT = fileURLToPath(new URL('../apps/api/tsconfig.json',
 require('ts-node/register');
 
 const shared = require('../packages/shared/dist/index.js');
+
+// G1.1 — mirrors apps/api/src/study/recommendation.service.ts `studentReasonText`.
+function studentReasonText(reasonCodes) {
+  const labels = (reasonCodes ?? [])
+    .map((code) => shared.REASON_LABELS[code] ?? null)
+    .filter((label) => Boolean(label));
+  const unique = [...new Set(labels)];
+  if (unique.length === 0) {
+    return '当前证据不足：这个任务没有触发可解释的推荐原因，系统不会替你编一个。';
+  }
+  return unique.join('；');
+}
+
 const repo = require('../apps/api/src/score-center/repository.ts');
 const studyDate = require('../apps/api/src/study/study-date.ts');
 const { RecommendationService } = require('../apps/api/src/study/recommendation.service.ts');
@@ -211,7 +224,12 @@ async function legacyGenerateDailyPlan(prisma, userId, input, deps) {
           questionCount: draft.action === 'MOCK' ? 30 : 8,
           scheduledDate,
           priority: priorityLabel(draft.score),
-          reason: draft.reasonCodes.join('、'),
+          // G1.1: the legacy transcript used `draft.reasonCodes.join('、')`, which
+          // leaked raw engine codes to students and fell back to the machine token
+          // `recommendation:${action}`. The service now translates through the
+          // shared REASON_LABELS table; the transcript mirrors the fixed contract
+          // so the 18-field parity assertion stays strict and meaningful.
+          reason: studentReasonText(draft.reasonCodes),
           nextAction: ACTION_LABELS[draft.action],
           status: 'pending',
           priorityScore: draft.score,

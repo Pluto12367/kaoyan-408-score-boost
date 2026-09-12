@@ -1,0 +1,109 @@
+/* G1 — guidance surface. Token-only (no hex), per DESIGN.md and the theme tests. */
+
+.gd-primary { border-left: 3px solid var(--accent, var(--primary, var(--text-secondary))); }
+
+.gd-primary-head,
+.gd-how-head,
+.gd-guardrail-head,
+.gd-verify-banner-head,
+.gd-contract-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+}
+
+.gd-primary-head-right { display: flex; align-items: center; gap: var(--space-2, 8px); }
+
+.gd-today { color: var(--text-muted); font-size: 0.85rem; }
+
+.gd-dismiss,
+.gd-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 2px 4px;
+  text-decoration: underline;
+}
+
+.gd-link { padding: 0; }
+
+.gd-primary-meta { color: var(--text-secondary); margin: var(--space-2, 8px) 0; }
+
+.gd-label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  margin: var(--space-3, 12px) 0 var(--space-1, 4px);
+}
+
+.gd-reason-list { list-style: none; margin: 0; padding: 0; }
+
+.gd-reason { margin: 2px 0; padding-left: var(--space-3, 12px); position: relative; }
+.gd-reason::before { content: '·'; left: 2px; position: absolute; }
+
+.gd-reason-evidenced_reason { color: var(--text-primary); }
+.gd-reason-inferred_reason { color: var(--text-secondary); }
+.gd-context { color: var(--text-muted); margin: 2px 0; }
+.gd-context-list { opacity: 0.9; }
+
+.gd-insufficient,
+.gd-boundary {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin-top: var(--space-2, 8px);
+}
+
+.gd-verify { margin-top: var(--space-2, 8px); }
+.gd-verify-text { color: var(--text-secondary); margin: 0; }
+
+.gd-start { margin-top: var(--space-3, 12px); width: 100%; }
+
+.gd-next {
+  align-items: center;
+  border-top: 1px solid var(--border-subtle, var(--border));
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3, 12px);
+  margin-top: var(--space-3, 12px);
+  padding-top: var(--space-3, 12px);
+}
+
+.gd-next-reason { color: var(--text-muted); flex: 1 1 200px; font-size: 0.85rem; margin: 0; }
+
+.gd-statement { margin: var(--space-1, 4px) 0; }
+.gd-statement-fact { color: var(--text-primary); }
+.gd-statement-inference,
+.gd-statement-unverified { color: var(--text-secondary); }
+.gd-statement-insufficient_data { color: var(--text-muted); font-style: italic; }
+
+.gd-kind {
+  border: 1px solid var(--border-subtle, var(--border));
+  border-radius: 999px;
+  color: var(--text-muted);
+  display: inline-block;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  margin-right: var(--space-1, 4px);
+  padding: 0 6px;
+  vertical-align: middle;
+}
+
+.gd-how-steps { margin: var(--space-1, 4px) 0 0; padding-left: 1.1rem; }
+.gd-how-steps li { color: var(--text-secondary); margin: 2px 0; }
+
+.gd-guardrail { margin-bottom: var(--space-3, 12px); }
+.gd-guardrail-p0 { border-left: 3px solid var(--warning, var(--danger, var(--text-secondary))); }
+.gd-guardrail-p1,
+.gd-guardrail-p2 { border-left: 3px solid var(--border-subtle, var(--border)); }
+.gd-guardrail-verify { color: var(--text-secondary); margin: var(--space-1, 4px) 0; }
+
+.gd-verify-banner { margin: var(--space-3, 12px) 0; }
+
+.gd-contract-list { margin: var(--space-2, 8px) 0; padding-left: 1.1rem; }
+.gd-contract-line { color: var(--text-secondary); margin: var(--space-2, 8px) 0; }
+.gd-contract-hint { color: var(--text-muted); display: block; font-size: 0.75rem; margin-top: 2px; }
+
+.gd-muted { color: var(--text-muted); font-size: 0.85rem; }

@@ -332,6 +332,7 @@ export function StudentSections(props: StudentSectionsProps) {
                 onOpenReview={props.onOpenReview}
                 canonicalAction={canonicalAction}
                 onSelectCanonicalAction={onSelectCanonicalAction}
+                onboardingOutstanding={props.showOnboarding}
               />
               {!props.todayPlan && isMockAllowed() ? (
                 <Suspense fallback={sectionFallback('学习计划')}>

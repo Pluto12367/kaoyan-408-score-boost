@@ -1,18 +1,37 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Check, Circle } from 'lucide-react';
-import { REASON_LABELS } from '@kaoyan408/shared';
+import {
+  COMPLETION_BOUNDARY_NOTE,
+  buildReasonDetailFromCode,
+  resolveNextAction,
+  resolveShownReasons,
+  type PriorityReasonCode,
+} from '@kaoyan408/shared';
 import type { TodayPlanTask } from '../../../onboarding/todayLearningRoute';
 import type { DashboardTaskViewModel, DashboardViewModel } from '../useDashboardViewModel';
 import { fetchTaskEvidence } from '../../../../api/endpoints/dashboard';
 import { reportRecommendationExposed } from '../../../recommendation/recommendationExposure';
 import '../../../report/task-evidence.css';
 
-function reasonLine(task: DashboardTaskViewModel): string | null {
-  const codes = task.source.reasonCodes ?? [];
-  if (codes.length > 0) {
-    return codes.slice(0, 2).map((code) => REASON_LABELS[code as keyof typeof REASON_LABELS] ?? code).join(' · ');
-  }
-  return task.source.reason || null;
+/**
+ * G1.1 / G1.2 / G1.4 / G1.5 — the today task list.
+ *
+ * The 「为什么：」 line used to print every code the engine returned, including
+ * codes that had only been added to pad the list to two. It now goes through the
+ * shared reason-integrity selector, so:
+ *   • EVIDENCED and INFERRED codes become the visible "why";
+ *   • CONTEXTUAL facts are labelled as the situation, not as a cause;
+ *   • no reason at all produces an explicit insufficiency sentence.
+ *
+ * Completed rows also carry the capability verdict and the boundary note, so
+ * "完成 ≠ 学会" is visible where the completion actually happens.
+ */
+function whyView(task: DashboardTaskViewModel) {
+  const codes = (task.source.reasonCodes ?? []) as PriorityReasonCode[];
+  return resolveShownReasons({
+    reasons: codes,
+    reasonDetails: codes.map(buildReasonDetailFromCode),
+  });
 }
 
 /** V11-M2 — per-completed-task capability verdict chips (honest, evidence-backed). */
@@ -34,6 +53,7 @@ function useTaskEvidenceChips(tasks: DashboardTaskViewModel[]) {
           if (task.verdict === 'improved') next[task.taskId] = '掌握度 ↑';
           else if (task.verdict === 'practiced_no_gain') next[task.taskId] = '已练·未见提升';
           else if (task.verdict === 'practiced') next[task.taskId] = '已练习';
+          else if (task.verdict === 'insufficient_data') next[task.taskId] = '完成·无作答证据';
         }
         setChips(next);
       } catch {
@@ -47,7 +67,14 @@ function useTaskEvidenceChips(tasks: DashboardTaskViewModel[]) {
   return chips;
 }
 
-export function TodayMission({ model, loading, error, onLaunch, onRefresh }: { model: DashboardViewModel; loading: boolean; error: string; onLaunch: (task: TodayPlanTask) => void; onRefresh: () => void }) {
+export function TodayMission({ model, loading, error, onLaunch, onRefresh, onNavigate }: {
+  model: DashboardViewModel;
+  loading: boolean;
+  error: string;
+  onLaunch: (task: TodayPlanTask) => void;
+  onRefresh: () => void;
+  onNavigate?: (section: 'wrong-book' | 'test' | 'question' | 'dashboard') => void;
+}) {
   const chips = useTaskEvidenceChips(model.tasks.filter((task) => task.completed));
   // V12-M2a (EB-3): today's tasks ARE the recommendations the engine produced.
   // Report the set this surface actually rendered, de-duplicated per day.
@@ -61,13 +88,58 @@ export function TodayMission({ model, loading, error, onLaunch, onRefresh }: { m
   const completionCount = model.completedTaskCount == null || model.totalTaskCount == null
     ? '--/--'
     : `${model.completedTaskCount}/${model.totalTaskCount}`;
+  const hasCompleted = model.tasks.some((task) => task.completed);
+
+  /**
+   * G1.5 — the NEXT under the list is resolved by the shared resolver, so it can
+   * never disagree with the primary action card. `null` means the resolver had
+   * nothing reliable to suggest; it still returns an explained no-next.
+   */
+  const nextResolution = useMemo(() => resolveNextAction({
+    hasPendingTask: model.tasks.some((task) => !task.completed),
+    reviewDue: model.reviewDueCount ?? 0,
+    probeDue: false,
+    assessments: 0,
+    probeEvents: 0,
+    verdict: hasCompleted ? null : undefined,
+  }), [model.tasks, model.reviewDueCount, hasCompleted]);
+
   return <section className="dashboard-section dashboard-mission-section" aria-label="今日学习任务">
     <div className="dashboard-section-heading"><div><span className="dashboard-kicker">Daily Mission</span><h3>今日学习计划</h3></div><button type="button" className="dashboard-text-button" onClick={onRefresh}>刷新</button></div>
     {loading ? <p className="dashboard-muted">正在同步今日任务...</p> : error ? <p className="dashboard-inline-error">{error}</p> : model.tasks.length ? <>
       <div className="dashboard-mission-progress"><span>今日完成 {completionCount}</span><strong>{completionRate ?? '--'}</strong><div><i style={{ width: `${model.completionRate ?? 0}%` }} /></div></div>
-      <div className="dashboard-task-list">{model.tasks.map((task) => <button type="button" className={`dashboard-task-row ${task.completed ? 'is-complete' : ''}`} key={task.id} onClick={() => onLaunch(task.source)}>
-        <span className="dashboard-task-check">{task.completed ? <Check size={14} /> : <Circle size={14} />}</span><span className="dashboard-task-copy"><strong>{task.title}</strong><small>{task.subject} · {task.detail}</small>{reasonLine(task) ? <small className="dashboard-task-reason">为什么：{reasonLine(task)}</small> : null}{chips[task.id] ? <small className="dashboard-task-evidence">{chips[task.id]}</small> : null}</span><span className="dashboard-task-count">{task.progressText}</span><ArrowRight size={15} />
-      </button>)}</div>
+      <div className="dashboard-task-list">{model.tasks.map((task) => {
+        const why = whyView(task);
+        return <button type="button" className={`dashboard-task-row ${task.completed ? 'is-complete' : ''}`} key={task.id} onClick={() => onLaunch(task.source)}>
+          <span className="dashboard-task-check">{task.completed ? <Check size={14} /> : <Circle size={14} />}</span>
+          <span className="dashboard-task-copy">
+            <strong>{task.title}</strong>
+            <small>{task.subject} · {task.detail}</small>
+            {why.reasons.length > 0 ? (
+              <small className="dashboard-task-reason" data-testid={`task-why-${task.id}`}>
+                为什么：{why.reasons.map((entry) => entry.statement || entry.code).join('；')}
+              </small>
+            ) : null}
+            {why.reasons.length === 0 && why.insufficientNote ? (
+              <small className="dashboard-task-reason dashboard-task-insufficient">{why.insufficientNote}</small>
+            ) : null}
+            {why.contextFacts.length > 0 ? (
+              <small className="dashboard-task-context">当前情况：{why.contextFacts.map((entry) => entry.statement || entry.code).join('；')}</small>
+            ) : null}
+            {chips[task.id] ? <small className="dashboard-task-evidence">{chips[task.id]}</small> : null}
+          </span>
+          <span className="dashboard-task-count">{task.progressText}</span><ArrowRight size={15} />
+        </button>;
+      })}</div>
+      <p className="dashboard-muted" data-testid="today-mission-boundary">{COMPLETION_BOUNDARY_NOTE}</p>
     </> : <p className="dashboard-muted">完成入学引导后，这里会显示你的今日任务。</p>}
+    <div className="dashboard-task-next" data-testid="today-mission-next">
+      {onNavigate ? (
+        <button type="button" className="dashboard-text-button" onClick={() => onNavigate(nextResolution.action.section as 'wrong-book')}>
+          下一步：{nextResolution.action.label}
+        </button>
+      ) : null}
+      <small className="dashboard-muted">{nextResolution.reason}</small>
+    </div>
   </section>;
 }
