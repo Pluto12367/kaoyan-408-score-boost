@@ -11,6 +11,8 @@ import { StudyPlanRepository } from '../study/study-plan.repository';
   imports: [PrismaModule, AuthModule],
   controllers: [ScoreCenterController],
   providers: [ScoreCenterService, RecommendationService, RecommendationActionAdapterService, StudyPlanRepository],
-  exports: [ScoreCenterService, RecommendationService, RecommendationActionAdapterService],
+  // S2: StudyPlanRepository is exported for the transfer-probe plan carrier
+  // (C2) — the probe plan is the only new writer, reusing the same repository.
+  exports: [ScoreCenterService, RecommendationService, RecommendationActionAdapterService, StudyPlanRepository],
 })
 export class ScoreCenterModule {}

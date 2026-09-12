@@ -98,7 +98,7 @@ import { StudentContextQueryService } from './student-context.query.service';
 
 @Module({
   imports: [AuthModule, QuestionsModule, PrismaModule, ScoreCenterModule, RagModule, EffectivenessModule],
-  controllers: [StudyController, DailyBriefController, SpriteController, LargeQuestionController, ScoreAnchorController],
+  controllers: [StudyController, DailyBriefController, SpriteController, LargeQuestionController, ScoreAnchorController, TransferProbeController],
   
   providers: [StudyService, LearningSignalService, RecommendationActionService, RecommendationActionRepository, LearningSessionActionService, ActionOutcomeAuditRepository, ActionOutcomeAuditService, ActionLearningSignalService, RecommendationFeedbackService, StudentStateFeedbackAdapter, StudentStateFeedbackRepository, ActionLearningSignalConsumerService, ActionFeedbackTriggerService, OverviewReportProjectionService, OverviewQueryService, StudentStateProjectionService, StudentStateQueryService, StudentStateReminderQueryService, StudentStateSprintPlanQueryService, StudentStateTrialProgressQueryService, StudentStateLearningCalendarQueryService, ActivityProjectionService, PracticeProjectionService, MasterySummaryProjectionService, WrongQuestionProjectionService, WrongQuestionQueryService, TodayPlanProjectionService, TodayPlanQueryService, DashboardProjectionService, DashboardQueryService, AssessmentProjectionService, StageAssessmentProjectionService, StageAssessmentQueryService, AssessmentHistoryProjectionService, AssessmentHistoryQueryService, ContextualCoachService, ContextualCoachContextAssembler, StudentContextQueryService, ExamScoreHistoryQueryService, {
     provide: ExamScoreHistoryProjectionService,

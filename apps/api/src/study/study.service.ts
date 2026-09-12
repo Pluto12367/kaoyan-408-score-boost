@@ -106,6 +106,7 @@ import { computePracticeRecordRequestHash, PRACTICE_RECORD_HASH_VERSION } from '
 import { ScoreCenterService } from '../score-center/service';
 import { ScoreAnchorService } from '../score-anchor/score-anchor.service';
 import {
+  toDifficultyBucket,
   TRANSFER_PROBE_EVIDENCE_KIND,
   TRANSFER_PROBE_POOL_SOURCE,
   TRANSFER_PROBE_SESSION_TYPE,
@@ -4794,7 +4795,7 @@ export class StudyService implements OnModuleInit {
         probeId: probeActionId,
         nodeId: action.targetId,
         questionId,
-        bucket: String(question.difficulty ?? 'MEDIUM'),
+        bucket: toDifficultyBucket(String(question.difficulty ?? 'MEDIUM')),
         isomorphism: question.source === TRANSFER_PROBE_POOL_SOURCE ? 'verified' : 'unverified',
         kind_probe: 'practice_difficulty',
       },
@@ -4871,6 +4872,13 @@ export class StudyService implements OnModuleInit {
     if (answer.answerModified != null && typeof answer.answerModified !== 'boolean') {
       throw new BadRequestException(`Answer modified flag for ${questionId} is invalid`);
     }
+  }
+
+  /** S2 — registers a session created by another service (transfer probe
+   * delivery) so the canonical submit path can find it. The DB row already
+   * exists; this only fills the in-process session map. */
+  registerExternalSession(session: PracticeSession): void {
+    this.practiceSessions.set(session.id, session);
   }
 
   private getOwnSession(sessionId: string, userId: string): PracticeSession {
@@ -5408,7 +5416,7 @@ export interface ReviewResource {
 }
 
 // Phase 4 session types
-interface PracticeSession {
+export interface PracticeSession {
   id: string;
   userId: string;
   type: 'practice_set' | 'stage_assessment' | 'paper' | 'transfer_probe';
