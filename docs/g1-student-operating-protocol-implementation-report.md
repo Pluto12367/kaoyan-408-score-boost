@@ -308,9 +308,17 @@ guidance.action_completed · guidance.dismissed · guidance.correction_success
 
 ## 14. Exact commits
 
-**本报告生成时：未提交（working tree 待 Owner 批准）。** AGENTS.md §9 规定 Git 写操作仅在明确要求时执行；本任务 §26 的 `commit` 步骤与 Owner 逐次审批的既有惯例冲突，故留给 Owner 决策。
-
 起点：`7832a5b5153148d588ffe8c249fdfde7f07a4f74`（`feature/v3-product-refactor`）
+
+| # | Commit | 内容 |
+|---|---|---|
+| 1 | **`f01a149ddb2150d4cbf37bcf82546521b09f8589`** | `docs(sp): student operating protocol design and read-only audits` — G1 的设计依据（`docs/student-operating-protocol-design.md`）+ 三份只读旁证审计（`docs/audit/`） |
+| 2 | **`bde54521306c3f63f7e5cad00f34c51ac00583de`** | `feat(g1): student operating protocol foundation` — G1.1–G1.10 全部实现（49 文件：22 新增 + 27 修改） |
+
+**未 push**：`origin/feature/v3-product-refactor` 仍停在 `7832a5b`；推送由 Owner 决定。
+**未部署**：生产仍运行 `ffb3af8`；`TRANSFER_PROBE_ENABLED=true` 只写入 compose 白名单与 env 模板，**生效需下次部署**。
+
+工作区仅剩未跟踪的 `.zcode/`（工具目录，非本任务产物）。
 
 **新增 22 个文件**
 
@@ -338,7 +346,7 @@ test/g1-exam-date.test.js
 test/g1-surface-wiring.test.js
 ```
 
-**修改 26 个文件**
+**修改 27 个文件**
 
 ```text
 packages/shared/src/index.ts                              （导出 guidance）
@@ -367,9 +375,10 @@ compose.production.yml                                    （TRANSFER_PROBE_ENAB
 package.json                                              （新增 integration script）
 test/score-center-priority.test.mjs                       （有理由的断言更新，§2.5）
 test/recommendation-daily-plan-parity.test.js             （fixture 镜像修复，§2.5）
+docs/current-sprint.md                                    （账本条目）
 ```
 
-**建议提交信息**（单一 G1 提交，不 push）：
+**提交信息**（已按此提交，不含 push）：
 
 ```text
 feat(g1): student operating protocol foundation — reason integrity, single primary
