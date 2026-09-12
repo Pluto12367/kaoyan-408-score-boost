@@ -1,7 +1,13 @@
 import { Injectable, Optional } from '@nestjs/common';
 import type { Prisma } from '@prisma/client';
-import type { RecommendationInput } from '@kaoyan408/shared';
-import { calculatePriority, REASON_LABELS, runRecommendation } from '@kaoyan408/shared';
+import type { PriorityReasonCode, RecommendationInput } from '@kaoyan408/shared';
+import {
+  calculatePriority,
+  filterEvidencedReasonCodes,
+  INSUFFICIENT_REASON_NOTE,
+  REASON_LABELS,
+  runRecommendation,
+} from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { todayKey } from './study-date';
 import {
@@ -29,23 +35,29 @@ const MODEL_VERSION = 'score-center-v1';
 
 /**
  * G1.1 — the `reason` column is a STUDENT-FACING string (it is rendered verbatim
- * by TodayMission / TodayPlan / DailyBrief). It used to be
+ * by TodayMission / TodayPlan / DailyBrief / TodayLearningRoute). It used to be
  * `draft.reasonCodes.join('、')`, which leaked raw engine codes such as
  * `LOW_MASTERY、REPEATED_WRONG`, and fell back to the machine token
  * `recommendation:${action}` when the list was empty.
  *
- * Both are gone: codes are translated through the shared `REASON_LABELS` table,
- * and an empty list produces an honest insufficiency sentence instead of a
- * fabricated or machine-readable reason. `reasonCodes` remains the
- * machine-readable field on the same payload.
+ * G1 Release Hardening (owner decision A1, EVIDENCED_REASON-only): the string is
+ * built from EVIDENCED reasons alone. A reason is evidence only when the system
+ * observed it about this student; exam-frequency and trend statistics are real
+ * facts about the exam but not about the student, so they may drive the ranking
+ * and must not be presented as the reason. With no evidenced reason the string
+ * says exactly that instead of borrowing credibility from a statistic.
+ *
+ * `reasonCodes` remains the machine-readable field on the same payload and keeps
+ * every code, so nothing is lost downstream.
  */
 function studentReasonText(reasonCodes: readonly string[] | null | undefined): string {
-  const labels = (reasonCodes ?? [])
+  const evidenced = filterEvidencedReasonCodes(reasonCodes as PriorityReasonCode[] | null | undefined);
+  const labels = evidenced
     .map((code) => REASON_LABELS[code as keyof typeof REASON_LABELS] ?? null)
     .filter((label): label is string => Boolean(label));
   const unique = [...new Set(labels)];
   if (unique.length === 0) {
-    return '当前证据不足：这个任务没有触发可解释的推荐原因，系统不会替你编一个。';
+    return INSUFFICIENT_REASON_NOTE;
   }
   return unique.join('；');
 }

@@ -200,3 +200,6 @@
 }
 .proactive-coach-steps { color: var(--text-muted); display: block; font-size: 0.78rem; margin-top: 2px; }
 .proactive-coach-go { color: var(--text-secondary); display: inline-flex; align-items: center; gap: 2px; font-size: 0.78rem; margin-top: 4px; }
+
+.dashboard-task-sorting { color: var(--text-muted); display: block; font-size: 0.78rem; }
+

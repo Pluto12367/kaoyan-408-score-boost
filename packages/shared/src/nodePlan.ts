@@ -7,6 +7,23 @@ import type {
 } from './score-center/types';
 import { calculatePriority } from './score-center/priority';
 import { composeDailyPlan } from './score-center/plan';
+import {
+  filterEvidencedReasonCodes,
+  INSUFFICIENT_REASON_NOTE,
+} from './score-center/reason-integrity';
+
+/**
+ * The legacy node-plan path also writes a student-facing `reason` string, so it
+ * obeys the same hardened A1 rule as the recommendation service: EVIDENCED
+ * reasons only, and an explicit insufficiency sentence when there is none.
+ * Kept here (rather than duplicated) because this module already owns the
+ * student-facing copy table.
+ */
+function buildEvidencedReasonText(reasonCodes: readonly PriorityReasonCode[]): string {
+  const labels = filterEvidencedReasonCodes(reasonCodes).map((code) => REASON_LABELS[code] ?? code);
+  const unique = [...new Set(labels)];
+  return unique.length > 0 ? unique.join('，') : INSUFFICIENT_REASON_NOTE;
+}
 
 export interface NodePlanEvidenceNode {
   knowledgeNodeId: string;
@@ -120,7 +137,7 @@ export function buildNodeDrivenDailyTasks(input: {
       questionCount: draft.action === 'MOCK' ? 30 : 8,
       mode: ACTION_MODES[draft.action] ?? '专项训练',
       priority: draft.score >= 70 ? '高' : draft.score >= 45 ? '中' : '低',
-      reason: draft.reasonCodes.map((code) => REASON_LABELS[code] ?? code).join('，'),
+      reason: buildEvidencedReasonText(draft.reasonCodes),
       nextAction: `完成后用 5 分钟整理 ${title} 的关键规则。`,
     };
   });

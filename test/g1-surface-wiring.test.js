@@ -59,6 +59,83 @@ test('G1.1: reason codes reach the student only through the shared selector', ()
   assert.doesNotMatch(mission, /REASON_LABELS/, 'the raw label map must not be used directly any more');
   assert.match(mission, /insufficientNote/, 'no reason must produce an explicit note');
   assert.match(mission, /COMPLETION_BOUNDARY_NOTE/, 'the completion boundary must be visible where completion happens');
+  // Hardened A1: inferred statistics are labelled as sorting reference, never
+  // presented under the why.
+  assert.match(mission, /排序参考（考试统计，不是你的证据）/, 'inferred codes must be labelled as non-evidence');
+});
+
+// ------------------------------- hardened A1: the audit, made structural -------
+
+test('G1.A1: every surface that maps reason codes applies the evidenced filter', () => {
+  // `reason-copy.ts` is the code→Chinese map. Any file that renders it is a
+  // student-visible WHY surface, so it must also apply the shared filter. This is
+  // the guard that keeps the original defect from reappearing on a new surface.
+  const surfaces = [
+    'apps/web/src/features/today-score-center/WhyRecommendedDrawer.tsx',
+    'apps/web/src/features/today-score-center/RecommendationCard.tsx',
+  ];
+  for (const path of surfaces) {
+    const source = stripComments(read(path));
+    assert.ok(source.includes('reasonCopy'), `${path} renders reason copy`);
+    assert.ok(
+      /filterEvidencedReasonCodes|resolveShownReasons/.test(source),
+      `${path} renders reason codes but does not apply the evidenced-only filter`,
+    );
+  }
+});
+
+test('G1.A1: the persisted student-facing reason is evidenced-only on both writers', () => {
+  const service = stripComments(read('apps/api/src/study/recommendation.service.ts'));
+  assert.match(service, /filterEvidencedReasonCodes/, 'the service must filter before writing the reason string');
+  assert.match(service, /INSUFFICIENT_REASON_NOTE/, 'and must say so when nothing is evidenced');
+  // The machine-readable field keeps every code; only the human string is filtered.
+  assert.match(service, /reasonCodes: draft\.reasonCodes/, 'reasonCodes must stay complete for downstream use');
+
+  const nodePlan = stripComments(read('packages/shared/src/nodePlan.ts'));
+  assert.match(nodePlan, /filterEvidencedReasonCodes/, 'the legacy node-plan string must use the same filter');
+  assert.doesNotMatch(
+    nodePlan,
+    /reasonCodes\.map\(\(code\) => REASON_LABELS\[code\]/,
+    'mapping every code through the label table is exactly the leak this filter closes',
+  );
+});
+
+test('G1.A1: no surface can feed a bare code list into a why heading', () => {
+  const files = [
+    'apps/web/src/features/today-score-center/WhyRecommendedDrawer.tsx',
+    'apps/web/src/features/today-score-center/RecommendationCard.tsx',
+    'apps/web/src/features/student/home/components/TodayMission.tsx',
+    'apps/web/src/features/guidance/GuidanceCards.tsx',
+  ];
+  for (const path of files) {
+    const source = stripComments(read(path));
+    assert.doesNotMatch(
+      source,
+      /为什么[\s\S]{0,80}\(item\.reasonCodes \?\? \[\]\)\.map/,
+      `${path} feeds a raw code list straight into a why label`,
+    );
+  }
+});
+
+test('G1.A1: the legacy template producers no longer claim an unevidenced reason', () => {
+  // Both of these were found by the E2E, not by the source audit: template
+  // producers that asserted a why from position alone.
+  const learning = stripComments(read('packages/shared/src/learning.ts'));
+  assert.doesNotMatch(
+    learning,
+    /是当前最需要优先处理的章节/,
+    'the legacy plan template must not assert a positional priority claim',
+  );
+  assert.match(learning, /当前证据不足/, 'it must fall back to an insufficiency statement');
+  assert.match(learning, /weakIds\.has\(point\.id\)/, 'evidence must come from the weakness report');
+
+  const adapter = stripComments(read('apps/api/src/study/practice-set-recommendation.adapter.ts'));
+  assert.doesNotMatch(
+    adapter,
+    /当前薄弱点较少/,
+    'an empty weak set cannot be reported as "few weak points" — it may simply mean no records',
+  );
+  assert.match(adapter, /当前证据不足/, 'it must state the absence of evidence instead');
 });
 
 test('G1.6: the proactive coach card is actionable, not an inert list item', () => {

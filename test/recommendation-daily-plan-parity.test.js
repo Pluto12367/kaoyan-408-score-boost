@@ -10,14 +10,18 @@ require('ts-node/register');
 
 const shared = require('../packages/shared/dist/index.js');
 
-// G1.1 — mirrors apps/api/src/study/recommendation.service.ts `studentReasonText`.
+// G1.1 + G1 Release Hardening (A1, EVIDENCED_REASON-only) — mirrors
+// apps/api/src/study/recommendation.service.ts `studentReasonText`: the
+// student-facing reason string is built from EVIDENCED reasons only, because a
+// reason is evidence only when the system observed it about this student.
 function studentReasonText(reasonCodes) {
-  const labels = (reasonCodes ?? [])
+  const labels = shared
+    .filterEvidencedReasonCodes(reasonCodes ?? [])
     .map((code) => shared.REASON_LABELS[code] ?? null)
     .filter((label) => Boolean(label));
   const unique = [...new Set(labels)];
   if (unique.length === 0) {
-    return '当前证据不足：这个任务没有触发可解释的推荐原因，系统不会替你编一个。';
+    return shared.INSUFFICIENT_REASON_NOTE;
   }
   return unique.join('；');
 }

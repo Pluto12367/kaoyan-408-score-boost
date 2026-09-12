@@ -260,7 +260,7 @@ export function buildStudyPlan(input: {
       minutes: minutesPerPoint,
       questionCount: input.stage === '冲刺' ? 18 : 12,
       mode: index === 0 ? '诊断复盘' : input.stage === '基础' ? '基础例题' : '专项训练',
-    }));
+    }, weakIds.has(point.id)));
 
   return {
     phase: PHASES[input.stage],
@@ -272,16 +272,44 @@ export function buildStudyPlan(input: {
   };
 }
 
-function enrichDailyTask(task: Omit<DailyTask, 'priority' | 'reason' | 'nextAction'>): DailyTask {
+/**
+ * G1 Release Hardening (owner decision A1, EVIDENCED_REASON-only).
+ *
+ * This template used to assert "X 是当前最需要优先处理的章节" for whatever landed
+ * in position 1. The ordering is legitimate — weak points first, then
+ * frequency + importance — but when the student has no practice records the weak
+ * set is empty and the position came purely from content statistics. Printing
+ * that as the reason presented an exam statistic as a fact about the student,
+ * which is exactly what A1 bans.
+ *
+ * `evidenced` is true only when the weakness report derived from the student's
+ * own records puts this point in the weak set. Without it the reason states the
+ * absence of evidence and names the actual basis (content statistics) instead of
+ * claiming one; the ordering itself is unchanged.
+ *
+ * The wording is deliberately local: this legacy domain module has no runtime
+ * imports by design (its tests load it dependency-free), so it must not reach
+ * into `score-center`. The contract is enforced by test/g1-surface-wiring.test.js,
+ * which pins this sentence as an insufficiency statement.
+ */
+const LEGACY_UNEVIDENCED_REASON =
+  '当前证据不足：没有足够的作答证据指出优先原因；顺序按考频与重要度排出。';
+
+function enrichDailyTask(
+  task: Omit<DailyTask, 'priority' | 'reason' | 'nextAction'>,
+  evidenced: boolean,
+): DailyTask {
   const isFirstTask = task.id === 'task-1';
   const priority: DailyTask['priority'] = isFirstTask ? '高' : task.questionCount >= 18 ? '中' : '低';
 
   return {
     ...task,
     priority,
-    reason: isFirstTask
-      ? `${task.chapter} 是当前最需要优先处理的章节，先复盘再练题能更快减少失分。`
-      : `${task.title} 属于今日计划中的补强考点，适合用限时练习稳定得分。`,
+    reason: evidenced
+      ? isFirstTask
+        ? `你在「${task.title}」上的练习记录显示它当前薄弱，从它开始。`
+        : `你在「${task.title}」上的练习记录显示它还需要补强，适合用限时练习稳定得分。`
+      : LEGACY_UNEVIDENCED_REASON,
     nextAction: isFirstTask
       ? `完成后复盘 ${task.title} 的错题原因，并补 1 组同考点题。`
       : `完成后用 5 分钟整理 ${task.title} 的关键规则。`,

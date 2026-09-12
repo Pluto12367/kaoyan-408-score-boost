@@ -135,24 +135,62 @@ async function main() {
     record('new-student', 'no history → zero behaviour signals (quiet by default)');
 
     // -------------------------------------------------------------------
-    // 4. REASON INTEGRITY over HTTP: whatever the engine decided, the
-    //    student-facing string must never contain a raw engine code.
+    // 4. REASON INTEGRITY over HTTP (hardened A1, EVIDENCED_REASON-only):
+    //    the student-facing string must never contain a raw engine code, the
+    //    machine filler token, or a non-evidenced reason's copy. The
+    //    machine-readable `reasonCodes` field keeps every code, so nothing is
+    //    lost downstream — only the human string is narrowed.
     // -------------------------------------------------------------------
     const overview = await getJson(`${apiUrl}/dashboard/overview`, studentA.headers);
     const plan = await getJson(`${apiUrl}/today/plan`, studentA.headers).catch(() => ({ priorityTasks: [] }));
     const rawCodes = /[A-Z]{3,}_[A-Z_]{3,}/;
-    for (const task of plan.priorityTasks ?? []) {
-      assert.ok(
-        !rawCodes.test(String(task.reason ?? '')),
-        `task reason leaked a raw engine code: ${task.reason}`,
-      );
-      assert.ok(
-        !String(task.reason ?? '').includes('recommendation:'),
-        'the machine filler token must never reach a student',
-      );
+    // REASON_LABELS for the INFERRED and CONTEXTUAL tiers. None of these may
+    // appear in a "why" string: they are statistics about the exam or about the
+    // situation, not observations about this student.
+    const NON_EVIDENCED_COPY = [
+      '近3年高频考点',   // HIGH_RECENT_FREQUENCY (INFERRED)
+      '考频上升',        // RISING_TREND (INFERRED)
+      '前置知识未掌握',   // PREREQUISITE_GAP (INFERRED)
+      '临近考试',        // EXAM_NEAR (CONTEXTUAL_FACT)
+      '考频证据不足',     // LOW_EVIDENCE (CONTEXTUAL_FACT)
+    ];
+    const tasks = plan.priorityTasks ?? [];
+    for (const task of tasks) {
+      const reason = String(task.reason ?? '');
+      assert.ok(!rawCodes.test(reason), `task reason leaked a raw engine code: ${reason}`);
+      assert.ok(!reason.includes('recommendation:'), 'the machine filler token must never reach a student');
+      for (const copy of NON_EVIDENCED_COPY) {
+        assert.ok(
+          !reason.includes(copy),
+          `a non-evidenced reason reached the student-facing why ("${copy}" in "${reason}")`,
+        );
+      }
     }
+    // Proven non-vacuous in both directions:
+    //   • every task that carries no EVIDENCED code must show the insufficiency
+    //     note — a student with no evidence gets "not enough evidence", never a
+    //     statistic dressed up as the reason;
+    //   • the machine field still carries whatever fired, so the filter narrows
+    //     the human string rather than silently dropping engine output.
+    const EVIDENCED_CODES = new Set(['LOW_MASTERY', 'LOW_ACCURACY', 'REPEATED_WRONG', 'REVIEW_DUE']);
+    const INSUFFICIENT_NOTE = '当前证据不足';
+    let insufficientChecked = 0;
+    for (const task of tasks) {
+      const codes = task.reasonCodes ?? [];
+      if (codes.some((code) => EVIDENCED_CODES.has(code))) continue;
+      assert.ok(
+        String(task.reason ?? '').includes(INSUFFICIENT_NOTE),
+        `a task with no evidenced reason must say so, got: ${task.reason}`,
+      );
+      insufficientChecked += 1;
+    }
+    const codesSeen = tasks.flatMap((task) => (task.reasonCodes ?? []));
     assert.ok(overview?.student, 'dashboard overview must be readable');
-    record('reason-integrity', `${(plan.priorityTasks ?? []).length} task(s) carry no raw code and no machine token`);
+    record(
+      'reason-integrity',
+      `${tasks.length} task(s): no raw code, no machine token, no non-evidenced copy; `
+      + `${insufficientChecked} with no evidenced reason correctly say 证据不足 (machine field keeps ${codesSeen.length} code(s))`,
+    );
 
     // -------------------------------------------------------------------
     // 5. examDate entry: derived days, past/malformed rejection, and the

@@ -85,8 +85,15 @@ export function buildPracticeSetCopy(input: {
         ? '高频基础考点补强'
         : '薄弱专题突破');
   const copy = PRACTICE_SET_FOCUS_COPY[focus];
+  /**
+   * G1 Release Hardening (A1, EVIDENCED_REASON-only): the fallback used to say
+   * "当前薄弱点较少", which is a claim the call site cannot support — an empty
+   * weak-point list means either "no practice records yet" or "no standout
+   * weakness", and the first case makes the sentence false. It now states the
+   * absence of evidence rather than a conclusion drawn from it.
+   */
   const reason = input.topWeakPoint
     ? `优先覆盖 ${input.topWeakPoint.title}，当前正确率 ${input.topWeakPoint.accuracyRate}%。`
-    : '当前薄弱点较少，按今日计划和高频考点生成练习题组。';
+    : '当前证据不足：没有足够的作答证据指向某个具体薄弱点；这组练习按今日计划与高频考点生成。';
   return { title: copy.title, focus: copy.focus, reason };
 }

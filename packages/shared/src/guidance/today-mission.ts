@@ -71,8 +71,13 @@ export interface TodayMissionContract {
     readonly chapter: string;
     readonly section: 'question';
   } | null;
-  /** EVIDENCED + INFERRED only (G1.1 taxonomy). */
+  /** EVIDENCED_REASON only — the main WHY (hardened A1 decision). */
   readonly why: readonly PriorityReasonDetail[];
+  /**
+   * INFERRED_REASON: exam/content statistics. Kept out of the WHY and rendered
+   * under an explicit "not your evidence" label.
+   */
+  readonly sortingFactors: readonly PriorityReasonDetail[];
   /** CONTEXTUAL_FACT: the situation, never presented as a cause. */
   readonly context: readonly PriorityReasonDetail[];
   readonly whySufficient: boolean;
@@ -88,6 +93,15 @@ function toPriorityCodes(codes: readonly string[] | null | undefined): PriorityR
   return (codes ?? []) as PriorityReasonCode[];
 }
 
+const EMPTY_REASON_VIEW = {
+  reasons: [],
+  inferred: [],
+  contextFacts: [],
+  sufficient: false,
+  insufficientNote: null,
+  fallbackReasons: [],
+} as const;
+
 /**
  * The single primary learning action for today, with its four mandatory
  * answers (task §5: 今天应该做什么 / 为什么 / 预计多久 / 做完怎么验证).
@@ -100,7 +114,7 @@ export function buildTodayMissionContract(input: TodayMissionInput): TodayMissio
         reasons: toPriorityCodes(primary.reasonCodes),
         reasonDetails: toPriorityCodes(primary.reasonCodes).map(buildReasonDetailFromCode),
       })
-    : { reasons: [], contextFacts: [], sufficient: false, insufficientNote: null, fallbackReasons: [] };
+    : EMPTY_REASON_VIEW;
 
   const verify = primary
     ? `完成后系统会看：该考点上是否出现新的判分作答，以及掌握度是否变化。判定会写在任务卡上，包含「证据不足」这一种可能。`
@@ -127,6 +141,7 @@ export function buildTodayMissionContract(input: TodayMissionInput): TodayMissio
         }
       : null,
     why: whyView.reasons,
+    sortingFactors: whyView.inferred,
     context: whyView.contextFacts,
     whySufficient: whyView.sufficient,
     insufficientNote: whyView.insufficientNote,

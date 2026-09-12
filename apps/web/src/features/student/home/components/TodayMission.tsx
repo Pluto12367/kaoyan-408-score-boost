@@ -17,11 +17,13 @@ import '../../../report/task-evidence.css';
  * G1.1 / G1.2 / G1.4 / G1.5 — the today task list.
  *
  * The 「为什么：」 line used to print every code the engine returned, including
- * codes that had only been added to pad the list to two. It now goes through the
- * shared reason-integrity selector, so:
- *   • EVIDENCED and INFERRED codes become the visible "why";
- *   • CONTEXTUAL facts are labelled as the situation, not as a cause;
- *   • no reason at all produces an explicit insufficiency sentence.
+ * codes that had only been added to pad the list to two.
+ *
+ * G1 Release Hardening (owner decision A1, EVIDENCED_REASON-only): the line now
+ * shows EVIDENCED reasons only. Inferred codes are real statistics about the exam
+ * but not observations about this student, so they are labelled as sorting
+ * reference and never borrowed as the reason. With no evidenced reason the row
+ * says so instead of implying one.
  *
  * Completed rows also carry the capability verdict and the boundary note, so
  * "完成 ≠ 学会" is visible where the completion actually happens.
@@ -117,11 +119,16 @@ export function TodayMission({ model, loading, error, onLaunch, onRefresh, onNav
             <small>{task.subject} · {task.detail}</small>
             {why.reasons.length > 0 ? (
               <small className="dashboard-task-reason" data-testid={`task-why-${task.id}`}>
-                为什么：{why.reasons.map((entry) => entry.statement || entry.code).join('；')}
+                为什么（你的学习证据）：{why.reasons.map((entry) => entry.statement || entry.code).join('；')}
               </small>
             ) : null}
             {why.reasons.length === 0 && why.insufficientNote ? (
               <small className="dashboard-task-reason dashboard-task-insufficient">{why.insufficientNote}</small>
+            ) : null}
+            {why.inferred.length > 0 ? (
+              <small className="dashboard-task-sorting" data-testid={`task-sorting-${task.id}`}>
+                排序参考（考试统计，不是你的证据）：{why.inferred.map((entry) => entry.statement || entry.code).join('；')}
+              </small>
             ) : null}
             {why.contextFacts.length > 0 ? (
               <small className="dashboard-task-context">当前情况：{why.contextFacts.map((entry) => entry.statement || entry.code).join('；')}</small>

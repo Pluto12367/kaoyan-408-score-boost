@@ -48,7 +48,7 @@ test('fallback branch mirrors legacy stage/accuracy when the engine has no QUEST
   assert.equal(standard.title, '薄弱专题突破');
 });
 
-test('reason prefers the top weak point and falls back without one', async () => {
+test('reason prefers the top weak point and never claims one it cannot evidence', async () => {
   const { buildPracticeSetCopy } = await loadAdapter();
   const withPoint = buildPracticeSetCopy({
     stage: '强化', overallAccuracyRate: 80, questionSetFocus: '薄弱专题突破',
@@ -56,10 +56,18 @@ test('reason prefers the top weak point and falls back without one', async () =>
   });
   assert.equal(withPoint.reason, '优先覆盖 树的遍历应用，当前正确率 50%。');
 
+  // G1 Release Hardening (A1, EVIDENCED_REASON-only): the fallback used to say
+  // "当前薄弱点较少", a conclusion the call site cannot support — an empty weak
+  // set means "no records yet" just as often as "no standout weakness", and the
+  // first case makes the sentence false. It must state the absence of evidence.
   const withoutPoint = buildPracticeSetCopy({
     stage: '强化', overallAccuracyRate: 80, questionSetFocus: '薄弱专题突破', topWeakPoint: null,
   });
-  assert.equal(withoutPoint.reason, '当前薄弱点较少，按今日计划和高频考点生成练习题组。');
+  assert.match(withoutPoint.reason, /^当前证据不足/);
+  assert.ok(
+    !withoutPoint.reason.includes('薄弱点较少'),
+    'the fallback must not claim the student has few weak points',
+  );
 });
 
 test('nodeId bridge maps to real KP ids, dedupes, and never aliases an orphan node', async () => {

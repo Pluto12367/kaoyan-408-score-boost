@@ -37,21 +37,41 @@ function StatementLine({ line }: { line: GuidanceStatement }) {
   );
 }
 
-function ReasonList({ reasons, contextFacts }: {
+/**
+ * G1 Release Hardening (owner decision A1, EVIDENCED_REASON-only).
+ *
+ * Only evidenced reasons may appear under 「为什么推荐」. Inferred reasons are
+ * real statistics about the exam — useful, but not observations about this
+ * student — so they render under an explicit label that says so, and contextual
+ * facts stay as the situation rather than as a cause.
+ */
+function ReasonList({ reasons, sortingFactors, contextFacts }: {
   reasons: readonly PriorityReasonDetail[];
+  sortingFactors?: readonly PriorityReasonDetail[];
   contextFacts: readonly PriorityReasonDetail[];
 }) {
-  if (reasons.length === 0 && contextFacts.length === 0) return null;
+  const inferred = sortingFactors ?? [];
+  if (reasons.length === 0 && contextFacts.length === 0 && inferred.length === 0) return null;
   return (
     <div className="gd-reasons">
       {reasons.length > 0 ? (
         <>
-          <p className="gd-label">为什么推荐</p>
+          <p className="gd-label">为什么推荐（你的学习证据）</p>
           <ul className="gd-reason-list">
             {reasons.map((reason) => (
-              <li key={reason.code} className={`gd-reason gd-reason-${reason.tier.toLowerCase()}`}>
+              <li key={reason.code} className="gd-reason gd-reason-evidenced_reason">
                 {reason.statement || reason.code}
               </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+      {inferred.length > 0 ? (
+        <>
+          <p className="gd-label">排序参考（考试统计，不是你的学习证据）</p>
+          <ul className="gd-reason-list gd-sorting-list">
+            {inferred.map((factor) => (
+              <li key={factor.code} className="gd-sorting">{factor.statement || factor.code}</li>
             ))}
           </ul>
         </>
@@ -137,7 +157,7 @@ export function PrimaryLearningActionCard({
             {progressText ? ` · ${progressText}` : ''}
           </p>
 
-          <ReasonList reasons={contract.why} contextFacts={contract.context} />
+          <ReasonList reasons={contract.why} sortingFactors={contract.sortingFactors} contextFacts={contract.context} />
           {!contract.whySufficient && contract.insufficientNote ? (
             <p className="gd-insufficient">{contract.insufficientNote}</p>
           ) : null}

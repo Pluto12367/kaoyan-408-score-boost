@@ -169,24 +169,38 @@ export function buildReasonDetailFromCode(code: PriorityReasonCode): PriorityRea
 }
 
 export interface PriorityReasonView {
-  /** EVIDENCED + INFERRED: the only entries a student may read as "why". */
+  /**
+   * EVIDENCED_REASON only — the ONLY entries a student may read as "why".
+   * Owner decision (G1 Release Hardening, A1): real evidence beats richer
+   * explanations, so an inferred or contextual code never enters the main WHY.
+   */
   readonly reasons: readonly PriorityReasonDetail[];
+  /**
+   * INFERRED_REASON entries. Legitimate ranking/explanation inputs, but they are
+   * statistics about the exam, not evidence about this student, so they must be
+   * labelled as such and kept out of the WHY.
+   */
+  readonly inferred: readonly PriorityReasonDetail[];
   /** CONTEXTUAL_FACT entries, shown as "当前情况" rather than as causes. */
   readonly contextFacts: readonly PriorityReasonDetail[];
+  /** True when at least one EVIDENCED reason exists. */
   readonly sufficient: boolean;
-  /** Honest replacement text when no real reason fired. */
+  /** Honest replacement text when no evidenced reason exists. */
   readonly insufficientNote: string | null;
   /** Diagnostics only — never rendered. */
   readonly fallbackReasons: readonly PriorityReasonCode[];
 }
 
 export const INSUFFICIENT_REASON_NOTE =
-  '当前证据不足：这个考点还没有触发任何可解释的推荐原因，系统不会替你编一个。';
+  '当前证据不足：这个考点还没有你自己的作答证据，系统不会用考频或趋势来充当「为什么」。';
 
 /**
  * The single place that decides what a student is allowed to read as a reason.
- * Anything that is not EVIDENCED or INFERRED — including every code that was
- * only added to reach a minimum count — is dropped.
+ *
+ * Under the hardened A1 decision only EVIDENCED_REASON survives into `reasons`.
+ * Everything else — inferred, contextual, or a code that was only added to reach
+ * a minimum count — is separated out, so "the system observed this about you"
+ * can never be confused with "this looks important in general".
  */
 export function resolveShownReasons(
   result: Pick<PriorityResult, 'reasons'> & Partial<Pick<PriorityResult, 'reasonDetails' | 'fallbackReasons'>>,
@@ -194,14 +208,17 @@ export function resolveShownReasons(
   const details = result.reasonDetails ?? [];
   const byCode = new Map(details.map((detail) => [detail.code, detail]));
   const reasons: PriorityReasonDetail[] = [];
+  const inferred: PriorityReasonDetail[] = [];
   const contextFacts: PriorityReasonDetail[] = [];
   for (const code of result.reasons) {
     const detail = byCode.get(code) ?? buildReasonDetailFromCode(code);
-    if (detail.tier === 'CONTEXTUAL_FACT') contextFacts.push(detail);
-    else reasons.push(detail);
+    if (detail.tier === 'EVIDENCED_REASON') reasons.push(detail);
+    else if (detail.tier === 'INFERRED_REASON') inferred.push(detail);
+    else contextFacts.push(detail);
   }
   return {
     reasons,
+    inferred,
     contextFacts,
     sufficient: reasons.length > 0,
     insufficientNote: reasons.length > 0 ? null : INSUFFICIENT_REASON_NOTE,
@@ -209,7 +226,19 @@ export function resolveShownReasons(
   };
 }
 
+/**
+ * The same filter for the paths that carry only bare codes — the persisted
+ * `StudyTask.reason` string, the legacy node-plan string, and the score-center
+ * cards. Those surfaces are student-visible too, so they must use this rather
+ * than re-deriving the rule (which is how the original defect spread).
+ */
+export function filterEvidencedReasonCodes(
+  codes: readonly PriorityReasonCode[] | null | undefined,
+): PriorityReasonCode[] {
+  return (codes ?? []).filter((code) => REASON_TIERS[code] === 'EVIDENCED_REASON');
+}
+
 /** True when the code is a code the UI may print under 「为什么推荐」. */
 export function isShownReasonTier(tier: ReasonTier): boolean {
-  return tier === 'EVIDENCED_REASON' || tier === 'INFERRED_REASON';
+  return tier === 'EVIDENCED_REASON';
 }

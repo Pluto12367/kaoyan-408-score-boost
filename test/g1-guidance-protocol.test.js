@@ -71,9 +71,30 @@ test('G1.2: the today contract answers WHAT / WHY / TIME / VERIFY for one action
   assert.equal(contract.time, '约 25 分钟 · 8 题');
   assert.ok(contract.verify.includes('判分作答'), 'VERIFY must say what the system will observe');
   assert.equal(contract.whySufficient, true);
-  assert.deepEqual(contract.why.map((entry) => entry.code), ['HIGH_RECENT_FREQUENCY', 'LOW_MASTERY']);
+  // Hardened A1: only the evidenced reason is the why; the frequency statistic is
+  // preserved as a sorting factor and clearly separated from it.
+  assert.deepEqual(contract.why.map((entry) => entry.code), ['LOW_MASTERY']);
+  assert.deepEqual(contract.sortingFactors.map((entry) => entry.code), ['HIGH_RECENT_FREQUENCY']);
   assert.ok(contract.next && contract.next.id, 'a NEXT is always present');
   assert.equal(contract.boundary, COMPLETION_BOUNDARY_NOTE);
+});
+
+test('G1.A1: a task whose only codes are inferred or contextual has no why', () => {
+  const contract = buildTodayMissionContract({
+    asOf: NOW,
+    dateKey: '2026-09-12',
+    tasks: [{
+      id: 't-9', title: '只有统计依据的任务', subject: 'DS', chapter: '树', minutes: 20, questionCount: 8,
+      completed: false, reasonCodes: ['HIGH_RECENT_FREQUENCY', 'RISING_TREND', 'EXAM_NEAR'], reason: null,
+    }],
+    reviewDue: 0,
+    verification: { probeDue: false, probeUnavailable: false, assessments: 0 },
+  });
+  assert.deepEqual(contract.why, [], 'statistics and context are not evidence');
+  assert.equal(contract.whySufficient, false);
+  assert.match(contract.insufficientNote, /证据不足/);
+  assert.deepEqual(contract.sortingFactors.map((entry) => entry.code), ['HIGH_RECENT_FREQUENCY', 'RISING_TREND']);
+  assert.deepEqual(contract.context.map((entry) => entry.code), ['EXAM_NEAR']);
 });
 
 test('G1.2: a task with no real reason reports insufficiency instead of a fabricated why', () => {
@@ -93,7 +114,6 @@ test('G1.2: a task with no real reason reports insufficiency instead of a fabric
   // Context facts are never promoted into the why list.
   assert.ok(!contract.why.some((entry) => entry.tier === 'CONTEXTUAL_FACT'));
 });
-
 test('G1.2: context facts are carried separately from reasons', () => {
   const contract = buildTodayMissionContract({
     asOf: NOW,

@@ -45,7 +45,11 @@ function loadScoreCenterModule(url) {
 }
 
 const { calculatePriority } = loadScoreCenterModule(new URL('priority.ts', SHARED_BASE));
-const { REASON_TIERS, resolveShownReasons } = loadScoreCenterModule(new URL('reason-integrity.ts', SHARED_BASE));
+const {
+  REASON_TIERS,
+  resolveShownReasons,
+  filterEvidencedReasonCodes,
+} = loadScoreCenterModule(new URL('reason-integrity.ts', SHARED_BASE));
 
 const hotEvidence = {
   knowledgePointId: 'CN-C05-S03-P01',
@@ -151,7 +155,8 @@ test('G1.1: every shown reason has its threshold actually met', () => {
       result.reasonDetails.map((entry) => entry.code),
       result.reasons,
     );
-    // Context facts live in the engine output but are never presented as why.
+    // Context facts and inferred factors live in the engine output but are never
+    // presented as the student's why.
     const view = resolveShownReasons(result);
     for (const fact of view.contextFacts) {
       assert.equal(fact.tier, 'CONTEXTUAL_FACT');
@@ -160,34 +165,133 @@ test('G1.1: every shown reason has its threshold actually met', () => {
         `${fact.code} is context and must not be a reason`,
       );
     }
-    // Every code in the raw list is either a shown reason or a context fact —
-    // nothing is dropped silently.
+    for (const factor of view.inferred) {
+      assert.equal(factor.tier, 'INFERRED_REASON');
+      assert.ok(
+        !view.reasons.some((entry) => entry.code === factor.code),
+        `${factor.code} is an exam statistic and must not be a reason`,
+      );
+    }
+    // Every code in the raw list lands in exactly one tier — nothing is dropped
+    // silently, and only the evidenced tier becomes the why.
     assert.equal(
-      view.reasons.length + view.contextFacts.length,
+      view.reasons.length + view.inferred.length + view.contextFacts.length,
       result.reasons.length,
       'the selector must classify every fired code exactly once',
     );
+    for (const entry of view.reasons) {
+      assert.equal(entry.tier, 'EVIDENCED_REASON', 'only evidenced reasons may be shown');
+    }
   }
 });
 
-test('G1.1: the UI-facing selector drops fabricated codes and reports insufficiency', () => {
+test('G1.1 (hardened A1): the UI-facing selector shows EVIDENCED reasons only', () => {
+  // Fabricated (fallback) codes never survive.
   const fabricated = calculatePriority(quietEvidence, strongUser, { daysToExam: 200 });
   const view = resolveShownReasons(fabricated);
   assert.deepEqual(view.reasons, [], 'no fabricated why may survive the selector');
   assert.equal(view.sufficient, false);
   assert.ok(view.insufficientNote && view.insufficientNote.length > 0, 'an honest note is required');
 
+  // The three tiers partition every fired code exactly once — nothing is lost,
+  // and only the evidenced tier reaches the main WHY.
   const real = calculatePriority(hotEvidence, weakUser, { daysToExam: 30 });
   const realView = resolveShownReasons(real);
-  assert.equal(realView.sufficient, true);
-  assert.equal(realView.insufficientNote, null);
-  // Shown reasons and context facts partition the fired codes exactly.
   assert.deepEqual(
-    [...realView.reasons.map((entry) => entry.code), ...realView.contextFacts.map((entry) => entry.code)].sort(),
+    [
+      ...realView.reasons.map((entry) => entry.code),
+      ...realView.inferred.map((entry) => entry.code),
+      ...realView.contextFacts.map((entry) => entry.code),
+    ].sort(),
     [...real.reasons].sort(),
   );
+  for (const entry of realView.reasons) {
+    assert.equal(entry.tier, 'EVIDENCED_REASON', `${entry.code} must be evidenced to be shown`);
+  }
+  assert.ok(realView.inferred.length > 0, 'inferred codes are preserved for explanation');
+  for (const entry of realView.inferred) assert.equal(entry.tier, 'INFERRED_REASON');
   assert.ok(realView.contextFacts.some((entry) => entry.code === 'EXAM_NEAR'), 'EXAM_NEAR is context, not a why');
-  assert.ok(!realView.reasons.some((entry) => entry.code === 'EXAM_NEAR'));
+});
+
+// ------------------------------------------- hardened A1: the four required cases
+
+test('G1.A1: zero evidenced reasons produce an explicit insufficiency note', () => {
+  // HIGH_RECENT_FREQUENCY + RISING_TREND fire, but neither is evidence about
+  // this student — so there is no why at all.
+  const inferredOnly = calculatePriority(
+    { ...hotEvidence, trend: { direction: 'RISING', delta: 0.6 } },
+    strongUser,
+    { daysToExam: 200 },
+  );
+  assert.deepEqual(inferredOnly.reasons, ['HIGH_RECENT_FREQUENCY', 'RISING_TREND']);
+  const view = resolveShownReasons(inferredOnly);
+  assert.deepEqual(view.reasons, [], 'no evidenced reason means no why');
+  assert.equal(view.sufficient, false);
+  assert.match(view.insufficientNote, /证据不足/);
+  assert.ok(!view.insufficientNote.includes('高频'), 'the statistic must not leak into the why');
+});
+
+test('G1.A1: one evidenced reason shows exactly one entry', () => {
+  // Only LOW_MASTERY fires as evidence: strong recent accuracy, no wrongs,
+  // no forgetting, low frequency, stable trend, far from the exam.
+  const oneEvidenced = calculatePriority(
+    { ...quietEvidence, trend: { direction: 'STABLE', delta: 0 } },
+    { ...strongUser, mastery: 0.4 },
+    { daysToExam: 200 },
+  );
+  assert.deepEqual(oneEvidenced.reasons, ['LOW_MASTERY']);
+  const view = resolveShownReasons(oneEvidenced);
+  assert.equal(view.reasons.length, 1, 'one real reason must not be padded to two');
+  assert.equal(view.reasons[0].code, 'LOW_MASTERY');
+  assert.equal(view.sufficient, true);
+  assert.equal(view.insufficientNote, null);
+});
+
+test('G1.A1: evidenced + inferred shows only the evidenced reason', () => {
+  const mixed = calculatePriority(
+    { ...hotEvidence, trend: { direction: 'STABLE', delta: 0 } },
+    { ...strongUser, mastery: 0.4 },
+    { daysToExam: 200 },
+  );
+  assert.ok(mixed.reasons.includes('HIGH_RECENT_FREQUENCY'), 'the statistic fired');
+  assert.ok(mixed.reasons.includes('LOW_MASTERY'), 'the evidence fired');
+  const view = resolveShownReasons(mixed);
+  assert.deepEqual(view.reasons.map((entry) => entry.code), ['LOW_MASTERY']);
+  assert.deepEqual(view.inferred.map((entry) => entry.code), ['HIGH_RECENT_FREQUENCY']);
+  assert.ok(
+    !view.reasons.some((entry) => entry.code === 'HIGH_RECENT_FREQUENCY'),
+    'exam frequency is not the student’s evidence',
+  );
+});
+
+test('G1.A1: generic filler is never visible, in any tier', () => {
+  const cases = [
+    calculatePriority(quietEvidence, strongUser, { daysToExam: 200 }),
+    calculatePriority(quietEvidence, weakUser, { daysToExam: 30 }),
+    calculatePriority(hotEvidence, undefined, { daysToExam: 200 }),
+  ];
+  for (const result of cases) {
+    const view = resolveShownReasons(result);
+    const visible = [
+      ...view.reasons.map((entry) => entry.code),
+      ...view.inferred.map((entry) => entry.code),
+      ...view.contextFacts.map((entry) => entry.code),
+    ];
+    for (const code of result.fallbackReasons) {
+      assert.ok(!visible.includes(code), `${code} was filler and must not be rendered in any tier`);
+    }
+  }
+});
+
+test('G1.A1: bare-code callers get the same filter (the persisted reason string)', () => {
+  const codes = ['HIGH_RECENT_FREQUENCY', 'LOW_MASTERY', 'EXAM_NEAR', 'RISING_TREND'];
+  assert.deepEqual(filterEvidencedReasonCodes(codes), ['LOW_MASTERY']);
+  assert.deepEqual(filterEvidencedReasonCodes([]), []);
+  assert.deepEqual(filterEvidencedReasonCodes(null), []);
+  assert.deepEqual(
+    filterEvidencedReasonCodes(['REPEATED_WRONG', 'LOW_ACCURACY', 'REVIEW_DUE']),
+    ['REPEATED_WRONG', 'LOW_ACCURACY', 'REVIEW_DUE'],
+  );
 });
 
 // ------------------------------------------------------------- parity guard
