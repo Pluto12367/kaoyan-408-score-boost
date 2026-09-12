@@ -59,4 +59,5 @@ export {
 } from './knowledgeCatalog';
 export * from './score-anchor/score-anchor';
 export * from './transfer-probe/transfer-probe';
+export * from './transfer-probe/probe-content';
 export * from './guidance/index';

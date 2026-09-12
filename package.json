@@ -71,6 +71,7 @@
     "test:integration:score-anchor": "node scripts/integration-score-anchor.mjs",
     "test:integration:transfer-probe": "node scripts/integration-transfer-probe.mjs",
     "test:integration:guidance-protocol": "node scripts/integration-guidance-protocol.mjs",
+    "audit:probe-content": "node scripts/audit-transfer-probe-content.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }
