@@ -68,6 +68,7 @@
     "test:integration:question-import": "npm run build:api && node scripts/integration-question-import.mjs",
     "check:release": "npm test && npm run verify:api-build-layout && npm run build:web && npm run smoke:migration",
     "test:integration:exam-aligned": "npm run build:api && node scripts/integration-exam-aligned.mjs",
-    "test:integration:score-anchor": "node scripts/integration-score-anchor.mjs"
+    "test:integration:score-anchor": "node scripts/integration-score-anchor.mjs",
+    "test:integration:transfer-probe": "node scripts/integration-transfer-probe.mjs"
   }
 }
