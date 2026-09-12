@@ -89,7 +89,12 @@ function stubAdapters(db) {
         return { ...session, id: 'probe-session-1' };
       },
     },
-    questionsService: { findQuestionById: async () => null },
+    questionsService: {
+      findQuestionById: async (id) => ({
+        id, stem: 'probe stem', options: ['A', 'B'], type: 'SINGLE_CHOICE', difficulty: 'MEDIUM',
+        expectedTimeSec: 100, answer: 'A', knowledgePointIds: ['kp-1'], source: 'transfer_probe_pool', familyId: 'fam-1',
+      }),
+    },
   };
 }
 
@@ -285,8 +290,7 @@ test('the transfer summary aggregates evidence events and never writes', async (
     payload: {
       action: 'practice.answered',
       actionId: 'probe-action-1',
-      observedAttempts: 1,
-      observedCorrectCount: correct ? 1 : 0,
+      metrics: { attempts: 1, correctCount: correct ? 1 : 0 },
       recordedAt: NOW.toISOString(),
       detail: { kind: 'transfer_probe', probeId: 'probe-action-1', nodeId: 'node-1', questionId, bucket: 'MEDIUM', isomorphism: 'verified', kind_probe: 'practice_difficulty' },
     },
