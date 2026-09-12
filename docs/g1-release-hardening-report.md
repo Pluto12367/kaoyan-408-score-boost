@@ -244,6 +244,7 @@ transfer_probe_pool = 0
 | A1 | **`29e92b52`** | `feat(g1): restrict the student-facing why to evidenced reasons`（18 文件） |
 | B | **`5bb88485`** | `chore(config): keep the production transfer probe off until the pool exists`（3 文件） |
 | C | **`3004e944`** | `test(s2): stabilize the transfer-probe date fixture`（**仅 1 文件**） |
+| D | **`a1401437`** | `docs(g1): record the release hardening report`（2 文件） |
 
 三者**逻辑独立**：fixture 修复没有混进 G1 feature commit（`git show --name-only 29e92b52` 中 `integration-transfer-probe` 出现次数 = **0**）。
 
@@ -255,7 +256,33 @@ transfer_probe_pool = 0
 
 前置条件全部满足：完整回归 PASS、NEW REGRESSION = 0、worktree 干净（仅未跟踪的工具目录 `.zcode/`）。
 
-推送对象与结果记录在 `docs/current-sprint.md` 的账本条目中（local HEAD == origin HEAD）。
+推送前核验：
+
+```text
+HEAD                              a1401437a5248cad2b5229ff8d19cd79ba5bc073
+origin/feature/v3-product-refactor 7832a5b5153148d588ffe8c249fdfde7f07a4f74
+origin（ls-remote 权威）            7832a5b5153148d588ffe8c249fdfde7f07a4f74  ← 与 tracking ref 一致，非陈旧
+ahead/behind                      0 / 7（fast-forwardable，merge-base 祖先检查 exit 0）
+```
+
+推送执行：
+
+```text
+git push origin feature/v3-product-refactor   → exit 0
+   7832a5b5..a1401437  feature/v3-product-refactor -> feature/v3-product-refactor
+```
+
+推送后核验：
+
+```text
+local HEAD                        a1401437a5248cad2b5229ff8d19cd79ba5bc073
+origin/feature/v3-product-refactor a1401437a5248cad2b5229ff8d19cd79ba5bc073
+origin（ls-remote 权威）            a1401437a5248cad2b5229ff8d19cd79ba5bc073
+ahead/behind                      0 / 0
+local HEAD == origin HEAD         TRUE
+```
+
+本次推送包含自 `7832a5b5` 起的 **7 个提交**（G1 设计文档、G1 实现、G1 报告、A1 加固、生产配置 OFF、夹具修复、本报告）。**未部署**。
 
 ---
 
