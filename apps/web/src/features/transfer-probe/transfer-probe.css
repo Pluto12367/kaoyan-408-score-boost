@@ -1,0 +1,94 @@
+/* S2 Transfer Probe — minimal student surface, pure tokens. */
+
+.transfer-probe {
+  border: 1px solid var(--line-faint);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.transfer-probe-running {
+  border: 1px dashed var(--amber-strong);
+}
+
+.transfer-probe-banner {
+  margin: 0;
+  font-size: 13px;
+  color: var(--amber-strong);
+}
+
+.transfer-probe-node {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-strong);
+}
+
+.transfer-probe-stem {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-strong);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.transfer-probe-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.transfer-probe-option {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-faint);
+  background: var(--surface-soft-2);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+
+.transfer-probe-option.selected {
+  border-color: var(--primary-strong);
+  background: var(--primary-faint);
+}
+
+.transfer-probe-start,
+.transfer-probe-submit {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: none;
+  background: var(--primary-strong);
+  color: var(--surface-soft);
+  cursor: pointer;
+}
+
+.transfer-probe-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.transfer-probe-muted {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.transfer-probe-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--red-strong, var(--text-strong));
+}
+
+.transfer-probe-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--surface-soft-2);
+}
