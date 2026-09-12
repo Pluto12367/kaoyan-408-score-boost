@@ -50,6 +50,17 @@ export type TransferSampleConfidence = 'low' | 'medium' | 'high';
 
 const DIFFICULTY_BUCKETS: readonly string[] = ['BASIC', 'MEDIUM', 'HARD'];
 
+/** The question bank stores difficulty in two vocabularies (Prisma enum and
+ * the legacy Chinese labels); probes normalize to the bucket enum. */
+const DIFFICULTY_TO_BUCKET: Readonly<Record<string, DifficultyBucket>> = {
+  BASIC: 'BASIC', MEDIUM: 'MEDIUM', HARD: 'HARD',
+  简单: 'BASIC', 中等: 'MEDIUM', 困难: 'HARD',
+};
+
+export function toDifficultyBucket(value: string): DifficultyBucket {
+  return DIFFICULTY_TO_BUCKET[value] ?? 'MEDIUM';
+}
+
 function probeDayKey(iso: string, timeZone = 'Asia/Shanghai'): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) throw new Error('invalid probe date');

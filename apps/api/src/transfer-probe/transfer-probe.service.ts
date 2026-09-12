@@ -45,6 +45,7 @@ import { RecommendationActionAdapterService } from '../study/recommendation-acti
 import { StudyPlanRepository } from '../study/study-plan.repository';
 import { LearningSessionRepository } from '../study/learning-session.repository';
 import { QuestionsService } from '../questions/questions.service';
+import { StudyService } from '../study/study.service';
 
 const DAY = 86_400_000;
 
@@ -91,6 +92,7 @@ export class TransferProbeService {
     @Optional() private readonly studyPlanRepository?: StudyPlanRepository,
     @Optional() private readonly learningSessions?: LearningSessionRepository,
     @Optional() private readonly questionsService?: QuestionsService,
+    @Optional() private readonly studyService?: StudyService,
   ) {}
 
   get enabled(): boolean {
@@ -131,7 +133,7 @@ export class TransferProbeService {
         question: { knowledgeNodeTags: { some: { knowledgeNodeId: nodeId, role: 'PRIMARY' } } },
       },
     });
-    if (observed === 0) return { skipped: 'no_intervention_evidence' };
+    if (observed === 0) { console.error('[tp-debug] no evidence', nodeId); return { skipped: 'no_intervention_evidence' }; }
 
     // One pending probe per node; minimum spacing between probes per node.
     const pending = await this.prisma.recommendationAction.findFirst({
@@ -298,7 +300,7 @@ export class TransferProbeService {
         .filter((row) => row.targetId === task.knowledgeNodeId)
         .reduce<number | null>((max, row) => (max == null || row.createdAt.getTime() > max ? row.createdAt.getTime() : max), null);
       if (latest != null && latest >= task.completedAt.getTime()) continue;
-      await this.scheduleProbeForCompletedTask(userId, {
+      const scheduled = await this.scheduleProbeForCompletedTask(userId, {
         id: task.id,
         knowledgeNodeId: task.knowledgeNodeId,
         completedAt: task.completedAt,
@@ -350,6 +352,10 @@ export class TransferProbeService {
 
     const selected = await this.selectProbeQuestion(userId, nodeId, bucket, kinds);
     if (!selected) return null;
+    // The snapshot must be the DOMAIN question (answer/knowledgePointIds) so
+    // the canonical submit path can judge it exactly like any practice.
+    const domainQuestion = await this.questionsService?.findQuestionById(selected.question.id);
+    if (!domainQuestion) return null;
 
     const session = await this.learningSessions!.createFromAction({
       id: `probe-${randomUUID()}`,
@@ -357,7 +363,7 @@ export class TransferProbeService {
       actionId: action.id,
       type: TRANSFER_PROBE_SESSION_TYPE,
       questionIds: [selected.question.id],
-      questionSnapshot: [selected.question as never],
+      questionSnapshot: [domainQuestion as never],
       answers: {},
       markedQuestions: [],
       currentIndex: 0,
@@ -368,6 +374,7 @@ export class TransferProbeService {
       lastResumeAt: Date.now(),
       completed: false,
     } as never);
+    this.studyService?.registerExternalSession(session as never);
 
     await this.prisma.recommendationAction.update({
       where: { id: action.id },
@@ -387,12 +394,12 @@ export class TransferProbeService {
         session: {
           sessionId: session.id,
           question: {
-            id: selected.question.id,
-            stem: selected.question.stem,
-            options: selected.question.options,
-            type: selected.question.type,
-            difficulty: String(selected.question.difficulty),
-            expectedTimeSec: selected.question.expectedTimeSec,
+            id: domainQuestion.id,
+            stem: domainQuestion.stem,
+            options: domainQuestion.options,
+            type: String(domainQuestion.type),
+            difficulty: String(domainQuestion.difficulty),
+            expectedTimeSec: domainQuestion.expectedTimeSec,
           },
         },
       },
@@ -591,8 +598,8 @@ export class TransferProbeProjection {
         kind: (String(detail.kind_probe ?? 'practice_difficulty') as ProbeKind),
         bucket: (String(detail.bucket ?? 'MEDIUM') as DifficultyBucket),
         isomorphism: (String(detail.isomorphism ?? 'unverified') as IsomorphismLevel),
-        attempts: Number(payload.observedAttempts ?? 0),
-        correct: Number(payload.observedCorrectCount ?? 0),
+        attempts: Number((payload.metrics as Record<string, unknown> | undefined)?.attempts ?? 0),
+        correct: Number((payload.metrics as Record<string, unknown> | undefined)?.correctCount ?? 0),
         invalidated: detail.invalidated === true,
       };
     });
@@ -643,7 +650,7 @@ export class TransferProbeProjection {
         questionId: typeof detail.questionId === 'string' ? detail.questionId : null,
         bucket: typeof detail.bucket === 'string' ? detail.bucket : null,
         isomorphism: typeof detail.isomorphism === 'string' ? detail.isomorphism : null,
-        correct: Number(payload.observedCorrectCount ?? 0) > 0,
+        correct: Number((payload.metrics as Record<string, unknown> | undefined)?.correctCount ?? 0) > 0,
         recordedAt: row.createdAt.toISOString(),
       };
     });
@@ -661,6 +668,7 @@ export class TransferProbeProjection {
     const nodeIds = [...new Set(events.map((event) => event.nodeId).filter(Boolean))];
     const practiceAccuracyByNode = await this.practiceAccuracyByNode(nodeIds);
     const rows = buildTransferProjection(events, practiceAccuracyByNode);
+    console.error('[tp-debug] rows', JSON.stringify(rows));
 
     const poolRemaining: Record<string, Record<string, number>> = {};
     for (const nodeId of nodeIds) {
