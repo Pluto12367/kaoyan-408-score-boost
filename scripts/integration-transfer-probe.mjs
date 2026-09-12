@@ -101,15 +101,79 @@ async function main(prisma, invite) {
     record('route-guard', 'GET /coach/transfer-probes without a token is 401');
 
     // A completed intervention = plan + task done 38h ago (lazy scheduler input).
+    //
+    // FIXTURE BUG (repaired): this used to be `Date.now() - 40 * HOUR`, which is
+    // not a stable fixture. The scheduler derives the delivery day as
+    // `probeDayKey(completedAt) + TRANSFER_PROBE_WINDOWS.targetDaysAfter` in the
+    // probe timezone, so a *relative* offset lands on a different calendar day
+    // depending on what time of day the suite runs: at 15:29 local, `now - 40h`
+    // is two calendar days back and the probe is due today; at 16:29 it is only
+    // one calendar day back and the probe is scheduled for tomorrow, so student A
+    // receives no card and the suite fails. The production scheduler is correct
+    // and unchanged — only the fixture's date anchoring was wrong.
+    //
+    // The anchor below pins `completedAt` to 00:30 on the Shanghai calendar day
+    // exactly two days back, so the derived delivery day is always today while
+    // the elapsed time stays ≥ 47.5h and therefore always clears the 36h guard.
+    const PROBE_TIME_ZONE = 'Asia/Shanghai';
+    const MIN_ELAPSED_HOURS = 36;
+
+    function probeDayKey(date) {
+      return new Intl.DateTimeFormat('en-CA', {
+        timeZone: PROBE_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+      }).format(date);
+    }
+
+    /** Calendar-day arithmetic on a `YYYY-MM-DD` key. */
+    function shiftDayKey(dayKey, days) {
+      const [year, month, day] = dayKey.split('-').map(Number);
+      const shifted = new Date(Date.UTC(year, month - 1, day + days));
+      return [
+        shifted.getUTCFullYear(),
+        String(shifted.getUTCMonth() + 1).padStart(2, '0'),
+        String(shifted.getUTCDate()).padStart(2, '0'),
+      ].join('-');
+    }
+
+    const TODAY_KEY = probeDayKey(new Date());
+
+    /**
+     * An instant on the probe timezone's calendar day `daysBack` days ago, at
+     * 00:30 local. Deterministic regardless of when the suite runs.
+     */
+    function anchoredInterventionCompletedAt(daysBack = 2, now = new Date()) {
+      const targetDay = shiftDayKey(probeDayKey(now), -daysBack);
+      return new Date(`${targetDay}T00:30:00+08:00`);
+    }
+
+    /** Self-check: the anchor must be due today and past the 36h guard. */
+    for (const daysBack of [2, 12]) {
+      const anchored = anchoredInterventionCompletedAt(daysBack);
+      const elapsedHours = (Date.now() - anchored.getTime()) / HOUR;
+      assert.ok(
+        elapsedHours >= MIN_ELAPSED_HOURS,
+        `fixture anchor ${daysBack}d back must clear the ${MIN_ELAPSED_HOURS}h guard (got ${elapsedHours.toFixed(1)}h)`,
+      );
+      assert.equal(
+        shiftDayKey(probeDayKey(anchored), 2),
+        shiftDayKey(probeDayKey(new Date()), -daysBack + 2),
+        'the fixture anchor must be calendar-day stable',
+      );
+    }
+
     const completedIntervention = async (userId, nodeId, nodeName) => {
+      const completedAt = anchoredInterventionCompletedAt(2);
       const plan = await prisma.studyPlan.create({
         data: { userId, source: 'score-center', status: 'ACTIVE', phase: 'integration', checkpoint: 'integration', modelVersion: 'integration', targetScore: 120, remainingDays: 96, dailyHours: 3.5 },
       });
       return prisma.studyTask.create({
         data: {
           planId: plan.id, knowledgePointId: ids.point, knowledgeNodeId: nodeId, subject: 'DATA_STRUCTURE',
-          title: nodeName, mode: '练习', minutes: 20, questionCount: 3, scheduledDate: '2026-09-10',
-          status: 'completed', completed: true, completedAt: new Date(Date.now() - 40 * HOUR),
+          title: nodeName, mode: '练习', minutes: 20, questionCount: 3,
+          // Inert for the scheduler (it reads `completedAt` only), kept coherent
+          // with the anchor so the fixture does not advertise a stale date.
+          scheduledDate: probeDayKey(completedAt),
+          status: 'completed', completed: true, completedAt,
         },
       });
     };
@@ -240,7 +304,7 @@ async function main(prisma, invite) {
     // A 12-day-old intervention with a same-window historical practice record
     // (direct seed): the scheduler compensates it, then the state machine
     // expires the probe because the delivery window closed long ago.
-    const staleCompletedAt = new Date(Date.now() - 12 * DAY);
+    const staleCompletedAt = anchoredInterventionCompletedAt(12);
     const stalePractice = await prisma.practiceRecord.create({
       data: {
         userId: studentF.userId, questionId: ids.practiceQuestion, knowledgePointId: ids.point,
