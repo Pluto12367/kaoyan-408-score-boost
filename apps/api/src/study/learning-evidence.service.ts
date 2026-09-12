@@ -188,6 +188,7 @@ export class LearningEvidenceService {
       /** Structured detail carried verbatim (e.g. a rubric-scored breakdown). */
       detail?: Readonly<Record<string, unknown>> | null;
     },
+    tx?: Prisma.TransactionClient,
   ): Promise<LearningEvidenceRecord> {
     const scope = input.scope ?? input.recordedAt.slice(0, 10);
     return this.record(
@@ -203,6 +204,7 @@ export class LearningEvidenceService {
         detail: input.detail ?? null,
       },
       scope,
+      tx,
     ).then((result) => result.record);
   }
 

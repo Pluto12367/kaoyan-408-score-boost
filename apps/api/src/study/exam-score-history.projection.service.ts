@@ -1,9 +1,13 @@
 import { buildExamScoreHistorySnapshot, type ExamScoreHistorySnapshot } from './exam-score-history.snapshot';
 
+import type { SessionType } from './learning-session.repository';
+
 interface LearningSessionFacts {
   id: string;
   userId: string;
-  type: 'practice_set' | 'stage_assessment' | 'paper';
+  // S2: widened to the shared session vocabulary; this projection still only
+  // counts type==='paper' sessions, so probe sessions never enter score history.
+  type: SessionType;
   completed: boolean;
   questionIds: string[];
   lastActiveAt: string;

@@ -29,7 +29,14 @@ export class RecommendationActionAdapterService {
   async createOrGetAction(input: RecommendationActionDraft, tx?: Prisma.TransactionClient) {
     const db = tx ?? this.prisma;
     if (!process.env.DATABASE_URL && !tx) return null;
-    const actionType = input.actionType === 'REVIEW' || input.actionType === 'WRONG_QUESTION' ? 'REVIEW' : 'PRACTICE';
+    // S2: TRANSFER_PROBE is a first-class action type (formal design) and must
+    // pass through unchanged; the legacy coercion below only normalizes the
+    // recommendation engine's own action vocabulary.
+    const actionType = input.actionType === 'TRANSFER_PROBE'
+      ? 'TRANSFER_PROBE'
+      : input.actionType === 'REVIEW' || input.actionType === 'WRONG_QUESTION'
+        ? 'REVIEW'
+        : 'PRACTICE';
     const creationKey = input.generationKey !== undefined
       ? createRecommendationActionKey(input.generationKey, input.actionType, input.targetType, input.targetId)
       : RecommendationActionAdapterService.creationKey(input);

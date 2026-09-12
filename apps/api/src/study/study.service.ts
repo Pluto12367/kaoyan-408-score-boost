@@ -105,6 +105,11 @@ import {
 import { computePracticeRecordRequestHash, PRACTICE_RECORD_HASH_VERSION } from './answer-request-hash';
 import { ScoreCenterService } from '../score-center/service';
 import { ScoreAnchorService } from '../score-anchor/score-anchor.service';
+import {
+  TRANSFER_PROBE_EVIDENCE_KIND,
+  TRANSFER_PROBE_POOL_SOURCE,
+  TRANSFER_PROBE_SESSION_TYPE,
+} from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
 import { ActionFeedbackTriggerService } from './action-feedback-trigger.service';
@@ -429,8 +434,15 @@ export class StudyService implements OnModuleInit {
       }
     }
     this.nodeQuestionIdsByNode.clear();
+    // S2 probe pool isolation: pool questions are measurement-only and must
+    // never surface in any practice/recommendation selection (single point).
+    const probePoolRows = this.prisma
+      ? await this.prisma.question.findMany({ where: { source: TRANSFER_PROBE_POOL_SOURCE }, select: { id: true } })
+      : [];
+    const probePoolIds = new Set(probePoolRows.map((row) => row.id));
     for (const [nodeId, questionIds] of questionIdsByNode) {
-      this.nodeQuestionIdsByNode.set(nodeId, questionIds);
+      const visible = questionIds.filter((questionId) => !probePoolIds.has(questionId));
+      this.nodeQuestionIdsByNode.set(nodeId, visible);
     }
 
     await this.reloadNodeMasteries();
@@ -4605,6 +4617,9 @@ export class StudyService implements OnModuleInit {
         records,
         async (tx) => {
           await this.scoreCenterService?.applyAttempts(userId, records, tx);
+          if (submittedSession.type === 'transfer_probe' && submittedSession.actionId) {
+            await this.recordTransferProbeEvidence(tx, userId, submittedSession.actionId, records, snapshotQuestions);
+          }
         },
       );
       if (!committed) {
@@ -4749,6 +4764,41 @@ export class StudyService implements OnModuleInit {
       accuracyRate,
       title: historyItem.title,
     });
+  }
+
+  /** S2 — transfer-probe measurement evidence, written atomically with the
+   * attempt inside the submission transaction (M3 review-evidence precedent).
+   * Mastery already flowed through the same tx via applyAttempts (C3); this
+   * record is the measurement identity, never a second mastery write. */
+  private async recordTransferProbeEvidence(
+    tx: { recommendationAction: { findUnique(args: { where: { id: string } }): Promise<{ targetId: string } | null> } },
+    userId: string,
+    probeActionId: string,
+    records: Array<{ questionId: string; correct: boolean }>,
+    snapshotQuestions: Map<string, { difficulty?: unknown; source?: string }>,
+  ): Promise<void> {
+    if (!this.learningEvidence || records.length === 0) return;
+    const action = await tx.recommendationAction.findUnique({ where: { id: probeActionId } });
+    const questionId = records[0]?.questionId;
+    const question = questionId ? snapshotQuestions.get(questionId) : undefined;
+    if (!action || !question) return;
+    await this.learningEvidence.recordObservedPerformance(userId, {
+      action: 'practice.answered',
+      sourceId: probeActionId,
+      actionId: probeActionId,
+      observedAttempts: records.length,
+      observedCorrectCount: records.filter((record) => record.correct).length,
+      recordedAt: new Date().toISOString(),
+      detail: {
+        kind: TRANSFER_PROBE_EVIDENCE_KIND,
+        probeId: probeActionId,
+        nodeId: action.targetId,
+        questionId,
+        bucket: String(question.difficulty ?? 'MEDIUM'),
+        isomorphism: question.source === TRANSFER_PROBE_POOL_SOURCE ? 'verified' : 'unverified',
+        kind_probe: 'practice_difficulty',
+      },
+    }, tx as never);
   }
 
   private applySessionProgress(session: PracticeSession, input: {
@@ -5361,7 +5411,7 @@ export interface ReviewResource {
 interface PracticeSession {
   id: string;
   userId: string;
-  type: 'practice_set' | 'stage_assessment' | 'paper';
+  type: 'practice_set' | 'stage_assessment' | 'paper' | 'transfer_probe';
   resourceId?: string;
   actionId?: string;
   questionIds: string[];

@@ -4,7 +4,9 @@ import type { PracticeRecord, Question } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { toPrismaRecord } from './practice-record.repository';
 
-export type SessionType = 'practice_set' | 'stage_assessment' | 'paper';
+// S2: 'transfer_probe' is the controlled vocabulary extension for probe
+// delivery sessions (formal design §7) — created only by TransferProbeService.
+export type SessionType = 'practice_set' | 'stage_assessment' | 'paper' | 'transfer_probe';
 
 export interface PersistedLearningSession {
   id: string;
