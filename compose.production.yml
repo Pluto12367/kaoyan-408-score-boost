@@ -73,14 +73,17 @@ services:
       VITE_API_BASE_URL: "/api"
       ALLOW_DEMO_AUTH: "false"
       # G1.7 (owner decision A5 = APPROVED): the transfer re-test is a product
-      # surface now, not a report-only experiment. Enabled explicitly here so it
-      # does not depend on the host shell; the single-point parse still treats an
-      # unset/unknown value as OFF, and MASTERY_SEMANTICS stays deliberately
-      # absent so C1 remains OFF.
-      # With no `transfer_probe_pool` content yet, the scheduler honestly reports
-      # `no_probe_available` and the student card stays silent — it never falls
-      # back to reusing an old question.
-      TRANSFER_PROBE_ENABLED: ${TRANSFER_PROBE_ENABLED:-true}
+      # surface — the capability, the student card and the first-use education are
+      # all shipped. PRODUCTION ENABLE IS OFF, by owner decision in G1 Release
+      # Hardening: `transfer_probe_pool` currently holds 0 questions, so turning
+      # the scheduler on would complete the intervention → scheduled → delivery
+      # chain and then honestly report `no_probe_available` for every student.
+      # The mechanism is kept (this entry is the single switch) and test/debug
+      # environments turn it on explicitly; the single-point parse still treats an
+      # unset/unknown value as OFF. Flip this to `true` only once the content task
+      # has delivered the probe pool.
+      # MASTERY_SEMANTICS stays deliberately absent so C1 remains OFF.
+      TRANSFER_PROBE_ENABLED: ${TRANSFER_PROBE_ENABLED:-false}
       ALLOW_INSECURE_HTTP_IP: ${ALLOW_INSECURE_HTTP_IP:-true}
       AUDIT_LOG_RETENTION_DAYS: "90"
       QUESTION_IMPORT_DATA_DIR: /var/lib/kaoyan408/question-imports
