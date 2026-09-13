@@ -1,3 +1,8 @@
+> **ARCHIVED / HISTORICAL / SUPERSEDED — DO NOT USE AS A CURRENT RULE SOURCE.**
+> Phase 2.8.5 handoff material (2026-08-30). Facts here may be obsolete and some
+> instructions are known to be wrong (see `README.md` in this directory).
+> Current rules: repository root `AGENTS.md`.
+> Current status: `docs/current-sprint.md`.
 # Known Risks
 
 ## knowledgePointId / knowledgeNodeId Confusion

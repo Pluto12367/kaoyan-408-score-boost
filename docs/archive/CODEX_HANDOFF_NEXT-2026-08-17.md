@@ -1,3 +1,16 @@
+> **HISTORICAL SNAPSHOT — NOT A CURRENT AGENT ENTRYPOINT**
+>
+> Archived 2026-09-12 by Agent Governance Hardening.
+> This file describes the repository as of 2026-08-17 (branch
+> `codex/deployment-ready`, HEAD `83182ad`, 577 tests). Every one of those facts
+> is obsolete.
+>
+> Current project state is defined by:
+> - `AGENTS.md` (repository root) — agent rules (HOW)
+> - `docs/current-sprint.md` — project status (WHERE)
+>
+> Do not treat the "next session prompt" section of this file as a startup
+> instruction. Use the **Agent Startup Contract** in `AGENTS.md` instead.
 # Codex 项目交接摘要
 
 项目：计算机考研提分系统 / 408 提分系统
