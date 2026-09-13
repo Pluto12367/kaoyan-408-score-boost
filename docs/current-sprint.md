@@ -1,6 +1,47 @@
 # Current Sprint
 
-> **2026-09-12 Owner 决策落定（当前 STATUS 权威块）**：
+> **2026-09-13 Owner 决策落定（当前 STATUS 权威块，取代下方 09-12 块）**：
+
+```text
+┌────────────────────────────────────────┐
+│ 408 Score Improvement Platform         │
+├────────────────────────────────────────┤
+│ Governance Hardening              ✅    │
+│ G1 Code                           ✅    │
+│ G1 Production                     ⏸    │
+│                                        │
+│ S1 Score Anchor                    ✅   │
+│   P0 Semantic Hardening             ✅  │
+│   P1 Score Loss Evidence            ✅  │
+│   Real PostgreSQL / HTTP E2E        ✅  │
+│                                        │
+│ S1 Remote Push                     ⏳   │
+│ S1 Production Deploy               ⏳   │
+│                                        │
+│ Question.maxScore Content          ⏳   │
+│                                        │
+│ Concurrent Mastery Write Bug       🔴   │
+│   separate fix task                    │
+│                                        │
+│ S2 Transfer Runtime                🔒   │
+│ S2 Probe Content                   🔒   │
+│ S3 Opportunity                     🔒   │
+│ S4 ROI                             🔒   │
+│ Verified Score Gain                🔒   │
+│ C1                                OFF   │
+│ TRANSFER_PROBE_ENABLED            false │
+└────────────────────────────────────────┘
+```
+
+**Owner 三项决策（2026-09-13）**：
+① **push S1 = YES**（4 个 S1 提交 `fb00079e`/`d658293b`/`5bb36943`/`b8f103a1` + 本 push 前置 docs 提交；`.zcode/` 与他属 fsrs 测试未触碰）。
+② **生产部署 = 批准但不立即执行**：本次含迁移 `20260913000000_score_loss_evidence`（37→38），**"migration 成功 ≠ 功能部署成功"**——按 `docs/s1-production-deployment-runbook.md`（Owner 人工执行）：Backup/Preflight → 字面 SHA = push 后 origin HEAD → migrate deploy → 迁移验证（ScoreLossItem 表 / Question.maxScore 列 / 零回填 = 0）→ HTTP smoke（`/api/coach/score-loss` 404→401 判别器）→ 回归冒烟 → 判定 DEPLOYED（路由/迁移层）→ 真实提交观察后 DEPLOYED AND VERIFIED。回滚 = 代码 revert + 可选 DROP（loss 为可重建派生投影，零数据损失）。
+③ **并发 Mastery 提交缺陷 = 独立修复任务（P1.5 / HIGH）**：`同一 paper + 多题同节点 + Promise.all → 并发 OCC → retry 耗尽 → 500`。不并入 S1、不重开 S1；独立 Design Gate → TDD → E2E。
+**内容侧阻塞**：`Question.maxScore` 标注 = 0（内容就绪度 blocker，非代码 blocker）——未定价前 Score Loss 只能诚实给出 coverage=0。
+**当前 Phase = Release & Reliability**：①push ②生产迁移+部署 ③生产 HTTP 验证 ④maxScore 内容就绪 ⑤独立修复并发缺陷 ⑥再回 S2。**⑤ 不先于 ⑥ 完成**（Transfer Probe 依赖可靠提交链）。
+**禁止项不变**：S2 / S3 / S4 / ROI / TransferFactor / Verified Score Gain / 打开 Probe / C1 全部禁止；Windows 环境**禁止对含 junction 的目录使用递归删除**（S1 期间 junction 事故教训，见 S1 报告 §9.1）。
+
+> **2026-09-12 Owner 决策落定（STATUS 权威块 → 已被 09-13 块取代，留档）**：
 
 ```text
 Governance Hardening        COMPLETE      (commits 1ac4cf08 / d154aefc / c6bd6a2b, pushed; origin = c6bd6a2b)
