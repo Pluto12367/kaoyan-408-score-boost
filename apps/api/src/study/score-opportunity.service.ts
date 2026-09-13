@@ -17,9 +17,12 @@
 
 import { Injectable, Optional } from '@nestjs/common';
 import {
+  applyExamTimelineFallback,
   buildScoreOpportunity,
   classifyAction,
   estimateMinutes,
+  normalizeExamScoreWeight,
+  resolveDaysToExamTracked,
   type FactorConfidence,
   type OpportunityFactorKey,
   type ScoreOpportunity,
@@ -29,7 +32,6 @@ import { PrismaService } from '../prisma/prisma.service';
 const DEFAULT_TOP = 10;
 const MAX_TOP = 50;
 const MAX_CANDIDATES = 400;
-const DAYS_FALLBACK = 96;
 
 export interface ScoreOpportunityShadowResult {
   readonly generatedAt: string;
@@ -67,10 +69,19 @@ export class ScoreOpportunityService {
     const user = await db.user
       .findUnique({
         where: { id: userId },
-        select: { targetScore: true, remainingDays: true },
+        select: { targetScore: true, remainingDays: true, examDate: true },
       })
       .catch(() => null);
-    const daysToExam = resolveDaysToExam(user as { remainingDays?: number | null } | null);
+    // S1-I0 (INV-3 / P0-4): the shared canonical resolver — examDate is the fact.
+    // The *Tracked* variant tallies the "stored cache disagrees with the derived
+    // value" event, so P0-4's drift counter is observable rather than a boolean
+    // nobody reads. The resolver itself stays pure; only this IO boundary counts.
+    const timeline = resolveDaysToExamTracked({
+      examDate: user?.examDate ?? null,
+      remainingDays: user?.remainingDays ?? null,
+      now: asOf,
+    });
+    const daysToExam = applyExamTimelineFallback(timeline).days;
 
     // The question this shadow answers is "which of THIS STUDENT's weak points is
     // most worth training", so the candidate universe is the student's own
@@ -126,7 +137,6 @@ export class ScoreOpportunityService {
 
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
     const masteryByNode = new Map(masteryRows.map((row) => [row.knowledgeNodeId, row]));
-    const maxPrimaryScore = Math.max(1, ...[...snapshots.values()].map((row) => row.primaryScore5y));
 
     const prerequisiteOf = new Map<string, string[]>();
     for (const relation of relations) {
@@ -143,8 +153,12 @@ export class ScoreOpportunityService {
       const masteryRow = masteryByNode.get(nodeId) ?? null;
 
       const weakness = masteryRow ? 1 - masteryRow.mastery : null;
+      // S1-I0 (INV-5): the canonical ABSOLUTE normalisation. The candidate gate
+      // is unchanged (a node with no exam points in five years is not a
+      // score-opportunity candidate), but the weight no longer depends on which
+      // other nodes happen to be in this pool.
       const examImportance = snapshot.primaryScore5y > 0
-        ? snapshot.primaryScore5y / maxPrimaryScore
+        ? normalizeExamScoreWeight(snapshot.primaryScore5y)
         : null;
       const prerequisiteReadiness = readinessOf(nodeId, prerequisiteOf, masteryByNode);
       const difficulty = Number(node.difficulty) || 3;
@@ -162,11 +176,14 @@ export class ScoreOpportunityService {
         buildScoreOpportunity({
           nodeId,
           title: node.name,
-          weakness,
-          examImportance,
+          // S1-I0 (P0-6 / INV-6): the partitioned input names. `retentionNow` is
+          // deliberately NOT passed — the engine owns forgetting, and passing it
+          // here was the second contribution of the same fact.
+          learnerWeakness: weakness,
+          scoreAtStake: examImportance,
+          recent3Frequency: snapshot.recent3Frequency ?? null,
           evidenceConfidence: snapshot.evidenceConfidence,
           daysToExam,
-          retentionNow: masteryRow?.retention ?? null,
           everSucceeded: masteryRow ? masteryRow.correctCount > 0 : null,
           prerequisiteReadiness,
           trainingCostMinutes: estimateMinutes(action, difficulty),
@@ -212,19 +229,30 @@ export class ScoreOpportunityService {
    */
   private async loadLatestSnapshots(db: PrismaService, nodeIds: readonly string[]): Promise<Map<string, {
     primaryScore5y: number;
+    recent3Frequency: number | null;
     evidenceConfidence: 'HIGH' | 'MEDIUM' | 'LOW';
   }>> {
     const rows = await db.knowledgeFrequencySnapshot.findMany({
       where: { knowledgeNodeId: { in: [...nodeIds] } },
       orderBy: [{ snapshotDate: 'desc' }, { modelVersion: 'desc' }],
       take: nodeIds.length,
-      select: { knowledgeNodeId: true, primaryScore5y: true, evidenceConfidence: true },
+      select: {
+        knowledgeNodeId: true,
+        primaryScore5y: true,
+        recent3Frequency: true,
+        evidenceConfidence: true,
+      },
     });
-    const map = new Map<string, { primaryScore5y: number; evidenceConfidence: 'HIGH' | 'MEDIUM' | 'LOW' }>();
+    const map = new Map<string, {
+      primaryScore5y: number;
+      recent3Frequency: number | null;
+      evidenceConfidence: 'HIGH' | 'MEDIUM' | 'LOW';
+    }>();
     for (const row of rows) {
       if (map.has(row.knowledgeNodeId)) continue;
       map.set(row.knowledgeNodeId, {
         primaryScore5y: row.primaryScore5y,
+        recent3Frequency: row.recent3Frequency ?? null,
         evidenceConfidence: row.evidenceConfidence as 'HIGH' | 'MEDIUM' | 'LOW',
       });
     }
@@ -245,19 +273,10 @@ function readinessOf(
 }
 
 /**
- * Days to the exam, mirroring the production source of truth
- * (recommendation.service.ts): `User.remainingDays`, else 96.
- *
- * This used to read a non-existent `User.examDate` behind a `.catch(() => null)`,
- * so every student silently fell back to a constant and the urgency factor was
- * never personalised. The field is now read explicitly and the fallback is the
- * same one production uses.
+ * S1-I0 (INV-3): the local resolver and its private `DAYS_FALLBACK` constant are
+ * gone — the shared canonical resolver owns the precedence and the single
+ * fallback, so this shadow can no longer disagree with production.
  */
-function resolveDaysToExam(user: { remainingDays?: number | null } | null): number {
-  const remaining = user?.remainingDays;
-  if (typeof remaining !== 'number' || !Number.isFinite(remaining)) return DAYS_FALLBACK;
-  return Math.max(0, Math.round(remaining));
-}
 
 function emptyResult(): ScoreOpportunityShadowResult {
   return {

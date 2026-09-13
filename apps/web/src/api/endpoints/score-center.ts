@@ -126,7 +126,13 @@ export interface MyNodeMastery {
 }
 
 export async function generateScoreCenterPlan(input: {
-  targetExamDate: string;
+  /**
+   * S1-I0 (INV-3 / API-5): the client no longer invents an exam date. The server
+   * resolves the timeline from the canonical source (`User.examDate`), and any
+   * value still sent here is ignored server-side. Retained as an optional
+   * compatibility field only.
+   */
+  targetExamDate?: string;
   availableMinutes: 30 | 60 | 120 | 180;
 }): Promise<ScoreCenterPlan> {
   const response = await fetchWithAuth(`${API_BASE_URL}/score-center/generate`, {

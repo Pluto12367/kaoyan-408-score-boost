@@ -578,7 +578,7 @@ export class ScoreCenterService {
 
   async generateDailyPlan(
     userId: string,
-    input: { targetExamDate: Date; availableMinutes: 30 | 60 | 120 | 180 },
+    input: { targetExamDate?: Date; availableMinutes: 30 | 60 | 120 | 180 },
   ) {
     // Sprint 3.2：推荐计算迁移至 RecommendationService（shared 引擎唯一入口），
     // 本方法仅保留响应 DTO 组装（toPlanDto），端点 URL 与返回结构不变。

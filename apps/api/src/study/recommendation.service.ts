@@ -6,6 +6,7 @@ import {
   filterEvidencedReasonCodes,
   INSUFFICIENT_REASON_NOTE,
   REASON_LABELS,
+  resolveDaysToExamNumber,
   runRecommendation,
 } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
@@ -63,7 +64,13 @@ function studentReasonText(reasonCodes: readonly string[] | null | undefined): s
 }
 
 export interface DailyPlanGenerationInput {
-  targetExamDate: Date;
+  /**
+   * S1-I0 (INV-3 / API-5): OPTIONAL and IGNORED for timeline resolution. The
+   * canonical exam timeline is the student's `User.examDate`, resolved
+   * server-side; this field is retained only as a compatibility carrier for the
+   * plan row, never as a source of truth.
+   */
+  targetExamDate?: Date;
   availableMinutes: 30 | 60 | 120 | 180;
   scheduledDate?: string;
   generationKey?: string;
@@ -75,6 +82,8 @@ export interface DailyPlanGenerationInput {
 interface UserGoalFacts {
   targetScore: number | null;
   currentScore: number | null;
+  /** S1-I0: the canonical exam timeline fact. */
+  examDate: Date | null;
   remainingDays: number | null;
   dailyHours: number | null;
   stage: string | null;
@@ -147,9 +156,17 @@ export class RecommendationService {
     const masteryByNode = new Map(masteries.map((mastery) => [mastery.knowledgeNodeId, mastery]));
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
 
-    const daysToExam = options.targetExamDate
-      ? Math.max(0, Math.ceil((startOfDay(options.targetExamDate).getTime() - now.getTime()) / 86_400_000))
-      : Math.max(0, user?.remainingDays ?? 96);
+    // S1-I0 (INV-3): the exam timeline comes from ONE resolver. `examDate` is the
+    // fact, `remainingDays` the legacy cache, and the fallback is applied here by
+    // name rather than inline, so a default can never pass for a fact.
+    // API-5: a caller-supplied `targetExamDate` is deliberately NOT used — the
+    // canonical source is the student's own `examDate`, so no caller can inject a
+    // different exam timeline into plan generation.
+    const daysToExam = resolveDaysToExamNumber({
+      examDate: user?.examDate ?? null,
+      remainingDays: user?.remainingDays ?? null,
+      now,
+    });
 
     const prerequisites: Record<string, string[]> = {};
     for (const relation of relations) {
@@ -243,6 +260,8 @@ export class RecommendationService {
     return { result, nodeById, breakdownByNode, accuracyRateByNode, overallAccuracyRate, user: user ? {
       targetScore: user.targetScore,
       currentScore: user.currentScore,
+      // S1-I0 (INV-3): the canonical exam timeline FACT, resolved by the caller.
+      examDate: user.examDate,
       remainingDays: user.remainingDays,
       dailyHours: user.dailyHours,
       stage: user.studyStage,
@@ -262,6 +281,12 @@ export class RecommendationService {
       availableMinutes: input.availableMinutes,
       targetExamDate: input.targetExamDate,
     });
+
+    // S1-I0 (INV-3 / API-5): what gets persisted on the plan row is the CANONICAL
+    // exam date — the student's own `examDate` — not whatever a caller passed in.
+    // A student with no exam date persists `null`, which downstream code must read
+    // as "unknown" rather than as a date.
+    const canonicalExamDate = user?.examDate ?? null;
 
     const taskDrafts = result.items.filter((item) => item.kind === 'TASK_DRAFT');
     const enrichedTasks = taskDrafts.map((draft, index) => {
@@ -314,7 +339,7 @@ export class RecommendationService {
               checkpoint: 'score-center',
               source: input.source ?? 'score-center',
               modelVersion: input.version ?? MODEL_VERSION,
-              targetExamDate: input.targetExamDate,
+              targetExamDate: canonicalExamDate,
               availableMinutes: input.availableMinutes,
               stale: false,
               status: 'ACTIVE',
@@ -337,7 +362,7 @@ export class RecommendationService {
           remainingDays: user?.remainingDays ?? daysToExam,
           dailyHours: user?.dailyHours ?? 3.5,
           modelVersion: MODEL_VERSION,
-          targetExamDate: input.targetExamDate,
+          targetExamDate: canonicalExamDate,
           availableMinutes: input.availableMinutes,
           scheduledDate,
         }, enrichedTasks);
@@ -396,7 +421,7 @@ export class RecommendationService {
         remainingDays: user?.remainingDays ?? daysToExam,
         dailyHours: user?.dailyHours ?? 3.5,
         modelVersion: MODEL_VERSION,
-        targetExamDate: input.targetExamDate,
+        targetExamDate: canonicalExamDate,
         availableMinutes: input.availableMinutes,
         scheduledDate,
       }, []);

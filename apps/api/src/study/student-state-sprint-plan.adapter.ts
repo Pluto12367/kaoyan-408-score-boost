@@ -1,4 +1,5 @@
 import { nextNDates } from './study-date';
+import { resolveDaysToExam } from '@kaoyan408/shared';
 import type { StudentStateSnapshot } from './student-state.snapshot';
 
 export interface SprintPlanDayDto {
@@ -116,8 +117,10 @@ function buildRisks(input: {
   accuracyRate?: number | null;
   todayPracticeCount: number;
 }): string[] {
+  // S1-I0 (INV-3/INV-4): an unknown timeline must not assert that the exam is near.
+  const timelineDays = resolveDaysToExam({ remainingDays: input.remainingDays ?? null, now: new Date() }).days;
   const risks = [
-    ...((input.remainingDays ?? 0) < 60 ? ['剩余时间偏紧，需要优先保证高频考点和真题回看。'] : []),
+    ...(timelineDays != null && timelineDays < 60 ? ['剩余时间偏紧，需要优先保证高频考点和真题回看。'] : []),
     ...(input.wrongQuestionCount > 0
       ? [`错题本仍有 ${input.wrongQuestionCount} 道待处理，建议每天至少复盘 ${input.reviewBase} 道。`]
       : []),

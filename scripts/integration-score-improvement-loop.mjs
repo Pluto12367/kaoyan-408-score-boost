@@ -369,7 +369,13 @@ async function main() {
     assert.ok(opportunity.summary.candidatesEvaluated >= 1, 'the seeded node must be evaluated');
     if (opportunity.opportunities.length > 0) {
       const top = opportunity.opportunities[0];
-      assert.equal(top.factors.length, 6, 'all six factors must be itemised');
+      // S1-I0 (P0-6): the approved factor partition replaced the six-factor
+      // catalogue (weakness/examImportance/recoverability/evidenceConfidence/
+      // urgency/trainingCost) with the five partitioned factors
+      // (learnerWeakness/scoreAtStake/recovery/urgency/trainingCost), and
+      // demoted evidenceConfidence to a gate. The intent asserted here — every
+      // factor itemised with its source and basis — is unchanged.
+      assert.equal(top.factors.length, 5, 'all five partitioned factors must be itemised');
       for (const factor of top.factors) {
         assert.ok(factor.source.length > 0, `${factor.key} must cite its data source`);
         assert.ok(factor.basis.length > 0, `${factor.key} must explain itself`);

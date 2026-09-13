@@ -16,9 +16,12 @@
 
 import { Injectable, Optional } from '@nestjs/common';
 import {
+  applyExamTimelineFallback,
   buildShadowDecisionChain,
   classifyAction,
   estimateMinutes,
+  resolveDaysToExam,
+  resolveDaysToExamNumber,
   type MasteryState,
   type RecommendationExamEvidence,
   type ShadowChainNodeInput,
@@ -30,7 +33,7 @@ import { ReviewSemanticsShadowService } from './review-semantics-shadow.service'
 
 const MAX_CANDIDATES = 200;
 const DEFAULT_MAX_ITEMS = 8;
-const DAYS_FALLBACK = 96;
+const MAX_TOP = 50;
 
 
 export interface ShadowDecisionChainResult extends ShadowDecisionChain {
@@ -114,7 +117,7 @@ export class ShadowDecisionChainService {
         where: { toId: { in: nodeIds }, type: 'PREREQUISITE' },
         select: { fromId: true, toId: true },
       }),
-      db.user.findUnique({ where: { id: userId }, select: { targetScore: true, remainingDays: true } }).catch(() => null),
+      db.user.findUnique({ where: { id: userId }, select: { targetScore: true, remainingDays: true, examDate: true } }).catch(() => null),
       db.questionKnowledgeNodeTag.findMany({
         where: { knowledgeNodeId: { in: nodeIds } },
         select: { knowledgeNodeId: true, role: true },
@@ -157,7 +160,7 @@ export class ShadowDecisionChainService {
           mastery: row.mastery,
           recentAccuracy: row.recentAccuracy,
         } as never,
-        resolveDaysToExam(user as { remainingDays?: number | null } | null),
+        examDays(resolveDaysToExam({ examDate: user?.examDate ?? null, remainingDays: user?.remainingDays ?? null, now: assembly.asOf })),
       );
 
       chainInputs.push({
@@ -195,7 +198,7 @@ export class ShadowDecisionChainService {
     const chain = buildShadowDecisionChain({
       userId,
       now: assembly.asOf.toISOString(),
-      daysToExam: resolveDaysToExam(user as { remainingDays?: number | null } | null),
+      daysToExam: resolveDaysToExamNumber({ examDate: user?.examDate ?? null, remainingDays: user?.remainingDays ?? null, now: assembly.asOf }),
       availableMinutes: 120,
       goal: {
         stage: null,
@@ -282,11 +285,9 @@ function toExamEvidence(
   };
 }
 
-/** Days to the exam, mirroring the production source of truth: User.remainingDays, else 96. */
-function resolveDaysToExam(user: { remainingDays?: number | null } | null): number {
-  const remaining = user?.remainingDays;
-  if (typeof remaining !== 'number' || !Number.isFinite(remaining)) return DAYS_FALLBACK;
-  return Math.max(0, Math.round(remaining));
+/** S1-I0 (INV-3): the shared canonical resolver owns the precedence and the fallback. */
+function examDays(resolution: ReturnType<typeof resolveDaysToExam>): number {
+  return applyExamTimelineFallback(resolution).days;
 }
 
 function clampMaxItems(value: number | undefined): number {

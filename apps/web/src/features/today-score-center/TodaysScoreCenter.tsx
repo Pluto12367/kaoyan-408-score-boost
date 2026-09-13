@@ -9,11 +9,9 @@ import type { ScoreCenterItem, ScoreCenterPlan } from './types';
 
 const MINUTE_OPTIONS = [30, 60, 120, 180] as const;
 
-function defaultTargetExamDate(): string {
-  const now = new Date();
-  const year = now.getMonth() >= 11 ? now.getFullYear() + 1 : now.getFullYear();
-  return `${year}-12-20`;
-}
+// S1-I0 (INV-3): this component used to INVENT an exam date (`${year}-12-20`) and
+// send it to the planner, which then used it as `daysToExam`. The exam timeline is
+// a server-side fact (`User.examDate`); the client no longer supplies one.
 
 export function TodaysScoreCenter() {
   const [plan, setPlan] = useState<ScoreCenterPlan | null>(null);
@@ -49,7 +47,6 @@ export function TodaysScoreCenter() {
     setError('');
     try {
       const next = await generateScoreCenterPlan({
-        targetExamDate: defaultTargetExamDate(),
         availableMinutes: nextMinutes,
       });
       setPlan(next);

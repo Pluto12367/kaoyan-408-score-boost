@@ -57,14 +57,23 @@ export function StudentProgressOverview({
       && canonicalAccuracy !== null
       && averageMastery !== null,
   );
-  const predicted = canonicalOverview
+  // S1-I0 (P0-3 / INV-3 / INV-10): `remainingDays` is a DERIVED cache of the
+  // canonical exam date, and `null` means "the timeline is unknown". Feeding
+  // `?? 0` into the estimator drove its time factor to the minimum and made an
+  // unset exam date read as "the exam is today" — the opposite extreme from the
+  // calibration path's old 240-day default. An unknown timeline withholds the
+  // estimate instead of fabricating one.
+  const timelineDays = student.remainingDays ?? null;
+  const predicted = timelineDays == null
+    ? null
+    : canonicalOverview
     ? hasCanonicalPredictionData
       ? estimatePredictedScore({
           currentScore: student.currentScore ?? 0,
           targetScore: student.targetScore ?? 100,
           accuracyRate: canonicalAccuracy as number,
           averageMastery: averageMastery as number,
-          remainingDays: student.remainingDays ?? 0,
+          remainingDays: timelineDays,
         })
       : null
     : report.completionRate > 0 || report.weakPoints.length > 0
@@ -73,7 +82,7 @@ export function StudentProgressOverview({
         targetScore: student.targetScore ?? 100,
         accuracyRate: report.accuracyRate,
         averageMastery: averageMastery ?? report.accuracyRate,
-        remainingDays: student.remainingDays ?? 0,
+        remainingDays: timelineDays,
       })
     : null;
 
@@ -115,7 +124,7 @@ export function StudentProgressOverview({
       {sections.includes('sprint') ? (sprint ? <section className="panel sprint-panel">
         <div className="panel-heading">
           <div><p className="eyebrow">7 天冲刺计划</p><h3>{sprint.title}</h3></div>
-          <span>差 {sprint.scoreGap} 分 · 剩余 {sprint.remainingDays ?? 0} 天</span>
+          <span>差 {sprint.scoreGap} 分 · 剩余 {sprint.remainingDays != null ? `${sprint.remainingDays} 天` : '--'}</span>
         </div>
         <ModuleResourceMeta resource={sprintPlan} onRetry={onRetrySprint} />
         <div className="sprint-summary">
@@ -188,7 +197,7 @@ export function StudentProgressOverview({
         <Metric title="目标分" value={`${student.targetScore ?? 0}`} caption={student.targetSchool ?? '目标院校未设置'} />
         <Metric title="正确率" value={canonicalOverview ? (canonicalAccuracy === null ? '--' : `${canonicalAccuracy}%`) : `${report.accuracyRate}%`} caption={canonicalOverview ? `近 7 日 · ${canonicalOverview.progress.last7d.sampleSize} 次练习 · ${canonicalOverview.progress.last7d.status}` : '近 20 次练习统计'} />
         <Metric title="预计提分空间" value={`${report.estimatedGain} 分`} caption="基于薄弱点和目标分估算" />
-        <Metric title="剩余天数" value={`${student.remainingDays ?? 0} 天`} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
+        <Metric title="剩余天数" value={student.remainingDays != null ? `${student.remainingDays} 天` : '--'} caption={`每日 ${student.dailyHours ?? 0} 小时`} />
         <Metric title="预测分数" value={predicted ? `${predicted.minScore}–${predicted.maxScore} 分` : '--'} caption={predicted ? predicted.disclaimer : '完成练习后估算'} />
       </section> : null}
     </>

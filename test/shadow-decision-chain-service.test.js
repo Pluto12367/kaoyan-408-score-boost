@@ -175,6 +175,10 @@ test('the service writes nothing and never touches authoritative semantics', () 
   ]) {
     assert.ok(!code.includes(primitive), `the shadow must not contain ${primitive}`);
   }
-  assert.ok(code.includes('remainingDays'), 'days-to-exam must come from the real production field');
-  assert.ok(!code.includes('examDate'), 'User has no examDate field');
+  // S1-I0 (INV-3) updated this contract. `User.examDate` EXISTS
+  // (prisma/schema.prisma:160) and is the canonical exam timeline FACT. The
+  // previous assertion claimed the field did not exist, which locked in the
+  // defect S1-P0-3 removes. Both fields are read, with examDate authoritative.
+  assert.ok(code.includes('examDate'), 'days-to-exam must read the canonical User.examDate fact');
+  assert.ok(code.includes('remainingDays'), 'the labelled legacy derived cache stays readable');
 });

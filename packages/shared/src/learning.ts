@@ -739,6 +739,15 @@ export interface PredictedScoreEstimate {
   basis: string;
 }
 
+/**
+ * S1-I0 note (P0-3 / INV-3 / INV-10): the FORMULA below is unchanged, by design
+ * ("estimatePredictedScore 与 score150Estimate 公式零改动"). What P0-3 changes is
+ * the INPUT: `remainingDays` now comes from the canonical exam timeline resolver
+ * instead of an inline `?? 0` / `DAYS_FALLBACK = 240`. Callers must therefore
+ * pass a resolved number (or withhold the estimate entirely when the timeline is
+ * unknown) rather than defaulting a missing date to 0, which drove `timeFactor`
+ * to its minimum and made an unset exam date look like "the exam is today".
+ */
 export function estimatePredictedScore(input: {
   currentScore: number;
   targetScore: number;

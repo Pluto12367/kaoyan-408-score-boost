@@ -31,7 +31,7 @@
 
 import { calculatePriority } from './priority';
 import { runRecommendation } from './recommendation';
-import { buildScoreOpportunity } from './score-opportunity';
+import { buildScoreOpportunity, normalizeExamScoreWeight } from './score-opportunity';
 import type {
   MasteryState,
   PriorityReasonCode,
@@ -225,13 +225,13 @@ export function buildShadowDecisionChain(input: ShadowChainInput): ShadowDecisio
     const observed = buildScoreOpportunity({
       nodeId: node.knowledgeNodeId,
       title: node.title,
-      weakness: 1 - observedUser.mastery,
-      examImportance: node.primaryScore5y != null && node.primaryScore5y > 0
-        ? Math.min(1, node.primaryScore5y / 45)
+      learnerWeakness: 1 - observedUser.mastery,
+      // S1-I0 (INV-5): the canonical helper — no hand-rolled copy of the rule.
+      scoreAtStake: node.primaryScore5y != null && node.primaryScore5y > 0
+        ? normalizeExamScoreWeight(node.primaryScore5y)
         : null,
       evidenceConfidence: node.evidenceConfidence,
       daysToExam,
-      retentionNow: observedUser.retention,
       everSucceeded: node.everSucceeded,
       prerequisiteReadiness: node.prerequisiteReadiness,
       trainingCostMinutes: node.trainingCostMinutes,
@@ -239,13 +239,12 @@ export function buildShadowDecisionChain(input: ShadowChainInput): ShadowDecisio
     const shadow = buildScoreOpportunity({
       nodeId: node.knowledgeNodeId,
       title: node.title,
-      weakness: 1 - shadowUser.mastery,
-      examImportance: node.primaryScore5y != null && node.primaryScore5y > 0
-        ? Math.min(1, node.primaryScore5y / 45)
+      learnerWeakness: 1 - shadowUser.mastery,
+      scoreAtStake: node.primaryScore5y != null && node.primaryScore5y > 0
+        ? normalizeExamScoreWeight(node.primaryScore5y)
         : null,
       evidenceConfidence: node.evidenceConfidence,
       daysToExam,
-      retentionNow: node.observed.retention,
       everSucceeded: node.everSucceeded,
       prerequisiteReadiness: node.prerequisiteReadiness,
       trainingCostMinutes: node.trainingCostMinutes,

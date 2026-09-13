@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { resolveDaysToExamNumber } from '@kaoyan408/shared';
 import { LearningLoopRepository } from './learning-loop.repository';
 import { RecommendationService } from './recommendation.service';
 import { UserEventRepository } from './user-event.repository';
@@ -69,7 +70,7 @@ export class LearningLoopTriggerService {
 
       const user = await this.learningLoopRepository.loadUserRecommendationConfig(userId);
       const plan = await this.recommendation.generateDailyPlanFromState(userId, {
-        targetExamDate: targetExamDate(user?.examYear, user?.remainingDays),
+        targetExamDate: targetExamDate(user),
         availableMinutes: availableMinutes(user?.dailyHours),
         scheduledDate,
         generationKey,
@@ -112,10 +113,15 @@ function nextDate(value: string) {
   return date.toISOString().slice(0, 10);
 }
 
-function targetExamDate(examYear?: number | null, remainingDays?: number | null) {
-  if (examYear) return new Date(Date.UTC(examYear, 11, 20));
+/** S1-I0 (INV-3): the exam timeline comes from the canonical resolver. */
+function targetExamDate(user: { examDate?: Date | null; remainingDays?: number | null } | null) {
+  const days = resolveDaysToExamNumber({
+    examDate: user?.examDate ?? null,
+    remainingDays: user?.remainingDays ?? null,
+    now: new Date(),
+  });
   const date = new Date();
-  date.setUTCDate(date.getUTCDate() + Math.max(0, remainingDays ?? 96));
+  date.setUTCDate(date.getUTCDate() + Math.max(0, days));
   return date;
 }
 

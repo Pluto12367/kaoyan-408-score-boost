@@ -32,9 +32,11 @@
 
 import { Injectable, Optional } from '@nestjs/common';
 import {
+  applyExamTimelineFallback,
   buildScoreCalibration,
   estimatePredictedScore,
   normalizeScore,
+  resolveDaysToExam,
   type CalibrationPairInput,
   type ScoreCalibration,
 } from '@kaoyan408/shared';
@@ -44,7 +46,6 @@ import { ScoreAnchorService } from '../score-anchor/score-anchor.service';
 const MAX_ASSESSMENTS = 50;
 const MAX_PRACTICE_ROWS = 500;
 const MAX_SNAPSHOT_ROWS = 1000;
-const DAYS_FALLBACK = 240;
 const TARGET_FALLBACK = 120;
 
 export interface ScoreCalibrationResult extends ScoreCalibration {
@@ -75,17 +76,28 @@ export class ScoreCalibrationService {
     const user = await db.user
       .findUnique({
         where: { id: userId },
-        select: { targetScore: true },
+        select: { targetScore: true, remainingDays: true, examDate: true },
       })
       .catch(() => null);
     const targetScore = (user as { targetScore?: number | null } | null)?.targetScore ?? TARGET_FALLBACK;
+    // S1-I0 (INV-3): ONE timeline for the whole calibration. The previous local
+    // `DAYS_FALLBACK = 240` made this estimator's time factor 1 while every other
+    // path used 96 (factor 0) for the same unknown — opposite extremes from one
+    // missing value. The canonical resolver replaces it, and its basis is carried
+    // so a reconstructed prediction built on a default horizon says so.
+    const timeline = resolveDaysToExam({
+      examDate: (user as { examDate?: Date | null } | null)?.examDate ?? null,
+      remainingDays: (user as { remainingDays?: number | null } | null)?.remainingDays ?? null,
+      now: asOf,
+    });
+    const daysToExam = applyExamTimelineFallback(timeline).days;
 
     // S1: the Score Ledger is the primary source once it holds anything.
     const dataset = (await this.scoreAnchor?.getCalibrationDataset(userId)) ?? null;
     if (dataset && (dataset.predictions.length > 0 || dataset.assessments.length > 0 || dataset.outcomes.length > 0)) {
-      return this.calibrateFromLedger(userId, dataset, targetScore, asOf);
+      return this.calibrateFromLedger(userId, dataset, targetScore, asOf, daysToExam);
     }
-    return this.calibrateFromLegacyAssessments(userId, targetScore, asOf);
+    return this.calibrateFromLegacyAssessments(userId, targetScore, asOf, daysToExam);
   }
 
   // ---------------------------------------------------------------------------
@@ -108,6 +120,8 @@ export class ScoreCalibrationService {
         rawScore: number;
         rawTotalScale: number;
         normalizedScore: number | null;
+        /** S1-I0 (INV-2): stored scale, carried as the proof for pairing. */
+        normalizedTotalScale: number;
         semantic: string;
         source: string;
         examDate: Date | null;
@@ -117,6 +131,7 @@ export class ScoreCalibrationService {
         rawScore: number;
         rawTotalScale: number;
         normalizedScore: number | null;
+        normalizedTotalScale: number;
         semantic: string;
         source: string;
         verificationStatus: string;
@@ -125,6 +140,7 @@ export class ScoreCalibrationService {
     },
     targetScore: number,
     asOf: Date,
+    daysToExam: number,
   ): Promise<ScoreCalibrationResult> {
     const [practiceRows, snapshotRows] = await Promise.all([
       this.prisma!.practiceRecord.findMany({
@@ -149,6 +165,8 @@ export class ScoreCalibrationService {
       semantic: string;
       source: string;
       normalizedScore: number | null;
+      /** S1-I0 (INV-2): the row's stored normalization scale, carried as proof. */
+      normalizedTotalScale: number;
       rawScore: number;
       rawTotalScale: number;
       occurredAt: Date | null;
@@ -159,6 +177,7 @@ export class ScoreCalibrationService {
         semantic: row.semantic,
         source: row.source,
         normalizedScore: row.normalizedScore,
+        normalizedTotalScale: row.normalizedTotalScale,
         rawScore: row.rawScore,
         rawTotalScale: row.rawTotalScale,
         occurredAt: row.examDate,
@@ -169,6 +188,7 @@ export class ScoreCalibrationService {
         semantic: row.semantic,
         source: row.source,
         normalizedScore: row.normalizedScore,
+        normalizedTotalScale: row.normalizedTotalScale,
         rawScore: row.rawScore,
         rawTotalScale: row.rawTotalScale,
         occurredAt: row.occurredAt,
@@ -208,7 +228,13 @@ export class ScoreCalibrationService {
       const occurredIso = row.occurredAt.toISOString();
       const prior = predictionsAsc.filter((prediction) => prediction.generatedAt.toISOString() <= occurredIso);
       const prediction = prior[prior.length - 1];
-      const normalized = row.normalizedScore ?? normalizeScore(row.rawScore, row.rawTotalScale).normalized;
+      const normalization = normalizeScore(row.rawScore, row.rawTotalScale);
+      const normalized = row.normalizedScore ?? normalization.normalized;
+      // S1-I0 (INV-2): carry the scale the normalizer PROVED (or the row's own
+      // stored scale), never a hardcoded 150.
+      const normalizedScale = row.normalizedScore != null
+        ? row.normalizedTotalScale
+        : normalization.normalizedTotalScale;
 
       if (prediction) {
         pairs.push({
@@ -221,6 +247,7 @@ export class ScoreCalibrationService {
           actualScore: row.rawScore,
           totalScore: row.rawTotalScale,
           actualNormalizedScore: normalized,
+          actualNormalizedScale: normalizedScale,
           actualSemantic: 'exam_total',
           actualSource: row.source as CalibrationPairInput['actualSource'],
           evidenceSampleSize: 1,
@@ -233,6 +260,7 @@ export class ScoreCalibrationService {
           row.occurredAt,
           previousScore,
           targetScore,
+          daysToExam,
         );
         if (!reconstructed || normalized == null) {
           customExclusions.push({
@@ -251,6 +279,7 @@ export class ScoreCalibrationService {
           actualScore: row.rawScore,
           totalScore: row.rawTotalScale,
           actualNormalizedScore: normalized,
+          actualNormalizedScale: normalizedScale,
           actualSemantic: 'exam_total',
           actualSource: row.source as CalibrationPairInput['actualSource'],
           evidenceSampleSize: reconstructed.sampleSize,
@@ -286,6 +315,7 @@ export class ScoreCalibrationService {
     userId: string,
     targetScore: number,
     asOf: Date,
+    daysToExam: number,
   ): Promise<ScoreCalibrationResult> {
     const db = this.prisma!;
     const assessments = await db.assessmentHistoryItem.findMany({
@@ -373,7 +403,7 @@ export class ScoreCalibrationService {
             targetScore: targetScore > currentScore ? targetScore : currentScore + 20,
             accuracyRate: accuracyRate!,
             averageMastery: averageMastery!,
-            remainingDays: DAYS_FALLBACK,
+            remainingDays: daysToExam,
           })
         : null;
 
@@ -394,6 +424,7 @@ export class ScoreCalibrationService {
         actualScore: assessment.score ?? null,
         totalScore: assessment.totalScore,
         actualNormalizedScore: normalization.ok ? normalization.normalized : null,
+        actualNormalizedScale: normalization.ok ? normalization.normalizedTotalScale : null,
         actualSemantic: 'exam_total',
         actualSource: source as CalibrationPairInput['actualSource'],
         evidenceSampleSize: priorPractice.length + priorSnapshots.length,
@@ -422,6 +453,7 @@ export class ScoreCalibrationService {
     before: Date,
     previousScore: number | null,
     targetScore: number,
+    daysToExam: number,
   ): { bestEstimate: number; minScore: number; maxScore: number; sampleSize: number; basis: string } | null {
     const priorPractice = practiceRows.filter((row) => row.submittedAt < before);
     const priorSnapshots = snapshotRows.filter((row) => row.snapshotDate < before);
@@ -441,7 +473,7 @@ export class ScoreCalibrationService {
       targetScore: targetScore > currentScore ? targetScore : currentScore + 20,
       accuracyRate: accuracyRate!,
       averageMastery: averageMastery!,
-      remainingDays: DAYS_FALLBACK,
+      remainingDays: daysToExam,
     });
 
     const basisParts: string[] = [];

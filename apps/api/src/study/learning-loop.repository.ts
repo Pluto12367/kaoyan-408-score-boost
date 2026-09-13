@@ -15,7 +15,7 @@ export class LearningLoopRepository {
   async loadUserRecommendationConfig(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId },
-      select: { examYear: true, remainingDays: true, dailyHours: true },
+      select: { examYear: true, remainingDays: true, dailyHours: true, examDate: true },
     });
   }
 }

@@ -237,6 +237,9 @@ test('a verified ledger outcome pairs with the persisted prediction on the norma
           rawScore: 96,
           rawTotalScale: 150,
           normalizedScore: 96,
+          // S1-I0: the real `getCalibrationDataset` select includes this column;
+          // the stub omitted it, which the old hardcoded 150 constant masked.
+          normalizedTotalScale: 150,
           semantic: 'exam_total',
           source: 'REAL_EXAM',
           verificationStatus: 'verified',

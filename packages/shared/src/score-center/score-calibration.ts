@@ -81,6 +81,13 @@ export interface CalibrationPairInput {
    * enforced and `actualScore` is only kept for display.
    */
   readonly actualNormalizedScore?: number | null;
+  /**
+   * S1-I0 (INV-1/INV-2): the scale that `actualNormalizedScore` is expressed in,
+   * as returned by `normalizeScore` — i.e. PROVEN by the normalizer rather than
+   * assumed by the caller. A normalized value with no proven scale is excluded:
+   * assuming 150 here is what made the compatibility check tautological.
+   */
+  readonly actualNormalizedScale?: number | null;
   readonly actualSemantic?: ScoreSemantic;
   readonly actualSource?: ScoreSource;
   /** How many facts the prediction rested on. */
@@ -163,6 +170,30 @@ export function buildScoreCalibration(
     // provenance. Compatibility is enforced HERE — an incompatible pair can
     // never reach the error computation.
     if (pair.actualNormalizedScore != null) {
+      // S1-I0 (INV-1 E5 / INV-2): the scale must be PROVEN. Passing the 150
+      // constant here made `scale_mismatch` unreachable by construction, so a
+      // 100-scale row could be paired with a 150-scale prediction.
+      if (pair.actualNormalizedScale == null) {
+        exclusions.push({
+          sessionId: pair.sessionId,
+          reason: '量纲未证明（scale_unproven）：该实测值没有携带可证明的归一量纲，禁止与 150 分制预测直接比较，已排除而非混算。',
+        });
+        continue;
+      }
+      if (pair.actualNormalizedScale !== 150) {
+        exclusions.push({
+          sessionId: pair.sessionId,
+          reason: `量纲不匹配（scale_mismatch）：预测为 150 分制，实测归一量纲为 ${pair.actualNormalizedScale}，已排除而非混算。`,
+        });
+        continue;
+      }
+      if (pair.actualSemantic == null) {
+        exclusions.push({
+          sessionId: pair.sessionId,
+          reason: '口径未证明（semantic_unproven）：该实测值没有声明分数口径，无法判断能否与总分预测比较，已排除。',
+        });
+        continue;
+      }
       const verdict = isCalibrationCompatible(
         {
           predictedScore: pair.predictedBest,
@@ -173,8 +204,8 @@ export function buildScoreCalibration(
         },
         {
           normalizedScore: pair.actualNormalizedScore,
-          normalizedTotalScale: 150,
-          semantic: pair.actualSemantic ?? 'exam_total',
+          normalizedTotalScale: pair.actualNormalizedScale,
+          semantic: pair.actualSemantic,
           source: pair.actualSource ?? 'UNKNOWN',
           occurredAt: pair.assessedAt,
         },
@@ -208,11 +239,42 @@ export function buildScoreCalibration(
       continue;
     }
 
-    // Legacy path (no normalization supplied): the scale guard still holds.
-    if (pair.totalScore != null && pair.totalScore !== 150) {
+    // Legacy path (no normalization supplied). S1-I0: a proven scale is still
+    // required. The previous guard was `totalScore != null && totalScore !== 150`,
+    // so `totalScore == null` slipped through and the error was computed anyway —
+    // the audit reproduced the historical absurdity (96 − 26 = 70) that way.
+    if (pair.totalScore == null) {
+      exclusions.push({
+        sessionId: pair.sessionId,
+        reason: '量纲未证明（scale_unproven）：实测记录没有总分制式且未归一，无法证明与 150 分制预测同量纲，已排除而非混算。',
+      });
+      continue;
+    }
+    if (pair.totalScore !== 150) {
       exclusions.push({
         sessionId: pair.sessionId,
         reason: `量纲不匹配：预测为 150 分制，实测记录为 ${pair.totalScore} 分制且未归一，禁止直接相减，已排除。`,
+      });
+      continue;
+    }
+    if (pair.actualSemantic === 'accuracy_rate') {
+      exclusions.push({
+        sessionId: pair.sessionId,
+        reason: '口径不匹配（semantic_mismatch）：正确率口径不得与总分预测配对，已排除。',
+      });
+      continue;
+    }
+    if (pair.actualSource === 'UNKNOWN') {
+      exclusions.push({
+        sessionId: pair.sessionId,
+        reason: '来源未知（provenance_unknown）：来源未记录的证据不得进入校准层，已排除。',
+      });
+      continue;
+    }
+    if (pair.predictedAt != null && pair.assessedAt < pair.predictedAt) {
+      exclusions.push({
+        sessionId: pair.sessionId,
+        reason: '时间不可比（prediction_after_outcome）：预测生成于实测之后，不得用于校准，已排除。',
       });
       continue;
     }
@@ -230,7 +292,12 @@ export function buildScoreCalibration(
           ? pair.actualScore >= pair.predictedMin && pair.actualScore <= pair.predictedMax
           : false,
       evidence: { sampleSize: pair.evidenceSampleSize, basis: pair.evidenceBasis },
-      basis: `预测 ${pair.predictedBest}（区间 ${pair.predictedMin ?? '—'}–${pair.predictedMax ?? '—'}），实测 ${pair.actualScore}${pair.totalScore ? `/${pair.totalScore}` : ''}，偏差 ${error > 0 ? '+' : ''}${error}。证据：${pair.evidenceBasis}（样本 ${pair.evidenceSampleSize}）。`,
+      basis: `预测 ${pair.predictedBest}（区间 ${pair.predictedMin ?? '—'}–${pair.predictedMax ?? '—'}），实测 ${pair.actualScore}/${pair.totalScore}，偏差 ${error > 0 ? '+' : ''}${error}。证据：${pair.evidenceBasis}（样本 ${pair.evidenceSampleSize}）。`,
+      source: pair.actualSource,
+      semantic: pair.actualSemantic ?? 'exam_total',
+      // A proven 150/150 pair, labelled like the strict path so downstream
+      // strata never have to re-derive the scale.
+      scalePair: '150/150',
     });
   }
 

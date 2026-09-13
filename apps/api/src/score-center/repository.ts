@@ -497,7 +497,12 @@ export async function createScoreCenterPlan(
     remainingDays: number;
     dailyHours: number;
     modelVersion: string;
-    targetExamDate: Date;
+    /**
+     * S1-I0 (INV-3 / INV-10): the canonical exam date, or null when the student
+     * has not set one. Null is preserved as "unknown" — it is never replaced by
+     * a derived or default date.
+     */
+    targetExamDate: Date | null;
     availableMinutes: number;
     scheduledDate: string;
   },

@@ -89,13 +89,18 @@ export class ScoreCenterController {
     if (typeof body.availableMinutes !== 'number' || !ALLOWED_MINUTES.has(body.availableMinutes)) {
       throw new BadRequestException('INVALID_AVAILABLE_MINUTES');
     }
-    const targetExamDate = parseIsoDate(body.targetExamDate);
-    if (!targetExamDate) {
-      throw new BadRequestException('INVALID_TARGET_EXAM_DATE');
+    // S1-I0 (INV-3 / API-5): the exam timeline is resolved server-side from the
+    // canonical source (`User.examDate`). A client-supplied value is IGNORED,
+    // never silently adopted — and the rejection is observable, so a client that
+    // still invents an exam date leaves a trace instead of influencing the plan.
+    if (body.targetExamDate != null) {
+      this.logger.warn(
+        'client_exam_date_ignored: /score-center/generate received a client-supplied targetExamDate; ' +
+          'the canonical server-side exam timeline was used instead.',
+      );
     }
     try {
       return await this.scoreCenterService.generateDailyPlan(user.id, {
-        targetExamDate,
         availableMinutes: body.availableMinutes as 30 | 60 | 120 | 180,
       });
     } catch (error) {

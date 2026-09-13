@@ -67,7 +67,11 @@ function createPrisma(captures) {
     },
   };
   return {
-    user: { findUnique: async ({ where }) => ({ id: where.id, targetScore: 115, currentScore: 72, remainingDays: 96, dailyHours: 3, studyStage: '强化' }) },
+    // S1-I0 (INV-3): the plan row's exam date is now taken from the CANONICAL
+    // fact (`User.examDate`), not from the caller-supplied `input.targetExamDate`.
+    // The fixture therefore carries the fact, so both the legacy transcription and
+    // the engine path persist the same value and the parity assertion stays exact.
+    user: { findUnique: async ({ where }) => ({ id: where.id, targetScore: 115, currentScore: 72, examDate: TARGET_EXAM, remainingDays: 96, dailyHours: 3, studyStage: '强化' }) },
     reviewSchedule: { count: async () => 0 },
     knowledgeNode: { findMany: async () => FIXTURE_NODES },
     knowledgeFrequencySnapshot: {

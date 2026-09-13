@@ -63,12 +63,18 @@ export function ReportSummaryPanel({ student, report, stageReport, masteryMap, l
     const accuracyRate = contextAccuracy ?? (canonicalOverview?.progress.last7d.current ?? (canonicalOverview ? null : report.accuracyRate));
     const predictionMastery = averageMastery ?? report.accuracyRate;
     if (accuracyRate === null || predictionMastery === null) return null;
+    // S1-I0 (P0-3 / INV-3 / INV-10): `remainingDays` is a DERIVED cache of the
+    // canonical exam date, and `null` means the timeline is UNKNOWN. The old
+    // `?? 0` fed the estimator a zero-day horizon, which drove its time factor to
+    // the minimum and made an unset exam date look like "the exam is today".
+    // With no known timeline we withhold the prediction rather than fabricate it.
+    if (student.remainingDays == null) return null;
     return estimatePredictedScore({
       currentScore: student.currentScore ?? 0,
       targetScore: student.targetScore ?? 100,
       accuracyRate,
       averageMastery: predictionMastery,
-      remainingDays: student.remainingDays ?? 0,
+      remainingDays: student.remainingDays,
       scoreTrend: stageReport?.assessmentTrend.delta ?? undefined,
     });
   }, [averageMastery, canonicalOverview, contextSummary, hasEnoughData, report.accuracyRate, stageReport?.assessmentTrend.delta, student.currentScore, student.remainingDays, student.targetScore]);

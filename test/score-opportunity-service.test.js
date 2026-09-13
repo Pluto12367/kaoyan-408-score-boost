@@ -129,12 +129,14 @@ test('sparse prerequisite data is treated as unknown, not as readiness', async (
   const result = await service.getOpportunities('u1', {});
   assert.ok(result);
   const row = result.opportunities[0];
-  const recoverability = row.factors.find((factor) => factor.key === 'recoverability');
+  // S1-I0 (P0-6): the factor was renamed `recoverability` -> `recovery` by the
+  // approved partition; the intent under test is unchanged.
+  const recovery = row.factors.find((factor) => factor.key === 'recovery');
   // everSucceeded is known (false) so the factor is present, but readiness is not
   // invented — and the risk text says the prerequisite picture is missing.
   assert.match(row.risk, /前置|知识关系/);
-  assert.ok(recoverability.value != null);
-  assert.ok(recoverability.value <= 0.45, 'never-succeeded caps recoverability');
+  assert.ok(recovery.value != null);
+  assert.ok(recovery.value <= 0.45, 'never-succeeded caps recoverability');
 });
 
 test('a zero primary score yields no exam importance rather than a zero-importance claim', async () => {
@@ -149,7 +151,10 @@ test('a zero primary score yields no exam importance rather than a zero-importan
   const result = await service.getOpportunities('u1', {});
   assert.ok(result);
   assert.equal(result.opportunities.length, 0);
-  assert.equal(result.summary.blockedByFactor.examImportance, 1);
+  // S1-I0 (P0-6): the blocked-factor key follows the approved rename
+  // `examImportance` -> `scoreAtStake`; the zero-score node is still blocked,
+  // never scored as a 0-importance claim.
+  assert.equal(result.summary.blockedByFactor.scoreAtStake, 1);
 });
 
 test('the top parameter bounds the returned ranking', async () => {
@@ -187,7 +192,7 @@ test('the endpoint is teacher/admin only and admits absence', () => {
   assert.ok(body.includes('store_unavailable'));
 });
 
-test('daysToExam reads the real production field and cannot silently become a constant', () => {
+test('daysToExam reads the canonical exam timeline field and cannot silently become a constant', () => {
   const raw = readFileSync(
     fileURLToPath(new URL('../apps/api/src/study/score-opportunity.service.ts', import.meta.url)),
     'utf8',
@@ -197,14 +202,26 @@ test('daysToExam reads the real production field and cannot silently become a co
   const source = raw
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/(^|[^:])\/\/.*$/gm, '$1');
+  // S1-I0 (INV-3) updated this contract. `User.examDate` EXISTS
+  // (prisma/schema.prisma:160) and is the canonical exam timeline FACT; the
+  // previous assertion here claimed the opposite ("User has no examDate field")
+  // and thereby locked in the very defect S1-P0-3 removes: a decision path that
+  // ignored the canonical fact. Both fields are now selected, with examDate as
+  // the source of truth and remainingDays as the legacy derived cache.
+  assert.ok(
+    source.includes('examDate'),
+    'User.examDate is the canonical exam-timeline fact and must be read',
+  );
   assert.ok(
     source.includes('remainingDays'),
-    'User.remainingDays is the production source of truth for days-to-exam',
+    'User.remainingDays stays selected as the labelled legacy derived cache',
   );
-  assert.ok(
-    !source.includes('examDate'),
-    'User has no examDate field: selecting it failed and was swallowed, so every student fell back to a constant',
-  );
+  for (const inline of [/remainingDays\s*\?\?\s*\d+/, /DAYS_FALLBACK\s*=\s*\d+/]) {
+    assert.ok(
+      !inline.test(source),
+      `the shadow must not reintroduce an inline days-to-exam default (${inline})`,
+    );
+  }
 });
 
 test('the service writes nothing', () => {
