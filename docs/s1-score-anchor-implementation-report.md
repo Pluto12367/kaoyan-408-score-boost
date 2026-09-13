@@ -179,10 +179,19 @@ in-flight 状态：**仅 schema 草稿**（`ScoreLossItem` + `Question.maxScore`
 ## 9. Git
 
 - Branch：`feature/v3-product-refactor`；起点 HEAD `d3b99ad3`（= origin）。
-- Commit A：`fix(score): harden score anchor semantics`（P0：shared exam-timeline/calibration/opportunity/shadow-chain + 决策层接线 + web 去伪造 + P0 测试与有理由断言更新）。
-- Commit B：`feat(score): add score loss evidence`（P1：schema + 迁移 + score-loss 纯模块/服务 + controller 路由 + paper 路径接线 + 单测/E2E + package.json 脚本；含 study.service/score-anchor.service 的 P0-3 调用点接线——两文件横跨两阶段，按文件整体入 B，已在提交信息说明）。
-- 提交前 `git diff --name-only` / `git status --short` 核验：仅 S1 文件；`.zcode/` 未触碰；无 `git add .`（RULE-12）；未 push（等待 Owner 指令，AGENTS.md §9 + 任务书未授权 push）。
-- （最终 HEAD 与文件清单以 `git log --stat` 输出为准，见账本条目。）
+- Commit A `fb00079e`：`fix(score): harden score anchor semantics`（P0：shared exam-timeline/calibration/opportunity/shadow-chain + 决策层接线 + web 去伪造 + P0 测试与有理由断言更新）。
+- Commit B `d658293b`：`feat(score): add score loss evidence`（P1：schema + 迁移 + score-loss 纯模块/服务 + controller 路由 + paper 路径接线 + 单测/E2E + package.json 脚本；**含 study.service/score-anchor.service 两文件的全部改动**——两文件同时承载 P0-1/P0-3 与 P1 内容且跨阶段交织，按文件整体入 B 并已在提交信息说明）。
+- Commit C `5bb36943`：docs（本报告 + 账本 + 接管时遗留未跟踪的 audit/formal-design 两份 Design Gate 产物入库）。
+- **提交拆分的既定结果（如实记录）**：单独 checkout Commit A 时，2 个源码断言测试失败（s1-calibration-invariant 的 INV-2、s1-exam-timeline 的 T-4）——它们断言的 `score-anchor.service.ts`/`study.service.ts` 修复按上述拆分落在 Commit B；A 的 api `tsc --noEmit` exit 0；**A+B 合并 = 本报告已验证状态**（终态全量门禁在 B 树上运行）。
+- 提交前 `git diff --name-only` / `git status --short` 核验：仅 S1 文件；`.zcode/` 与 `test/fsrs-hard-question-interval.test.js`（他属未跟踪文件）未触碰、未提交；无 `git add .`（RULE-12）；未 push（等待 Owner 指令，AGENTS.md §9 + 任务书未授权 push）。
+
+### 9.1 环境事故与完整修复（如实登记）
+
+A 树独立验证期间使用 `git worktree` + node_modules junction，`git worktree remove --force` **跟随 junction 递归删除**，误删主树 536 个跟踪文件与 node_modules 内容。修复（全程有据）：
+1. 受损文件在删除前均为干净的 HEAD 内容（Commit C 后工作树零修改，有 preflight 与 git status 记录佐证）——`git restore --pathspec-from-file`（536 个精确路径逐项恢复）+ 2 个验证用交换文件 `--source=HEAD --staged --worktree` 双区恢复。
+2. node_modules 经 `npm install`（lockfile 确定）+ `npx prisma generate` 重建。
+3. 修复后复验：`build:shared/api/web` 三端 exit 0；`npm test` **2538/2536/0/2 exit 0**（与事故前完全一致）；`test:integration:score-loss` 9 步 PASSED。
+4. 教训入册：**本仓库 Windows 环境禁止对含 junction 的目录使用递归删除类操作**（worktree remove / rm -rf），junction 指向主树 node_modules 时会穿透删除。
 
 ## 10. Remaining Blockers
 
