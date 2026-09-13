@@ -114,8 +114,9 @@
 
 > **2026-09-10 V12-M1 Evidence Foundation 完成（EB-1/EB-2 闭合；零迁移；本地提交待推送）**：所有者确认 V12 路线并授予自主长程模式。本轮确立并代码化了**活动 / 证据 / 能力**三层语义（此前三者混同正是 EB-1/EB-2 的根因）：Activity = 动作发生（`task.complete`/`wrong.review` 遥测）；Evidence = 系统**观测**到的可解释表现（新增服务器专属事件 `EVIDENCE_RECORDED`）；Ability = 掌握度（唯一写方 `ScoreCenterService` 未动）。新增 `packages/shared/src/score-center/learning-evidence.ts`（纯分类学：`LEARNING_ACTION_TAXONOMY`/`classifyLearningAction`/`buildLearningEvidence`/`learningEvidenceKey`/`summarizeLearningEvidence`，**只有强观测证据 `canInfluenceMastery=true`**）、`apps/api/src/study/learning-evidence.service.ts`（写路径 + 查询）、`GET /coach/learning-evidence`（self-only，不接受 userId 覆盖）、`UserEventRepository.listByType`。**EB-1 三处接线**：已排程任务完成、**score-center 分支（推荐引擎生成的任务，此前直接 return 完全无证据）**、复习重做；`recordTaskCompletionEvidence` 返回两部分——学生自评（弱）/ 系统在该任务范围 ±3 天**实际观测到的已判分练习**（强），无观测则 `observed=null`（缺失即结论，不填零）。**EB-2**：`review.marked` 记为纯活动证据（显式声明不含回忆观测），`review.recalled`（`redoCorrect` 已观测）记为强证据；复习证据在**事务提交后**写入（源码顺序断言钉死）。**防伪**：`EVIDENCE_RECORDED` 进 `RESERVED_CANONICAL_EVENT_TYPES` 而**不进** `TELEMETRY_EVENT_TYPES`（客户端不可伪造证据，测试断言）。**边界测试**：证据层源码零掌握度写原语（`userKnowledgeMastery`/`applyAttempts(`/`applyReview(`/`saveMastery`/`userMasterySnapshot` 全部断言不存在）。**合成数据防护**：`study.service.ts:3424` 的 `correctCount ?? Math.round(questionCount*0.75)` 伪造默认值被测试锁死**不得进入证据**（该既有合成值经 `taskCompletionMetricsByUser` 流入 `computeMasteryReport:866-870`，本轮**未改动**以免动计划调整行为，已登记为遗留风险）。新增测试 3 文件 35 项全绿（17 纯模块 + 10 服务 + 8 边界）；**全量回归 347 文件 2084/2079/3/2**（基线 2049/2047/0 + 35 项零新增失败；3 败 == 沙箱 spawn EPERM 既有项 admin-user-email-ui/deployment-config/question-import-cleanup）。**零 Schema 迁移**（复用 `UserEvent`+`(userId,eventKey)` 唯一索引，回滚 = 删 `type='EVIDENCE_RECORDED'` 行）；**零掌握度写语义变更**。未做（诚实边界）：证据→掌握度回流语义统一（改生产写语义，需批准）归 V12-M3；前端消费归 M2b；推荐曝光遥测 EB-3 归 M2a。报告：`docs/v12-m1-evidence-foundation.md`。**环境实录**：本会话 Docker Desktop 引擎未能在 5 分钟内就绪（宿主级），55432 测试库与 PostgreSQL 集成测试本轮**不可执行**，故未声称任何集成/生产证据。
 
-> 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + AGENTS.md。
-> 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查。
+> 本文件是所有 Agent 接管项目的**唯一常青状态入口**。开工先读本文件 + 根目录 `AGENTS.md`。
+> 职责边界：`AGENTS.md` = HOW（规则）；本文件 = WHERE / STATUS（状态）。开发流程见 `docs/development/development-protocol.md`。
+> 维护规则：每换阶段/每完成一个 Sprint 由当值 Agent 更新本文件，**只更新当前状态，不重复历史**；历史细节去 `docs/DEVELOPMENT_LOG.md` 与 `docs/handoff/` 查；Phase 2.8.5 交接材料已归档至 `docs/archive/handoff/phase-2.8.5/`（非现行规范）。
 > 最后更新：2026-09-10（V12-M2a 完成：EB-3 闭合——推荐曝光遥测 + 只读漏斗，`exposed=null≠0` 诚实缺席语义；AGENTS.md §7 全部正式门禁在本会话首次可执行并通过：npm test 2112/2110/0/2、build:api/web exit 0。V12 路线见 `docs/v12-0-score-improvement-audit.md` §8；进度账本见本文件顶部）
 
 ---
@@ -126,8 +127,8 @@
 
 - **分支**：`feature/v3-product-refactor`；**HEAD 随账本最新条目**（见 git log；本节不再维护具体哈希以免再次漂移）。
 - **当前 Mission**：**V12 — Score Improvement Engine**（2026-09-10 所有者确认并授予自主长程模式）。唯一评价标准 = 把"练习闭环"升级为"**提分证据闭环**"：每个学习决策可解释、每次干预可验证、能力变化可对照到分数口径（宪法与路线见 `docs/v12-0-score-improvement-audit.md` §7/§8）。
-- **进度**：**V12-M1 ✅ M2a ✅ M2b ✅ M3（审计 + 影子）✅ M4 ✅ M5 ✅** —— EB-1/EB-2/EB-3/EB-4/EB-5 全部处置：证据层（活动/证据/能力三层语义）+ 推荐曝光遥测与只读漏斗 + 证据账本前端 + 复习语义矩阵与只读影子 + 机会模型（反黑箱、缺数据拒绝出分）+ 分数校准（预测/证据/实测严格分离）。**门禁状态：AGENTS.md §7 全部可执行并通过**（`npm test` 2185/2183/0/2、`build:api`、`build:web` 均 exit 0）。下一步：**F4 大题训练**（无 Schema 批准，故只做纯模块 + 影子评分器 + 离线 rubric + 测试）→ V12 FINAL AUDIT → V12 FINAL RELEASE REPORT。历史 LE/V10 线：F1 真题对标 ✅；F2 模考诊断 ✅；F3 遗忘防线 M1 影子基线 ✅；F4 content-blocked。V11 M1-M4 全部 code-complete 且已推送 origin。
-- **交付状态**：**本地与 origin 同步**（截至 V12-M4 已推送 `fe878b9`；M5 提交后需再次核对）；**生产部署 DEFERRED（所有者门控）**——生产运行 `43b715e` 前后构建，V11-M2/M3/M4 端点未上线（404，V12-0 路由探测实证），server steps 见 `docs/v11-final-release-server-steps.md`。
+- **进度**：**V12-M1 ✅ M2a ✅ M2b ✅ M3（审计 + 影子）✅ M4 ✅ M5 ✅** —— EB-1/EB-2/EB-3/EB-4/EB-5 全部处置：证据层（活动/证据/能力三层语义）+ 推荐曝光遥测与只读漏斗 + 证据账本前端 + 复习语义矩阵与只读影子 + 机会模型（反黑箱、缺数据拒绝出分）+ 分数校准（预测/证据/实测严格分离）。**V12 之后的当前主线见本文件顶部账本（G1 / S1 / S2），本节 §1 的 "下一步" 为 2026-09-10 时点快照。** 门禁基线的唯一权威口径见 §9「测试基线口径」（本条 `2185/2183/0/2` 为该时点历史值，非当前基线）。历史 LE/V10 线：F1 真题对标 ✅；F2 模考诊断 ✅；F3 遗忘防线 M1 影子基线 ✅；F4 content-blocked。V11 M1-M4 全部 code-complete 且已推送 origin。
+- **交付状态**：**本地与 origin 同步**（截至 V12-M4 已推送 `fe878b9`；M5 提交后需再次核对）；**生产部署 DEFERRED（所有者门控）**——生产运行 `43b715e` 前后构建，V11-M2/M3/M4 端点未上线（404，V12-0 路由探测实证），server steps 见 `docs/v11-final-release-server-steps.md`。**（本节为 2026-09-10 时点快照；当前部署状态见本文件顶部 2026-09-12 S1+S2/G1 条目。）**
 - **一句话目标**：诊断 → 学习 → 训练 → 测评 → 修复 → 再学习 的完整提分闭环，每个变更以六指标之一结算。
 - **Phase 3.6.2B-1/B-2/3.6.2C/3.6.3**：Event Contract v1 已冻结（`docs/event-contract.md`）；`UserEvent.eventKey` nullable 字段与 `(userId,eventKey)` 唯一索引已实现；Feedback writer 已使用数据库唯一冲突回读；`POST /events` 仅接受 telemetry allowlist，`plan.generated` 通过 CanonicalEventWriterService 写入。
 
@@ -332,11 +333,15 @@ Sprint 4 已提交；当前 working tree 中仍有其他未提交工作线，均
 
 ## 6. 必读文档
 
-1. `AGENTS.md` —— 硬规则（事实来源 / 小步修改 / 禁止静默 mock / 不自动 commit / 验证门禁）
+1. 根目录 `AGENTS.md` —— 硬规则（事实来源 / 小步修改 / 禁止静默 mock / 不自动 commit / 验证门禁 / §11 开发协议红线 / Agent Startup Contract）
 2. `docs/current-sprint.md` —— 本文件（状态唯一入口）
-3. `docs/sprint3-recommendation-contract.md` —— 引擎冻结契约（改引擎前必读）
+3. `docs/development/development-protocol.md` —— 开发流程（Task Intake → Audit → Design Gate → TDD → E2E → Regression → Git → Report → STOP）
+4. `docs/development/verification-gates.md` —— 门禁目录 V0-V9 与 `PASS/FAIL/SKIPPED/BLOCKED/UNVERIFIED` 口径
+5. `docs/development/score-mastery-evidence-semantics.md` —— Score / Evidence / Mastery 语义隔离与 canonical source
+6. `docs/development/observed-derived-proxy.md` —— `OBSERVED / DERIVED / PROXY / UNAVAILABLE` 分类与呈现规则
+7. `docs/sprint3-recommendation-contract.md` —— 引擎冻结契约（改引擎前必读）
 
-历史背景（按需）：`docs/handoff/2026-08-30-v3-sprint3-handoff.md`（Sprint 0-3.3 全程交接 + 地雷清单）。
+历史背景（按需）：`docs/handoff/2026-08-30-v3-sprint3-handoff.md`（Sprint 0-3.3 全程交接 + 地雷清单）。Phase 2.8.5 交接包已归档至 `docs/archive/handoff/phase-2.8.5/`，**不是现行规范**。
 
 ---
 
@@ -372,7 +377,7 @@ Sprint 4 已提交；当前 working tree 中仍有其他未提交工作线，均
 部分受限沙箱环境 `npm test`（node --test 逐文件 spawn 子进程）与 `npm run build:web`（esbuild spawn）会 EPERM 失败——这是环境限制，不是代码缺陷。该环境下可用的替代门禁（已在 2026-09-08 审计实测验证）：
 1. **逐文件**：`node --test <file.test.js>`（330 个 .test.js 全跑 ≈ 1945 tests；勿用 `--test-isolation=none`——跨文件状态污染会产生假失败）。
 2. **类型三端**：`tsc -p packages/shared --noEmit` / `apps/api` / `apps/web` 全部 exit 0 等价于 build 门禁的类型部分。
-3. **区分**：主开发环境 `npm test` 正常（本会话实测 2015/2013/0）；只有沙箱会话需要本替代。若在此类沙箱中工作，完成声明须注明所用的替代门禁。
+3. **区分**：主开发环境 `npm test` 正常（此为 2026-09-08 会话实测值 `2015/2013/0`，属历史记录；当前基线口径见 §9）。只有沙箱会话需要本替代。若在此类沙箱中工作，完成声明须注明所用的替代门禁。
 
 ### PostgreSQL 集成脚本预存断言失败（2026-09-07 V10-1 归因登记）
 
@@ -407,11 +412,19 @@ Sprint 4 已提交；当前 working tree 中仍有其他未提交工作线，均
 开发完成必须依次通过（先验证，后报告；禁止未验证宣布完成）：
 
 ```bash
-npm test                              # 全量 node:test（基线：1038 项 / 1037 过 / 0 失败 / 1 跳过）
+npm test                              # 全量 node:test
 npm run build:shared
 npm run build:api
 npm run db:test:up && npm run test:integration:postgres && npm run db:test:down
 # 触碰前端时加：npm run build:web
 ```
 
-任何失败：先定位（输入契约 / candidate 映射 / task 富化），禁止改断言凑绿，禁止直接改 shared 引擎。
+**测试基线口径**（`passed / total / failed / skipped`）：
+
+- **CURRENT BASELINE（当前有效基线）**：以本文件顶部最新一条账本条目记录的全量结果为准。最近一次工程验证基线 = **2463 / 2461 / 0 / 2 exit 0**（2026-09-12 G1 Phase A，HEAD `066e4eac` 附近）。判定"零新增失败"必须相对**当时工作树实际运行结果或本条基线**，并在报告中写明用的是哪一个。
+- **HISTORICAL BASELINE（历史基线，不得再作为门禁口径）**：`1038 / 1037 / 0 / 1`（2026-08 时期口径，已失效）；其他历史值散见于本文件账本条目中，仅作考古。
+- 若沙箱环境导致 `npm test` 不可执行，按 `docs/development/verification-gates.md` Gate V2 使用替代门禁并显式标记 `SUBSTITUTE GATE`。
+
+规则细节见 `AGENTS.md` §11 RULE-02 / RULE-04 / RULE-15；完整门禁目录见 `docs/development/verification-gates.md`；流程见 `docs/development/development-protocol.md`。
+
+任何失败：先定位（输入契约 / candidate 映射 / task 富化），禁止改断言凑绿，禁止直接改 shared 引擎。禁止弱化既有断言。

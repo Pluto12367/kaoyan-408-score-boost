@@ -51,7 +51,9 @@ The current recommended route for a 10–20 person temporary public-IP pilot—i
 
 ### GitHub Pages
 
-仓库包含 `.github/workflows/deploy-pages.yml`。推送 `codex/deployment-ready` 分支后，GitHub Actions 会运行单元测试、PostgreSQL 集成测试、备份校验和前后端构建，再发布静态站点。
+仓库包含 `.github/workflows/deploy-pages.yml`，它在推送 `codex/deployment-ready` 分支时运行单元测试、PostgreSQL 集成测试、备份校验和前后端构建，再发布静态站点。
+
+> **注意（历史 / 已废弃）**：`codex/deployment-ready` 是**旧默认分支**，不是当前开发分支（`feature/v3-product-refactor`），也不是生产发布路径。当前的**生产部署由项目所有者人工执行**（腾讯云服务器 + `deploy/tencent-ip/deploy.sh`，见 `docs/g1-production-deployment-runbook.md`）；Agent 不执行生产服务器操作（`AGENTS.md` §11 RULE-13）。**不要把"推送到该分支"理解为"推送即部署"。**
 
 首次使用时，在 GitHub 仓库页面进入 `Settings` → `Pages`，将 Source 设置为 `GitHub Actions`。发布完成后，页面地址通常是：
 

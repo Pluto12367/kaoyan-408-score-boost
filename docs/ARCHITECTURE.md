@@ -129,7 +129,8 @@ Monorepo（npm workspaces，见根目录 `package.json`）：
 ## 8. 部署结构
 
 - 生产：`compose.production.yml`（postgres:16 + app:3000 + nginx 网关:80 + backup profile）；API 容器启动先执行 `prisma migrate deploy`；数据卷 `postgres_data`、`question_import_data`。
-- GitHub Pages：静态演示（无后端 → mock 模式）；`.github/workflows/deploy-pages.yml` 在推送 `codex/deployment-ready` 时运行单元测试、PostgreSQL 集成测试、备份校验、构建后发布。
+- GitHub Pages：静态演示（无后端 → mock 模式）；`.github/workflows/deploy-pages.yml` 在推送 `codex/deployment-ready` 时运行单元测试、PostgreSQL 集成测试、备份校验、构建后发布。**该分支为旧默认分支，此工作流属历史/已废弃路径，不是生产发布路径。**
+- 生产发布：**由所有者人工执行**（腾讯云 + `deploy/tencent-ip/deploy.sh`，手册见 `docs/g1-production-deployment-runbook.md`）。Agent 不执行生产服务器操作（`AGENTS.md` §11 RULE-13）。
 - 其他：`railway.toml`（Dockerfile + /health）、`vercel.json`、`netlify.toml`、`deploy/tencent-ip/`（nginx + backup.sh）。
 - 环境安全：`apps/api/src/main.ts` 在 production/staging 执行 `validatePublicEnvironment`（强制 HTTPS、JWT 长度、`ALLOW_DEMO_AUTH=false` 等）。
 

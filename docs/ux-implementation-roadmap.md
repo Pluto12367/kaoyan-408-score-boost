@@ -1,6 +1,6 @@
-﻿# UX 改造实施路线图（ux-implementation-roadmap）
+# UX 改造实施路线图（ux-implementation-roadmap）
 
-> 维护约定：每个阶段可独立完成、独立测试、不破坏现有功能；未通过验证不得声称完成（验证命令见 `docs/AGENTS.md` §7）。基线 commit：`eceb7a2`。本轮不修改业务代码，只输出方案。
+> 维护约定：每个阶段可独立完成、独立测试、不破坏现有功能；未通过验证不得声称完成（验证命令见根目录 `AGENTS.md` §7）。基线 commit：`eceb7a2`。本轮不修改业务代码，只输出方案。
 
 ## 阶段总览
 
@@ -182,7 +182,7 @@
 
 - 每阶段完成：`npm run build:api`、`npm run build:web`、`npm test` 全绿；涉及数据层时跑 `npm run test:integration:postgres`。
 - 生产/预发环境禁止任何 mock（`apps/web/src/api/env.ts`）；前端静态演示模式（github.io）与本地 DEV 的 mock 回退保持设计内行为。
-- 破坏性迁移（drop/rename/清表）需先说明数据迁移方案与回滚方式并经确认（`docs/AGENTS.md` §6）。
+- 破坏性迁移（drop/rename/清表）需先说明数据迁移方案与回滚方式并经确认（根目录 `AGENTS.md` §6）。
 - 每阶段不改动与阶段无关的文件；禁止在 P0 阶段引入社区/排行榜等非核心功能。
 
 ## 建议执行顺序（最小闭环优先）
