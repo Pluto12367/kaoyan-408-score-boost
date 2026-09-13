@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Development rules are governed by the repository root [`AGENTS.md`](AGENTS.md).**
+> This file is an **architecture / technical map**, not a second set of rules.
+> When this file conflicts with `AGENTS.md`, **`AGENTS.md` governs development
+> behavior**. Project status lives in [`docs/current-sprint.md`](docs/current-sprint.md).
+> Detailed procedure: [`docs/development/development-protocol.md`](docs/development/development-protocol.md).
+
 ## Project Overview
 
 计算机考研 408 提分系统 — a monorepo for a 408-exam (computer science postgraduate) score-improvement platform. Covers diagnostics, study plans, question banks, mistake review, mock exams, score reports, teacher admin, and management dashboards.
@@ -17,7 +23,7 @@ npm run build:api             # Build shared + NestJS API
 npm run build:web             # Build shared + Vite web app
 
 # Test
-npm test                      # Run all 46 unit tests (Node --test, no DB needed)
+npm test                      # Full node:test suite; no DB needed
 npm run check:local           # Tests + UI verification (Chrome screenshots)
 
 # Start
@@ -56,7 +62,7 @@ Exports from three modules (`src/domain.ts`, `src/learning.ts`, `src/feedback.ts
 - **Types**: `UserProfile`, `Question`, `KnowledgePoint`, `PracticeRecord`, `StudyPlan`, `DiagnosticProfile`, `WeaknessReport`, `DailyTask`, `MistakeReason`, `StudyStage`, etc.
 - **Pure functions**: `buildStudyPlan`, `classifyMistake`, `computeWeaknessReport`, `applyDiagnosticProfile`, `createPracticeRecord`, `gradePracticeSessionAnswers`, `recommendPracticeSet`, `createTeacherQuestion`, `generateTutorReply`, `requireQuestionKnowledgePoint`, `validateFeedbackDraft`
 
-These functions contain ALL core business logic. They are tested directly (24 of 46 tests). The API and web app both consume this package — API uses it server-side for calculations; web uses the types for API responses.
+These functions contain ALL core business logic. They are tested directly. The API and web app both consume this package — API uses it server-side for calculations; web uses the types for API responses.
 
 ### API (`apps/api`) — NestJS
 
@@ -139,14 +145,23 @@ Production/staging enforces: HTTPS origins, no placeholder values, `ALLOW_DEMO_A
 
 ### CI/CD
 
-- **GitHub Actions** (`.github/workflows/deploy-pages.yml`): On push to `codex/deployment-ready` — runs unit tests, PostgreSQL integration tests, backup verification, builds API Docker image and web app, deploys to GitHub Pages.
+> **Deployment boundary**: production deployment is **Owner-controlled**. The
+> agent does **not** execute production server operations (see `AGENTS.md` §11
+> RULE-13). The real production path is the Tencent Cloud host driven by
+> `deploy/tencent-ip/deploy.sh`, executed manually by the Owner, per the runbook
+> in `docs/g1-production-deployment-runbook.md`.
+
+- **GitHub Actions** (`.github/workflows/deploy-pages.yml`): **HISTORICAL /
+  DEPRECATED workflow.** It triggers on push to `codex/deployment-ready`, which
+  is the old default branch and is **not** the current development branch
+  (`feature/v3-product-refactor`). It is not the production path. Do not read
+  "push to this branch" as "push to deploy".
 - **Dockerfile**: Multi-stage build — Node 22 Alpine builder → production image. Runs Prisma migrations then starts NestJS on `:3000`.
 - **Other deploy targets**: `netlify.toml`, `vercel.json`, `railway.toml` for alternative hosting.
 
 ### Testing
 
-Tests live in `test/` (338 files, ~2015 tests, Node built-in test runner). No Jest/Vitest — uses `node:test` + `node:assert/strict`. All tests are ESM (`.test.js`/`.test.mjs`). Tests cover:
-- `appLogic.test.js` — 24 business logic tests (shared package functions)
+Tests live in `test/` (371 `*.test.js` / `*.test.mjs` files; 379 files in the directory). No Jest/Vitest — uses `node:test` + `node:assert/strict`. All tests are ESM (`.test.js`/`.test.mjs`). Representative files:
 - `environment.test.js` — 4 env validation tests
 - `deployment-config.test.js` — 4 Docker/Railway/CI config tests
 - `staging-smoke.test.js` — 2 staging config tests
