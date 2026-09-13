@@ -58,6 +58,7 @@ export {
   buildKnowledgeCatalogFirstScreenHighlights,
 } from './knowledgeCatalog';
 export * from './score-anchor/score-anchor';
+export * from './score-anchor/score-loss';
 export * from './transfer-probe/transfer-probe';
 export * from './transfer-probe/probe-content';
 export * from './guidance/index';

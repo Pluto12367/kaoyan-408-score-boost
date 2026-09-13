@@ -26,10 +26,14 @@ import {
   SetExamDateDto,
 } from './dto/score-evidence.dto';
 import { ScoreAnchorService, type ScoreAnchorActor } from './score-anchor.service';
+import { ScoreLossService } from './score-loss.service';
 
 @Controller()
 export class ScoreAnchorController {
-  constructor(private readonly scoreAnchor: ScoreAnchorService) {}
+  constructor(
+    private readonly scoreAnchor: ScoreAnchorService,
+    private readonly scoreLoss: ScoreLossService,
+  ) {}
 
   @Post('coach/score-evidence/predictions')
   @UseGuards(RoleGuard)
@@ -113,6 +117,51 @@ export class ScoreAnchorController {
       return { userId: user.id, generatedAt: new Date().toISOString(), storeAvailable: false, reason: 'store_unavailable' };
     }
     return evidence;
+  }
+
+  /**
+   * S1-P1 (API-1) — per-question score loss projection. Read-only and DERIVED:
+   * rows are system-derived at paper-submission time, never hand-entered. The
+   * service enforces the access spine (student self-only, teacher with an
+   * authorization record, admin any).
+   */
+  @Get('coach/score-loss')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getScoreLoss(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    const loss = await this.scoreLoss.getScoreLoss(
+      { userId: user.id, role: user.role },
+      viewUserId && viewUserId !== user.id ? viewUserId : user.id,
+    );
+    if (!loss) {
+      return { userId: user.id, storeAvailable: false, reason: 'store_unavailable' };
+    }
+    return loss;
+  }
+
+  /**
+   * S1-P1 (API-2) — light anchor-availability summary: each ledger layer's
+   * latest anchor plus the canonical exam timeline. Deliberately lighter than
+   * GET /coach/score-evidence; the access spine is the same.
+   */
+  @Get('coach/score-anchor-summary')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getScoreAnchorSummary(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    const summary = await this.scoreAnchor.getScoreAnchorSummary(
+      this.actor(user),
+      viewUserId && viewUserId !== user.id ? viewUserId : user.id,
+    );
+    if (!summary) {
+      return { userId: user.id, storeAvailable: false, reason: 'store_unavailable' };
+    }
+    return summary;
   }
 
   /**

@@ -38,11 +38,14 @@ import {
   isCalibrationCompatible,
   normalizeScore,
   resolveCorrectedEvidence,
+  resolveDaysToExam,
   validateScoreEvidence,
   type CalibrationEvidenceStatus,
+  type ScoreSemantic,
   type ScoreSource,
 } from '@kaoyan408/shared';
 import { PrismaService } from '../prisma/prisma.service';
+import { ScoreLossService } from './score-loss.service';
 
 export type ScoreAnchorActor = { userId: string; role: 'student' | 'teacher' | 'admin' };
 
@@ -76,7 +79,13 @@ type AssessmentRow = {
 
 @Injectable()
 export class ScoreAnchorService {
-  constructor(private readonly prisma: PrismaService) {}
+  // S1-P1: the loss derivation rides on the paper ledger write. Appended at the
+  // END of the constructor (repo DI convention) and @Optional so the many
+  // position-constructed test harnesses keep working unchanged.
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly scoreLoss?: ScoreLossService,
+  ) {}
 
   get enabled(): boolean {
     return Boolean(process.env.DATABASE_URL && this.prisma);
@@ -266,6 +275,117 @@ export class ScoreAnchorService {
   }
 
   /**
+   * S1-P1 (API-2, formal design §10.6) — a LIGHT read-only anchor summary.
+   * Unlike GET /coach/score-evidence (full ledger rows + calibration), this
+   * reports each anchor layer's availability and the canonical exam timeline —
+   * the "can this student be anchored at all" view, without the payloads.
+   * Every carried number keeps its class (prediction = PROXY).
+   */
+  async getScoreAnchorSummary(
+    actor: ScoreAnchorActor,
+    targetUserId: string,
+  ): Promise<{
+    userId: string;
+    generatedAt: string;
+    storeAvailable: true;
+    kind: 'DERIVED';
+    examTimeline: { examDate: string | null; days: number | null; basis: string };
+    anchors: {
+      outcome: { id: string; verificationStatus: string; normalizedScore: number | null; occurredAt: string } | null;
+      assessment: { id: string; semantic: string; normalizedScore: number | null; recordedAt: string } | null;
+      prediction: { id: string; kind: 'PROXY'; bestEstimate: number | null; generatedAt: string } | null;
+    };
+    scoreLoss: { itemsAvailable: boolean };
+  } | null> {
+    if (!this.enabled) return null;
+    if (targetUserId !== actor.userId) {
+      if (actor.role === 'student') {
+        throw new ForbiddenException('You can only access your own score anchor summary');
+      }
+      if (actor.role === 'teacher') {
+        const authorization = await this.prisma.teacherStudentAuthorization.findFirst({
+          where: { teacherId: actor.userId, studentId: targetUserId },
+          select: { id: true },
+        });
+        if (!authorization) {
+          throw new ForbiddenException('teacher is not authorized for this student');
+        }
+      }
+    }
+
+    const [user, outcome, assessment, prediction, lossCount] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: { examDate: true, remainingDays: true },
+      }),
+      this.prisma.scoreOutcome.findFirst({
+        where: { userId: targetUserId },
+        orderBy: { occurredAt: 'desc' },
+        select: { id: true, verificationStatus: true, normalizedScore: true, occurredAt: true },
+      }),
+      this.prisma.scoreAssessment.findFirst({
+        where: { userId: targetUserId },
+        orderBy: { recordedAt: 'desc' },
+        select: { id: true, semantic: true, normalizedScore: true, recordedAt: true },
+      }),
+      this.prisma.scorePrediction.findFirst({
+        where: { userId: targetUserId },
+        orderBy: { generatedAt: 'desc' },
+        select: { id: true, predictedScore: true, generatedAt: true },
+      }),
+      this.prisma.scoreLossItem.count({ where: { userId: targetUserId } }),
+    ]);
+
+    // INV-3: the exam timeline comes from the ONE canonical resolver; the
+    // summary displays its basis instead of re-deriving days inline.
+    const timeline = resolveDaysToExam({
+      examDate: user?.examDate ?? null,
+      remainingDays: user?.remainingDays ?? null,
+      now: new Date(),
+    });
+
+    return {
+      userId: targetUserId,
+      generatedAt: new Date().toISOString(),
+      storeAvailable: true,
+      kind: 'DERIVED',
+      examTimeline: {
+        examDate: user?.examDate?.toISOString() ?? null,
+        days: timeline.days,
+        basis: timeline.basis,
+      },
+      anchors: {
+        outcome: outcome
+          ? {
+              id: outcome.id,
+              verificationStatus: outcome.verificationStatus,
+              normalizedScore: outcome.normalizedScore,
+              occurredAt: outcome.occurredAt.toISOString(),
+            }
+          : null,
+        assessment: assessment
+          ? {
+              id: assessment.id,
+              semantic: assessment.semantic,
+              normalizedScore: assessment.normalizedScore,
+              recordedAt: assessment.recordedAt.toISOString(),
+            }
+          : null,
+        // A prediction is a model output (PROXY), never a measured anchor.
+        prediction: prediction
+          ? {
+              id: prediction.id,
+              kind: 'PROXY' as const,
+              bestEstimate: prediction.predictedScore,
+              generatedAt: prediction.generatedAt.toISOString(),
+            }
+          : null,
+      },
+      scoreLoss: { itemsAvailable: lossCount > 0 },
+    };
+  }
+
+  /**
    * The in-app paper mock dual-write. Called best-effort from the session
    * submit path: a ledger failure must never fail the exam submission, and a
    * missing ledger row is recoverable (the AssessmentHistoryItem stays the
@@ -277,11 +397,19 @@ export class ScoreAnchorService {
       originId: string;
       accuracyRate: number;
       title: string;
+      /** S1-P1: the submission's per-question facts, for the loss derivation. */
+      records?: ReadonlyArray<{
+        questionId: string;
+        correct: boolean;
+        gradingMode?: string | null;
+        selfScore?: number | null;
+        maxScore?: number | null;
+      }>;
     },
   ): Promise<void> {
     if (!this.enabled) return;
     try {
-      await this.recordAssessment(
+      const row = await this.recordAssessment(
         { userId, role: 'admin' },
         {
           rawScore: input.accuracyRate,
@@ -293,6 +421,19 @@ export class ScoreAnchorService {
           clientKey: `paper:${input.originId}`,
         },
       );
+      // S1-P1: the per-question loss derivation rides on the ledger write.
+      // Best-effort like the write itself: a derivation failure never fails the
+      // ledger row, and the ledger failure path below never reaches it.
+      if (row) {
+        try {
+          await this.scoreLoss?.deriveFromPaperSession(userId, input.originId, input.records ?? []);
+        } catch (error) {
+          console.warn(
+            `[score-loss] derivation failed for paper:${input.originId}:`,
+            error instanceof Error ? error.message : String(error),
+          );
+        }
+      }
     } catch {
       // Best-effort by design: the paper path's authoritative store is
       // AssessmentHistoryItem; a duplicate key here means the row exists.
@@ -551,6 +692,8 @@ export class ScoreAnchorService {
       source: ScoreSource;
       semantic: string;
       normalizedScore: number | null;
+      /** S1-I0 (INV-2): the row's own stored scale — never a constant. */
+      normalizedTotalScale: number;
       occurredAt: Date | null;
     }> = [
       ...dataset.assessments.map((row) => ({
@@ -558,6 +701,7 @@ export class ScoreAnchorService {
         source: row.source as ScoreSource,
         semantic: row.semantic,
         normalizedScore: row.normalizedScore,
+        normalizedTotalScale: row.normalizedTotalScale,
         occurredAt: row.examDate,
       })),
       ...dataset.outcomes.map((row) => ({
@@ -565,6 +709,7 @@ export class ScoreAnchorService {
         source: row.source as ScoreSource,
         semantic: row.semantic,
         normalizedScore: row.normalizedScore,
+        normalizedTotalScale: row.normalizedTotalScale,
         occurredAt: row.occurredAt,
       })),
     ];
@@ -609,8 +754,13 @@ export class ScoreAnchorService {
       };
       const evidenceRef = {
         normalizedScore: evidence.normalizedScore,
-        normalizedTotalScale: SCORE_NORMALIZED_TOTAL_SCALE,
-        semantic: 'exam_total' as const,
+        // S1-I0 (INV-2): read the row's own scale. Hardcoding the 150 constant
+        // made `scale_mismatch` unreachable here, so a foreign row carrying a
+        // different scale would have been paired with a 150-scale prediction.
+        normalizedTotalScale: evidence.normalizedTotalScale,
+        // The stored semantic, not an assumption: accuracy_rate rows must be
+        // rejected by compatibility rather than silently relabelled.
+        semantic: evidence.semantic as ScoreSemantic,
         source: evidence.source,
         occurredAt: occurredIso,
       };

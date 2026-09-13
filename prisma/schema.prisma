@@ -188,6 +188,7 @@ model User {
   scoreAssessments       ScoreAssessment[]
   scoreOutcomes          ScoreOutcome[]
   scoreCorrections       ScoreCorrection[]
+  scoreLossItems         ScoreLossItem[]
 }
 
 model AnswerReceipt {
@@ -415,6 +416,10 @@ model Question {
   /// F4 (V12): 大题采分点评分标准。null = 无 rubric，既有行为逐字节不变。
   /// 形状见 docs/v12-m6-f4-large-question-design.md（version/criteria[]/totalPoints）。
   rubric               Json?
+  /// S1-P1 (SC-3, S1 Formal Design §10.5): 逐题分值（408 分值口径）。
+  /// **null = 未定价/未知，绝不等同于 0 分**（INV-10）。不强制回填（回填 = 伪造）。
+  /// 失分投影只对已定价题出分值；未定价题进 unpricedLostQuestions 并计数。
+  maxScore             Float?
   knowledgePoints      QuestionKnowledgePoint[]
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]
@@ -1180,4 +1185,44 @@ model ScoreCorrection {
 
   @@index([targetKind, targetId])
   @@index([userId, correctedAt])
+}
+
+/// S1-P1 (SC-1, S1 Formal Design §10.5 / §三) — per-question score loss.
+///
+/// This is a DERIVED projection, not a historical fact source: it can be
+/// dropped and rebuilt (rollback = DROP TABLE). The ledger's four tables are
+/// never rewritten by anything here.
+///
+/// Semantic rules enforced in code and pinned by tests:
+///   • `maxScore` / `earnedScore` / `lostScore` are NULLABLE. null = unpriced or
+///     unknown and is NEVER read as 0 (INV-10). A stored 0 is a real observation.
+///   • One question contributes its loss to exactly ONE node (INV-9). Multi-node
+///     membership stays a label and never enters a sum, so
+///     Σ nodeAttributedLoss ≤ Σ questionLoss holds structurally.
+///   • `lossKind` records the evidence class of THIS row: OBSERVED (objective
+///     grading or rubric) vs PROXY (selfScore). The two are aggregated
+///     separately and never merged into one "observed" total (IL-6).
+model ScoreLossItem {
+  id            String   @id @default(cuid())
+  userId        String
+  // prediction | assessment | outcome — which ledger row this loss belongs to.
+  scoreEntryKind String
+  scoreEntryId  String
+  questionId    String
+  // The single PRIMARY attribution (canonical resolver output). null = unattributed.
+  nodeId        String?
+  // null = unpriced / unknown, NEVER 0.
+  maxScore      Float?
+  earnedScore   Float?
+  lostScore     Float?
+  // OBSERVED | PROXY — the evidence class of this row's loss.
+  lossKind      String
+  // exact_match | self_report | teacher_graded | rubric | null
+  gradingMethod String?
+  recordedAt    DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([scoreEntryKind, scoreEntryId, questionId])
+  @@index([nodeId])
+  @@index([userId, scoreEntryKind, scoreEntryId])
 }

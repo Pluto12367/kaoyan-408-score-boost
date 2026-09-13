@@ -106,11 +106,23 @@ import { computePracticeRecordRequestHash, PRACTICE_RECORD_HASH_VERSION } from '
 import { ScoreCenterService } from '../score-center/service';
 import { ScoreAnchorService } from '../score-anchor/score-anchor.service';
 import {
+  resolveDaysToExam,
+  resolveDaysToExamNumber,
   toDifficultyBucket,
   TRANSFER_PROBE_EVIDENCE_KIND,
   TRANSFER_PROBE_POOL_SOURCE,
   TRANSFER_PROBE_SESSION_TYPE,
 } from '@kaoyan408/shared';
+
+/**
+ * S1-I0 (INV-3/INV-4): "is the exam close?" must not be answered from a missing
+ * value. `remainingDays ?? 0` asserted the exam was TODAY whenever the number was
+ * unknown; an unknown timeline now produces no "剩余时间偏紧" claim at all.
+ */
+function isExamTimelineNear(remainingDays: number | null | undefined): boolean {
+  const days = resolveDaysToExam({ remainingDays: remainingDays ?? null, now: new Date() }).days;
+  return days != null && days < 60;
+}
 import { PrismaService } from '../prisma/prisma.service';
 import { LearningLoopTriggerService } from './learning-loop-trigger.service';
 import { ActionFeedbackTriggerService } from './action-feedback-trigger.service';
@@ -858,7 +870,7 @@ export class StudyService implements OnModuleInit {
     });
 
     const risks = [
-      ...((student.remainingDays ?? 0) < 60 ? ['剩余时间偏紧，需要优先保证高频考点和真题回看。'] : []),
+      ...(isExamTimelineNear(student.remainingDays) ? ['剩余时间偏紧，需要优先保证高频考点和真题回看。'] : []),
       ...(wrongQuestions.length > 0 ? [`错题本仍有 ${wrongQuestions.length} 道待处理，建议每天至少复盘 ${reviewBase} 道。`] : []),
       ...(report.accuracyRate < 60 ? [`当前正确率 ${report.accuracyRate}%，本周先稳住基础题正确率。`] : []),
       ...(calendar.today.practiceCount === 0 ? ['今天还没有练习记录，建议先完成一组短题。'] : []),
@@ -2120,6 +2132,7 @@ export class StudyService implements OnModuleInit {
       originId: paperId,
       accuracyRate: result.score,
       title: historyItem.title,
+      records,
     });
 
     return result;
@@ -4311,7 +4324,7 @@ export class StudyService implements OnModuleInit {
       ? this.buildNodeDrivenPlan(student)
       : buildStudyPlan({
           targetScore: student.targetScore ?? 115,
-          remainingDays: student.remainingDays ?? 96,
+          remainingDays: resolveDaysToExamNumber({ remainingDays: student.remainingDays ?? null, now: new Date() }),
           dailyHours: student.dailyHours ?? 3.5,
           stage: student.stage ?? '强化',
           knowledgePoints: this.knowledgePoints,
@@ -4377,11 +4390,11 @@ export class StudyService implements OnModuleInit {
       nodes,
       masteryRows: this.nodeMasteryByUser.get(student.id) ?? [],
       targetScore: student.targetScore ?? 115,
-      remainingDays: student.remainingDays ?? 96,
+      remainingDays: resolveDaysToExamNumber({ remainingDays: student.remainingDays ?? null, now: new Date() }),
       dailyHours: student.dailyHours ?? 3.5,
       stage: student.stage ?? '强化',
     }).map((task, index) => ({ ...task, id: `task-${index + 1}` }));
-    const remainingDays = student.remainingDays ?? 96;
+    const remainingDays = resolveDaysToExamNumber({ remainingDays: student.remainingDays ?? null, now: new Date() });
     return {
       phase: stagePhase(student.stage ?? '强化'),
       targetScore: student.targetScore ?? 115,
@@ -4764,6 +4777,7 @@ export class StudyService implements OnModuleInit {
       originId: sessionId,
       accuracyRate,
       title: historyItem.title,
+      records,
     });
   }
 
