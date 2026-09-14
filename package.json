@@ -74,6 +74,7 @@
     "test:integration:guidance-protocol": "node scripts/integration-guidance-protocol.mjs",
     "audit:probe-content": "node scripts/audit-transfer-probe-content.mjs",
     "audit:v13": "node scripts/audit-v13-scorecard.mjs",
+    "test:integration:batch-submit-concurrency": "node scripts/integration-batch-submit-concurrency.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }

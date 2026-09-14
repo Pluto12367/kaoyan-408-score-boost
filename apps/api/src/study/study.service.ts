@@ -2023,15 +2023,22 @@ export class StudyService implements OnModuleInit {
       throw new BadRequestException('Paper answers are required');
     }
 
-    const records = await Promise.all(answers.map((answer) => this.createPracticeRecord({
-      userId,
-      questionId: answer.questionId,
-      knowledgePointId: '',
-      selectedAnswer: answer.selectedAnswer,
-      timeSpentSec: answer.timeSpentSec,
-      selfScore: answer.selfScore,
-      maxScore: answer.maxScore,
-    })));
+    // P1.5: sequential on purpose — concurrent createPracticeRecord
+    // transactions race on the same UserKnowledgeMastery row when several
+    // questions resolve to one node, exhausting the OCC retry budget and
+    // failing the whole batch with 500 (docs/p15-concurrent-mastery-fix-design.md).
+    const records: Array<Awaited<ReturnType<StudyService['createPracticeRecord']>>> = [];
+    for (const answer of answers) {
+      records.push(await this.createPracticeRecord({
+        userId,
+        questionId: answer.questionId,
+        knowledgePointId: '',
+        selectedAnswer: answer.selectedAnswer,
+        timeSpentSec: answer.timeSpentSec,
+        selfScore: answer.selfScore,
+        maxScore: answer.maxScore,
+      }));
+    }
     const correctCount = records.filter((record) => record.correct).length;
     const accuracyRate = Math.round((correctCount / records.length) * 100);
     const subjectStats = new Map<string, { total: number; correct: number }>();
@@ -3068,13 +3075,18 @@ export class StudyService implements OnModuleInit {
       throw new BadRequestException('Practice set answers are required');
     }
 
-    const records = await Promise.all(answers.map((answer) => this.createPracticeRecord({
-      userId,
-      questionId: answer.questionId,
-      knowledgePointId: '',
-      selectedAnswer: answer.selectedAnswer,
-      timeSpentSec: answer.timeSpentSec,
-    })));
+    // P1.5: sequential — see submitPaper for why batch paths must not fan
+    // out concurrent createPracticeRecord transactions.
+    const records: Array<Awaited<ReturnType<StudyService['createPracticeRecord']>>> = [];
+    for (const answer of answers) {
+      records.push(await this.createPracticeRecord({
+        userId,
+        questionId: answer.questionId,
+        knowledgePointId: '',
+        selectedAnswer: answer.selectedAnswer,
+        timeSpentSec: answer.timeSpentSec,
+      }));
+    }
     return this.createPracticeSetResult(practiceSetId, userId, records);
   }
 
@@ -3776,13 +3788,18 @@ export class StudyService implements OnModuleInit {
       throw new BadRequestException('Stage assessment answers are required');
     }
 
-    const records = await Promise.all(answers.map((answer) => this.createPracticeRecord({
-      userId,
-      questionId: answer.questionId,
-      knowledgePointId: '',
-      selectedAnswer: answer.selectedAnswer,
-      timeSpentSec: answer.timeSpentSec,
-    })));
+    // P1.5: sequential — see submitPaper for why batch paths must not fan
+    // out concurrent createPracticeRecord transactions.
+    const records: Array<Awaited<ReturnType<StudyService['createPracticeRecord']>>> = [];
+    for (const answer of answers) {
+      records.push(await this.createPracticeRecord({
+        userId,
+        questionId: answer.questionId,
+        knowledgePointId: '',
+        selectedAnswer: answer.selectedAnswer,
+        timeSpentSec: answer.timeSpentSec,
+      }));
+    }
     const result = await this.createStageAssessmentResult(userId, records);
     await this.triggerLearningLoop(userId, {
       triggerType: 'stage_assessment',
