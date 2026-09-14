@@ -1,5 +1,7 @@
 # Current Sprint
 
+> **2026-09-14 V13 提分能力基线审计完成（只读审计；不取代下方 09-13 STATUS 权威块）**：上一 Agent（ZCode V13 审计会话）产出五件未提交工件——`docs/audit/v13-rubric.json`（5 层 59 项评分口径）、`docs/audit/v13-evidence.json`（逐项评级+file:line 证据）、`scripts/audit-v13-scorecard.mjs`（评分运行器，`npm run audit:v13`）、`docs/audit/v13-baseline-report.md`（生成物）、`docs/audit/v13-p0-closed-loop-roadmap.md`（四 Phase 路线**提案**，非实施授权）。**基线结论**：V13 加权总分 **0.5579/1.00**；五层字母档全 B；**提分闭环 = FAIL**（层门禁 PASS，P0 门禁 FAIL：G4/G9/R5/R8/R10/T2/V3/V8/V9/V10 共 10 项闭环 P0 < B，另数据层 D4=C 为 G4/V3 前置）。结构性结论：不缺测量仪器，缺**处方层**（诊断→训练参数映射）与**证据回流**（outcome/探针不回流决策）。**接管 Agent 复核（本会话一手重跑）**：`npm run audit:v13` exit 0（校验合法、报告幂等重生成）；`npm test` **2543/2541/0/2 exit 0**（较 09-13 基线 2538 +5 = v13-scorecard 契约测试，NEW REGRESSION = 0）；`build:shared`/`build:api`/`build:web` exit 0（web 首次构建被环境瞬断，单独重跑 exit 0，与地雷区已登记瞬时崩溃同类）。**未提交**：全部 V13 工件 + `package.json`（+`audit:v13` 脚本行）仍在工作区，提交时机由 Owner 决定（AGENTS.md §9）。**位置判定**：路线图 §2 明确 Phase 0（Release & Reliability，即下方 09-13 权威块的 ①-⑥）收口后才进 Phase A；当前 Phase 不变。路线图中 A1.2/B2/B3/C2/D2/D4 为 GATE 项，未获批不得动工（RULE-14）。
+
 > **2026-09-13 Owner 决策落定（当前 STATUS 权威块，取代下方 09-12 块）**：
 
 ```text
