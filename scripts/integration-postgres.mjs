@@ -510,6 +510,10 @@ async function main() {
     knowledgePointId: 'co-cache',
     selectedAnswer: 'integration-test-wrong-answer',
     timeSpentSec: 137,
+    // V13-A1 (justified change, RULE-02): the unconditional 概念混淆 fallback was
+    // removed (UNKNOWN != CONCEPT_CONFUSION). This scenario needs a REAL auto
+    // signal for the combined-reasoning assertions below — usedHint provides one.
+    usedHint: true,
   }, studentHeaders);
   assert(created.id && created.correct === false && created.userId === registered.user.id, 'practice submission without userId should use the authenticated student');
   assert(Math.abs(Date.now() - Date.parse(created.submittedAt)) < 60_000, 'practice submissions should retain their real submission time for deterministic recovery ordering');
@@ -604,6 +608,9 @@ async function main() {
     knowledgePointId: historicalReasonQuestion.knowledgePointIds[0],
     selectedAnswer: '__wrong__',
     timeSpentSec: historicalReasonQuestion.expectedTimeSec,
+    // V13-A1 (justified change, RULE-02): real auto signal replaces the removed
+    // 概念混淆 fallback so the latest-historical-mistake assertion stays meaningful.
+    usedHint: true,
   }, studentHeaders);
   await postJson(`${apiUrl}/practice-records`, {
     questionId: historicalReasonQuestion.id,

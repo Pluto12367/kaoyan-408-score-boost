@@ -22,3 +22,5 @@ export * from './fsrs-scheduler';
 export * from './decay-defense.selector';
 export * from './mastery-calibration';
 export * from './outcome-tracking';
+export * from './error-reason';
+export * from './error-patterns';

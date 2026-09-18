@@ -242,8 +242,11 @@ test('classifyMistake returns null for correct answers regardless of speed', () 
   assert.equal(classifyMistake({ correct: true, selectedAnswer: 'C', correctAnswer: 'C', timeSpentSec: 160, expectedTimeSec: 90 }), null);
 });
 
-test('classifyMistake returns 概念混淆 for wrong answers at normal speed', () => {
-  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 95, expectedTimeSec: 100 }), '概念混淆');
+// V13-A1 (justified assertion update, RULE-02): the unconditional 概念混淆
+// fallback was removed so UNKNOWN != CONCEPT_CONFUSION (task §6). A wrong
+// answer with no observable signal is now explicit unknown (null).
+test('classifyMistake returns null (unknown) for wrong answers at normal speed with no signal', () => {
+  assert.equal(classifyMistake({ correct: false, selectedAnswer: 'A', correctAnswer: 'C', timeSpentSec: 95, expectedTimeSec: 100 }), null);
 });
 
 test('classifyMistake treats confident-but-wrong answers as 知识点没学过', () => {

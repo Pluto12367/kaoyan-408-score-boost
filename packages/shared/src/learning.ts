@@ -139,7 +139,10 @@ export function classifyMistake(input: {
   if (slow) return '概念混淆';
   if (input.confidence === '完全不会') return '知识点没学过';
   if (input.usedHint) return '推理过程错误';
-  return '概念混淆';
+  // V13-A1: no observable signal → explicit unknown (null), NOT 概念混淆.
+  // UNKNOWN and CONCEPT_CONFUSION are different semantics; projections surface
+  // null as `unclassified`.
+  return null;
 }
 
 export function applyDiagnosticProfile(input: {

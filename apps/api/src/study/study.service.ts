@@ -13,6 +13,8 @@ import {
   buildTemplateTutorReply,
   buildKnowledgeEvidenceSummary,
   classifyMistake,
+  resolveControlledReasonInput,
+  errorReasonLabel,
   computeMasteryReport,
   computeWeaknessReport,
   dedupeQuestionsByStem,
@@ -2284,16 +2286,38 @@ export class StudyService implements OnModuleInit {
   private readonly reviewAttemptsByKey = new Map<string, ReviewAttemptState[]>();
 
   async reportWrongReason(questionId: string, userId: string, input: {
-    selfReportedReason: string;
+    /** V13-A1 legacy free-text channel — kept verbatim for backward compatibility. */
+    selfReportedReason?: string;
+    /** V13-A1 controlled channel — must be a taxonomy code or its canonical Chinese label. */
+    controlledReason?: string;
+    /** V13-A1 optional note (≤100 chars), persisted on the review schedule's existing note column. */
+    optionalNote?: string;
     redoCorrect: boolean;
     timeSpentSec: number;
     isReview?: boolean;
     actionId?: string;
     idempotencyKey?: string;
   }) {
-    const selfReportedReason = input.selfReportedReason?.trim();
-    if (!selfReportedReason || selfReportedReason.length > 100) {
-      throw new BadRequestException('Self-reported reason must contain 1 to 100 characters');
+    // V13-A1 — controlled channel wins when present; the legacy free-text path
+    // stays byte-compatible (existing callers rely on verbatim retention).
+    const controlledInput = input.controlledReason?.trim();
+    const controlledCode = controlledInput ? resolveControlledReasonInput(controlledInput) : null;
+    if (controlledInput && !controlledCode) {
+      throw new BadRequestException('controlledReason must be one of the controlled error reason codes');
+    }
+    const optionalNote = input.optionalNote?.trim();
+    if (optionalNote && optionalNote.length > 100) {
+      throw new BadRequestException('optionalNote must contain at most 100 characters');
+    }
+    let selfReportedReason: string;
+    if (controlledCode) {
+      selfReportedReason = errorReasonLabel(controlledCode);
+    } else {
+      const legacyReason = input.selfReportedReason?.trim();
+      if (!legacyReason || legacyReason.length > 100) {
+        throw new BadRequestException('Self-reported reason must contain 1 to 100 characters');
+      }
+      selfReportedReason = legacyReason;
     }
     if (typeof input.redoCorrect !== 'boolean') {
       throw new BadRequestException('Redo result must be a boolean');
@@ -2330,7 +2354,7 @@ export class StudyService implements OnModuleInit {
         userId,
         inferredReason,
         selfReportedReason,
-        note: existing?.note,
+        note: optionalNote || existing?.note,
         lastWrongRecordId,
         redoCorrect: false,
         timeSpentSec: input.timeSpentSec,
@@ -2372,7 +2396,7 @@ export class StudyService implements OnModuleInit {
       userId,
       inferredReason,
       selfReportedReason,
-      note: existing?.note,
+      note: optionalNote || existing?.note,
       lastWrongRecordId,
       redoCorrect: input.redoCorrect,
       timeSpentSec: input.timeSpentSec,

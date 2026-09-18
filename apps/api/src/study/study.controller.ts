@@ -585,7 +585,12 @@ export class StudyController {
     @CurrentUser() user: UserProfile,
     @Param('questionId') questionId: string,
     @Body() input: {
-      selfReportedReason: string;
+      /** V13-A1 legacy free-text channel (verbatim compat). */
+      selfReportedReason?: string;
+      /** V13-A1 controlled enum (taxonomy code or canonical Chinese label). */
+      controlledReason?: string;
+      /** V13-A1 optional note, ≤100 chars. */
+      optionalNote?: string;
       redoCorrect: boolean;
       timeSpentSec: number;
       isReview?: boolean;

@@ -35,6 +35,7 @@ import { ShadowDecisionChainService } from './shadow-decision-chain.service';
 import { ReviewMasteryShadowService } from './review-mastery-shadow.service';
 import { LearningImpactService } from './learning-impact.service';
 import { PracticePatternService } from './practice-pattern.service';
+import { ErrorPatternService } from './error-pattern.service';
 
 @Controller()
 export class DailyBriefController {
@@ -56,6 +57,7 @@ export class DailyBriefController {
     private readonly shadowDecisionChain?: ShadowDecisionChainService,
     private readonly reviewMasteryShadow?: ReviewMasteryShadowService,
     private readonly practicePatterns?: PracticePatternService,
+    private readonly errorPatterns?: ErrorPatternService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -490,6 +492,33 @@ export class DailyBriefController {
       };
     }
     return this.practicePatterns.getPracticePatterns(userId);
+  }
+
+  /** V13-A1 — read-only "why wrong" projection over OBSERVED attempt facts. */
+  @Get('coach/error-patterns')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getErrorPatterns(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('days') days?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.errorPatterns) {
+      return {
+        userId,
+        generatedAt: new Date().toISOString(),
+        storeAvailable: false,
+        reason: 'store_unavailable',
+        window: { days: 7, from: null, to: null },
+        totals: { wrongCount: 0, attributedCount: 0, nodeUnattributedCount: 0, unclassifiedCount: 0 },
+        attemptsCounted: 0,
+        patterns: [],
+        byReason: [],
+      };
+    }
+    const parsed = days ? Number.parseInt(days, 10) : NaN;
+    return this.errorPatterns.getErrorPatterns(userId, { days: Number.isNaN(parsed) ? undefined : parsed });
   }
 
   private resolveUserId(user: UserProfile, viewUserId?: string): string {
