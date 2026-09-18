@@ -62,7 +62,7 @@ export class ErrorPatternService {
         storeAvailable: false,
         reason: 'store_unavailable',
         window: { days: windowDays, from: new Date(now.getTime() - windowDays * 86_400_000).toISOString(), to: generatedAt },
-        totals: { wrongCount: 0, attributedCount: 0, nodeUnattributedCount: 0, unclassifiedCount: 0 },
+        totals: { wrongCount: 0, attributedCount: 0, nodeUnattributedCount: 0, unclassifiedCount: 0, bySubtype: {} },
         attemptsCounted: 0,
         patterns: [],
         byReason: [],
@@ -100,13 +100,16 @@ export class ErrorPatternService {
       }),
       this.prisma!.question.findMany({
         where: { id: { in: questionIds } },
-        select: { id: true, type: true },
+        // V13-P0-1: subtype comes from the DB row (the authoritative 408 layer);
+        // in-memory question objects carry the Chinese form label instead.
+        select: { id: true, type: true, questionSubtype: true },
       }),
     ]);
 
     const subjectByNode = new Map(nodes.map((node) => [node.id, node.subject]));
     const nameByNode = new Map(nodes.map((node) => [node.id, node.name]));
     const typeByQuestion = new Map(questions.map((question) => [question.id, String(question.type)]));
+    const subtypeByQuestion = new Map(questions.map((question) => [question.id, question.questionSubtype as string | null]));
 
     const attempts: ErrorPatternAttemptFact[] = [
       ...records.map((row) => {
@@ -117,6 +120,7 @@ export class ErrorPatternService {
           nodeId: resolved?.nodeId ?? null,
           questionId: row.questionId,
           questionType: typeByQuestion.get(row.questionId) ?? null,
+          questionSubtype: subtypeByQuestion.get(row.questionId) ?? null,
           reasonRaw: row.mistakeReason,
           occurredAt: row.submittedAt.toISOString(),
         };
@@ -130,6 +134,7 @@ export class ErrorPatternService {
           nodeId: resolved?.nodeId ?? null,
           questionId,
           questionType: typeByQuestion.get(questionId) ?? null,
+          questionSubtype: subtypeByQuestion.get(questionId) ?? null,
           reasonRaw: row.reportedReason,
           occurredAt: row.reviewedAt.toISOString(),
         };

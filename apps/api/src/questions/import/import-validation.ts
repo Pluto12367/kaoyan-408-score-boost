@@ -201,6 +201,17 @@ export class ImportValidationService {
       warnings: value.warnings as unknown as Prisma.InputJsonValue,
       pageNumber: value.pageNumber ?? null,
       sourceRegion: value.sourceRegion as unknown as Prisma.InputJsonValue | undefined,
+      // V13-P0-1 (Owner D2-D7): subtype/maxScore ride in reviewMetadata — the
+      // candidate table has no columns for them and D11 allows only the single
+      // Question migration. Confirmation reads them back into the Question.
+      ...(value.questionSubtype || value.maxScore != null
+        ? {
+            reviewMetadata: {
+              questionSubtype: value.questionSubtype ?? null,
+              maxScore: value.maxScore ?? null,
+            } as unknown as Prisma.InputJsonValue,
+          }
+        : {}),
       contentFingerprint,
       status: QuestionImportCandidateStatus.pending_review,
     };

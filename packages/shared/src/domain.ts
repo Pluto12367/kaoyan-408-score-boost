@@ -1,3 +1,5 @@
+import type { QuestionSubtypeCode } from './score-center/question-subtype';
+
 export type Subject =
   | '数据结构'
   | '计算机组成原理'
@@ -56,6 +58,10 @@ export interface Question {
   source: string;
   year?: number;
   expectedTimeSec: number;
+  /** V13-P0-1 (Owner D2/D6) — 408 business type layer. Absent = unknown, never guessed. */
+  questionSubtype?: QuestionSubtypeCode;
+  /** V13-P0-1 (Owner D4/D5) — 408 exam max score. Absent = unpriced; 0 is a real zero (NULL ≠ 0). */
+  maxScore?: number;
 }
 
 export interface PracticeRecord {

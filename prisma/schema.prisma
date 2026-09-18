@@ -44,6 +44,20 @@ enum QuestionType {
   JUDGEMENT
 }
 
+/// V13-P0-1 (Owner Decision v1.1 D2/D3): the 408 business question-type layer.
+/// QuestionType above stays the historical/form layer (form label + grading
+/// channel) and is NOT refactored. Expansion of this enum requires Owner
+/// approval — the dictionary is frozen by Owner Decision v1.1.
+enum QuestionSubtype {
+  SINGLE_CHOICE
+  JUDGEMENT
+  COMPREHENSIVE_CHOICE
+  ALGORITHM
+  CO_COMPUTATION
+  OS_PV
+  CN_ROUTING
+}
+
 enum QuestionImportFileType {
   pdf
   xlsx
@@ -420,6 +434,9 @@ model Question {
   /// **null = 未定价/未知，绝不等同于 0 分**（INV-10）。不强制回填（回填 = 伪造）。
   /// 失分投影只对已定价题出分值；未定价题进 unpricedLostQuestions 并计数。
   maxScore             Float?
+  /// V13-P0-1 (Owner Decision v1.1 D2/D6): 408 业务题型层。NULL = unknown
+  /// (historical/unclassified) — never guessed, never implicitly backfilled.
+  questionSubtype      QuestionSubtype?
   knowledgePoints      QuestionKnowledgePoint[]
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]

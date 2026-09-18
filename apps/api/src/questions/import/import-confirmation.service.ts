@@ -7,6 +7,7 @@ import { computeImportFingerprint } from './import-fingerprint';
 import type { ConfirmImportDto } from './dto/confirm-import.dto';
 import { ImportAssetService } from './import-asset.service';
 import { candidateImportIssues } from './import-validation';
+import { normalizeMaxScoreInput, resolveQuestionSubtypeInput } from '@kaoyan408/shared';
 
 const CONFIRMATION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_SERIALIZATION_ATTEMPTS = 3;
@@ -180,10 +181,24 @@ export class ImportConfirmationService {
 }
 
 function questionData(candidate: QuestionImportCandidate, batchId: string): Omit<Prisma.QuestionCreateInput, 'family'> {
+  // V13-P0-1 (Owner D2-D7): subtype/maxScore were parsed into reviewMetadata at
+  // validation time (the candidate table has no columns for them, per D11's
+  // single-migration budget). Re-validated defensively here — an unresolvable
+  // value degrades to NULL (unknown/unpriced), never to a guess or 0.
+  const reviewMetadata = candidate.reviewMetadata as
+    | { questionSubtype?: unknown; maxScore?: unknown }
+    | null
+    | undefined;
+  const subtype = resolveQuestionSubtypeInput(
+    typeof reviewMetadata?.questionSubtype === 'string' ? reviewMetadata.questionSubtype : null,
+  );
+  const maxScore = normalizeMaxScoreInput(reviewMetadata?.maxScore);
   return {
     importBatch: { connect: { id: batchId } }, contentFingerprint: candidate.contentFingerprint, stem: candidate.stem, options: candidate.options,
     answer: candidate.answer, analysis: candidate.analysis, difficulty: candidate.difficulty, type: candidate.type,
     source: candidate.source, year: candidate.year, expectedTimeSec: candidate.expectedTimeSec,
+    ...(subtype ? { questionSubtype: subtype } : {}),
+    ...(!('invalid' in maxScore) && maxScore.value != null ? { maxScore: maxScore.value } : {}),
     formulas: candidate.formulas as Prisma.InputJsonValue, sourceRegion: candidate.sourceRegion as Prisma.InputJsonValue | undefined,
     knowledgePoints: { create: candidate.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })) },
   };

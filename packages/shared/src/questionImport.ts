@@ -1,4 +1,9 @@
 import type { Question } from './domain';
+import {
+  normalizeMaxScoreInput,
+  resolveQuestionSubtypeInput,
+  type QuestionSubtypeCode,
+} from './score-center/question-subtype';
 
 export interface SourceRegion {
   x: number;
@@ -27,6 +32,10 @@ export interface CandidateQuestionDraft {
   year?: number;
   expectedTimeSec: number;
   knowledgePointIds: string[];
+  /** V13-P0-1 (Owner D2/D3/D6) — 408 business type layer. Absent = unknown, never guessed. */
+  questionSubtype?: QuestionSubtypeCode;
+  /** V13-P0-1 (Owner D4/D5) — 408 exam max score. Absent = unpriced; 0 is a real zero (NULL ≠ 0). */
+  maxScore?: number;
   pageNumber?: number;
   sourceRegion?: SourceRegion;
   formulas: Array<{ latex: string; region?: SourceRegion }>;
@@ -173,6 +182,20 @@ export function normalizeCandidateDraft(
     warning(issues, 'INVALID_EXPECTED_TIME', 'expectedTimeSec', '建议答题时间必须是正整数秒。', '填写正整数秒数。');
   }
 
+  // V13-P0-1 (Owner Decision v1.1 D2-D6): the 408 business type + exam price
+  // ride on OPTIONAL columns. Absent stays absent (unknown/unpriced — never
+  // guessed, never defaulted to 0); a provided-but-invalid value is an ERROR
+  // so the author's intent cannot silently degrade.
+  const subtypeRaw = normalizedText(field(raw, '题型子类', 'questionSubtype'));
+  const parsedSubtype = subtypeRaw ? resolveQuestionSubtypeInput(subtypeRaw) : null;
+  if (subtypeRaw && !parsedSubtype) {
+    warning(issues, 'INVALID_QUESTION_SUBTYPE', 'questionSubtype', '题型子类不在允许范围内。', '填写 Owner 冻结的题型子类（单选题/判断题/综合选择题/算法大题/组成原理计算题/OS PV 题/CN 路由计算题），或留空。');
+  }
+  const parsedMaxScore = normalizeMaxScoreInput(field(raw, '分值', 'maxScore'));
+  if ('invalid' in parsedMaxScore && parsedMaxScore.invalid) {
+    warning(issues, 'INVALID_MAX_SCORE', 'maxScore', '分值必须是 ≥0 的数字。', '填写该题在 408 考试中的最高可得分值，或留空（未定价）。');
+  }
+
   if (issues.some((issue) => issue.severity === 'error')) return { issues };
 
   const value: CandidateQuestionDraft = {
@@ -186,6 +209,8 @@ export function normalizeCandidateDraft(
     ...(yearText ? { year: parsedYear } : {}),
     expectedTimeSec: parsedExpectedTime,
     knowledgePointIds,
+    ...(parsedSubtype ? { questionSubtype: parsedSubtype } : {}),
+    ...(!('invalid' in parsedMaxScore) && parsedMaxScore.value != null ? { maxScore: parsedMaxScore.value } : {}),
     formulas: formulas(field(raw, 'formulas')),
     assetIds: assetIds(field(raw, 'assetIds')),
     warnings: [],

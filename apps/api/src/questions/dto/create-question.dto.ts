@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateQuestionDto {
   @IsString()
@@ -37,4 +37,15 @@ export class CreateQuestionDto {
   @IsInt()
   @Min(30)
   expectedTimeSec?: number;
+
+  /** V13-P0-1 (Owner D2/D3/D6) — 408 business type. Absent = unknown; validated against the frozen dictionary in the service. */
+  @IsOptional()
+  @IsString()
+  questionSubtype?: string;
+
+  /** V13-P0-1 (Owner D4/D5) — 408 exam max score. Absent = unpriced; ≥0; 0 is a real zero (NULL ≠ 0). */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  maxScore?: number;
 }

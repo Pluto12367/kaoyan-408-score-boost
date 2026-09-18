@@ -24,6 +24,7 @@ import {
   normalizeErrorReason,
   type ErrorReasonCode,
 } from './error-reason';
+import { QUESTION_SUBTYPE_CODES, questionSubtypeLabel, type QuestionSubtypeCode } from './question-subtype';
 
 const DAY_MS = 86_400_000;
 
@@ -36,6 +37,8 @@ export interface ErrorPatternAttemptFact {
   nodeId: string | null;
   questionId: string;
   questionType?: string | null;
+  /** V13-P0-1 — 408 business question-type layer. Absent/null = unknown (historical rows), never guessed. */
+  questionSubtype?: string | null;
   /** Raw stored reason (English code, Chinese label, legacy label, free text or null). */
   reasonRaw: string | null;
   occurredAt: string;
@@ -46,6 +49,13 @@ export interface ErrorPatternRow {
   nodeId: string;
   reasonCode: ErrorReasonCode;
   reasonLabel: string;
+  /**
+   * V13-P0-1 — the 408 business type of the attempts in this row. Attempts
+   * with unknown subtype form their OWN `unknown` rows and never merge into
+   * known-subtype rows (unknown stays unknown).
+   */
+  questionSubtype: QuestionSubtypeCode | 'unknown';
+  questionSubtypeLabel: string;
   count: number;
   /** Attempts in the RECENT half of the window. */
   recentCount: number;
@@ -64,6 +74,8 @@ export interface ErrorPatternsResult {
     attributedCount: number;
     nodeUnattributedCount: number;
     unclassifiedCount: number;
+    /** V13-P0-1 — wrong-evidence count per known question subtype (unknown subtype not listed). */
+    bySubtype: Record<string, number>;
   };
   /** Explicit mirror of totals.wrongCount for the evidence-count invariant. */
   attemptsCounted: number;
@@ -81,6 +93,7 @@ interface MutableRow {
   subject: string | null;
   nodeId: string;
   reasonCode: ErrorReasonCode;
+  questionSubtype: QuestionSubtypeCode | 'unknown';
   count: number;
   recentCount: number;
   lastOccurredAt: string;
@@ -104,6 +117,7 @@ export function buildErrorPatterns(input: BuildErrorPatternsInput): ErrorPattern
     attributedCount: 0,
     nodeUnattributedCount: 0,
     unclassifiedCount: 0,
+    bySubtype: {} as Record<string, number>,
   };
 
   const rowsByKey = new Map<string, MutableRow>();
@@ -117,6 +131,9 @@ export function buildErrorPatterns(input: BuildErrorPatternsInput): ErrorPattern
     } else {
       totals.attributedCount += 1;
     }
+    if (attempt.questionSubtype) {
+      totals.bySubtype[attempt.questionSubtype] = (totals.bySubtype[attempt.questionSubtype] ?? 0) + 1;
+    }
 
     const reasonAgg = reasonCounts.get(reasonCode) ?? { count: 0, sources: new Set<ErrorPatternSource>() };
     reasonAgg.count += 1;
@@ -124,11 +141,18 @@ export function buildErrorPatterns(input: BuildErrorPatternsInput): ErrorPattern
     reasonCounts.set(reasonCode, reasonAgg);
 
     if (attempt.nodeId == null) continue;
-    const key = `${attempt.nodeId}\u0000${reasonCode}`;
+    // Defensive: a fact subtype outside the frozen dictionary is treated as
+    // unknown, never as a sibling subtype.
+    const knownSubtype = (QUESTION_SUBTYPE_CODES as readonly string[]).includes(attempt.questionSubtype ?? '');
+    const subtypeBucket: QuestionSubtypeCode | 'unknown' = knownSubtype
+      ? (attempt.questionSubtype as QuestionSubtypeCode)
+      : 'unknown';
+    const key = `${attempt.nodeId}\u0000${reasonCode}\u0000${subtypeBucket}`;
     const row = rowsByKey.get(key) ?? {
       subject: attempt.subject,
       nodeId: attempt.nodeId,
       reasonCode,
+      questionSubtype: subtypeBucket,
       count: 0,
       recentCount: 0,
       lastOccurredAt: attempt.occurredAt,
@@ -156,6 +180,8 @@ export function buildErrorPatterns(input: BuildErrorPatternsInput): ErrorPattern
       nodeId: row.nodeId,
       reasonCode: row.reasonCode,
       reasonLabel: ERROR_REASON_LABELS[row.reasonCode],
+      questionSubtype: row.questionSubtype,
+      questionSubtypeLabel: row.questionSubtype === 'unknown' ? '未知题型' : questionSubtypeLabel(row.questionSubtype),
       count: row.count,
       recentCount: row.recentCount,
       trend,

@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { Difficulty, QuestionType, type Prisma } from '@prisma/client';
-import { requireQuestionKnowledgePoint, type Question } from '@kaoyan408/shared';
+import { requireQuestionKnowledgePoint, resolveQuestionSubtypeInput, type Question } from '@kaoyan408/shared';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -118,6 +118,12 @@ export class QuestionsService implements OnModuleInit {
   }
 
   async createQuestion(input: CreateQuestionDto) {
+    // V13-P0-1 (Owner D2-D6): subtype is validated against the frozen dictionary
+    // (invalid → 400); maxScore absent stays NULL (unpriced), 0 is a real zero.
+    const questionSubtype = resolveQuestionSubtypeInput(input.questionSubtype);
+    if (input.questionSubtype?.trim() && !questionSubtype) {
+      throw new BadRequestException('questionSubtype must be one of the Owner-frozen 408 question subtype codes or labels');
+    }
     const questionId = this.persistenceEnabled
       ? await this.nextPersistedQuestionId()
       : nextQuestionId(this.questions);
@@ -133,6 +139,8 @@ export class QuestionsService implements OnModuleInit {
       source: input.source,
       year: input.year,
       expectedTimeSec: input.expectedTimeSec ?? 100,
+      questionSubtype: questionSubtype ?? undefined,
+      maxScore: input.maxScore ?? undefined,
     });
 
     if (this.persistenceEnabled) {
@@ -152,6 +160,8 @@ export class QuestionsService implements OnModuleInit {
           source: question.source,
           year: question.year,
           expectedTimeSec: question.expectedTimeSec,
+          questionSubtype: questionSubtype ?? null,
+          maxScore: input.maxScore ?? null,
           knowledgePoints: {
             create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
           },
@@ -182,6 +192,17 @@ export class QuestionsService implements OnModuleInit {
     }
 
     const current = this.questions[index];
+    // V13-P0-1 (Owner D2-D6): same validation as create; omitted keeps the
+    // current value (versioned content — never silently cleared).
+    const questionSubtype = input.questionSubtype !== undefined
+      ? resolveQuestionSubtypeInput(input.questionSubtype)
+      : current.questionSubtype ?? null;
+    if (input.questionSubtype?.trim() && !questionSubtype) {
+      throw new BadRequestException('questionSubtype must be one of the Owner-frozen 408 question subtype codes or labels');
+    }
+    if (input.questionSubtype?.trim() === '' ) {
+      throw new BadRequestException('questionSubtype cannot be cleared by an empty string; omit the field to keep the current value');
+    }
     const updatedQuestionId = this.persistenceEnabled
       ? await this.nextPersistedQuestionId()
       : current.id;
@@ -198,6 +219,8 @@ export class QuestionsService implements OnModuleInit {
       source: input.source ?? current.source,
       year: input.year ?? current.year,
       expectedTimeSec: input.expectedTimeSec ?? current.expectedTimeSec,
+      questionSubtype: questionSubtype ?? undefined,
+      maxScore: input.maxScore ?? current.maxScore,
     });
 
     if (this.persistenceEnabled) {
@@ -226,6 +249,8 @@ export class QuestionsService implements OnModuleInit {
             source: question.source,
             year: question.year,
             expectedTimeSec: question.expectedTimeSec,
+            questionSubtype: questionSubtype ?? null,
+            maxScore: input.maxScore ?? current.maxScore ?? null,
             knowledgePoints: {
               create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
             },
