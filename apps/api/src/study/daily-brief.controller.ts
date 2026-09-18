@@ -38,6 +38,7 @@ import { PracticePatternService } from './practice-pattern.service';
 import { ErrorPatternService } from './error-pattern.service';
 import { ErrorDiagnosisService } from './error-diagnosis.service';
 import { TrainingPrescriptionService } from './training-prescription.service';
+import { ForgettingRiskService } from './forgetting-risk.service';
 
 @Controller()
 export class DailyBriefController {
@@ -62,6 +63,7 @@ export class DailyBriefController {
     private readonly errorPatterns?: ErrorPatternService,
     private readonly errorDiagnosis?: ErrorDiagnosisService,
     private readonly trainingPrescription?: TrainingPrescriptionService,
+    private readonly forgettingRisk?: ForgettingRiskService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -585,6 +587,29 @@ export class DailyBriefController {
       questionSubtype,
       reasonCode,
     });
+  }
+
+  /** PHASE 7 — "会了但快忘了": decay risk over learned nodes (read-only). */
+  @Get('coach/forgetting-risk')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getForgettingRisk(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.forgettingRisk) {
+      return {
+        userId,
+        generatedAt: new Date().toISOString(),
+        storeAvailable: false,
+        reason: 'store_unavailable',
+        dataStatus: 'EMPTY',
+        summary: { learnedNodes: 0, atRiskCount: 0, overdueCount: 0, dueSoonCount: 0, insufficientDataCount: 0 },
+        rows: [],
+      };
+    }
+    return this.forgettingRisk.getForgettingRisk(userId);
   }
 
   private resolveUserId(user: UserProfile, viewUserId?: string): string {

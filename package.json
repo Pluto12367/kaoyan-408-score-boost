@@ -79,6 +79,7 @@
     "test:integration:question-scoring": "node scripts/integration-question-scoring.mjs",
     "test:integration:error-diagnosis": "node scripts/integration-error-diagnosis.mjs",
     "test:integration:training-prescription": "node scripts/integration-training-prescription.mjs",
+    "test:integration:forgetting-risk": "node scripts/integration-forgetting-risk.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }
