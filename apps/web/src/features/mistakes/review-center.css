@@ -351,3 +351,24 @@
     justify-content: center;
   }
 }
+
+/* V13 PHASE 10b — per-question loss / reason drill-down (token-only). */
+.wrong-loss-drilldown { background: var(--surface-raised, transparent); border: 1px solid var(--border, rgba(0,0,0,0.08)); border-radius: 10px; padding: var(--space-3, 12px); }
+.wrong-loss-head strong { display: block; }
+.wrong-loss-head span { color: var(--text-muted); display: block; font-size: 0.78rem; margin-top: 2px; }
+.wrong-loss-summary { color: var(--text-secondary); font-size: 0.85rem; margin: var(--space-2, 8px) 0; }
+.wrong-loss-list { display: grid; gap: var(--space-2, 8px); list-style: none; margin: 0; padding: 0; }
+.wrong-loss-item { border-top: 1px solid var(--border, rgba(0,0,0,0.06)); padding-top: var(--space-2, 8px); }
+.wrong-loss-item-main { align-items: baseline; display: flex; flex-wrap: wrap; gap: var(--space-2, 8px); }
+.wrong-loss-status { border-radius: 999px; font-size: 0.72rem; padding: 1px 8px; }
+.wrong-loss-status.status-awaiting_reattempt { background: var(--warning-soft, rgba(255,193,7,0.16)); }
+.wrong-loss-status.status-not_recovered { background: var(--danger-soft, rgba(220,53,69,0.14)); }
+.wrong-loss-status.status-recovered { background: var(--success-soft, rgba(25,135,84,0.14)); }
+.wrong-loss-amount { color: var(--text-muted); font-size: 0.78rem; }
+.wrong-loss-reason { align-items: center; color: var(--text-secondary); display: flex; flex-wrap: wrap; font-size: 0.8rem; gap: 4px; margin: 4px 0; }
+.wrong-loss-reason small { color: var(--text-muted); display: block; width: 100%; }
+.wrong-loss-reason.no-finding { color: var(--text-muted); font-style: italic; }
+.wrong-loss-action { align-items: center; background: none; border: none; color: var(--text-secondary); cursor: pointer; display: inline-flex; font-size: 0.78rem; gap: 2px; padding: 0; }
+.wrong-loss-patterns { margin-top: var(--space-3, 12px); }
+.wrong-loss-patterns ul { display: grid; gap: 4px; list-style: none; margin: var(--space-2, 8px) 0 0; padding: 0; }
+.wrong-loss-patterns small { color: var(--text-muted); margin-left: var(--space-2, 8px); }

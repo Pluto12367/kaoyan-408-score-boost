@@ -161,6 +161,29 @@ export function selectOutstandingRecoveries(rows: ScoreRecoveryView['rows'], lim
     .slice(0, Math.max(0, limit));
 }
 
+/** Student-facing label for a recovery status (shared by home card and drill-down). */
+export function recoveryStatusLabel(status: RecoveryStatus): string {
+  switch (status) {
+    case 'recovered': return '已追回';
+    case 'not_recovered': return '重做又错';
+    case 'awaiting_reattempt': return '还没重做';
+    default: return status;
+  }
+}
+
+/**
+ * Join a recovery row with the diagnostic finding for the SAME node, so the
+ * drill-down can say why the question kept losing points. Null when the
+ * question's node has no finding in the window — never a guessed reason.
+ */
+export function reasonForNode(
+  findings: DiagnosisView['findings'],
+  nodeId: string | null,
+): DiagnosisView['findings'][number] | null {
+  if (!nodeId) return null;
+  return findings.find((finding) => finding.nodeId === nodeId) ?? null;
+}
+
 /**
  * Whether the card has anything at all to show. Honesty rule: an unavailable
  * store or an empty projection renders nothing (the student already has the

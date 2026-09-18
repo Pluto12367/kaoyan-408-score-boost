@@ -12,6 +12,7 @@ import { RecommendationEvidence } from '../student/RecommendationEvidence';
 import { buildWrongBookNextLearningStep, NextLearningStepCard } from '../student/NextLearningStepCard';
 import { PriorityReviewCard } from './components/PriorityReviewCard';
 import { RecentMistakes } from './components/RecentMistakes';
+import { LossReasonDrilldown } from './components/LossReasonDrilldown';
 import { ReviewHero } from './components/ReviewHero';
 import { ReviewQueue } from './components/ReviewQueue';
 import { WeakKnowledgeList } from './components/WeakKnowledgeList';
@@ -251,6 +252,9 @@ export function MistakeWorkspace({ wrongQuestions, masteryMap, dueReviews, dueRe
       />
       <NextLearningStepCard step={wrongBookNextLearningStep} onNavigate={onNavigate} />
       </> : <ModuleInlineUnavailable title="错题摘要" resource={summary} onRetry={onRetrySummary} />}
+      {/* V13 PHASE 10b: per-question loss + reason drill-down; opens the existing
+          wrong-question detail. Self-fetching and silent when there is nothing. */}
+      <LossReasonDrilldown onOpenDetail={onOpenDetail} />
       <div className="wrong-review-loop-card">
         <div className="wrong-review-loop-head">
           <strong>复盘闭环</strong>

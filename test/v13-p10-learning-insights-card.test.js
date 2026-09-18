@@ -140,3 +140,34 @@ test('P10 slice is read-only: four GET endpoints, no write verbs, no mock fallba
   const home = readFileSync('apps/web/src/features/student/home/StudentHome.tsx', 'utf8');
   assert.ok(home.includes('<LearningInsightsCard'), 'the card must be mounted on the student home');
 });
+
+// ------------------------------------------------- PHASE 10b drill-down
+
+test('P10b view: recovery status labels and node→finding join stay honest', () => {
+  assert.equal(view.recoveryStatusLabel('recovered'), '已追回');
+  assert.equal(view.recoveryStatusLabel('not_recovered'), '重做又错');
+  assert.equal(view.recoveryStatusLabel('awaiting_reattempt'), '还没重做');
+
+  const findings = [
+    { nodeId: 'n1', reasonLabel: '计算错误', questionSubtypeLabel: 'OS PV 题', count: 4, observedLostScore: 8, confidence: 'medium', finding: '近 7 天…' },
+  ];
+  assert.equal(view.reasonForNode(findings, 'n1').reasonLabel, '计算错误');
+  assert.equal(view.reasonForNode(findings, 'n2'), null, 'no finding for the node → no reason (never guessed)');
+  assert.equal(view.reasonForNode(findings, null), null, 'unattributed question → no reason');
+});
+
+test('P10b drill-down is read-only, mounted in the wrong book, and links to the existing detail', () => {
+  const component = readFileSync('apps/web/src/features/mistakes/components/LossReasonDrilldown.tsx', 'utf8');
+  assert.ok(component.includes('fetchErrorDiagnosis') && component.includes('fetchScoreRecovery'),
+    'drill-down consumes the same two read-only projections');
+  assert.equal(/method:\s*'POST'|method:\s*'PATCH'|method:\s*'PUT'|method:\s*'DELETE'/.test(component), false,
+    'no writes from the drill-down');
+  assert.ok(component.includes('onOpenDetail('), 'rows open the EXISTING wrong-question detail');
+  assert.ok(component.includes('isStaticDemoMode()'), 'silent in the static demo');
+  assert.ok(component.includes('失分与错因暂时加载失败'), 'failed loads are stated explicitly');
+  assert.ok(component.includes('该题所属考点近 7 天没有可归因的错因证据'), 'missing findings are stated, never invented');
+
+  const workspace = readFileSync('apps/web/src/features/mistakes/MistakeWorkspace.tsx', 'utf8');
+  assert.ok(workspace.includes('<LossReasonDrilldown onOpenDetail={onOpenDetail} />'),
+    'the drill-down is mounted in the wrong book');
+});
