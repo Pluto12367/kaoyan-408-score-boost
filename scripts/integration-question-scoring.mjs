@@ -389,6 +389,11 @@ async function verifyAfterBoot() {
 async function runCleanup() {
     try {
       if (prisma && !process.env.KEEP_FIXTURES) {
+        // Invitation rows hold FKs to both the redeeming user and the creating
+        // admin: they must go first or the user deletes fail silently.
+        await prisma.invitationRedemption.deleteMany({ where: { user: { email: { endsWith: `${runId}@integration.test` } } } }).catch(() => {});
+        await prisma.invitationRedemption.deleteMany({ where: { user: { id: ids.admin } } }).catch(() => {});
+        await prisma.invitationCode.deleteMany({ where: { createdBy: { id: ids.admin } } }).catch(() => {});
         await prisma.user.deleteMany({ where: { email: { endsWith: `${runId}@integration.test` } } }).catch(() => {});
         await prisma.user.deleteMany({ where: { id: ids.admin } }).catch(() => {});
         await prisma.question.deleteMany({ where: { id: { contains: runId } } }).catch(() => {});
