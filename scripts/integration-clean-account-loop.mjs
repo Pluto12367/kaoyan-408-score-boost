@@ -102,7 +102,8 @@ async function seedBeforeBoot() {
     questionSubtype: 'OS_PV', maxScore: 2,
   });
   qA = `cal-q-a-${runId}`; qB = `cal-q-b-${runId}`; qC = `cal-q-c-${runId}`; qD = `cal-q-d-${runId}`;
-  for (const [id, difficulty] of [[qA, 'BASIC'], [qB, 'BASIC'], [qC, 'MEDIUM'], [qD, 'MEDIUM']]) {
+  const qE = `cal-q-e-${runId}`;
+  for (const [id, difficulty] of [[qA, 'BASIC'], [qB, 'BASIC'], [qC, 'MEDIUM'], [qD, 'MEDIUM'], [qE, 'MEDIUM']]) {
     await prisma.questionFamily.create({ data: { id: `cal-fam-${id}` } });
     await prisma.question.create({ data: question(id, difficulty) });
     await prisma.questionKnowledgePoint.create({ data: { questionId: id, knowledgePointId: ids.point } });
@@ -300,6 +301,30 @@ async function runJourney() {
   assert.equal(riskRow.retention != null, true, 'retention is computable from the canonical review state');
   assert.ok(riskRow.retention > 0.9, `fresh review ⇒ retention ≈1 (${riskRow.retention})`);
   record('Day3-consume', `forgetting-risk includes the node (risk=${riskRow.risk}, retention≈${riskRow.retention?.toFixed(2)})`);
+
+  // ─── SS32 — the state change must reach the NEXT prescription ─────────
+  // The Day-1 ladder prescribed 3 basic + 2 same-type questions. Prescription→
+  // task creation is Owner-gated (Gate 15), so the student follows the ladder
+  // MANUALLY: eight correct answers consolidate the node, which is exactly the
+  // behaviour the ladder asked for.
+  const day1Anchor = prescription.difficultyAnchor;
+  const day1BasicDifficulty = prescription.ladder.find((step) => step.stage === 'basic').difficulty;
+  for (let index = 0; index < 8; index += 1) {
+    await practice(index % 2 === 0 ? qB : qC, 'A');
+  }
+  const consolidated = await masteryRow();
+  assert.ok(consolidated.mastery > 0.8, `following the ladder consolidates the node (mastery ${consolidated.mastery.toFixed(4)})`);
+  const nextPrescription = await getJson(`${apiUrl}/coach/training-prescription?days=7`, ids.studentHeaders);
+  assert.equal(nextPrescription.storeAvailable, true);
+  assert.equal(nextPrescription.target.nodeId, ids.node, 'still targets the same diagnosed node');
+  assert.equal(day1Anchor, 'BASIC');
+  assert.equal(nextPrescription.difficultyAnchor, 'MEDIUM',
+    `state change reaches the NEXT prescription (anchor ${day1Anchor} → ${nextPrescription.difficultyAnchor}, mastery ${consolidated.mastery.toFixed(4)})`);
+  assert.equal(nextPrescription.ladder.find((step) => step.stage === 'basic').difficulty, 'MEDIUM',
+    'the basic step itself is re-anchored, not just a flag');
+  assert.notEqual(nextPrescription.difficultyAnchor, day1Anchor);
+  assert.notDeepEqual(nextPrescription.ladder, prescription.ladder, 'the ladder is not static across states');
+  record('Day3-prescription', `followed the Day-1 ladder (8 correct) → mastery ${consolidated.mastery.toFixed(4)} → NEXT prescription re-anchors ${day1Anchor}/${day1BasicDifficulty} → ${nextPrescription.difficultyAnchor} (SS32: state changes the next prescription)`);
 
   // ───────────────────────── Day 7 — paper + stage assessment ───────────
   const submission = await postJson(`${apiUrl}/papers/${ids.paper}/submit`, {

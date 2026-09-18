@@ -209,6 +209,24 @@ async function verifyAfterBoot() {
   assert.deepEqual(prescription.ladder.map((row) => row.order), [1, 2, 3, 4, 5]);
   record('prescription', 'ladder: basic 3 → same_type 2 → variant UNAVAILABLE → review 1d → retest 3d');
 
+  // Retention path (fixed 2026-09-18): the stored `retention` column only ever
+  // holds 1 (just reviewed) or null (never) — the service now derives retention
+  // LIVE from (lastReviewedAt, stabilityDays) with the shared formula, so a
+  // genuinely stale-but-learned state must flip reviewEmphasis on.
+  assert.equal(prescription.reviewEmphasis, false, 'never-reviewed node → no review emphasis');
+  await prisma.userKnowledgeMastery.update({
+    where: { userId_knowledgeNodeId: { userId: student.userId, knowledgeNodeId: ids.node } },
+    data: { lastReviewedAt: new Date(Date.now() - 30 * DAY), stabilityDays: 2 },
+  });
+  const stalePrescription = await getJson(
+    `${apiUrl}/coach/training-prescription?days=7&nodeId=${ids.node}&questionSubtype=OS_PV&reasonCode=calculation_error`,
+    student.headers,
+  );
+  assert.equal(stalePrescription.reviewEmphasis, true, 'stale review state (30d / 2d stability) turns review emphasis on');
+  const staleReviewStep = stalePrescription.ladder.find((row) => row.stage === 'review');
+  assert.match(staleReviewStep.label, /保持率偏低/, 'and the step label says why');
+  record('retention', 'stale-but-learned state flips reviewEmphasis (live estimateRetention, not the 1/null column)');
+
   // Honest absence: unknown node selector → EMPTY, nothing invented.
   const unknownNode = await getJson(`${apiUrl}/coach/training-prescription?nodeId=no-such-node`, student.headers);
   assert.equal(unknownNode.dataStatus, 'EMPTY');

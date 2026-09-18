@@ -2,6 +2,7 @@ import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   buildTrainingPrescription,
+  estimateRetention,
   REVIEW_INTERVAL_DAYS,
   type ErrorDiagnosisRow,
   type PrescriptionAvailability,
@@ -86,16 +87,32 @@ export class TrainingPrescriptionService {
     const [masteryRow, availability] = await Promise.all([
       this.prisma!.userKnowledgeMastery.findUnique({
         where: { userId_knowledgeNodeId: { userId, knowledgeNodeId: selected.nodeId } },
-        select: { mastery: true, recentAccuracy: true, retention: true, attempts: true },
+        // NOTE (2026-09-18): retention is computed LIVE from the review facts.
+        // The stored `retention` column only ever holds 1 (applyReview) or null
+        // (never reviewed) — see score-center/repository.ts:200-201 — so
+        // reading it made the review-emphasis branch unreachable in production.
+        // The shared `estimateRetention` formula is the same one
+        // forgetting-risk / the priority engine are meant to read.
+        select: { mastery: true, recentAccuracy: true, attempts: true, lastReviewedAt: true, stabilityDays: true },
       }),
       this.countAvailable(selected.nodeId, selected.questionSubtype),
     ]);
+    const masteryState = masteryRow
+      ? {
+          mastery: masteryRow.mastery,
+          recentAccuracy: masteryRow.recentAccuracy,
+          attempts: masteryRow.attempts,
+          retention: masteryRow.lastReviewedAt && masteryRow.stabilityDays != null
+            ? estimateRetention(masteryRow.lastReviewedAt, masteryRow.stabilityDays, now)
+            : null,
+        }
+      : null;
 
     const prescription = buildTrainingPrescription({
       now: generatedAt,
       windowDays: diagnosis.window.days,
       finding: selected,
-      masteryState: masteryRow ?? null,
+      masteryState,
       available: availability,
       // Honest capability probe: AI variants require a configured provider and
       // teacher confirmation before a student can answer them.
