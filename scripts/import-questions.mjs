@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PrismaClient, Difficulty, QuestionType, Subject } from '@prisma/client';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
+import { normalizeMaxScoreInput, normalizeQuestionSubtype } from '@kaoyan408/shared';
 
 const DEFAULT_FILE = 'kaoyan-408-content-starter/imports/starter-320-questions.csv';
 
@@ -255,6 +256,10 @@ function toQuestionWrite(question) {
     source: question.source,
     year: question.year,
     expectedTimeSec: question.expectedTimeSec,
+    // V13-P0-1 (Owner Decision v1.1 D2/D4/D5): 408 business type + exam price.
+    // Absent stays NULL (unknown/unpriced) — never guessed, never defaulted to 0.
+    questionSubtype: question.questionSubtype ?? null,
+    maxScore: question.maxScore ?? null,
   };
 }
 
@@ -307,6 +312,18 @@ function validateRows(inputRows) {
       throw new Error(`Line ${line}: expectedTimeSec must be an integer >= 30.`);
     }
 
+    // V13-P0-1 (Owner Decision v1.1 D2-D6): optional 题型子类/分值 columns.
+    // Absent → NULL (unknown/unpriced); invalid → hard reject (no guessing).
+    const subtypeInput = row.questionSubtype?.trim();
+    const questionSubtype = subtypeInput ? normalizeQuestionSubtype(subtypeInput) : null;
+    if (subtypeInput && !questionSubtype) {
+      throw new Error(`Line ${line}: unsupported question subtype "${subtypeInput}".`);
+    }
+    const maxScoreParsed = normalizeMaxScoreInput(row.maxScore);
+    if ('invalid' in maxScoreParsed && maxScoreParsed.invalid) {
+      throw new Error(`Line ${line}: maxScore must be a non-negative number.`);
+    }
+
     return {
       stem: row.stem.trim(),
       options,
@@ -318,6 +335,8 @@ function validateRows(inputRows) {
       source: row.source.trim(),
       year,
       expectedTimeSec,
+      questionSubtype: questionSubtype ?? null,
+      maxScore: 'invalid' in maxScoreParsed ? null : maxScoreParsed.value,
     };
   });
 }
