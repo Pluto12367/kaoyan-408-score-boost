@@ -37,6 +37,7 @@ import { LearningImpactService } from './learning-impact.service';
 import { PracticePatternService } from './practice-pattern.service';
 import { ErrorPatternService } from './error-pattern.service';
 import { ErrorDiagnosisService } from './error-diagnosis.service';
+import { TrainingPrescriptionService } from './training-prescription.service';
 
 @Controller()
 export class DailyBriefController {
@@ -60,6 +61,7 @@ export class DailyBriefController {
     private readonly practicePatterns?: PracticePatternService,
     private readonly errorPatterns?: ErrorPatternService,
     private readonly errorDiagnosis?: ErrorDiagnosisService,
+    private readonly trainingPrescription?: TrainingPrescriptionService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -547,6 +549,42 @@ export class DailyBriefController {
     }
     const parsed = days ? Number.parseInt(days, 10) : NaN;
     return this.errorDiagnosis.getErrorDiagnosis(userId, { days: Number.isNaN(parsed) ? undefined : parsed });
+  }
+
+  /** V13 PHASE 5 — executable training ladder for the top diagnostic finding. */
+  @Get('coach/training-prescription')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getTrainingPrescription(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('days') days?: string,
+    @Query('nodeId') nodeId?: string,
+    @Query('questionSubtype') questionSubtype?: string,
+    @Query('reasonCode') reasonCode?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    const parsed = days ? Number.parseInt(days, 10) : NaN;
+    if (!this.trainingPrescription) {
+      return {
+        userId,
+        generatedAt: new Date().toISOString(),
+        storeAvailable: false,
+        reasonUnavailable: 'store_unavailable',
+        dataStatus: 'EMPTY',
+        target: null,
+        reason: '存储不可用，无法生成处方。',
+        difficultyAnchor: null,
+        reviewEmphasis: false,
+        ladder: [],
+      };
+    }
+    return this.trainingPrescription.getTrainingPrescription(userId, {
+      days: Number.isNaN(parsed) ? undefined : parsed,
+      nodeId,
+      questionSubtype,
+      reasonCode,
+    });
   }
 
   private resolveUserId(user: UserProfile, viewUserId?: string): string {
