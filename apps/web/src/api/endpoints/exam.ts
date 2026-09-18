@@ -42,6 +42,8 @@ export interface ScoreHistory {
     sessionId: string; date: string; totalQuestions: number;
     correctCount: number; accuracyRate: number; totalTimeMin: number;
   }>;
+  /** PHASE 11 — pure increment: the losing dimension per exam (null without DB). */
+  lossTrend?: LossTrend | null;
 }
 
 export async function fetchExamReport(sessionId: string): Promise<ExamReport> {
@@ -61,6 +63,40 @@ export async function fetchExamDiagnosis(sessionId: string): Promise<ExamDiagnos
   const response = await fetchWithAuth(`${API_BASE_URL}/exam/diagnosis/${sessionId}`);
   if (!response.ok) throw new Error(`Exam diagnosis failed with ${response.status}`);
   return response.json() as Promise<ExamDiagnosis>;
+}
+
+export interface LossTrendNodeRow {
+  nodeId: string;
+  observedLostScore: number;
+  proxyLostScore: number;
+  questions: number;
+}
+
+export interface LossTrendRow {
+  sessionId: string;
+  date: string;
+  observedLostScore: number | null;
+  proxyLostScore: number | null;
+  pricedLossQuestions: number;
+  unpricedLossQuestions: number;
+  unattributedObservedLoss: number;
+  nodes: LossTrendNodeRow[];
+  observedLossDelta: number | null;
+  observedLossDeltaLabel: string | null;
+  deltaReason: string | null;
+}
+
+export interface LossTrend {
+  dataStatus: 'OK' | 'EMPTY';
+  summary: {
+    exams: number;
+    examsWithLoss: number;
+    totalObservedLostScore: number;
+    totalProxyLostScore: number;
+    latestObservedLostScore: number | null;
+    latestDelta: number | null;
+  };
+  rows: LossTrendRow[];
 }
 
 export async function fetchScoreHistory(): Promise<ScoreHistory> {

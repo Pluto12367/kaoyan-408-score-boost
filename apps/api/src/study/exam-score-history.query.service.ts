@@ -5,6 +5,12 @@ import { ExamScoreHistoryProjectionService } from './exam-score-history.projecti
 
 type ExamScoreHistoryAdapter = { toLegacyExamScoreHistory: typeof toLegacyExamScoreHistory };
 
+/**
+ * Slim by contract (test/exam-score-history-query.test.js): this service may
+ * only compose the projection with the adapter — no database client, no shared
+ * module, no calculations of its own. PHASE 11's loss section therefore lives
+ * in the dedicated ExamLossTrendService and is composed at the controller.
+ */
 @Injectable()
 export class ExamScoreHistoryQueryService {
   constructor(

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
+import { Optional, BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import type { AiTutorFollowUpMode, Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { ExamDiagnosisService } from './exam-diagnosis.service';
@@ -15,6 +15,7 @@ import { DashboardQueryService } from './dashboard-query.service';
 import { StageAssessmentQueryService } from './stage-assessment-query.service';
 import { AssessmentHistoryQueryService } from './assessment-history-query.service';
 import { ExamScoreHistoryQueryService } from './exam-score-history.query.service';
+import { ExamLossTrendService } from './exam-loss-trend.service';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { CompleteStudyTaskDto } from './dto/complete-study-task.dto';
 import {
@@ -70,6 +71,7 @@ export class StudyController {
     private readonly studentContextQuery: StudentContextQueryService,
     private readonly examDiagnosis: ExamDiagnosisService,
     private readonly adminDataQuality: AdminDataQualityService,
+    @Optional() private readonly examLossTrend?: ExamLossTrendService,
   ) {}
 
   @Post('recommendation-actions')
@@ -663,8 +665,14 @@ export class StudyController {
   @Get('exam/score-history')
   @UseGuards(RoleGuard)
   @Roles('student', 'teacher', 'admin')
-  getExamScoreHistory(@CurrentUser() user: UserProfile) {
-    return this.examScoreHistoryQuery.getExamScoreHistoryCompat(user.id);
+  async getExamScoreHistory(@CurrentUser() user: UserProfile) {
+    const history = await this.examScoreHistoryQuery.getExamScoreHistoryCompat(user.id);
+    // PHASE 11: the losing dimension is composed here so the query service stays
+    // slim by its architectural contract; the field is a pure increment.
+    const lossTrend = this.examLossTrend
+      ? await this.examLossTrend.getLossTrend(user.id, history.history)
+      : null;
+    return { ...history, lossTrend };
   }
 
   @Post('exam/papers/prepare')

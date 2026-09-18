@@ -60,6 +60,7 @@ export {
 export * from './score-anchor/score-anchor';
 export * from './score-anchor/score-loss';
 export * from './score-anchor/score-recovery';
+export * from './score-anchor/mock-loss-trend';
 export * from './transfer-probe/transfer-probe';
 export * from './transfer-probe/probe-content';
 export * from './guidance/index';

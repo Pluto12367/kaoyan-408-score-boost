@@ -186,7 +186,36 @@ export function ExamReportView({ sessionId, onClose }: Props) {
             ))}
           </div>
         </div>
-      ) : historyError ? (
+      ) : null}
+      {scoreHistory?.lossTrend && scoreHistory.lossTrend.dataStatus === 'OK' ? (
+        <div className="report-section" data-testid="exam-loss-trend">
+          <h4>失分趋势（观察口径）</h4>
+          <p className="task-status">
+            {scoreHistory.lossTrend.summary.latestDelta != null
+              ? `最近一次模考：${scoreHistory.lossTrend.summary.latestObservedLostScore ?? '—'} 分失分，${scoreHistory.lossTrend.summary.latestDelta < 0 ? `较上次少丢 ${Math.abs(scoreHistory.lossTrend.summary.latestDelta)} 分` : scoreHistory.lossTrend.summary.latestDelta > 0 ? `较上次多丢 ${scoreHistory.lossTrend.summary.latestDelta} 分` : '与上次持平'}（OBSERVED 口径，不含自评）`
+              : `最近一次模考：${scoreHistory.lossTrend.summary.latestObservedLostScore ?? '—'} 分失分（暂无相邻对比）`}
+          </p>
+          <ul className="exam-loss-list">
+            {scoreHistory.lossTrend.rows.slice(-5).reverse().map((row) => (
+              <li key={row.sessionId}>
+                <strong>{row.date}</strong>
+                <span>
+                  {row.observedLostScore == null
+                    ? '该次没有可用失分证据'
+                    : `OBSERVED 失 ${row.observedLostScore} 分${row.proxyLostScore ? ` · PROXY（自评）${row.proxyLostScore} 分` : ''}${row.unpricedLossQuestions > 0 ? ` · ${row.unpricedLossQuestions} 题未定价` : ''}`}
+                </span>
+                {row.observedLossDeltaLabel ? <small>{row.observedLossDeltaLabel}</small> : row.deltaReason ? <small>{row.deltaReason}</small> : null}
+                {row.nodes.length > 0 ? (
+                  <small className="exam-loss-nodes">
+                    主要在：{row.nodes.slice(0, 2).map((node) => `${node.nodeId}（${node.observedLostScore} 分）`).join('、')}
+                  </small>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {historyError ? (
         <div className="report-section module-inline-error">
           <p className="task-status">历史成绩暂不可用：{historyError}</p>
           <button type="button" className="secondary-action" onClick={() => void loadScoreHistory()}>重试成绩趋势</button>

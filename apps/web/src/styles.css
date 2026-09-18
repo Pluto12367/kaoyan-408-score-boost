@@ -7721,3 +7721,10 @@ html[data-theme="b"] .role-pill {
 .test-section-entry .task-status {
   margin: 0 0 12px;
 }
+
+/* PHASE 11 — mock-exam loss trend (token-only). */
+.exam-loss-list { display: grid; gap: 6px; list-style: none; margin: var(--space-2, 8px) 0 0; padding: 0; }
+.exam-loss-list li { border-top: 1px solid var(--border, rgba(0,0,0,0.06)); padding-top: var(--space-2, 8px); }
+.exam-loss-list strong { margin-right: var(--space-2, 8px); }
+.exam-loss-list small { color: var(--text-muted); display: block; font-size: 0.78rem; }
+.exam-loss-nodes { color: var(--text-secondary); }
