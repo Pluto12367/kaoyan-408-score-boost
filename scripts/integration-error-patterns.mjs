@@ -429,6 +429,7 @@ async function verifyAfterBoot() {
     await waitForHealth(activeApi);
     await verifyAfterBoot();
     console.log(`\nV13-A1 Error Patterns integration PASSED (${steps.length} steps)`);
+    await runCleanup();
     process.exit(0);
   } catch (error) {
     console.error('\nV13-A1 Error Patterns integration FAILED:', error?.message ?? error);
@@ -436,8 +437,16 @@ async function verifyAfterBoot() {
       console.error('--- API output tail ---');
       console.error(activeApi.getOutput().slice(-12000));
     }
+    await runCleanup();
     process.exit(1);
   } finally {
+    // Cleanup runs explicitly before each process.exit: process.exit()
+    // terminates the process synchronously and never executes finally.
+  }
+
+})();
+
+async function runCleanup() {
     try {
       if (prisma && !process.env.KEEP_FIXTURES) {
         await prisma.user.deleteMany({ where: { email: { endsWith: `${runId}@integration.test` } } }).catch(() => {});
@@ -453,4 +462,3 @@ async function verifyAfterBoot() {
       // cleanup is best-effort; never masks the run result
     }
   }
-})();

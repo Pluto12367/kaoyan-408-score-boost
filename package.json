@@ -80,6 +80,8 @@
     "test:integration:error-diagnosis": "node scripts/integration-error-diagnosis.mjs",
     "test:integration:training-prescription": "node scripts/integration-training-prescription.mjs",
     "test:integration:forgetting-risk": "node scripts/integration-forgetting-risk.mjs",
+    "test:integration:large-question-ingest": "node scripts/integration-large-question-ingest.mjs",
+    "audit:large-question-content": "node scripts/audit-large-question-content.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }

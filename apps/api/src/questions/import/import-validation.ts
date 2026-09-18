@@ -204,11 +204,14 @@ export class ImportValidationService {
       // V13-P0-1 (Owner D2-D7): subtype/maxScore ride in reviewMetadata — the
       // candidate table has no columns for them and D11 allows only the single
       // Question migration. Confirmation reads them back into the Question.
-      ...(value.questionSubtype || value.maxScore != null
+      ...(value.questionSubtype || value.maxScore != null || value.rubric
         ? {
             reviewMetadata: {
               questionSubtype: value.questionSubtype ?? null,
               maxScore: value.maxScore ?? null,
+              // PHASE 8: the F4 rubric rides reviewMetadata (same single-migration
+              // budget as subtype/maxScore); confirmation re-validates before write.
+              rubric: value.rubric ?? null,
             } as unknown as Prisma.InputJsonValue,
           }
         : {}),

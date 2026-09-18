@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsIn, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { ArrayMinSize, IsArray, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateQuestionDto {
   @IsString()
@@ -48,4 +48,13 @@ export class CreateQuestionDto {
   @IsNumber()
   @Min(0)
   maxScore?: number;
+
+  /**
+   * PHASE 8 (content toolchain) — F4 rubric-v1 scoring standard. Shape is
+   * validated in the service by the shared rubric validator; invalid rubrics
+   * are rejected (never silently stored). Absent on update = keep current.
+   */
+  @IsOptional()
+  @IsObject()
+  rubric?: Record<string, unknown>;
 }

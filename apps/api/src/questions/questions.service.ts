@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { Difficulty, QuestionType, type Prisma } from '@prisma/client';
-import { requireQuestionKnowledgePoint, resolveQuestionSubtypeInput, type Question } from '@kaoyan408/shared';
+import { parseRubricInput, requireQuestionKnowledgePoint, resolveQuestionSubtypeInput, type Question } from '@kaoyan408/shared';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
 import { CreateQuestionDto } from './dto/create-question.dto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -124,6 +124,12 @@ export class QuestionsService implements OnModuleInit {
     if (input.questionSubtype?.trim() && !questionSubtype) {
       throw new BadRequestException('questionSubtype must be one of the Owner-frozen 408 question subtype codes or labels');
     }
+    // PHASE 8 (content toolchain): rubrics enter through the shared parser —
+    // malformed or semantically invalid rubrics are rejected, never stored.
+    const rubricInput = parseRubricInput(input.rubric);
+    if (rubricInput.invalid) {
+      throw new BadRequestException(`rubric is invalid: ${rubricInput.errors?.join(' ') ?? 'unknown reason'}`);
+    }
     const questionId = this.persistenceEnabled
       ? await this.nextPersistedQuestionId()
       : nextQuestionId(this.questions);
@@ -162,6 +168,7 @@ export class QuestionsService implements OnModuleInit {
           expectedTimeSec: question.expectedTimeSec,
           questionSubtype: questionSubtype ?? null,
           maxScore: input.maxScore ?? null,
+          rubric: rubricInput.value ? (rubricInput.value as unknown as Prisma.InputJsonValue) : undefined,
           knowledgePoints: {
             create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
           },
@@ -203,6 +210,18 @@ export class QuestionsService implements OnModuleInit {
     if (input.questionSubtype?.trim() === '' ) {
       throw new BadRequestException('questionSubtype cannot be cleared by an empty string; omit the field to keep the current value');
     }
+    const rubricInput = parseRubricInput(input.rubric);
+    if (rubricInput.invalid) {
+      throw new BadRequestException(`rubric is invalid: ${rubricInput.errors?.join(' ') ?? 'unknown reason'}`);
+    }
+    // Rubrics are never silently dropped by a versioned update: omitted input
+    // carries the current version's rubric forward.
+    const existingRubric = this.persistenceEnabled
+      ? (await this.prisma.question.findUnique({ where: { id: questionId }, select: { rubric: true } }))?.rubric ?? null
+      : null;
+    const nextRubric = input.rubric === undefined
+      ? existingRubric
+      : (rubricInput.value as unknown as Prisma.InputJsonValue | null);
     const updatedQuestionId = this.persistenceEnabled
       ? await this.nextPersistedQuestionId()
       : current.id;
@@ -251,6 +270,7 @@ export class QuestionsService implements OnModuleInit {
             expectedTimeSec: question.expectedTimeSec,
             questionSubtype: questionSubtype ?? null,
             maxScore: input.maxScore ?? current.maxScore ?? null,
+            rubric: nextRubric ?? undefined,
             knowledgePoints: {
               create: question.knowledgePointIds.map((knowledgePointId) => ({ knowledgePointId })),
             },

@@ -280,6 +280,7 @@ async function verifyAfterBoot() {
     await waitForHealth(activeApi);
     await verifyAfterBoot();
     console.log(`\nV13-A2 Error Diagnosis integration PASSED (${steps.length} steps)`);
+    await runCleanup();
     process.exit(0);
   } catch (error) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -288,12 +289,24 @@ async function verifyAfterBoot() {
       console.error('--- API output ---');
       console.error(activeApi.getOutput());
     }
+    await runCleanup();
     process.exit(1);
   } finally {
+    // Cleanup runs explicitly before each process.exit: process.exit()
+    // terminates the process synchronously and never executes finally.
+  }
+
+})();
+
+async function runCleanup() {
     try {
       if (prisma && !process.env.KEEP_FIXTURES) {
         await prisma.user.deleteMany({ where: { email: { endsWith: `${runId}@integration.test` } } }).catch(() => {});
         await prisma.user.deleteMany({ where: { id: ids.admin } }).catch(() => {});
+        // Versioned updates mint sequential ids (q-NNN) that the run-id match
+        // cannot catch: delete the whole fixture families first, then any
+        // run-id leftovers, then the (now unreferenced) families.
+        await prisma.question.deleteMany({ where: { family: { id: { startsWith: 'ed-fam-' } } } }).catch(() => {});
         await prisma.question.deleteMany({ where: { id: { contains: runId } } }).catch(() => {});
         await prisma.question.deleteMany({ where: { id: ids.createdQuestion } }).catch(() => {});
         await prisma.paper.deleteMany({ where: { id: ids.paper } }).catch(() => {});
@@ -307,4 +320,3 @@ async function verifyAfterBoot() {
       // cleanup is best-effort
     }
   }
-})();

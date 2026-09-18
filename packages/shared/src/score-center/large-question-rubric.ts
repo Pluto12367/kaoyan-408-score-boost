@@ -214,6 +214,50 @@ export function scoreLargeQuestion(input: {
  * property order, and stable so a stored score can always be tied to the exact
  * revision it was produced under.
  */
+/**
+ * PHASE 8 (content toolchain) — rubric ingest parser.
+ *
+ * The single entry point for bringing an authored rubric into the system
+ * (API body, CSV column, review metadata). Accepts the object form or a JSON
+ * string; validates with the SAME `validateRubric` the scoring path uses.
+ * Absent/blank → null (nothing authored). Anything malformed or semantically
+ * invalid → explicit `invalid` with reasons — never silently stored.
+ */
+export interface RubricParseResult {
+  readonly value: QuestionRubric | null;
+  readonly invalid?: true;
+  readonly errors?: readonly string[];
+}
+
+export function parseRubricInput(value: unknown): RubricParseResult {
+  if (value == null) return { value: null };
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return { value: null };
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (error) {
+      return {
+        value: null,
+        invalid: true,
+        errors: [`评分标准不是合法 JSON：${error instanceof Error ? error.message : String(error)}`],
+      };
+    }
+    return validateParsedRubric(parsed);
+  }
+  return validateParsedRubric(value);
+}
+
+function validateParsedRubric(parsed: unknown): RubricParseResult {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+    return { value: null, invalid: true, errors: ['评分标准必须是对象（version / totalPoints / criteria）。'] };
+  }
+  const validation = validateRubric(parsed as QuestionRubric);
+  if (!validation.valid) return { value: null, invalid: true, errors: validation.errors };
+  return { value: parsed as QuestionRubric };
+}
+
 export function hashRubric(rubric: QuestionRubric): string {
   const payload = stableStringify({
     version: rubric.version,

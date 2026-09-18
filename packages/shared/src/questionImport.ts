@@ -4,6 +4,7 @@ import {
   resolveQuestionSubtypeInput,
   type QuestionSubtypeCode,
 } from './score-center/question-subtype';
+import { parseRubricInput, type QuestionRubric } from './score-center/large-question-rubric';
 
 export interface SourceRegion {
   x: number;
@@ -36,6 +37,8 @@ export interface CandidateQuestionDraft {
   questionSubtype?: QuestionSubtypeCode;
   /** V13-P0-1 (Owner D4/D5) — 408 exam max score. Absent = unpriced; 0 is a real zero (NULL ≠ 0). */
   maxScore?: number;
+  /** PHASE 8 (content toolchain) — F4 rubric-v1 scoring standard. Absent = none authored. */
+  rubric?: QuestionRubric;
   pageNumber?: number;
   sourceRegion?: SourceRegion;
   formulas: Array<{ latex: string; region?: SourceRegion }>;
@@ -195,6 +198,13 @@ export function normalizeCandidateDraft(
   if ('invalid' in parsedMaxScore && parsedMaxScore.invalid) {
     warning(issues, 'INVALID_MAX_SCORE', 'maxScore', '分值必须是 ≥0 的数字。', '填写该题在 408 考试中的最高可得分值，或留空（未定价）。');
   }
+  // PHASE 8 (content toolchain): the F4 rubric rides the same optional-column
+  // policy — validated by the shared rubric validator; malformed or
+  // semantically invalid rubrics are hard errors, never silently stored.
+  const parsedRubric = parseRubricInput(field(raw, '判分标准', 'rubric'));
+  if (parsedRubric.invalid) {
+    warning(issues, 'INVALID_RUBRIC', 'rubric', '评分标准无效。', parsedRubric.errors?.join(' ') || '请检查 version/totalPoints/criteria 的一致性。');
+  }
 
   if (issues.some((issue) => issue.severity === 'error')) return { issues };
 
@@ -211,6 +221,7 @@ export function normalizeCandidateDraft(
     knowledgePointIds,
     ...(parsedSubtype ? { questionSubtype: parsedSubtype } : {}),
     ...(!('invalid' in parsedMaxScore) && parsedMaxScore.value != null ? { maxScore: parsedMaxScore.value } : {}),
+    ...(parsedRubric.value ? { rubric: parsedRubric.value } : {}),
     formulas: formulas(field(raw, 'formulas')),
     assetIds: assetIds(field(raw, 'assetIds')),
     warnings: [],

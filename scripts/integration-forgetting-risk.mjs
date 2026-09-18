@@ -259,13 +259,22 @@ async function verifyAfterBoot() {
     await waitForHealth(activeApi);
     await verifyAfterBoot();
     console.log(`\nPHASE 7 Forgetting Risk integration PASSED (${steps.length} steps)`);
+    await runCleanup();
     process.exit(0);
   } catch (error) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     console.error('\nPHASE 7 Forgetting Risk integration FAILED:', error?.message ?? error);
     if (activeApi?.getOutput) console.error(activeApi.getOutput().slice(-8000));
+    await runCleanup();
     process.exit(1);
   } finally {
+    // Cleanup runs explicitly before each process.exit: process.exit()
+    // terminates the process synchronously and never executes finally.
+  }
+
+})();
+
+async function runCleanup() {
     try {
       if (prisma && !process.env.KEEP_FIXTURES) {
         await prisma.user.deleteMany({ where: { email: { endsWith: `${runId}@integration.test` } } }).catch(() => {});
@@ -281,4 +290,3 @@ async function verifyAfterBoot() {
       // cleanup is best-effort
     }
   }
-})();
