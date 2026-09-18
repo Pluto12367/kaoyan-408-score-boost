@@ -82,6 +82,7 @@
     "test:integration:forgetting-risk": "node scripts/integration-forgetting-risk.mjs",
     "test:integration:large-question-ingest": "node scripts/integration-large-question-ingest.mjs",
     "test:integration:clean-account-loop": "node scripts/integration-clean-account-loop.mjs",
+    "test:integration:four-subject-chain": "node scripts/integration-four-subject-chain.mjs",
     "test:integration:score-recovery": "node scripts/integration-score-recovery.mjs",
     "test:integration:mock-loss-trend": "node scripts/integration-mock-loss-trend.mjs",
     "audit:large-question-content": "node scripts/audit-large-question-content.mjs",

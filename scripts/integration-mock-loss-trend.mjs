@@ -218,6 +218,34 @@ async function runJourney(questions) {
   record('guards', 'legacy fields preserved + 401 verified');
 }
 
+/**
+ * FK-safe fixture cleanup (the hygiene fix, 2026-09-19): this suite ran with
+ * NO cleanup at all, leaking users/papers/questions per run (11 runs = 22
+ * users, 40+ questions of 'integration' residue in the test DB). Redemptions
+ * must go before users (they hold FKs to both the redeeming user and the
+ * creating admin); papers/questions/points/nodes/families follow.
+ */
+async function runCleanup() {
+  try {
+    if (prisma && !process.env.KEEP_FIXTURES) {
+      await prisma.invitationRedemption.deleteMany({ where: { user: { email: { endsWith: `${runId}@integration.test` } } } }).catch(() => {});
+      await prisma.invitationRedemption.deleteMany({ where: { user: { id: ids.admin } } }).catch(() => {});
+      await prisma.invitationCode.deleteMany({ where: { createdBy: { id: ids.admin } } }).catch(() => {});
+      await prisma.user.deleteMany({ where: { email: { endsWith: `${runId}@integration.test` } } }).catch(() => {});
+      await prisma.user.deleteMany({ where: { id: ids.admin } }).catch(() => {});
+      await prisma.paper.deleteMany({ where: { id: { in: [ids.paperA, ids.paperB] } } }).catch(() => {});
+      await prisma.question.deleteMany({ where: { id: { contains: `-${runId}` } } }).catch(() => {});
+      await prisma.questionFamily.deleteMany({ where: { id: { startsWith: `mlt-fam-mlt-q-` } } }).catch(() => {});
+      await prisma.knowledgePoint.deleteMany({ where: { id: ids.point } }).catch(() => {});
+      await prisma.knowledgeNode.deleteMany({ where: { id: ids.node } } ).catch(() => {});
+      await prisma.$disconnect();
+    }
+    if (activeApi) { await new Promise((r) => setTimeout(r, 800)); activeApi.kill(); }
+  } catch {
+    // cleanup is best-effort; never masks the run result
+  }
+}
+
 (async () => {
   activeApi = null;
   try {
@@ -228,11 +256,13 @@ async function runJourney(questions) {
     await waitForHealth(activeApi);
     await runJourney(questions);
     console.log(`\nPHASE 11 Mock loss trend integration PASSED (${steps.length} steps)`);
+    await runCleanup();
     process.exit(0);
   } catch (error) {
     await new Promise((resolve) => setTimeout(resolve, 1500));
     console.error('\nPHASE 11 Mock loss trend integration FAILED:', error?.message ?? error);
     if (activeApi?.getOutput) console.error(activeApi.getOutput().slice(-6000));
+    await runCleanup();
     process.exit(1);
   }
 })();
