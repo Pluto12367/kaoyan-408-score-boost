@@ -25,3 +25,4 @@ export * from './outcome-tracking';
 export * from './error-reason';
 export * from './error-patterns';
 export * from './question-subtype';
+export * from './error-diagnosis';

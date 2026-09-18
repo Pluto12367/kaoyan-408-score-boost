@@ -36,6 +36,7 @@ import { ReviewMasteryShadowService } from './review-mastery-shadow.service';
 import { LearningImpactService } from './learning-impact.service';
 import { PracticePatternService } from './practice-pattern.service';
 import { ErrorPatternService } from './error-pattern.service';
+import { ErrorDiagnosisService } from './error-diagnosis.service';
 
 @Controller()
 export class DailyBriefController {
@@ -58,6 +59,7 @@ export class DailyBriefController {
     private readonly reviewMasteryShadow?: ReviewMasteryShadowService,
     private readonly practicePatterns?: PracticePatternService,
     private readonly errorPatterns?: ErrorPatternService,
+    private readonly errorDiagnosis?: ErrorDiagnosisService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -519,6 +521,31 @@ export class DailyBriefController {
     }
     const parsed = days ? Number.parseInt(days, 10) : NaN;
     return this.errorPatterns.getErrorPatterns(userId, { days: Number.isNaN(parsed) ? undefined : parsed });
+  }
+
+  /** V13-A2 — "what to diagnose first": wrong evidence × ScoreLoss, prioritized. */
+  @Get('coach/error-diagnosis')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getErrorDiagnosis(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('days') days?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.errorDiagnosis) {
+      return {
+        userId,
+        generatedAt: new Date().toISOString(),
+        storeAvailable: false,
+        reason: 'store_unavailable',
+        window: { days: 7, from: null, to: null },
+        summary: { wrongCount: 0, observedLostScore: 0, proxyLostScore: 0, pricedQuestions: 0, unpricedQuestions: 0 },
+        rows: [],
+      };
+    }
+    const parsed = days ? Number.parseInt(days, 10) : NaN;
+    return this.errorDiagnosis.getErrorDiagnosis(userId, { days: Number.isNaN(parsed) ? undefined : parsed });
   }
 
   private resolveUserId(user: UserProfile, viewUserId?: string): string {

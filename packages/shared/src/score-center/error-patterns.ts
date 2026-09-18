@@ -66,6 +66,29 @@ export interface ErrorPatternRow {
   sources: ErrorPatternSource[];
 }
 
+/** The single bucket rule shared by every error-pattern/diagnosis projection. */
+export interface ErrorAttemptBucket {
+  nodeId: string;
+  reasonCode: ErrorReasonCode;
+  subtypeBucket: QuestionSubtypeCode | 'unknown';
+}
+
+/**
+ * V13-P0-1/A2 — the ONE place that decides how a wrong attempt is bucketed:
+ * node-attributed attempts only (node-less attempts are counted separately by
+ * callers), reason normalized to the controlled vocabulary (unknown →
+ * unclassified), subtype from the frozen dictionary (unknown stays unknown).
+ */
+export function bucketizeAttempt(attempt: ErrorPatternAttemptFact): ErrorAttemptBucket | null {
+  if (attempt.nodeId == null) return null;
+  const reasonCode = normalizeErrorReason(attempt.reasonRaw) ?? UNCLASSIFIED_ERROR_REASON_CODE;
+  const knownSubtype = (QUESTION_SUBTYPE_CODES as readonly string[]).includes(attempt.questionSubtype ?? '');
+  const subtypeBucket: QuestionSubtypeCode | 'unknown' = knownSubtype
+    ? (attempt.questionSubtype as QuestionSubtypeCode)
+    : 'unknown';
+  return { nodeId: attempt.nodeId, reasonCode, subtypeBucket };
+}
+
 export interface ErrorPatternsResult {
   window: { days: number; from: string; to: string };
   totals: {
@@ -141,18 +164,14 @@ export function buildErrorPatterns(input: BuildErrorPatternsInput): ErrorPattern
     reasonCounts.set(reasonCode, reasonAgg);
 
     if (attempt.nodeId == null) continue;
-    // Defensive: a fact subtype outside the frozen dictionary is treated as
-    // unknown, never as a sibling subtype.
-    const knownSubtype = (QUESTION_SUBTYPE_CODES as readonly string[]).includes(attempt.questionSubtype ?? '');
-    const subtypeBucket: QuestionSubtypeCode | 'unknown' = knownSubtype
-      ? (attempt.questionSubtype as QuestionSubtypeCode)
-      : 'unknown';
-    const key = `${attempt.nodeId}\u0000${reasonCode}\u0000${subtypeBucket}`;
+    const bucket = bucketizeAttempt(attempt);
+    if (!bucket) continue;
+    const key = `${bucket.nodeId}\u0000${bucket.reasonCode}\u0000${bucket.subtypeBucket}`;
     const row = rowsByKey.get(key) ?? {
       subject: attempt.subject,
-      nodeId: attempt.nodeId,
-      reasonCode,
-      questionSubtype: subtypeBucket,
+      nodeId: bucket.nodeId,
+      reasonCode: bucket.reasonCode,
+      questionSubtype: bucket.subtypeBucket,
       count: 0,
       recentCount: 0,
       lastOccurredAt: attempt.occurredAt,

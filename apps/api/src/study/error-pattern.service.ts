@@ -52,23 +52,12 @@ export class ErrorPatternService {
     return Math.min(ERROR_PATTERN_WINDOW.maxDays, Math.max(ERROR_PATTERN_WINDOW.minDays, Math.trunc(days)));
   }
 
-  async getErrorPatterns(userId: string, options: { days?: number } = {}, now: Date = new Date()): Promise<ErrorPatternsView> {
-    const generatedAt = now.toISOString();
-    const windowDays = this.clampDays(options.days);
-    if (!this.enabled) {
-      return {
-        userId,
-        generatedAt,
-        storeAvailable: false,
-        reason: 'store_unavailable',
-        window: { days: windowDays, from: new Date(now.getTime() - windowDays * 86_400_000).toISOString(), to: generatedAt },
-        totals: { wrongCount: 0, attributedCount: 0, nodeUnattributedCount: 0, unclassifiedCount: 0, bySubtype: {} },
-        attemptsCounted: 0,
-        patterns: [],
-        byReason: [],
-      };
-    }
-
+  /**
+   * V13-A2 — shared loader for wrong-attempt facts (practice + wrong review
+   * redos), enriched with subject/node/subtype/type. Public so the diagnosis
+   * projection composes the SAME evidence instead of duplicating loaders.
+   */
+  async loadAttemptFacts(userId: string, windowDays: number, now: Date): Promise<ErrorPatternAttemptFact[]> {
     const from = new Date(now.getTime() - windowDays * 86_400_000);
     const [records, reviewAttempts] = await Promise.all([
       this.prisma!.practiceRecord.findMany({
@@ -91,12 +80,13 @@ export class ErrorPatternService {
         ...reviewAttempts.map((row) => row.schedule.questionId),
       ]),
     ];
+    if (questionIds.length === 0) return [];
     const nodeByQuestion = await resolvePrimaryNodeByQuestion(this.prisma!, questionIds);
     const nodeIds = [...new Set([...nodeByQuestion.values()].map((resolved) => resolved.nodeId))];
     const [nodes, questions] = await Promise.all([
       this.prisma!.knowledgeNode.findMany({
         where: { id: { in: nodeIds } },
-        select: { id: true, subject: true, name: true },
+        select: { id: true, subject: true },
       }),
       this.prisma!.question.findMany({
         where: { id: { in: questionIds } },
@@ -107,42 +97,59 @@ export class ErrorPatternService {
     ]);
 
     const subjectByNode = new Map(nodes.map((node) => [node.id, node.subject]));
-    const nameByNode = new Map(nodes.map((node) => [node.id, node.name]));
     const typeByQuestion = new Map(questions.map((question) => [question.id, String(question.type)]));
     const subtypeByQuestion = new Map(questions.map((question) => [question.id, question.questionSubtype as string | null]));
 
-    const attempts: ErrorPatternAttemptFact[] = [
-      ...records.map((row) => {
-        const resolved = nodeByQuestion.get(row.questionId);
-        return {
-          source: 'auto' as const,
-          subject: resolved ? subjectByNode.get(resolved.nodeId) ?? null : null,
-          nodeId: resolved?.nodeId ?? null,
-          questionId: row.questionId,
-          questionType: typeByQuestion.get(row.questionId) ?? null,
-          questionSubtype: subtypeByQuestion.get(row.questionId) ?? null,
-          reasonRaw: row.mistakeReason,
-          occurredAt: row.submittedAt.toISOString(),
-        };
-      }),
-      ...reviewAttempts.map((row) => {
-        const questionId = row.schedule.questionId;
-        const resolved = nodeByQuestion.get(questionId);
-        return {
-          source: 'self_reported' as const,
-          subject: resolved ? subjectByNode.get(resolved.nodeId) ?? null : null,
-          nodeId: resolved?.nodeId ?? null,
-          questionId,
-          questionType: typeByQuestion.get(questionId) ?? null,
-          questionSubtype: subtypeByQuestion.get(questionId) ?? null,
-          reasonRaw: row.reportedReason,
-          occurredAt: row.reviewedAt.toISOString(),
-        };
-      }),
-    ];
+    const practiceFacts: ErrorPatternAttemptFact[] = records.map((row) => {
+      const resolved = nodeByQuestion.get(row.questionId);
+      return {
+        source: 'auto' as const,
+        subject: resolved ? subjectByNode.get(resolved.nodeId) ?? null : null,
+        nodeId: resolved?.nodeId ?? null,
+        questionId: row.questionId,
+        questionType: typeByQuestion.get(row.questionId) ?? null,
+        questionSubtype: subtypeByQuestion.get(row.questionId) ?? null,
+        reasonRaw: row.mistakeReason,
+        occurredAt: row.submittedAt.toISOString(),
+      };
+    });
+    const reviewFacts: ErrorPatternAttemptFact[] = reviewAttempts.map((row) => {
+      const questionId = row.schedule.questionId;
+      const resolved = nodeByQuestion.get(questionId);
+      return {
+        source: 'self_reported' as const,
+        subject: resolved ? subjectByNode.get(resolved.nodeId) ?? null : null,
+        nodeId: resolved?.nodeId ?? null,
+        questionId,
+        questionType: typeByQuestion.get(questionId) ?? null,
+        questionSubtype: subtypeByQuestion.get(questionId) ?? null,
+        reasonRaw: row.reportedReason,
+        occurredAt: row.reviewedAt.toISOString(),
+      };
+    });
+    return [...practiceFacts, ...reviewFacts];
+  }
+
+  async getErrorPatterns(userId: string, options: { days?: number } = {}, now: Date = new Date()): Promise<ErrorPatternsView> {
+    const generatedAt = now.toISOString();
+    const windowDays = this.clampDays(options.days);
+    if (!this.enabled) {
+      return {
+        userId,
+        generatedAt,
+        storeAvailable: false,
+        reason: 'store_unavailable',
+        window: { days: windowDays, from: new Date(now.getTime() - windowDays * 86_400_000).toISOString(), to: generatedAt },
+        totals: { wrongCount: 0, attributedCount: 0, nodeUnattributedCount: 0, unclassifiedCount: 0, bySubtype: {} },
+        attemptsCounted: 0,
+        patterns: [],
+        byReason: [],
+      };
+    }
+
+    const attempts = await this.loadAttemptFacts(userId, windowDays, now);
 
     const projection = buildErrorPatterns({ now: generatedAt, windowDays, attempts });
-    const patterns = projection.patterns.map((row) => ({ ...row, nodeName: nameByNode.get(row.nodeId) ?? null }));
-    return { userId, generatedAt, storeAvailable: true, ...projection, patterns };
+    return { userId, generatedAt, storeAvailable: true, ...projection, patterns: projection.patterns };
   }
 }

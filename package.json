@@ -77,6 +77,7 @@
     "test:integration:batch-submit-concurrency": "node scripts/integration-batch-submit-concurrency.mjs",
     "test:integration:error-patterns": "node scripts/integration-error-patterns.mjs",
     "test:integration:question-scoring": "node scripts/integration-question-scoring.mjs",
+    "test:integration:error-diagnosis": "node scripts/integration-error-diagnosis.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }
