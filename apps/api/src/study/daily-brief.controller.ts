@@ -541,7 +541,8 @@ export class DailyBriefController {
         reason: 'store_unavailable',
         window: { days: 7, from: null, to: null },
         summary: { wrongCount: 0, observedLostScore: 0, proxyLostScore: 0, pricedQuestions: 0, unpricedQuestions: 0 },
-        rows: [],
+        dataStatus: 'EMPTY',
+        findings: [],
       };
     }
     const parsed = days ? Number.parseInt(days, 10) : NaN;

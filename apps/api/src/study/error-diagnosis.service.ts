@@ -51,7 +51,8 @@ export class ErrorDiagnosisService {
         reason: 'store_unavailable',
         window: { days: windowDays, from: new Date(now.getTime() - windowDays * 86_400_000).toISOString(), to: generatedAt },
         summary: { wrongCount: 0, observedLostScore: 0, proxyLostScore: 0, pricedQuestions: 0, unpricedQuestions: 0 },
-        rows: [],
+        dataStatus: 'EMPTY',
+        findings: [],
       };
     }
 

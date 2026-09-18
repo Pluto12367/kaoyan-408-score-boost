@@ -52,12 +52,23 @@ export interface ErrorDiagnosisRow {
   count: number;
   recentCount: number;
   trend: 'up' | 'down' | 'flat' | 'no_data';
+  /**
+   * Task §8: repeated means the pattern PERSISTED across the two halves of the
+   * window (older half ≥1 AND recent half ≥1) — a same-half burst is not a
+   * repeated pattern. Time semantics are explicit, never count>1 guesswork.
+   */
   repeated: boolean;
   lastOccurredAt: string;
   observedLostScore: number;
   proxyLostScore: number;
   pricedCount: number;
   unpricedCount: number;
+  /** Task §8: sample-size confidence — high ≥5, medium ≥3, low otherwise. */
+  confidence: 'high' | 'medium' | 'low';
+  /** Task §7: deterministic, evidence-only statement (no ability inference). */
+  finding: string;
+  /** Task §8 traceability: up to 5 distinct question ids behind this finding. */
+  sampleQuestionIds: string[];
   sources: ErrorPatternSource[];
   priorityRank: number;
 }
@@ -71,7 +82,9 @@ export interface ErrorDiagnosisResult {
     pricedQuestions: number;
     unpricedQuestions: number;
   };
-  rows: ErrorDiagnosisRow[];
+  /** 'OK' when at least one wrong evidence exists in the window; 'EMPTY' otherwise. */
+  dataStatus: 'OK' | 'EMPTY';
+  findings: ErrorDiagnosisRow[];
 }
 
 interface MutableDiagnosisRow {
@@ -86,6 +99,7 @@ interface MutableDiagnosisRow {
   proxyLostScore: number;
   pricedQuestions: Set<string>;
   unpricedQuestions: Set<string>;
+  questionIds: string[];
   sources: Set<ErrorPatternSource>;
 }
 
@@ -136,12 +150,14 @@ export function buildErrorDiagnosis(input: BuildErrorDiagnosisInput): ErrorDiagn
       proxyLostScore: 0,
       pricedQuestions: new Set<string>(),
       unpricedQuestions: new Set<string>(),
+      questionIds: [],
       sources: new Set<ErrorPatternSource>(),
     };
     row.count += 1;
     if (occurredMs >= midpointMs) row.recentCount += 1;
     if (attempt.occurredAt > row.lastOccurredAt) row.lastOccurredAt = attempt.occurredAt;
     if (attempt.subject != null && row.subject == null) row.subject = attempt.subject;
+    if (!row.questionIds.includes(attempt.questionId)) row.questionIds.push(attempt.questionId);
     if (!row.pricedQuestions.has(attempt.questionId) && !row.unpricedQuestions.has(attempt.questionId)) {
       row.observedLostScore += observed;
       row.proxyLostScore += proxy;
@@ -152,29 +168,41 @@ export function buildErrorDiagnosis(input: BuildErrorDiagnosisInput): ErrorDiagn
     rowsByKey.set(key, row);
   }
 
-  const rows: ErrorDiagnosisRow[] = [...rowsByKey.values()].map((row) => {
+  const findings: ErrorDiagnosisRow[] = [...rowsByKey.values()].map((row) => {
     const olderCount = row.count - row.recentCount;
     const trend: ErrorDiagnosisRow['trend'] =
       olderCount === 0 ? 'no_data'
         : row.recentCount > olderCount ? 'up'
           : row.recentCount < olderCount ? 'down'
             : 'flat';
+    const repeated = olderCount >= 1 && row.recentCount >= 1;
+    const confidence: ErrorDiagnosisRow['confidence'] = row.count >= 5 ? 'high' : row.count >= 3 ? 'medium' : 'low';
+    const subtypeLabel = row.questionSubtype === 'unknown' ? '未知题型' : questionSubtypeLabel(row.questionSubtype);
+    const reasonLabel = ERROR_REASON_LABELS[row.reasonCode];
+    let finding = `近 ${input.windowDays} 天「${subtypeLabel}·${reasonLabel}」错误 ${row.count} 次`;
+    if (repeated) finding += '，跨周期重复出现';
+    if (row.observedLostScore > 0) finding += `，OBSERVED 失 ${row.observedLostScore} 分`;
+    if (row.proxyLostScore > 0) finding += `，PROXY 失 ${row.proxyLostScore} 分（自评口径）`;
+    finding += '。';
     return {
       subject: row.subject,
       nodeId: row.nodeId,
       reasonCode: row.reasonCode,
-      reasonLabel: ERROR_REASON_LABELS[row.reasonCode],
+      reasonLabel,
       questionSubtype: row.questionSubtype,
-      questionSubtypeLabel: row.questionSubtype === 'unknown' ? '未知题型' : questionSubtypeLabel(row.questionSubtype),
+      questionSubtypeLabel: subtypeLabel,
       count: row.count,
       recentCount: row.recentCount,
       trend,
-      repeated: row.count >= 2,
+      repeated,
       lastOccurredAt: row.lastOccurredAt,
       observedLostScore: row.observedLostScore,
       proxyLostScore: row.proxyLostScore,
       pricedCount: row.pricedQuestions.size,
       unpricedCount: row.unpricedQuestions.size,
+      confidence,
+      finding,
+      sampleQuestionIds: row.questionIds.slice(0, 5),
       sources: [...row.sources].sort(),
       priorityRank: 0,
     };
@@ -185,7 +213,7 @@ export function buildErrorDiagnosis(input: BuildErrorDiagnosisInput): ErrorDiagn
     || left.reasonCode.localeCompare(right.reasonCode)
     || left.questionSubtype.localeCompare(right.questionSubtype));
 
-  rows.forEach((row, index) => { row.priorityRank = index + 1; });
+  findings.forEach((row, index) => { row.priorityRank = index + 1; });
 
   return {
     window: {
@@ -193,6 +221,7 @@ export function buildErrorDiagnosis(input: BuildErrorDiagnosisInput): ErrorDiagn
       from: new Date(fromMs).toISOString(),
       to: new Date(toMs).toISOString(),
     },
+    dataStatus: wrongCount > 0 ? 'OK' : 'EMPTY',
     summary: {
       wrongCount,
       observedLostScore,
@@ -200,6 +229,6 @@ export function buildErrorDiagnosis(input: BuildErrorDiagnosisInput): ErrorDiagn
       pricedQuestions: pricedQuestions.size,
       unpricedQuestions: unpricedQuestions.size,
     },
-    rows,
+    findings,
   };
 }

@@ -229,35 +229,41 @@ async function verifyAfterBoot() {
   // Controlled self-report on the SAME priced question → a second bucket
   // (method_error) whose loss joins by question.
   await postJson(`${apiUrl}/wrong-questions/${qPriced}/reason`, {
-    controlledReason: 'method_error', redoCorrect: false, timeSpentSec: 20,
+    controlledReason: 'calculation_error', redoCorrect: false, timeSpentSec: 20,
     idempotencyKey: `ed-report-${runId}`,
   }, studentHeaders);
-  record('report', 'self-reported method_error on the priced question (second bucket)');
+  record('report', 'self-reported calculation_error on the priced question (task §21 mandated example)');
 
   const diagnosis = await getJson(`${apiUrl}/coach/error-diagnosis?days=7`, studentHeaders);
   assert.equal(diagnosis.storeAvailable, true);
+  assert.equal(diagnosis.dataStatus, 'OK');
   assert.equal(diagnosis.summary.wrongCount, 4);
   assert.equal(diagnosis.summary.observedLostScore, 2, 'summary dedupes loss by question (2, not 4 across buckets)');
   assert.equal(diagnosis.summary.proxyLostScore, 6);
   assert.equal(diagnosis.summary.pricedQuestions, 2);
   assert.equal(diagnosis.summary.unpricedQuestions, 1);
 
-  const bucket = (subtype, reason) => diagnosis.rows.find((row) => row.questionSubtype === subtype && row.reasonCode === reason);
+  const findings = diagnosis.findings;
+  const bucket = (subtype, reason) => findings.find((row) => row.questionSubtype === subtype && row.reasonCode === reason);
   // 30s on a 60s question is "too fast" → auto label reading_error (审题错误 heuristic).
   const priced = bucket('OS_PV', 'reading_error');
   assert.ok(priced && priced.observedLostScore === 2 && priced.pricedCount === 1, 'priced bucket: OBSERVED loss 2');
-  const reported = bucket('OS_PV', 'method_error');
-  assert.ok(reported && reported.observedLostScore === 2 && reported.sources.includes('self_reported'),
-    'same question through its self-report bucket honestly carries its loss');
+  // Task §21 mandated example: OS + OS_PV + calculation_error as its OWN finding.
+  const calculation = bucket('OS_PV', 'calculation_error');
+  assert.ok(calculation && calculation.observedLostScore === 2 && calculation.sources.includes('self_reported'),
+    'self-reported calculation_error forms an independent OS_PV finding');
+  assert.notEqual(calculation.priorityRank, priced.priorityRank, 'same subtype, different reason → separate findings');
   const algoProxy = bucket('ALGORITHM', 'time_insufficient');
   assert.ok(algoProxy && algoProxy.proxyLostScore === 6 && algoProxy.observedLostScore === 0,
     'comprehensive self-score stays PROXY and separate');
-  const unknownBucket = diagnosis.rows.find((row) => row.questionSubtype === 'unknown');
+  // Unknown subtype must NOT pollute the known OS_PV findings.
+  const unknownBucket = findings.find((row) => row.questionSubtype === 'unknown');
   assert.ok(unknownBucket && unknownBucket.count === 1 && unknownBucket.observedLostScore === 0,
-    'unpriced wrong counted with zero loss value (NULL ≠ 0)');
-  assert.equal(diagnosis.rows[0].priorityRank, 1);
-  assert.deepEqual(diagnosis.rows.map((row) => row.priorityRank), diagnosis.rows.map((_, index) => index + 1));
-  record('diagnosis', `4 buckets, ranks 1..${diagnosis.rows.length}; OBSERVED/PROXY/unpriced separated; summary deduped`);
+    'unpriced wrong counted with zero loss value (NULL ≠ 0), isolated from OS_PV rows');
+  assert.equal(findings[0].priorityRank, 1);
+  assert.deepEqual(findings.map((row) => row.priorityRank), findings.map((_, index) => index + 1));
+  assert.equal(findings[0].dataStatus, undefined, 'dataStatus lives on the envelope, not per finding');
+  record('diagnosis', `${findings.length} findings incl. OS_PV×calculation_error; unknown isolated; summary deduped`);
 
   const anon = await fetch(`${apiUrl}/coach/error-diagnosis`);
   assert.equal(anon.status, 401);
