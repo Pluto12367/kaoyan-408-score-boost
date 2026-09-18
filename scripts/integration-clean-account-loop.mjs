@@ -208,9 +208,17 @@ async function runJourney() {
   }, ids.studentHeaders);
   const onboarding = await getJson(`${apiUrl}/onboarding/status`, ids.studentHeaders);
   assert.equal(onboarding.completed, true, 'onboarding is completed');
+  // The endpoint's field is `priorityTasks` (legacy DTO name). A clean account
+  // MUST receive today's scheduled work — assert it positively instead of
+  // reading a non-existent key (the 2026-09-18 investigation).
   const plan = await getJson(`${apiUrl}/today/plan`, ids.studentHeaders);
-  const planTasks = plan?.tasks ?? [];
-  record('Day0', `registered + onboarding complete; today/plan tasks=${planTasks.length}${planTasks.length === 0 ? ' (CONTENT/GENERATION GAP — honestly recorded, not fabricated)' : ''}`);
+  const planTasks = plan?.priorityTasks ?? [];
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+  assert.ok(planTasks.length > 0, 'a clean account receives work for today on Day 0');
+  assert.ok(planTasks.every((task) => task.scheduledDate === today),
+    `every Day-0 task is scheduled for today (${today}); got ${[...new Set(planTasks.map((task) => task.scheduledDate))].join(',')}`);
+  assert.equal(plan?.summary?.totalTasks, planTasks.length, 'summary.totalTasks matches the returned tasks');
+  record('Day0', `registered + onboarding complete; today/plan carries ${planTasks.length} tasks scheduled for ${today} (summary.totalTasks=${plan.summary.totalTasks})`);
 
   // Baseline: no ability state, no evidence.
   assert.equal(await masteryRow(), null, 'clean account starts with no mastery row');
@@ -326,7 +334,7 @@ async function runJourney() {
       `sub-60 assessment extends the foundation window (remainingDays ${profileBefore.remainingDays} → ${profileAfter.remainingDays})`);
     record('Day7-assessment', `stage assessment: score=0 → stage=${stageResult.adjustment.stage}, remainingDays ${profileBefore.remainingDays}→${profileAfter.remainingDays} (assessment changed the plan inputs)`);
     const planAfterAssessment = await getJson(`${apiUrl}/today/plan`, ids.studentHeaders);
-    record('Day7-plan', `plan regenerated along the adjusted profile (tasks=${(planAfterAssessment?.tasks ?? []).length})`);
+    record('Day7-plan', `plan regenerated along the adjusted profile (today tasks=${(planAfterAssessment?.priorityTasks ?? []).length})`);
   } else {
     record('Day7-assessment', 'NO_CONTENT: stage assessment selector returned no questions for this account (honest content/threshold gap, not fabricated)');
   }
