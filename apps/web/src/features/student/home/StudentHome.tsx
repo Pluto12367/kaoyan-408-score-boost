@@ -18,6 +18,7 @@ import { useDashboardViewModel } from './useDashboardViewModel';
 import { DashboardHero } from './components/DashboardHero';
 import { DailyBriefCard } from './components/DailyBriefCard';
 import { ProactiveCoachCard } from './components/ProactiveCoachCard';
+import { LearningInsightsCard } from './components/LearningInsightsCard';
 import { StudentStateCard } from './components/StudentStateCard';
 import { TodayMission } from './components/TodayMission';
 import { AIInsightCard } from './components/AIInsightCard';
@@ -167,6 +168,9 @@ export function StudentHome({
         {/* G1.7: the transfer re-test lives on the learning path, not only in a
             report tab. It stays silent when the feature is off or nothing is due. */}
         <TransferProbeCard onNavigate={onNavigate} mount="today" />
+        {/* V13 PHASE 10: prescription + forgetting + recovery, straight from the
+            four read-only projections; silent when empty, explicit when failed. */}
+        <LearningInsightsCard onNavigate={onNavigate} />
       </section>
 
       {/* ---- CONTEXT: collapsed by default ---- */}

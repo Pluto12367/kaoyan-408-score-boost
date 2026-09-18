@@ -326,6 +326,27 @@ async function runJourney() {
   assert.notDeepEqual(nextPrescription.ladder, prescription.ladder, 'the ladder is not static across states');
   record('Day3-prescription', `followed the Day-1 ladder (8 correct) → mastery ${consolidated.mastery.toFixed(4)} → NEXT prescription re-anchors ${day1Anchor}/${day1BasicDifficulty} → ${nextPrescription.difficultyAnchor} (SS32: state changes the next prescription)`);
 
+  // ─── PHASE 10 — the fields the student card READS must exist live ─────
+  // The card renders prescription ladder / forgetting rows / recovery rows /
+  // finding confidence. Pin those exact paths against the LIVE responses so a
+  // backend rename cannot silently blank the student surface.
+  const liveDiagnosis = await getJson(`${apiUrl}/coach/error-diagnosis?days=7`, ids.studentHeaders);
+  const liveFinding = liveDiagnosis.findings[0];
+  assert.ok(liveFinding && typeof liveFinding.confidence === 'string' && typeof liveFinding.finding === 'string',
+    'card reads diagnosis.findings[].confidence/finding');
+  assert.ok(['high', 'medium', 'low'].includes(liveFinding.confidence));
+  const livePrescription = await getJson(`${apiUrl}/coach/training-prescription?days=7`, ids.studentHeaders);
+  const liveStep = livePrescription.ladder[0];
+  for (const key of ['label', 'status', 'questionCount', 'difficulty', 'minutes', 'dueInDays', 'limitedByContent']) {
+    assert.ok(key in liveStep, `card reads prescription.ladder[].${key}`);
+  }
+  const liveForgetting = await getJson(`${apiUrl}/coach/forgetting-risk`, ids.studentHeaders);
+  const liveRisk = liveForgetting.rows[0];
+  for (const key of ['nodeName', 'risk', 'retention', 'daysUntilDue', 'finding']) {
+    assert.ok(key in liveRisk, `card reads forgetting.rows[].${key}`);
+  }
+  record('phase10-contract', 'live responses carry every field the student card reads (diagnosis/prescription/forgetting)');
+
   // ───────────────────────── Day 7 — paper + stage assessment ───────────
   const submission = await postJson(`${apiUrl}/papers/${ids.paper}/submit`, {
     answers: [
@@ -340,6 +361,18 @@ async function runJourney() {
   const pricedLosses = lossRows.filter((row) => row.lostScore != null);
   assert.ok(pricedLosses.length > 0, 'ScoreLoss coverage > 0 (priced evidence exists)');
   record('Day7-score', `paper submitted → ${lossRows.length} loss rows, ${pricedLosses.length} with OBSERVED loss (coverage > 0)`);
+
+  // PHASE 10 — the recovery fields the student card reads, now that loss
+  // evidence exists (pinned against the LIVE response).
+  const liveRecovery = await getJson(`${apiUrl}/coach/score-recovery?days=30`, ids.studentHeaders);
+  const liveRecoveryRow = liveRecovery.rows[0];
+  for (const key of ['questionId', 'status', 'observedLossOutstanding', 'reattemptCount']) {
+    assert.ok(liveRecoveryRow && key in liveRecoveryRow, `card reads recovery.rows[].${key}`);
+  }
+  assert.ok(typeof liveRecovery.summary.recoveredQuestions === 'number'
+    && typeof liveRecovery.summary.observedLossOutstanding === 'number',
+    'card reads recovery.summary counts');
+  record('phase10-recovery-contract', `card fields present on live recovery (${liveRecovery.summary.questions} questions, outstanding ${liveRecovery.summary.observedLossOutstanding})`);
 
   // Stage assessment: the legacy path returns its result + adjustment, and the
   // adjustment persists into the student profile (the system's own write) —

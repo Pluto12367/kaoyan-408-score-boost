@@ -203,3 +203,16 @@
 
 .dashboard-task-sorting { color: var(--text-muted); display: block; font-size: 0.78rem; }
 
+/* V13 PHASE 10 — learning insights (prescription / forgetting / recovery).
+   Pure tokens: colours come from the active theme, never hex literals. */
+.learning-insights-section { display: grid; gap: var(--space-4, 16px); }
+.learning-insights-block { border: 1px solid var(--border, rgba(0,0,0,0.08)); border-radius: 10px; padding: var(--space-3, 12px); }
+.learning-insights-reason { color: var(--text-secondary); font-size: 0.85rem; margin: var(--space-2, 8px) 0; }
+.learning-insights-ladder { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.learning-insights-step { align-items: baseline; display: flex; gap: var(--space-2, 8px); }
+.learning-insights-step small { color: var(--text-muted); }
+.learning-insights-step.status-unavailable, .learning-insights-step.status-no_content { opacity: 0.72; }
+.learning-insights-list { display: grid; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.learning-insights-list li { align-items: flex-start; display: flex; gap: var(--space-2, 8px); }
+.learning-insights-list small { color: var(--text-muted); display: block; font-size: 0.78rem; }
+.learning-insights-go { align-items: center; background: none; border: none; color: var(--text-secondary); cursor: pointer; display: inline-flex; font-size: 0.8rem; gap: 2px; margin-top: var(--space-2, 8px); padding: 0; }
