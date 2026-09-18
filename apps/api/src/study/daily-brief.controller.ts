@@ -39,6 +39,7 @@ import { ErrorPatternService } from './error-pattern.service';
 import { ErrorDiagnosisService } from './error-diagnosis.service';
 import { TrainingPrescriptionService } from './training-prescription.service';
 import { ForgettingRiskService } from './forgetting-risk.service';
+import { ScoreRecoveryService } from './score-recovery.service';
 
 @Controller()
 export class DailyBriefController {
@@ -64,6 +65,7 @@ export class DailyBriefController {
     private readonly errorDiagnosis?: ErrorDiagnosisService,
     private readonly trainingPrescription?: TrainingPrescriptionService,
     private readonly forgettingRisk?: ForgettingRiskService,
+    private readonly scoreRecovery?: ScoreRecoveryService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -587,6 +589,32 @@ export class DailyBriefController {
       questionSubtype,
       reasonCode,
     });
+  }
+
+  /** PHASE 9 — "失分追回来了吗": loss evidence × re-attempt outcomes (read-only). */
+  @Get('coach/score-recovery')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getScoreRecovery(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('days') days?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.scoreRecovery) {
+      return {
+        userId,
+        generatedAt: new Date().toISOString(),
+        storeAvailable: false,
+        reason: 'store_unavailable',
+        dataStatus: 'EMPTY',
+        summary: { questions: 0 },
+        rows: [],
+        nodes: [],
+      };
+    }
+    const parsed = days ? Number.parseInt(days, 10) : NaN;
+    return this.scoreRecovery.getScoreRecovery(userId, { days: Number.isNaN(parsed) ? undefined : parsed });
   }
 
   /** PHASE 7 — "会了但快忘了": decay risk over learned nodes (read-only). */

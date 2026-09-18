@@ -35,6 +35,9 @@ const jwtSecret = 'integration-question-scoring-secret-0123456789';
 process.env.DATABASE_URL = databaseUrl;
 
 const runId = randomUUID().slice(0, 8);
+// Family cleanup is scoped to this run: versioned PATCH rows and POST-created
+// questions mint ids/families the run-id match cannot see.
+const runStartedAt = new Date();
 const DAY = 86_400_000;
 const password = 'Question-Scoring-Integration-Password-1';
 
@@ -401,7 +404,12 @@ async function runCleanup() {
         await prisma.paper.deleteMany({ where: { id: ids.paper } }).catch(() => {});
         await prisma.knowledgePoint.deleteMany({ where: { id: ids.pointOs } }).catch(() => {});
         await prisma.knowledgeNode.deleteMany({ where: { id: ids.nodeOs } }).catch(() => {});
+        await prisma.question.deleteMany({ where: { family: { id: { startsWith: 'qs-fam-' } } } }).catch(() => {});
+        await prisma.questionFamily.deleteMany({ where: { id: { startsWith: 'qs-fam-' } } }).catch(() => {});
         await prisma.questionFamily.deleteMany({ where: { id: ids.family } }).catch(() => {});
+        // Orphan-only, run-scoped: removes the cuid family minted by POST
+        // /questions without touching any family that still holds questions.
+        await prisma.questionFamily.deleteMany({ where: { createdAt: { gte: runStartedAt }, versions: { none: {} } } }).catch(() => {});
         await prisma.$disconnect();
       }
       if (activeApi) { await new Promise((r) => setTimeout(r, 800)); activeApi.kill(); }
