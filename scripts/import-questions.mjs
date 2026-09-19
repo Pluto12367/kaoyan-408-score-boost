@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { PrismaClient, Difficulty, QuestionType, Subject } from '@prisma/client';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
-import { normalizeMaxScoreInput, normalizeQuestionSubtype } from '@kaoyan408/shared';
+import { normalizeMaxScoreInput, normalizeQuestionSubtype, parseRubricInput } from '@kaoyan408/shared';
 
 const DEFAULT_FILE = 'kaoyan-408-content-starter/imports/starter-320-questions.csv';
 
@@ -260,6 +260,9 @@ function toQuestionWrite(question) {
     // Absent stays NULL (unknown/unpriced) — never guessed, never defaulted to 0.
     questionSubtype: question.questionSubtype ?? null,
     maxScore: question.maxScore ?? null,
+    // V13 PHASE 8: versioned rubric, already validated by the shared parser.
+    // Absent stays null — a question without an authored rubric is not scored.
+    rubric: question.rubric ?? null,
   };
 }
 
@@ -270,15 +273,26 @@ function validateRows(inputRows) {
 
   return inputRows.map((row, index) => {
     const line = index + 2;
-    const required = ['stem', 'options', 'answer', 'analysis', 'knowledgePointIds', 'difficulty', 'type', 'source'];
+    // V13 PHASE 8 (content toolchain): comprehensive questions are graded by
+    // rubric / self-score, not by an answer letter — options and answer are
+    // their optional fields (the API stores '作答区' + ''). Every other
+    // required field and ALL hard validations below stay type-independent.
+    const type = typeMap.get(row.type?.trim() ?? '');
+    if (!type) {
+      throw new Error(`Line ${line}: unsupported question type "${row.type}".`);
+    }
+    const isComprehensive = type === QuestionType.COMPREHENSIVE;
+    const required = isComprehensive
+      ? ['stem', 'analysis', 'knowledgePointIds', 'difficulty', 'type', 'source']
+      : ['stem', 'options', 'answer', 'analysis', 'knowledgePointIds', 'difficulty', 'type', 'source'];
     for (const field of required) {
       if (!row[field]?.trim()) {
         throw new Error(`Line ${line}: missing required field "${field}".`);
       }
     }
 
-    const options = row.options.split('|').map((option) => option.trim()).filter(Boolean);
-    if (options.length < 2) {
+    const options = (row.options ?? '').split('|').map((option) => option.trim()).filter(Boolean);
+    if (!isComprehensive && options.length < 2) {
       throw new Error(`Line ${line}: options must contain at least two entries separated by "|".`);
     }
 
@@ -295,11 +309,6 @@ function validateRows(inputRows) {
     const difficulty = difficultyMap.get(row.difficulty.trim());
     if (!difficulty) {
       throw new Error(`Line ${line}: unsupported difficulty "${row.difficulty}".`);
-    }
-
-    const type = typeMap.get(row.type.trim());
-    if (!type) {
-      throw new Error(`Line ${line}: unsupported question type "${row.type}".`);
     }
 
     const year = row.year?.trim() ? Number(row.year) : null;
@@ -324,10 +333,20 @@ function validateRows(inputRows) {
       throw new Error(`Line ${line}: maxScore must be a non-negative number.`);
     }
 
+    // V13 PHASE 8: the optional 判分标准/rubric column rides the SAME shared
+    // parser as the API/review pipeline — one shape source. Invalid = hard
+    // reject; absent = null (nothing authored is not an empty rubric).
+    const rubricParsed = parseRubricInput(row['判分标准'] ?? row.rubric);
+    if (rubricParsed.invalid) {
+      throw new Error(`Line ${line}: invalid rubric — ${rubricParsed.errors?.join(' ') ?? 'unparseable'}.`);
+    }
+
     return {
       stem: row.stem.trim(),
-      options,
-      answer: row.answer.trim(),
+      // Comprehensive questions carry no choice options: keep the same
+      // '作答区' placeholder shape the API create path already stores.
+      options: isComprehensive && options.length === 0 ? ['作答区'] : options,
+      answer: (row.answer ?? '').trim(),
       analysis: row.analysis.trim(),
       knowledgePointIds,
       difficulty,
@@ -337,6 +356,7 @@ function validateRows(inputRows) {
       expectedTimeSec,
       questionSubtype: questionSubtype ?? null,
       maxScore: 'invalid' in maxScoreParsed ? null : maxScoreParsed.value,
+      rubric: rubricParsed.value ?? null,
     };
   });
 }
