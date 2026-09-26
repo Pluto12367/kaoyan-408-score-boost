@@ -1,5 +1,5 @@
 import { API_BASE_URL, fetchWithAuth } from '../client';
-import type { ConfidenceLevel, MistakeReason } from '@kaoyan408/shared';
+import type { ConfidenceLevel, MistakeReason, OptionAnalyses } from '@kaoyan408/shared';
 import type { PracticeSetResult, StageAssessmentResult, DiagnosticInput, DiagnosticProfile } from '../types';
 
 const ANSWER_PENDING_RETRY_MS = 500;
@@ -27,6 +27,8 @@ export interface PracticeAnswerResult {
   usedHint?: boolean;
   answerModified?: boolean;
   variantProgress?: VariantRetestProgress;
+  /** V14-P0 (design §10.3): post-answer-only per-wrong-option traps. Absent/null = 题目未撰写陷阱。 */
+  optionAnalyses?: OptionAnalyses | null;
 }
 
 export async function submitPracticeAnswer(input: {

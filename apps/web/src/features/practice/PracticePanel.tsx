@@ -14,6 +14,7 @@ import { VerificationBanner } from '../guidance/GuidanceCards';
 import { RecommendationReasonCard } from './exam-aligned/RecommendationReasonCard';
 import { ExamCoverageSummary } from './exam-aligned/ExamCoverageSummary';
 import { reasonLineFor } from './exam-aligned/examAlignmentView';
+import { hasRenderableOptionTraps, selectOptionTraps } from './optionTrapView';
 import '../practice/exam-aligned/exam-aligned.css';
 
 interface PracticePanelProps {
@@ -178,6 +179,29 @@ export function PracticePanel({
               <button type="button" className="secondary-action" onClick={onRestartQuestionBank}>重新练习本组</button>
             ) : null}
           </div>
+          {hasRenderableOptionTraps(answerResult) ? (() => {
+            const traps = selectOptionTraps(answerResult);
+            return (
+              <div className="answer-option-traps">
+                {traps.selected ? (
+                  <div className="option-trap-selected">
+                    <strong>你为什么会选 {traps.selected.letter}</strong>
+                    <p>{traps.selected.text}</p>
+                  </div>
+                ) : null}
+                {traps.others.length > 0 ? (
+                  <div className="option-trap-others">
+                    <strong>其他选项为什么错</strong>
+                    <ul>
+                      {traps.others.map((trap) => (
+                        <li key={trap.letter}><span className="option-trap-letter">{trap.letter}</span>{trap.text}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })() : null}
           {answerResult.knowledgePointTitle ? (
             <p className="answer-result-kp"><strong>核心考点</strong>{answerResult.knowledgePointTitle}</p>
           ) : null}

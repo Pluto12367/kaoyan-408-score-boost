@@ -415,6 +415,7 @@ export class StudyController {
       analysis: feedback.analysis,
       correctAnswer: feedback.correctAnswer,
       knowledgePointTitle: feedback.knowledgePointTitle,
+      optionAnalyses: feedback.optionAnalyses,
     };
   }
 
