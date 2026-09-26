@@ -38,12 +38,14 @@ const ids = {
   admin: `mc-admin-${runId}`,
   nodeA: `mc-node-a-${runId}`,
   nodeB: `mc-node-b-${runId}`,
+  pointA: `mc-point-a-${runId}`,
 };
 let prisma = null;
 let activeApi = null;
 let tmpDir = null;
 let studentA = null;
 let studentB = null;
+let practiceQuestionId = null;
 // Baselines captured before any card review — the negative fence compares
 // against these after every review.
 let masteryBaseline = 0;
@@ -83,6 +85,29 @@ async function seedBeforeBoot() {
   });
   await prisma.knowledgeNode.create({
     data: { id: ids.nodeB, subject: 'DATA_STRUCTURE', nodeType: 'knowledge_point', name: `邻接表 ${runId}`, importance: 4, difficulty: 3, syllabusVersion: 'test' },
+  });
+  // S2 practice-loopback fixture: one SINGLE_CHOICE question tagged to nodeA
+  // (direct tag → candidate endpoint AND canonical mastery attribution).
+  await prisma.knowledgePoint.create({
+    data: {
+      id: ids.pointA, subject: 'OPERATING_SYSTEM', chapter: 'MC', title: '记忆卡回流考点',
+      importance: 4, frequency: 4, prerequisites: [],
+      nodeMaps: { create: { knowledgeNodeId: ids.nodeA, mappingType: 'PRIMARY', confidence: 1 } },
+    },
+  });
+  practiceQuestionId = `mc-q-${runId}`;
+  await prisma.questionFamily.create({ data: { id: `mc-fam-${practiceQuestionId}` } });
+  await prisma.question.create({
+    data: {
+      id: practiceQuestionId, familyId: `mc-fam-${practiceQuestionId}`, versionNumber: 1, contentFingerprint: `fp-${practiceQuestionId}`,
+      stem: 'S2 fixture', options: ['A', 'B', 'C', 'D'], answer: 'A', analysis: 'x',
+      difficulty: 'MEDIUM', type: 'SINGLE_CHOICE', source: 'integration', expectedTimeSec: 60,
+      maxScore: 2,
+    },
+  });
+  await prisma.questionKnowledgePoint.create({ data: { questionId: practiceQuestionId, knowledgePointId: ids.pointA } });
+  await prisma.questionKnowledgeNodeTag.create({
+    data: { questionId: practiceQuestionId, knowledgeNodeId: ids.nodeA, role: 'PRIMARY', confidence: 1, taggedBy: 'HUMAN', source: 'integration' },
   });
 
   tmpDir = mkdtempSync(join(tmpdir(), 'memory-card-'));
@@ -236,6 +261,42 @@ async function verifyAfterBoot() {
   assert.equal(anonA.status, 401);
   record('guard-401', 'unauthenticated session read → 401');
 
+  // Node-scoped session (roadmap §2 节点详情入口): filter to one node; unknown node → 404.
+  const nodeSession = await getJson(`${apiUrl}/memory-cards/session?nodeId=${encodeURIComponent(ids.nodeA)}`, studentA.headers);
+  assert.equal(nodeSession.status, 200);
+  assert.equal(nodeSession.body.summary.newCount, 2, 'nodeA holds exactly 2 cards');
+  assert.equal(nodeSession.body.queue.length, 2);
+  for (const item of nodeSession.body.queue) assert.equal(item.knowledgeNodeId, ids.nodeA);
+  const unknownNode = await getJson(`${apiUrl}/memory-cards/session?nodeId=mc-no-such-node`, studentA.headers);
+  assert.equal(unknownNode.status, 404);
+  record('node-filter', 'session?nodeId → scoped to nodeA (2 cards); unknown node → 404');
+
+  // S2 practice-candidate: white-listed payload, deterministic single choice.
+  const candA = await getJson(`${apiUrl}/memory-cards/practice-candidate?nodeId=${encodeURIComponent(ids.nodeA)}`, studentA.headers);
+  assert.equal(candA.status, 200);
+  assert.deepEqual(Object.keys(candA.body).sort(), ['candidate', 'nodeId', 'reason']);
+  assert.equal(candA.body.reason, 'ok');
+  assert.equal(candA.body.candidate.questionId, practiceQuestionId);
+  assert.deepEqual(
+    Object.keys(candA.body.candidate).sort(),
+    ['difficulty', 'maxScore', 'questionId', 'questionType', 'stem'],
+    'candidate keys are white-listed — no answer/analysis/options/optionAnalyses',
+  );
+  assert.equal(candA.body.candidate.questionType, 'SINGLE_CHOICE');
+  assert.equal(candA.body.candidate.maxScore, 2);
+  assert.ok(!JSON.stringify(candA.body).includes('"answer"'), 'raw answer must not leak');
+  record('candidate', 'nodeA → deterministic SINGLE_CHOICE candidate, white-listed payload');
+
+  const candB = await getJson(`${apiUrl}/memory-cards/practice-candidate?nodeId=${encodeURIComponent(ids.nodeB)}`, studentA.headers);
+  assert.equal(candB.status, 200);
+  assert.equal(candB.body.candidate, null);
+  assert.equal(candB.body.reason, 'no_related_question', 'nodeB has no questions — honest default');
+  const candUnknown = await getJson(`${apiUrl}/memory-cards/practice-candidate?nodeId=mc-no-such-node`, studentA.headers);
+  assert.equal(candUnknown.status, 404);
+  const candAnon = await getJson(`${apiUrl}/memory-cards/practice-candidate?nodeId=${encodeURIComponent(ids.nodeA)}`);
+  assert.equal(candAnon.status, 401);
+  record('candidate-empty-guards', 'nodeB → candidate null (no_related_question); unknown node → 404; anonymous → 401');
+
   // Set the exam date 20 days out through the REAL exam-date endpoint →
   // density becomes exam_date / intensified ×0.7.
   const examDate = new Date(Date.now() + 20 * DAY).toISOString().slice(0, 10);
@@ -356,6 +417,28 @@ async function verifyAfterBoot() {
     assert.ok(log.densityBasis.length > 0);
   }
   record('final-fence', 'UserKnowledgeMastery=0 rows, ReviewSchedule=0 rows after 2 card reviews; log rows carry quality+density provenance');
+
+  // S2 practice loopback: the candidate question answered through the
+  // EXISTING practice chain → canonical mastery row appears for nodeA, while
+  // the card domain stays untouched.
+  const practice = await fetch(`${apiUrl}/practice-records`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...studentA.headers, 'idempotency-key': `mc-practice-${runId}` },
+    body: JSON.stringify({
+      questionId: practiceQuestionId, knowledgePointId: ids.pointA, selectedAnswer: 'X', timeSpentSec: 60,
+    }),
+  });
+  assert.equal(practice.status, 201, `practice submit failed: ${await practice.text()}`);
+  const masteryAfter = await prisma.userKnowledgeMastery.findUnique({
+    where: { userId_knowledgeNodeId: { userId: studentA.userId, knowledgeNodeId: ids.nodeA } },
+  });
+  assert.ok(masteryAfter, 'canonical mastery row for nodeA must exist after the graded attempt');
+  assert.equal(masteryAfter.attempts, 1);
+  const stateCountAfter = await prisma.userMemoryCardState.count({ where: { userId: studentA.userId } });
+  const logCountAfter = await prisma.memoryCardReviewLog.count({ where: { userId: studentA.userId } });
+  assert.equal(stateCountAfter, 2, 'practice attempt must not create card state rows');
+  assert.equal(logCountAfter, 2, 'practice attempt must not append card review logs');
+  record('practice-loopback', 'graded attempt through existing chain → nodeA mastery written by canonical writer; card domain unchanged');
 }
 
 (async () => {
@@ -393,6 +476,13 @@ async function runCleanup() {
       await prisma.invitationCode.deleteMany({ where: { createdBy: { id: ids.admin } } }).catch(() => {});
       await prisma.user.deleteMany({ where: { email: { endsWith: `${runId}@integration.test` } } }).catch(() => {});
       await prisma.user.deleteMany({ where: { id: ids.admin } }).catch(() => {});
+      if (practiceQuestionId) {
+        await prisma.questionKnowledgeNodeTag.deleteMany({ where: { questionId: practiceQuestionId } }).catch(() => {});
+        await prisma.questionKnowledgePoint.deleteMany({ where: { questionId: practiceQuestionId } }).catch(() => {});
+        await prisma.question.deleteMany({ where: { id: practiceQuestionId } }).catch(() => {});
+        await prisma.questionFamily.deleteMany({ where: { id: `mc-fam-${practiceQuestionId}` } }).catch(() => {});
+      }
+      await prisma.knowledgePoint.deleteMany({ where: { id: ids.pointA } }).catch(() => {});
       await prisma.knowledgeNode.deleteMany({ where: { id: { in: [ids.nodeA, ids.nodeB] } } }).catch(() => {});
       await prisma.$disconnect();
     }

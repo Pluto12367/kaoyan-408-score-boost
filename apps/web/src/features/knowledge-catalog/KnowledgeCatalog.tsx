@@ -37,6 +37,7 @@ export function KnowledgeCatalog({
   onPracticeQuestion,
   onStartQuest,
   onCompleteQuest,
+  onReviewNodeCards,
   questContext,
   questState,
   questError,
@@ -47,6 +48,7 @@ export function KnowledgeCatalog({
   onPracticeQuestion?: (questionId: string, title: string) => void;
   onStartQuest?: (nodeId: string, title: string, questionIds: string[]) => void;
   onCompleteQuest?: () => void;
+  onReviewNodeCards?: (nodeId: string) => void;
   questContext?: boolean;
   questState?: NodeQuestState | null;
   questError?: string;
@@ -459,6 +461,15 @@ export function KnowledgeCatalog({
         onStartQuest={handleStartQuest}
         onCompleteQuest={onCompleteQuest}
         onNavigate={() => onNavigate?.('question')}
+        onReviewCards={
+          onReviewNodeCards && selectedPointId
+            ? () => {
+                onReviewNodeCards(selectedPointId);
+                setSelectedActionType(null);
+                setSelectedPointId(null);
+              }
+            : undefined
+        }
       />
     </section>
   );

@@ -307,3 +307,30 @@ export function buildMemoryCardQueue(input: {
   const queue = [...due, ...fresh].slice(0, Math.max(0, sessionCap));
   return { queue, summary: { dueCount, newCount, returned: queue.length } };
 }
+
+// ---------------------------------------------------------------------------
+// Intra-session retry (会话内重现, roadmap §2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Cards the student rated 没记住 resurface once at the END of the same
+ * session (UI-session policy, roadmap docs/v14-memory-card-roadmap.md §2).
+ * Pure bookkeeping: forgot ratings only, first-forgot order, each card at
+ * most once per session no matter how often it is re-rated. This does NOT
+ * change persisted scheduling — the backend review application is unchanged;
+ * only the presentation order inside one session gains a tail round.
+ */
+export function collectIntraSessionRetries(
+  evaluations: ReadonlyArray<{ cardId: string; rating: CardSelfRating }>,
+): string[] {
+  const ordered: string[] = [];
+  const everForgotten = new Set<string>();
+  for (const evaluation of evaluations) {
+    if (evaluation.rating !== 'forgot') continue;
+    if (!everForgotten.has(evaluation.cardId)) {
+      everForgotten.add(evaluation.cardId);
+      ordered.push(evaluation.cardId);
+    }
+  }
+  return ordered;
+}

@@ -16,6 +16,25 @@
   color: var(--color-text-secondary, #5b6472);
 }
 
+.memory-card-node-filter {
+  margin: var(--space-2, 8px) 0 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 12px);
+}
+
+.memory-card-node-filter-clear {
+  border: 1px solid var(--color-border, #d0d5dd);
+  background: var(--color-surface, #fff);
+  border-radius: 999px;
+  padding: 2px 12px;
+  font-size: 0.85rem;
+  font-weight: 400;
+  cursor: pointer;
+}
+
 .memory-card-panel {
   padding: var(--space-4, 16px);
 }
@@ -133,6 +152,18 @@
 
 .memory-card-summary {
   font-size: 0.85rem;
+}
+
+.memory-card-practice-link {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 0.9rem;
+  color: var(--color-accent, #4263eb);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 @media (max-width: 640px) {

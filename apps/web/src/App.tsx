@@ -218,6 +218,8 @@ export function App() {
 
   const [detailQuestionId, setDetailQuestionId] = useState<string | null>(null);
   const [catalogFocusNodeId, setCatalogFocusNodeId] = useState<string | null>(null);
+  // V14-② memory cards: node-scoped review entry from the knowledge drawer.
+  const [memoryCardNodeId, setMemoryCardNodeId] = useState<string | null>(null);
   const [wrongStatus, setWrongStatus] = useState('错题复盘后，系统会给出同考点练习建议。');
   const [stageResult, setStageResult] = useState<StageAssessmentResult | null>(null);
   const [tutorReply, setTutorReply] = useState<TutorReply | null>(null);
@@ -879,6 +881,11 @@ export function App() {
   function handleOpenCatalogNode(nodeId: string) {
     setCatalogFocusNodeId(nodeId);
     setActiveSection('knowledge-catalog');
+  }
+
+  function handleReviewNodeCards(nodeId: string) {
+    setMemoryCardNodeId(nodeId);
+    setActiveSection('memory-card');
   }
 
   async function handleStartQuestFromCatalog(nodeId: string, title: string, questionIds: string[]) {
@@ -1543,6 +1550,9 @@ paperId: paper.id,
             }}
             onStartExam={handlePrepareStudentExam}
             onStartYearExamPaper={handleStartYearExamPaper}
+            memoryCardNodeId={memoryCardNodeId}
+            onClearMemoryCardNodeFilter={() => setMemoryCardNodeId(null)}
+            onPracticeFromMemoryCard={handlePracticeQuestionFromCatalog}
             onRetryStageReport={refreshStageReport}
             onRetryTrial={refreshTrialProgress}
             onRetryReminders={refreshStudyReminders}
@@ -1638,6 +1648,7 @@ paperId: paper.id,
           <Suspense fallback={sectionFallback('408知识图谱')}>
             <KnowledgeCatalog
               onNavigate={setActiveSection}
+              onReviewNodeCards={handleReviewNodeCards}
               onPracticeQuestion={handlePracticeQuestionFromCatalog}
               onStartQuest={handleStartQuestFromCatalog}
               onCompleteQuest={() => void handleCompleteQuest()}

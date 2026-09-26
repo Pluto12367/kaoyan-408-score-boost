@@ -59,3 +59,52 @@ test('M3: the workspace states the semantic fence — cards schedule cards, not 
   assert.match(workspace, /RATING_OPTIONS/);
   assert.match(workspace, /'记住'[\s\S]*?'模糊'[\s\S]*?'没记住'/);
 });
+
+test('M3+: node-scoped entry — drawer button, App wiring, workspace filter banner', async () => {
+  const drawer = await source('apps/web/src/features/knowledge-catalog/KnowledgePointDetailDrawer.tsx');
+  const catalog = await source('apps/web/src/features/knowledge-catalog/KnowledgeCatalog.tsx');
+  const app = await source('apps/web/src/App.tsx');
+  const sections = await source('apps/web/src/features/student/StudentSections.tsx');
+  const workspace = await source('apps/web/src/features/memory-card/MemoryCardWorkspace.tsx');
+  const api = await source('apps/web/src/api/endpoints/memoryCard.ts');
+
+  assert.match(drawer, /复习本节点记忆卡/);
+  assert.match(drawer, /onReviewCards\?: \(\) => void/);
+  assert.match(catalog, /onReviewNodeCards\?: \(nodeId: string\) => void/);
+  assert.match(app, /handleReviewNodeCards/);
+  assert.match(app, /memoryCardNodeId=\{memoryCardNodeId\}/);
+  assert.match(sections, /nodeId=\{props\.memoryCardNodeId \?\? null\}/);
+  assert.match(workspace, /memory-card-node-filter/);
+  assert.match(workspace, /查看全部卡片/);
+  assert.match(api, /nodeId/);
+});
+
+test('M3+: intra-session retry — 没记住 resurfaces once at the queue tail via the shared helper', async () => {
+  const workspace = await source('apps/web/src/features/memory-card/MemoryCardWorkspace.tsx');
+  const shared = await source('packages/shared/src/score-center/memory-card.ts');
+
+  assert.match(workspace, /collectIntraSessionRetries/);
+  assert.match(workspace, /没记住重现/);
+  assert.match(workspace, /含重现/);
+  // Shared policy source (tested by memory-card-scheduler.test.js), not inline logic.
+  assert.match(shared, /export function collectIntraSessionRetries/);
+  assert.match(shared, /evaluation\.rating !== 'forgot'/);
+});
+
+test('S2: card→practice loop — lazy candidate entry wired to the EXISTING practice handler', async () => {
+  const workspace = await source('apps/web/src/features/memory-card/MemoryCardWorkspace.tsx');
+  const api = await source('apps/web/src/api/endpoints/memoryCard.ts');
+  const sections = await source('apps/web/src/features/student/StudentSections.tsx');
+  const app = await source('apps/web/src/App.tsx');
+
+  // Entry only after flip + only with a real candidate; lazy per-node cache.
+  assert.match(workspace, /revealed && practiceCandidate && onPracticeCandidate/);
+  assert.match(workspace, /做一道「/);
+  assert.match(workspace, /fetchMemoryCardPracticeCandidate/);
+  assert.match(workspace, /onPracticeCandidate\?: \(questionId: string, title: string\) => void/);
+  // The click goes through the App's EXISTING practice handler (no new flow).
+  assert.match(sections, /onPracticeCandidate=\{props\.onPracticeFromMemoryCard\}/);
+  assert.match(app, /onPracticeFromMemoryCard=\{handlePracticeQuestionFromCatalog\}/);
+  // API layer defines the candidate fetcher against the read-only endpoint.
+  assert.match(api, /memory-cards\/practice-candidate/);
+});

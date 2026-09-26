@@ -140,6 +140,9 @@ export interface StudentSectionsProps {
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
   onStartYearExamPaper?: (year: number) => Promise<{ ok: boolean; error?: string }>;
+  memoryCardNodeId?: string | null;
+  onClearMemoryCardNodeFilter?: () => void;
+  onPracticeFromMemoryCard?: (questionId: string, title: string) => void;
   onRetryStageReport: () => void;
   onRetryTrial: () => void;
   onRetryReminders: () => void;
@@ -512,7 +515,11 @@ export function StudentSections(props: StudentSectionsProps) {
 
       {visibleSection === 'memory-card' ? (
         <Suspense fallback={sectionFallback('记忆卡')}>
-          <MemoryCardWorkspace />
+          <MemoryCardWorkspace
+            nodeId={props.memoryCardNodeId ?? null}
+            onClearNodeFilter={props.onClearMemoryCardNodeFilter}
+            onPracticeCandidate={props.onPracticeFromMemoryCard}
+          />
         </Suspense>
       ) : null}
 

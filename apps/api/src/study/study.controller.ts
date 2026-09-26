@@ -824,11 +824,27 @@ export class StudyController {
   async getMemoryCardSession(
     @CurrentUser() user: UserProfile,
     @Query('limit') limit?: string,
+    @Query('nodeId') nodeId?: string,
     @Query('userId') viewUserId?: string,
   ) {
     return this.memoryCardService.getSession(this.resolveUserId(user, viewUserId), {
       limit: limit === undefined || limit === '' ? undefined : Number(limit),
+      nodeId: nodeId === undefined || nodeId === '' ? undefined : nodeId,
     });
+  }
+
+  @Get('memory-cards/practice-candidate')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  getMemoryCardPracticeCandidate(
+    @CurrentUser() user: UserProfile,
+    @Query('nodeId') nodeId?: string,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.memoryCardService.getPracticeCandidate(
+      this.resolveUserId(user, viewUserId),
+      String(nodeId ?? ''),
+    );
   }
 
   @Post('memory-cards/:cardId/review')

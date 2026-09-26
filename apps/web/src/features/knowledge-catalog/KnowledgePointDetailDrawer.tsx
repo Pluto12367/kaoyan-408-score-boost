@@ -26,6 +26,7 @@ interface KnowledgePointDetailDrawerProps {
   onStartQuest?: () => void;
   onCompleteQuest?: () => void;
   onNavigate?: () => void;
+  onReviewCards?: () => void;
 }
 
 export function KnowledgePointDetailDrawer({
@@ -48,6 +49,7 @@ export function KnowledgePointDetailDrawer({
   onStartQuest,
   onCompleteQuest,
   onNavigate,
+  onReviewCards,
 }: KnowledgePointDetailDrawerProps) {
   const evidenceSectionRef = useRef<HTMLElement | null>(null);
   const masterySectionRef = useRef<HTMLElement | null>(null);
@@ -241,6 +243,14 @@ export function KnowledgePointDetailDrawer({
             {practiceActionLabel}
           </button>
           {!hasRelatedQuestions ? <p className="catalog-drawer-action-note">{practiceActionHint}</p> : null}
+          {onReviewCards ? (
+            <>
+              <button type="button" className="secondary-action catalog-drawer-memory-cards" onClick={onReviewCards}>
+                复习本节点记忆卡
+              </button>
+              <p className="catalog-drawer-action-note">结论卡与公式卡按你的遗忘节奏重现（V14-②）。</p>
+            </>
+          ) : null}
         </section>
 
         <section

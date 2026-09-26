@@ -56,10 +56,31 @@ export interface MemoryCardReviewResult {
   };
 }
 
-export async function fetchMemoryCardSession(limit?: number): Promise<MemoryCardSession> {
-  const query = limit ? `?limit=${limit}` : '';
+export async function fetchMemoryCardSession(limit?: number, nodeId?: string): Promise<MemoryCardSession> {
+  const params = new URLSearchParams();
+  if (limit) params.set('limit', String(limit));
+  if (nodeId) params.set('nodeId', nodeId);
+  const query = params.toString() ? `?${params.toString()}` : '';
   const response = await fetchWithAuth(`${API_BASE_URL}/memory-cards/session${query}`);
   if (!response.ok) throw new Error(`记忆卡队列加载失败（${response.status}）`);
+  return response.json();
+}
+
+export interface MemoryCardPracticeCandidate {
+  nodeId: string;
+  candidate: {
+    questionId: string;
+    stem: string;
+    questionType: string;
+    difficulty: string;
+    maxScore: number | null;
+  } | null;
+  reason: 'ok' | 'no_related_question' | 'no_single_choice';
+}
+
+export async function fetchMemoryCardPracticeCandidate(nodeId: string): Promise<MemoryCardPracticeCandidate> {
+  const response = await fetchWithAuth(`${API_BASE_URL}/memory-cards/practice-candidate?nodeId=${encodeURIComponent(nodeId)}`);
+  if (!response.ok) throw new Error(`练习候选加载失败（${response.status}）`);
   return response.json();
 }
 

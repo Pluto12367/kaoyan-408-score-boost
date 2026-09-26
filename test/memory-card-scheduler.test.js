@@ -30,6 +30,7 @@ import {
   deriveCardRetention,
   applyMemoryCardReview,
   buildMemoryCardQueue,
+  collectIntraSessionRetries,
 } from '../packages/shared/dist/index.js';
 
 const NOW = new Date('2026-12-10T00:00:00.000Z');
@@ -211,4 +212,22 @@ test('M1: empty catalog produces an honest empty queue, not an error', () => {
   assert.equal(result.summary.dueCount, 0);
   assert.equal(result.summary.newCount, 0);
   assert.equal(result.summary.returned, 0);
+});
+
+test('M1: intra-session retry collects exactly the 没记住 cards, once each, in first-forgot order', () => {
+  const evaluations = [
+    { cardId: 'c-1', rating: 'remembered' },
+    { cardId: 'c-2', rating: 'forgot' },
+    { cardId: 'c-3', rating: 'fuzzy' },
+    { cardId: 'c-4', rating: 'forgot' },
+    { cardId: 'c-2', rating: 'forgot' }, // re-rated forgot in retry round — must not duplicate
+    { cardId: 'c-5', rating: 'remembered' },
+  ];
+  assert.deepEqual(collectIntraSessionRetries(evaluations), ['c-2', 'c-4']);
+  assert.deepEqual(collectIntraSessionRetries([]), []);
+  assert.deepEqual(
+    collectIntraSessionRetries([{ cardId: 'c-1', rating: 'fuzzy' }, { cardId: 'c-2', rating: 'remembered' }]),
+    [],
+    '模糊/记住 never trigger intra-session reappearance',
+  );
 });

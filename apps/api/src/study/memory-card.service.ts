@@ -12,6 +12,7 @@ import {
   type CardSelfRating,
   type MemoryCardQueueItem,
 } from '@kaoyan408/shared';
+import { loadRelatedQuestionsForNode } from '../score-center/repository';
 
 /**
  * V14-② — memory-card session + review (task book
@@ -68,6 +69,19 @@ export interface MemoryCardReviewView {
 
 const MAX_STATES = 500;
 
+/** White-listed candidate shape — answer/analysis/options must never leak (task book §3.2). */
+export interface MemoryCardPracticeCandidate {
+  nodeId: string;
+  candidate: {
+    questionId: string;
+    stem: string;
+    questionType: string;
+    difficulty: string;
+    maxScore: number | null;
+  } | null;
+  reason: 'ok' | 'no_related_question' | 'no_single_choice';
+}
+
 @Injectable()
 export class MemoryCardService {
   constructor(@Optional() private readonly prisma?: PrismaService) {}
@@ -83,12 +97,62 @@ export class MemoryCardService {
     return this.prisma!;
   }
 
-  async getSession(userId: string, input: { limit?: number } = {}, now: Date = new Date()): Promise<MemoryCardSessionView> {
+  /**
+   * S2 卡片→做题回流 (task book docs/v14-memory-card-slice2-design.md §3.2).
+   * Read-only candidate for the card surface's "practice one question" entry:
+   * the FIRST SINGLE_CHOICE question tagged to the node (deterministic
+   * createdAt order). The picked question is then answered through the
+   * EXISTING practice chain — this endpoint itself never writes anything and
+   * its response is white-listed (no answer/analysis/options).
+   */
+  async getPracticeCandidate(userId: string, nodeId: string): Promise<MemoryCardPracticeCandidate> {
+    const prisma = this.requireStore();
+    const trimmed = nodeId?.trim();
+    if (!trimmed) throw new BadRequestException('缺少 nodeId。');
+    const node = await prisma.knowledgeNode.findFirst({ where: { id: trimmed, isActive: true }, select: { id: true } });
+    if (!node) throw new NotFoundException('知识节点不存在或未启用。');
+
+    const related = await loadRelatedQuestionsForNode(prisma, trimmed);
+    const singleChoice = related.find((question) => question.type === 'SINGLE_CHOICE');
+    if (!singleChoice) {
+      return {
+        nodeId: trimmed,
+        candidate: null,
+        reason: related.length > 0 ? 'no_single_choice' : 'no_related_question',
+      };
+    }
+    const priced = await prisma.question.findUnique({
+      where: { id: singleChoice.id },
+      select: { maxScore: true },
+    });
+    return {
+      nodeId: trimmed,
+      candidate: {
+        questionId: singleChoice.id,
+        stem: singleChoice.stem,
+        questionType: singleChoice.type,
+        difficulty: singleChoice.difficulty,
+        maxScore: priced?.maxScore ?? null,
+      },
+      reason: 'ok',
+    };
+  }
+
+  async getSession(userId: string, input: { limit?: number; nodeId?: string } = {}, now: Date = new Date()): Promise<MemoryCardSessionView> {
     const prisma = this.requireStore();
     const requested = Math.trunc(input.limit ?? MEMORY_CARD_SESSION_CAP);
     const sessionCap = Number.isFinite(requested) && requested > 0
       ? Math.min(50, requested)
       : MEMORY_CARD_SESSION_CAP;
+
+    // Node-scoped review (roadmap §2 节点详情入口): an unknown node is a caller
+    // error → 404; a known node with zero cards is an honest empty session.
+    const nodeId = input.nodeId?.trim() || null;
+    if (nodeId) {
+      const node = await prisma.knowledgeNode.findFirst({ where: { id: nodeId, isActive: true }, select: { id: true } });
+      if (!node) throw new NotFoundException('知识节点不存在或未启用。');
+    }
+    const nodeCardFilter = nodeId ? { knowledgeNodeId: nodeId } : {};
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -98,13 +162,13 @@ export class MemoryCardService {
 
     // Bounded reads: due states (schedule-driven), then the first new cards.
     const states = await prisma.userMemoryCardState.findMany({
-      where: { userId, nextReviewAt: { lte: now }, card: { isActive: true } },
+      where: { userId, nextReviewAt: { lte: now }, card: { isActive: true, ...nodeCardFilter } },
       include: { card: { include: { knowledgeNode: { select: { name: true, subject: true } } } } },
       orderBy: [{ nextReviewAt: 'asc' }],
       take: MAX_STATES,
     });
     const newCards = await prisma.memoryCard.findMany({
-      where: { isActive: true, userStates: { none: { userId } } },
+      where: { isActive: true, userStates: { none: { userId } }, ...nodeCardFilter },
       include: { knowledgeNode: { select: { name: true, subject: true } } },
       orderBy: [{ knowledgeNodeId: 'asc' }, { id: 'asc' }],
       take: MEMORY_CARD_NEW_CARD_CAP,
