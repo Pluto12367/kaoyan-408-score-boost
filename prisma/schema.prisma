@@ -437,6 +437,15 @@ model Question {
   /// V13-P0-1 (Owner Decision v1.1 D2/D6): 408 业务题型层。NULL = unknown
   /// (historical/unclassified) — never guessed, never implicitly backfilled.
   questionSubtype      QuestionSubtype?
+  /// V14-P0 (Owner D-2/D-4 批准 2026-09-25): 选择题逐选项陷阱解析。
+  /// **null = 未撰写（≠ 空对象，≠ 无陷阱）**。形状契约 = shared
+  /// parseOptionAnalyses（单一 shape 源）：{version:1, traps:{<错误选项字母>:<文本>}}；
+  /// 正确选项的键 = 校验错误，绝不入库。学生预提交视图不得携带本字段（设计 §10.1）。
+  optionAnalyses       Json?
+  /// V14-P0 (Owner D-2): 真题在当年卷面的题号（1..47）。NULL = 非真题/未标注，
+  /// 绝不回填自编题。读侧按 (year, examNo, isCurrent) 联结
+  /// ExamQuestion(paperId, questionNo) —— 不建外键（版本链纪律，设计 §3 线 C）。
+  examNo               Int?
   knowledgePoints      QuestionKnowledgePoint[]
   records              PracticeRecord[]
   wrongQuestionReviews WrongQuestionReview[]

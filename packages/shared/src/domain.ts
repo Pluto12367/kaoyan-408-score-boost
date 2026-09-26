@@ -1,4 +1,5 @@
 import type { QuestionSubtypeCode } from './score-center/question-subtype';
+import type { OptionAnalyses } from './score-center/option-analyses';
 
 export type Subject =
   | '数据结构'
@@ -62,6 +63,15 @@ export interface Question {
   questionSubtype?: QuestionSubtypeCode;
   /** V13-P0-1 (Owner D4/D5) — 408 exam max score. Absent = unpriced; 0 is a real zero (NULL ≠ 0). */
   maxScore?: number;
+  /** V14-P0 (Owner D-2/D-4, 2026-09-25) — real-exam question number within the year paper (1..47). Absent = not a real-exam question. */
+  examNo?: number;
+  /**
+   * V14-P0 (Owner D-2/D-4) — per-wrong-option trap analyses. Absent = not
+   * authored (≠ empty, ≠ "no traps"). Shape contract = shared
+   * parseOptionAnalyses (single shape source). MUST be stripped from every
+   * student pre-submission view (design §10.1).
+   */
+  optionAnalyses?: OptionAnalyses | null;
 }
 
 export interface PracticeRecord {

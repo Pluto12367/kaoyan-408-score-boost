@@ -87,6 +87,8 @@
     "test:integration:score-recovery": "node scripts/integration-score-recovery.mjs",
     "test:integration:mock-loss-trend": "node scripts/integration-mock-loss-trend.mjs",
     "audit:large-question-content": "node scripts/audit-large-question-content.mjs",
+    "audit:real-exam-content": "node scripts/audit-real-exam-content.mjs",
+    "test:integration:real-exam-import": "npm run build:api && node scripts/integration-real-exam-import.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }

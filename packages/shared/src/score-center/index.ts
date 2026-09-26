@@ -28,3 +28,4 @@ export * from './question-subtype';
 export * from './error-diagnosis';
 export * from './training-prescription';
 export * from './forgetting-risk';
+export * from './option-analyses';
