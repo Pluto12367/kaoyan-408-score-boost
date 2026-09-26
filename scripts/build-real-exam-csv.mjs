@@ -115,8 +115,11 @@ for (const question of source.questions) {
   row.maxScore = mapping.score == null ? '' : String(mapping.score);
   row.判分标准 = !isMcq && draft.rubric ? JSON.stringify(draft.rubric) : '';
   row.examNo = String(question.questionNo);
-  row.knowledgeNodeIds = [mapping.primaryKnowledgePointId, ...(mapping.secondaryKnowledgePointIds ?? [])]
-    .filter(Boolean).join('|');
+  // 个别 bundle 存在 secondary 与 primary 相同的行（导入器拒绝重复 nodeId）——
+  // 按序去重（PRIMARY 在前），不改 bundle 生成物本身。
+  const nodeIds = [mapping.primaryKnowledgePointId, ...(mapping.secondaryKnowledgePointIds ?? [])]
+    .filter(Boolean);
+  row.knowledgeNodeIds = [...new Set(nodeIds)].join('|');
   for (const letter of ['A', 'B', 'C', 'D']) {
     row[`陷阱解析${letter}`] = isMcq && draft.traps?.[letter] ? draft.traps[letter] : '';
   }
