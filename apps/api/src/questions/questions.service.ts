@@ -386,6 +386,8 @@ export function toSharedQuestion(row: {
   source: string;
   year: number | null;
   expectedTimeSec: number;
+  examNo?: number | null;
+  maxScore?: number | null;
 }): Question {
   return {
     id: row.id,
@@ -399,6 +401,11 @@ export function toSharedQuestion(row: {
     source: row.source,
     year: row.year ?? undefined,
     expectedTimeSec: row.expectedTimeSec,
+    // V14 题库浏览（D-B 批准，2026-09-26）：真题题号与逐题分值随目录下发。
+    // additive 元数据——两者本就存在于整卷快照投影；answer 置空与
+    // optionAnalyses 剥离语义不变。examNo 缺失 = 非真题；maxScore 缺失 = 未定价（NULL ≠ 0）。
+    examNo: row.examNo ?? undefined,
+    maxScore: row.maxScore ?? undefined,
   };
 }
 

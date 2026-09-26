@@ -174,6 +174,8 @@ export function App() {
   const [questState, setQuestState] = useState<NodeQuestState | null>(null);
   const [questError, setQuestError] = useState('');
   const [questVersion, setQuestVersion] = useState(0);
+  // V14 题库浏览/自由刷题（D-B 批准）：显式题单练习上下文——与 quest/task 启动互斥。
+  const [freePracticeContext, setFreePracticeContext] = useState<{ title: string; questionIds: string[] } | null>(null);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   const [diagnosticStatus, setDiagnosticStatus] = useState('完成入学诊断后，系统会更新备考阶段、目标和学习计划。');
   const [assessmentStatus, setAssessmentStatus] = useState('等待生成阶段测评');
@@ -295,7 +297,11 @@ export function App() {
       setQuestContext(null);
       setQuestResults([]);
     }
-  }, [activeSection, questContext]);
+    // 自由刷题题单只在练习区存活——离开即释放（与 quest 生命周期同思路）。
+    if (freePracticeContext && activeSection !== 'question') {
+      setFreePracticeContext(null);
+    }
+  }, [activeSection, questContext, freePracticeContext]);
 
   useEffect(() => {
     const nextUserId = sessionUser?.id;
@@ -412,7 +418,7 @@ export function App() {
     }
   }
 
-  const { student, questions, report, plan, wrongQuestions, learningCalendar, stageAssessment, practiceRecords } = overview;
+  const { student, questions, knowledgePoints, report, plan, wrongQuestions, learningCalendar, stageAssessment, practiceRecords } = overview;
   const stageReport = useMemo(() => {
     if (!studentLearning.assessmentHistory.data || !studentProgress.masteryMap.data || !studentLearning.wrongQuestionSummary.data) {
       return null;
@@ -497,9 +503,11 @@ export function App() {
     ? todayTaskLaunchContext.questionIds?.length
       ? questions.filter((question) => todayTaskLaunchContext.questionIds!.includes(question.id))
       : questions.filter((question) => question.knowledgePointIds.includes(todayTaskLaunchContext.knowledgePointId))
-    : questContext
-      ? questions.filter((question) => questContext.questionIds.includes(question.id))
-      : questions;
+    : freePracticeContext
+      ? questions.filter((question) => freePracticeContext.questionIds.includes(question.id))
+      : questContext
+        ? questions.filter((question) => questContext.questionIds.includes(question.id))
+        : questions;
   const activePracticeQuestionIds = activePracticeQuestions.map((question) => question.id);
   const currentQuestion = (redoQuestionId
     ? activePracticeQuestions.find((question) => question.id === redoQuestionId)
@@ -832,6 +840,7 @@ export function App() {
       applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
       setRedoQuestionId(null);
       setVariantOfQuestionId(null);
+      setFreePracticeContext(null);
       setTodayTaskLaunchContext(launch.preflight.context);
       setPracticeStatus(launch.preflight.context.destination === 'question'
         ? `已开始 ${launch.task.title}，本轮只练习对应知识点。`
@@ -899,6 +908,7 @@ export function App() {
     setRedoQuestionId(null);
     setVariantOfQuestionId(null);
     setTodayTaskLaunchContext(null);
+    setFreePracticeContext(null);
     setQuestResults([]);
     setQuestState(null);
     setQuestContext({ nodeId, title, questionIds });
@@ -911,6 +921,25 @@ export function App() {
     } catch {
       // 状态徽章仍可通过 mastery 摘要展示，闯关流程不因状态加载失败中断。
     }
+  }
+
+  // V14 题库浏览/自由刷题（D-B 批准）：显式题单进入既有逐题练习流——
+  // 零新会话语义，作答仍走 submitPracticeAnswer → PracticeRecord 同一链路。
+  function handleStartFreePractice(title: string, questionIds: string[]) {
+    if (questionIds.length === 0) return;
+    invalidatePracticeAttempt(practiceSubmissionGateRef.current);
+    applyPracticeAttemptState(restartAttempt(readPracticeAttemptState()));
+    setRedoQuestionId(null);
+    setVariantOfQuestionId(null);
+    setTodayTaskLaunchContext(null);
+    setQuestResults([]);
+    setQuestState(null);
+    setQuestContext(null);
+    setDetailQuestionId(null);
+    setFreePracticeContext({ title, questionIds });
+    setPracticeIndex(0);
+    setPracticeStatus(`已开始 ${title}。作答与判分走常规练习链路，答完自动结算。`);
+    setActiveSection('question');
   }
 
   async function handleCompleteQuest() {
@@ -1475,6 +1504,9 @@ paperId: paper.id,
             onRetryOverview={refreshOverview}
             student={student}
             questions={questions}
+            knowledgePoints={overview.knowledgePoints}
+            practiceRecords={practiceRecords}
+            onStartFreePractice={handleStartFreePractice}
             report={report}
             plan={plan}
             wrongQuestions={wrongQuestions}

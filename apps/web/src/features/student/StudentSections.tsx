@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import type {
   FeedbackDraft,
+  KnowledgePoint,
   Question,
   StageReport,
   StudyPlan,
@@ -42,6 +43,7 @@ import { LearningProfileCard } from '../dashboard/LearningProfileCard';
 import { TrainingHero } from '../practice/training-room/TrainingHero';
 import { TrainingProgress } from '../practice/training-room/TrainingProgress';
 import { TrainingSummary } from '../practice/training-room/TrainingSummary';
+import { FreePracticeBrowser } from '../practice/FreePracticeBrowser';
 import { buildTrainingRoomViewModel } from '../practice/training-room/trainingRoomViewModel';
 import { buildStudentActionCandidates } from './actions/actionCandidates';
 import { buildAssessmentActions } from './actions/adapters/assessmentActionAdapter';
@@ -77,6 +79,10 @@ export interface StudentSectionsProps {
   onRetryOverview: () => void;
   student: UserProfile;
   questions: Question[];
+  /** V14 题库浏览（D-B 批准）：知识点目录（id→科目映射）+ 本人作答记录（OBSERVED 状态投影）。 */
+  knowledgePoints: KnowledgePoint[];
+  practiceRecords: Array<{ questionId: string; correct: boolean }>;
+  onStartFreePractice: (title: string, questionIds: string[]) => void;
   report: WeaknessReport;
   plan: StudyPlan;
   wrongQuestions: WrongQuestion[];
@@ -177,6 +183,8 @@ export function StudentSections(props: StudentSectionsProps) {
   const { visibleSection, studentOverviewReady, overviewResource, onRetryOverview, report, questions } = props;
   const dueReviews = props.dueReviews ?? null;
   const hasQuestions = questions.length > 0;
+  // V14 题库浏览（D-B-1 批准）：题库训练区内二选一子标签——推荐训练（默认）/自由刷题。
+  const [questionMode, setQuestionMode] = useState<'recommended' | 'browse'>('recommended');
   const launchedQuestionTask = props.todayTaskLaunchContext?.destination === 'question'
     ? props.todayPlan?.priorityTasks.find((task) => task.id === props.todayTaskLaunchContext?.taskId) ?? null
     : null;
@@ -431,6 +439,34 @@ export function StudentSections(props: StudentSectionsProps) {
                 <TrainingProgress model={trainingModel} />
               </div>
               <section className="two-column student-section student-section-question training-room-question">
+              <div className="real-exam-tabs" role="tablist" aria-label="题库训练模式">
+                <button
+                  type="button"
+                  className={questionMode === 'recommended' ? 'real-exam-tab active' : 'real-exam-tab'}
+                  onClick={() => setQuestionMode('recommended')}
+                >
+                  推荐训练
+                </button>
+                <button
+                  type="button"
+                  className={questionMode === 'browse' ? 'real-exam-tab active' : 'real-exam-tab'}
+                  onClick={() => setQuestionMode('browse')}
+                >
+                  自由刷题
+                </button>
+              </div>
+              {questionMode === 'browse' ? (
+                <FreePracticeBrowser
+                  questions={questions}
+                  knowledgePoints={props.knowledgePoints}
+                  practiceRecords={props.practiceRecords}
+                  onStartPractice={(title, ids) => {
+                    // 启动练习即切回推荐训练视图——练习面板在这一侧。
+                    setQuestionMode('recommended');
+                    props.onStartFreePractice(title, ids);
+                  }}
+                />
+              ) : (
               <Suspense fallback={sectionFallback('题库训练')}>
                 <PracticePanel
                   question={props.currentQuestion}
@@ -460,6 +496,7 @@ export function StudentSections(props: StudentSectionsProps) {
                   onExamAlignedPractice={props.onExamAlignedPractice}
                 />
               </Suspense>
+              )}
               {props.practiceAnswerResult ? (
                 <ContextualCoach
                   request={{

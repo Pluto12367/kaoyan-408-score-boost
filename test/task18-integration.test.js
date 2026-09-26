@@ -91,6 +91,8 @@ async function loadStudentSections(capturedHomeProps) {
   const react = {
     lazy: (loader) => ({ kind: 'lazy', loader }),
     Suspense: 'Suspense',
+    // V14 题库浏览：StudentSections 新增 questionMode useState。
+    useState: (initial) => [initial, () => undefined],
   };
   const jsxRuntime = createJsxRuntime({ invokeFunctions: true });
   const noOpComponent = () => null;
@@ -109,6 +111,7 @@ async function loadStudentSections(capturedHomeProps) {
     '../practice/training-room/TrainingProgress': { TrainingProgress: noOpComponent },
     '../practice/training-room/TrainingSummary': { TrainingSummary: noOpComponent },
     '../practice/training-room/trainingRoomViewModel': { buildTrainingRoomViewModel: () => ({}) },
+    '../practice/FreePracticeBrowser': { FreePracticeBrowser: noOpComponent },
     './actions/actionCandidates': actionCandidates,
     './actions/adapters/assessmentActionAdapter': assessmentActions,
     './actions/adapters/reviewActionAdapter': reviewActions,

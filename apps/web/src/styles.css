@@ -8037,3 +8037,78 @@ html[data-theme="b"] .role-pill {
   gap: 8px;
   justify-content: space-between;
 }
+
+/* V14 题库浏览/自由刷题（D-B 批准）——筛选条、结果行、分页。 */
+.qbank-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.qbank-filters label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.qbank-filters select {
+  min-width: 120px;
+}
+
+.qbank-summary {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.qbank-rows {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.qbank-row {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.qbank-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.qbank-badge {
+  background: var(--surface-deep, rgba(0, 0, 0, 0.04));
+  border: 1px solid var(--line-faint);
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 1px 8px;
+}
+
+.qbank-state-correct {
+  color: var(--primary-strong);
+}
+
+.qbank-state-wrong {
+  color: var(--danger, #c0392b);
+}
+
+.qbank-pagination {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+}
