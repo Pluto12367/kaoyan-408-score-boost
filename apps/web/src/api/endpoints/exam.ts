@@ -5,7 +5,9 @@ import type { ExamDiagnosis, GeneratedPaper } from '../types';
 export interface PrepareExamPaperInput {
   paperType: '模拟卷' | '专项卷';
   subject?: Subject;
-  questionCount: number;
+  questionCount?: number;
+  /** V14-R4-B (D-R4-3): 真题套卷年份——additive 可选，缺省走既有路径。 */
+  year?: number;
 }
 
 export interface ExamReport {

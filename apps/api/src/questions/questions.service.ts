@@ -374,7 +374,7 @@ function nextQuestionId(questions: Array<{ id: string }>) {
   return `q-${String(next).padStart(3, '0')}`;
 }
 
-function toSharedQuestion(row: {
+export function toSharedQuestion(row: {
   id: string;
   stem: string;
   options: string[];

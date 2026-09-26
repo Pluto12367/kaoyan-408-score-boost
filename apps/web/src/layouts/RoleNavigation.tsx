@@ -1,4 +1,4 @@
-import { Activity, BookOpenCheck, Brain, ClipboardCheck, ClipboardList, Home, Network, ShieldCheck, Target, Upload, type LucideIcon } from 'lucide-react';
+import { Activity, BookOpenCheck, Brain, CalendarRange, ClipboardCheck, ClipboardList, Home, Network, ShieldCheck, Target, Upload, type LucideIcon } from 'lucide-react';
 import type { UserRole } from '@kaoyan408/shared';
 
 export type RoleSection =
@@ -7,6 +7,7 @@ export type RoleSection =
   | 'score-center'
   | 'knowledge-catalog'
   | 'question'
+  | 'real-exam'
   | 'wrong-book'
   | 'report'
   | 'test'
@@ -46,6 +47,7 @@ const teacherItems: NavigationItem[] = [
 const studentItems: NavigationItem[] = [
   { id: 'dashboard', label: '首页', icon: Home },
   { id: 'question', label: '题库', icon: BookOpenCheck },
+  { id: 'real-exam', label: '真题', icon: CalendarRange },
   { id: 'knowledge-catalog', label: '知识', icon: Network },
   { id: 'wrong-book', label: '错题', icon: ShieldCheck },
   { id: 'test', label: '测试', icon: ClipboardCheck },
@@ -55,6 +57,7 @@ const studentItems: NavigationItem[] = [
 const studentBottomItems: NavigationItem[] = [
   { id: 'dashboard', label: '首页', icon: Home },
   { id: 'question', label: '题库', icon: BookOpenCheck },
+  { id: 'real-exam', label: '真题', icon: CalendarRange },
   { id: 'knowledge-catalog', label: '知识', icon: Network },
   { id: 'wrong-book', label: '错题', icon: ShieldCheck },
   { id: 'test', label: '测试', icon: ClipboardCheck },
@@ -67,6 +70,7 @@ const studentCompatSections: RoleSection[] = [
   'score-center',
   'knowledge-catalog',
   'question',
+  'real-exam',
   'wrong-book',
   'report',
   'test',

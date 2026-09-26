@@ -3423,6 +3423,256 @@ textarea:focus-visible,
   white-space: pre-line;
 }
 
+/* V14-P0: post-answer per-wrong-option trap analyses (design §10.3) */
+.answer-option-traps {
+  display: grid;
+  gap: 8px;
+}
+
+.option-trap-selected {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-left: 3px solid var(--amber-strong);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.option-trap-selected strong {
+  color: var(--amber-strong);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.option-trap-selected p {
+  color: var(--text-body);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.option-trap-others {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.option-trap-others strong {
+  color: var(--primary-strong);
+  display: block;
+  margin-bottom: 4px;
+}
+
+.option-trap-others ul {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.option-trap-others li {
+  color: var(--text-body);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.option-trap-letter {
+  color: var(--primary-strong);
+  display: inline-block;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+/* V14-R4-A: real-exam presentation surfaces (作战板/数据屏) */
+.real-exam-workspace {
+  display: grid;
+  gap: 14px;
+}
+
+.real-exam-header {
+  display: grid;
+  gap: 6px;
+}
+
+.real-exam-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.real-exam-tab {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 6px 14px;
+}
+
+.real-exam-tab.active {
+  border-color: var(--primary-strong);
+  color: var(--primary-strong);
+  font-weight: 600;
+}
+
+.real-exam-years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.real-exam-year {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 4px 12px;
+}
+
+.real-exam-year.active {
+  border-color: var(--primary-strong);
+  color: var(--primary-strong);
+  font-weight: 600;
+}
+
+.real-exam-summary {
+  color: var(--text-body);
+  font-size: 14px;
+  margin: 0;
+}
+
+.real-exam-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.real-exam-slot {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 6px;
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+}
+
+.real-exam-slot.tone-correct {
+  border-color: var(--success, #2e7d32);
+}
+
+.real-exam-slot.tone-wrong {
+  border-color: var(--danger, #c62828);
+}
+
+.real-exam-slot .slot-subject {
+  color: var(--primary-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.real-exam-slot .slot-exam-no {
+  font-weight: 600;
+}
+
+.real-exam-slot .slot-score,
+.real-exam-slot .slot-status {
+  color: var(--text-body);
+  font-size: 12px;
+}
+
+.real-exam-kps {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.real-exam-kps > div {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.real-exam-kps ul {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+
+.exam-dashboard-cards {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.exam-stat-card {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+}
+
+.exam-stat-card strong {
+  font-size: 22px;
+}
+
+.exam-stat-card span {
+  color: var(--text-body);
+  font-size: 13px;
+}
+
+.exam-frequency {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.exam-frequency-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.exam-frequency-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+.exam-frequency-table th,
+.exam-frequency-table td {
+  border-bottom: 1px solid var(--line-faint);
+  font-size: 13px;
+  padding: 6px 8px;
+  text-align: left;
+}
+
+.exam-levels {
+  color: var(--text-body);
+  font-size: 13px;
+  margin: 0;
+}
+
+.exam-uncovered ul {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0 0;
+}
+
+.real-exam-error {
+  color: var(--danger, #c62828);
+  font-weight: 600;
+}
+
 .answer-impact-card,
 .answer-next-action-card,
 .task-progress-feedback {
@@ -7728,3 +7978,62 @@ html[data-theme="b"] .role-pill {
 .exam-loss-list strong { margin-right: var(--space-2, 8px); }
 .exam-loss-list small { color: var(--text-muted); display: block; font-size: 0.78rem; }
 .exam-loss-nodes { color: var(--text-secondary); }
+
+/* V14-R4-B: year paper cards (真题套卷) */
+.year-papers {
+  display: grid;
+  gap: 10px;
+}
+
+.year-paper-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.year-paper-card {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.year-paper-card.unavailable {
+  opacity: 0.55;
+}
+
+.year-paper-card .primary-action {
+  cursor: pointer;
+}
+
+/* V14-R4-C: enhanced data screens (章节命题图谱/命题轨迹/难题榜) */
+.exam-enhanced-screens {
+  display: grid;
+  gap: 10px;
+}
+
+.exam-panel {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+}
+
+.exam-trajectory-list {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.exam-trajectory-list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: space-between;
+}

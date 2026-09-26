@@ -1335,6 +1335,32 @@ paperId: paper.id,
     setApiState(isStaticDemoMode() ? 'mock' : 'connected');
   }
 
+  /**
+   * V14-R4-B (D-R4-3): 真题套卷一键组卷——真实 API 必需（真题内容不可伪造），
+   * 演示模式显式报错；组卷成功后进入既有整卷作答流（test 分区）。
+   */
+  async function handleStartYearExamPaper(year: number): Promise<{ ok: boolean; error?: string }> {
+    if (isStaticDemoMode()) {
+      return { ok: false, error: '真题套卷需要连接后端使用（演示模式无真题内容）。' };
+    }
+    try {
+      const paper = await prepareExamPaper({ paperType: '模拟卷', year });
+      setLatestPaper(paper);
+      setPaperResult(null);
+      setResumedLearningSession(null);
+      setExamReportSessionId(null);
+      setLearningSessionType('paper');
+      setLearningSessionMode(false);
+      setPaperSession(createInitialPaperSession(paper));
+      setApiState('connected');
+      setActiveSection('test');
+      return { ok: true };
+    } catch (cause) {
+      setApiState('error');
+      return { ok: false, error: cause instanceof Error ? cause.message : '组卷失败，请稍后重试。' };
+    }
+  }
+
   function handleRetryActiveWorkspace() {
     if (sessionUser?.role === 'teacher') {
       void Promise.allSettled([roleWorkspace.refreshQuestions(), roleWorkspace.refreshClassAnalytics()]);
@@ -1516,6 +1542,7 @@ paperId: paper.id,
               setLearningSessionMode(false);
             }}
             onStartExam={handlePrepareStudentExam}
+            onStartYearExamPaper={handleStartYearExamPaper}
             onRetryStageReport={refreshStageReport}
             onRetryTrial={refreshTrialProgress}
             onRetryReminders={refreshStudyReminders}

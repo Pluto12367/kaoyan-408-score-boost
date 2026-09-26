@@ -53,6 +53,7 @@ import {
 } from '@kaoyan408/shared';
 import { CreatePracticeRecordDto } from './dto/create-practice-record.dto';
 import { QuestionsService, type ReviewItem } from '../questions/questions.service';
+import { toSharedQuestion } from '../questions/questions.service';
 import { toStudentQuestion, toStudentQuestions } from '../questions/question-view';
 import { PracticeRecordRepository } from './practice-record.repository';
 import { AiTutorService } from './ai-tutor.service';
@@ -1970,7 +1971,16 @@ export class StudyService implements OnModuleInit {
     paperType?: '模拟卷' | '专项卷';
     subject?: Subject;
     questionCount?: number;
+    /** V14-R4-B (D-R4-3): 真题套卷年份。additive 可选——缺省时走既有路径逐字节不变。 */
+    year?: number;
   }) {
+    // V14-R4-B: year provided → compose the full real-exam paper for that year
+    // (40 选择 + 7 综合 straight from the imported bank, examNo order).
+    const yearRequest = resolveYearPaperRequest(input);
+    if (yearRequest !== null) {
+      if ('error' in yearRequest) throw new BadRequestException(yearRequest.error);
+      return this.prepareRealExamPaper(userId, yearRequest.year);
+    }
     const paperType = input.paperType ?? '模拟卷';
     if (paperType !== '模拟卷' && paperType !== '专项卷') {
       throw new BadRequestException('试卷类型无效，请选择完整模拟卷或科目专项卷');
@@ -1998,6 +2008,50 @@ export class StudyService implements OnModuleInit {
       questionCount,
       createdBy: userId,
     });
+    return {
+      ...paper,
+      questions: toStudentQuestions(paper.questions),
+    };
+  }
+
+  /**
+   * V14-R4-B (task book §3.2) — compose the full real-exam paper for a year:
+   * 40 选择 + 7 综合 straight from the imported bank in examNo order.
+   * Reuses the existing Paper snapshot/submit/report chain unchanged — no new
+   * score semantics (D-R4-3): in-app grading stays accuracy 口径, the 150-point
+   * structure lives in the priced maxScores of the snapshot.
+   */
+  private async prepareRealExamPaper(userId: string, year: number) {
+    if (!this.prisma) {
+      throw new BadRequestException('真题套卷需要连接数据库后使用（演示模式无真题内容）');
+    }
+    const rows = await this.prisma.question.findMany({
+      where: { year, examNo: { not: null }, isCurrent: true },
+      orderBy: { examNo: 'asc' },
+      include: { knowledgePoints: true },
+    });
+    if (rows.length === 0) {
+      throw new BadRequestException(`${year} 年真题尚未收录，收录后将在此提供`);
+    }
+    const questions: Question[] = rows.map((row) => ({
+      ...toSharedQuestion(row),
+      questionSubtype: row.questionSubtype ?? undefined,
+      maxScore: row.maxScore ?? undefined,
+      examNo: row.examNo ?? undefined,
+    }));
+    const paper: GeneratedPaper = {
+      id: `paper-${Date.now()}`,
+      title: `${year} 年 408 真题`,
+      paperType: '模拟卷',
+      questionCount: questions.length,
+      knowledgePointIds: [...new Set(questions.flatMap((question) => question.knowledgePointIds))],
+      questions,
+      estimatedMinutes: Math.max(10, Math.round(questions.reduce((sum, question) => sum + question.expectedTimeSec, 0) / 60)),
+      createdBy: userId,
+      createdAt: new Date().toISOString(),
+    };
+    this.papers.push(paper);
+    await this.paperRepository.save(paper);
     return {
       ...paper,
       questions: toStudentQuestions(paper.questions),
@@ -3348,7 +3402,7 @@ export class StudyService implements OnModuleInit {
   async getPracticeFeedback(questionId: string) {
     const question = await this.questionsService.findQuestionById(questionId);
     if (!question) {
-      return { analysis: '', correctAnswer: '', knowledgePointTitle: '' };
+      return { analysis: '', correctAnswer: '', knowledgePointTitle: '', optionAnalyses: null };
     }
     const knowledgePointId = question.knowledgePointIds[0];
     const knowledgePoint = knowledgePointId
@@ -3360,29 +3414,40 @@ export class StudyService implements OnModuleInit {
           this.knowledgePointDisplay,
         )
       : null;
+    // V14-P0 (design §10.3): per-wrong-option traps are POST-ANSWER-only
+    // content — they reveal which options are wrong. This method runs only
+    // after an answer was submitted, and it reads the persisted row directly:
+    // pre-submission surfaces (student question lists, session snapshots) keep
+    // their structural strip (toStudentQuestion) because the shared in-memory
+    // Question never carries the field. The optional chain keeps the
+    // in-memory (no-DB) mode honest: no persisted row → no traps (null).
+    const persistedTraps = this.prisma?.question
+      ? ((await this.prisma.question.findUnique({
+          where: { id: questionId },
+          select: { optionAnalyses: true },
+        }))?.optionAnalyses ?? null)
+      : null;
     return {
       analysis: question.analysis,
       correctAnswer: question.answer,
       knowledgePointTitle: display?.title || knowledgePoint?.title || '',
+      optionAnalyses: persistedTraps,
     };
   }
 
   private async buildPracticeRecordResponse(record: PracticeRecord, variantProgress: unknown) {
     const feedback = await this.getPracticeFeedback(record.questionId);
+    const feedbackFields = {
+      analysis: feedback.analysis,
+      correctAnswer: feedback.correctAnswer,
+      knowledgePointTitle: feedback.knowledgePointTitle,
+      // V14-P0: post-answer trap analyses ride the same feedback merge — the
+      // answer is already submitted at this point (design §10.3).
+      optionAnalyses: feedback.optionAnalyses,
+    };
     return variantProgress
-      ? {
-          ...record,
-          analysis: feedback.analysis,
-          correctAnswer: feedback.correctAnswer,
-          knowledgePointTitle: feedback.knowledgePointTitle,
-          variantProgress,
-        }
-      : {
-          ...record,
-          analysis: feedback.analysis,
-          correctAnswer: feedback.correctAnswer,
-          knowledgePointTitle: feedback.knowledgePointTitle,
-        };
+      ? { ...record, ...feedbackFields, variantProgress }
+      : { ...record, ...feedbackFields };
   }
 
   private async markAnswerReceiptFailed(receipt: AnswerReceiptState, error: unknown) {
@@ -5566,4 +5631,25 @@ const SUBJECT_NAME_BY_CODE: Record<string, Subject> = {
 
 function subjectNameFromCode(code: string): Subject {
   return SUBJECT_NAME_BY_CODE[code] ?? '未分类';
+}
+
+/**
+ * V14-R4-B (D-R4-3) — 真题套卷请求解析。
+ * null = 无 year（走既有 prepare 路径，行为逐字节不变）；
+ * {year} = 合法真题套卷请求；{error} = 拒绝原因（HTTP 400）。
+ */
+export function resolveYearPaperRequest(input: {
+  paperType?: '模拟卷' | '专项卷';
+  subject?: Subject;
+  questionCount?: number;
+  year?: number;
+}): { year: number } | { error: string } | null {
+  if (input.year == null) return null;
+  if (!Number.isInteger(input.year) || input.year < 2009 || input.year > 2100) {
+    return { error: '年份无效：真题套卷年份必须是 2009 至 2100 之间的整数' };
+  }
+  if (input.paperType === '专项卷') {
+    return { error: '真题套卷为整卷结构，请使用模拟卷类型（不要与专项卷混用）' };
+  }
+  return { year: input.year };
 }

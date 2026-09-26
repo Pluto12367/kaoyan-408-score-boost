@@ -4,16 +4,17 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('stage 6: student bottom navigation keeps six unique tabs (V8 #21 adds AI)', async () => {
+test('stage 6: student bottom navigation keeps seven unique tabs (V14-R4 adds 真题)', async () => {
   const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
 
   const bottomItems = navigation.match(/const studentBottomItems: NavigationItem\[\] = \[([\s\S]*?)\];/)?.[1] ?? '';
   const ids = [...bottomItems.matchAll(/\{ id: '([^']+)'/g)].map((match) => match[1]);
   const labels = [...bottomItems.matchAll(/label: '([^']+)'/g)].map((match) => match[1]);
 
-  assert.equal(ids.length, 6, `expected 6 bottom tabs, got ${ids.length}`);
-  assert.equal(new Set(ids).size, 6, 'bottom tab ids must be unique');
-  assert.deepEqual(labels, ['首页', '题库', '知识', '错题', '测试', 'AI 答疑'], 'AI 答疑 must be a first-class tab (audit U1)');
+  // V14-R4 (D-R4-1, Owner 批准 2026-09-25): 「真题」分区加入学生底部导航 6→7。
+  assert.equal(ids.length, 7, `expected 7 bottom tabs, got ${ids.length}`);
+  assert.equal(new Set(ids).size, 7, 'bottom tab ids must be unique');
+  assert.deepEqual(labels, ['首页', '题库', '真题', '知识', '错题', '测试', 'AI 答疑'], '真题 must be a first-class tab (task book D-R4-1)');
   assert.match(navigation, /normalizeRoleSection\(section: RoleSection\)/);
   assert.match(navigation, /if \(section === 'report'\) return 'test'/);
   assert.match(navigation, /className="bottom-nav"/);

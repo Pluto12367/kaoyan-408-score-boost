@@ -67,6 +67,7 @@ const TestSection = lazy(() => import('../test/TestSection').then((m) => ({ defa
 const PracticePanel = lazy(() => import('../practice/PracticePanel').then((m) => ({ default: m.PracticePanel })));
 const TutorPanel = lazy(() => import('../tutor/TutorPanel').then((m) => ({ default: m.TutorPanel })));
 const MistakeWorkspace = lazy(() => import('../mistakes/MistakeWorkspace').then((m) => ({ default: m.MistakeWorkspace })));
+const RealExamWorkspace = lazy(() => import('../real-exam/RealExamWorkspace').then((m) => ({ default: m.RealExamWorkspace })));
 
 export interface StudentSectionsProps {
   visibleSection: RoleSection;
@@ -137,6 +138,7 @@ export interface StudentSectionsProps {
   onOpenReview: (questionId: string, command?: StudentActionCommandDescriptor) => void;
   onResumeSession: (session: SessionView) => void;
   onStartExam: (input: PrepareExamPaperInput) => Promise<void>;
+  onStartYearExamPaper?: (year: number) => Promise<{ ok: boolean; error?: string }>;
   onRetryStageReport: () => void;
   onRetryTrial: () => void;
   onRetryReminders: () => void;
@@ -499,6 +501,12 @@ export function StudentSections(props: StudentSectionsProps) {
         </> : (
           <ModuleUnavailable title="AI 答疑" resource={overviewResource} onRetry={onRetryOverview} />
         )
+      ) : null}
+
+      {visibleSection === 'real-exam' ? (
+        <Suspense fallback={sectionFallback('真题')}>
+          <RealExamWorkspace onStartYearPaper={props.onStartYearExamPaper} />
+        </Suspense>
       ) : null}
 
       {visibleSection === 'wrong-book' ? (

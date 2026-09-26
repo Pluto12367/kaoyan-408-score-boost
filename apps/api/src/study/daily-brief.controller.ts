@@ -40,6 +40,8 @@ import { ErrorDiagnosisService } from './error-diagnosis.service';
 import { TrainingPrescriptionService } from './training-prescription.service';
 import { ForgettingRiskService } from './forgetting-risk.service';
 import { ScoreRecoveryService } from './score-recovery.service';
+import { RealExamBoardService } from './real-exam-board.service';
+import { BadRequestException } from '@nestjs/common';
 
 @Controller()
 export class DailyBriefController {
@@ -66,6 +68,7 @@ export class DailyBriefController {
     private readonly trainingPrescription?: TrainingPrescriptionService,
     private readonly forgettingRisk?: ForgettingRiskService,
     private readonly scoreRecovery?: ScoreRecoveryService,
+    private readonly realExamBoard?: RealExamBoardService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -678,6 +681,93 @@ export class DailyBriefController {
       streak: context.momentum.studyStreak,
     });
     return { userId, generatedAt: new Date().toISOString(), ...story };
+  }
+
+  /** V14-R4-A — per-year real-exam battle board (self-scope read projection). */
+  @Get('coach/real-exam-board')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRealExamBoard(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('year') year?: string,
+  ) {
+    const parsedYear = Number.parseInt(year ?? '', 10);
+    if (!year || !Number.isInteger(parsedYear) || parsedYear < 2009 || parsedYear > 2100) {
+      throw new BadRequestException('year must be an integer between 2009 and 2100');
+    }
+    const userId = this.resolveUserId(user, viewUserId);
+    if (!this.realExamBoard) {
+      return { year: parsedYear, storeAvailable: false, slots: [], summary: { total: 0, answeredCount: 0, correctCount: 0, wrongCount: 0, totalScore: 0 }, novelKps: [], returningKps: [] };
+    }
+    return this.realExamBoard.getBoard(userId, parsedYear);
+  }
+
+  /** V14-R4-A — real-exam dashboard (public statistics, no personal data). */
+  @Get('coach/real-exam-dashboard')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRealExamDashboard() {
+    if (!this.realExamBoard) {
+      return { storeAvailable: false, years: [], totalQuestions: 0, knowledgePointsTested: 0, knowledgePointsTotal: 0, coveragePct: null, topKps: [] };
+    }
+    return this.realExamBoard.getDashboard();
+  }
+
+  /** V14-R4-A — exam-frequency map (four levels by years tested). */
+  @Get('coach/real-exam-frequency')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRealExamFrequency(@Query('subject') subject?: string) {
+    const trimmed = subject?.trim() || undefined;
+    if (!this.realExamBoard) {
+      return { storeAvailable: false, subject: trimmed ?? null, levels: { high: 0, mid: 0, low: 0, cold: 0 }, rows: [] };
+    }
+    return this.realExamBoard.getFrequency(trimmed);
+  }
+
+  /** V14-R4-A — syllabus nodes never covered by any real exam (大纲漏网). */
+  @Get('coach/real-exam-uncovered')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRealExamUncovered() {
+    if (!this.realExamBoard) {
+      return { storeAvailable: false, total: 0, nodes: [] };
+    }
+    return this.realExamBoard.getUncovered();
+  }
+
+  /** V14-R4-C — 章节命题图谱（章节×年份分值矩阵，PRIMARY 标签口径）。 */
+  @Get('coach/real-exam-chapters')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRealExamChapters() {
+    if (!this.realExamBoard) {
+      return { storeAvailable: false, yearAxis: [], chapters: [] };
+    }
+    return this.realExamBoard.getChapterMap();
+  }
+
+  /** V14-R4-C — 命题轨迹（曾高频且近 3 年沉默的考点）。 */
+  @Get('coach/real-exam-trajectory')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRealExamTrajectory() {
+    if (!this.realExamBoard) {
+      return { storeAvailable: false, currentYear: new Date().getFullYear(), rows: [] };
+    }
+    return this.realExamBoard.getTrajectory();
+  }
+
+  /** V14-R4-C — 难题榜（真题全站实测错误率 TOP，样本 ≥2）。 */
+  @Get('coach/real-exam-hard')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRealExamHard() {
+    if (!this.realExamBoard) {
+      return { storeAvailable: false, minAttempts: 2, total: 0, rows: [] };
+    }
+    return this.realExamBoard.getHardQuestions();
   }
 }
 
