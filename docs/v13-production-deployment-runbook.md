@@ -101,28 +101,43 @@ SELECT count(*) FROM "UserMemoryCardState"; SELECT count(*) FROM "MemoryCardRevi
 
 ```bash
 # 3A.1 真题内容（各年 CSV：kaoyan-408-content-starter/imports/real-exam-YYYY-pilot.csv）
-# 已审定批次：2009-2015（八年）与 2022-2026（五年）；2016-2021 待内容轨完成后追加
-DATABASE_URL=<生产库> node scripts/import-real-exams.mjs kaoyan-408-content-starter/imports/real-exam-2026-pilot.csv \
-  --reviewed-by "zhoujiale(Owner)" --uploaded-by <生产管理员用户ID> --rights-confirmed
-# PASS：created=47；幂等复跑 skipped=47；逐年重复上述命令
-# 审计门禁（每年导入后）：
+# 已审定批次：2009-2021（十三年）与 2022-2026（五年）——18 年全部完成
+# 前置小步：取生产管理员用户ID（--uploaded-by 用）：
+#   psql <生产库> -c "SELECT id, email FROM \"User\" WHERE role='ADMIN' LIMIT 3;"
+for Y in 2009 2010 2011 2012 2013 2014 2015 2016 2017 2018 2019 2020 2021 2022 2023 2024 2025 2026; do
+  DATABASE_URL=<生产库> node scripts/import-real-exams.mjs kaoyan-408-content-starter/imports/real-exam-$Y-pilot.csv \
+    --reviewed-by "zhoujiale(Owner)" --uploaded-by <生产管理员用户ID> --rights-confirmed
+  # PASS：created=47（幂等复跑 skipped=47）
+done
+# 审计门禁（全部导入后）：
 npm run audit:real-exam-content
-# PASS：各年 READY（47/47 定价、陷阱 120、rubric 7/7、分值互证）；2009-2021 大题未定价 = 诚实缺口（待官方分值表），非 FAIL
+# PASS：18 年全部收录 846 题（18×47）、选择定价 80/80、陷阱 120、rubric 7/7、分值互证；
+#       2009-2021 大题未定价 7/年 = 诚实缺口（待官方分值表），非 FAIL
 
-# 3A.2 记忆卡首批 48 卡（考频 TOP24 节点 ×2；Owner 已互审，dev 库同批已入库）
+# 3A.2 记忆卡三批共 168 卡（Owner 已互审，dev 库同批已入库）
+# 批 1（48 卡，考频 TOP24）：
 DATABASE_URL=<生产库> node scripts/import-memory-cards.mjs kaoyan-408-content-starter/imports/memory-cards-batch1-highfreq.csv --dry-run
-# PASS：结构校验通过：48 行（dry-run 不触库）
 DATABASE_URL=<生产库> node scripts/import-memory-cards.mjs kaoyan-408-content-starter/imports/memory-cards-batch1-highfreq.csv \
   --reviewed-by "zhoujiale(Owner)" --rights-confirmed
-# PASS：created=48 skipped=0；幂等复跑 skipped=48
+# 批 2（60 卡，考频 25-54 名）：
+DATABASE_URL=<生产库> node scripts/import-memory-cards.mjs kaoyan-408-content-starter/imports/memory-cards-batch2-highfreq.csv --dry-run
+DATABASE_URL=<生产库> node scripts/import-memory-cards.mjs kaoyan-408-content-starter/imports/memory-cards-batch2-highfreq.csv \
+  --reviewed-by "zhoujiale(Owner)" --rights-confirmed
+# 批 3（60 卡，考频 55-84 名）：
+DATABASE_URL=<生产库> node scripts/import-memory-cards.mjs kaoyan-408-content-starter/imports/memory-cards-batch3-highfreq.csv --dry-run
+DATABASE_URL=<生产库> node scripts/import-memory-cards.mjs kaoyan-408-content-starter/imports/memory-cards-batch3-highfreq.csv \
+  --reviewed-by "zhoujiale(Owner)" --rights-confirmed
+# 每批 PASS：dry-run 结构校验通过 → created=60（批1=48）；幂等复跑 skipped=同数
+# 内容修订（日后）：同 CSV 加 --update 即同正面覆盖背面+重盖 RULE-10 留痕
 ```
 
 ```sql
 -- 3A.3 记忆卡导入验证
-SELECT count(*) FROM "MemoryCard";                    -- PASS = 48
+SELECT count(*) FROM "MemoryCard";                    -- PASS = 168（48+60+60）
 SELECT "reviewedBy", "rightsConfirmed", count(*) FROM "MemoryCard" GROUP BY 1, 2;
 -- PASS = 全行 reviewedBy='zhoujiale(Owner)' 且 rightsConfirmed=true（RULE-10 留痕）
 SELECT count(*) FROM "MemoryCard" WHERE "knowledgeNodeId" NOT IN (SELECT id FROM "KnowledgeNode");  -- PASS = 0
+SELECT count(DISTINCT "knowledgeNodeId") FROM "MemoryCard";  -- PASS = 84（54+30 节点全覆盖）
 ```
 
 > **内容回滚**（仅在误导时）：`DELETE FROM "MemoryCard" WHERE "reviewedBy" = '<误导批次评审人>';` —— 学生卡片状态/日志经外键级联清除；能力层零关联（卡片域与掌握度无外键）。真题内容回滚 = 按 importBatch 定位版本行，遵循真题导入器自身回滚语义（不在此展开）。
