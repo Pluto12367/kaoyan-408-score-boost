@@ -41,6 +41,7 @@ import { TrainingPrescriptionService } from './training-prescription.service';
 import { ForgettingRiskService } from './forgetting-risk.service';
 import { ScoreRecoveryService } from './score-recovery.service';
 import { RealExamBoardService } from './real-exam-board.service';
+import { MemoryCardService } from './memory-card.service';
 import { BadRequestException } from '@nestjs/common';
 
 @Controller()
@@ -69,6 +70,7 @@ export class DailyBriefController {
     private readonly forgettingRisk?: ForgettingRiskService,
     private readonly scoreRecovery?: ScoreRecoveryService,
     private readonly realExamBoard?: RealExamBoardService,
+    private readonly memoryCardService?: MemoryCardService,
   ) {}
 
   @Get('coach/daily-brief')
@@ -79,9 +81,10 @@ export class DailyBriefController {
     @Query('userId') viewUserId?: string,
   ) {
     const userId = this.resolveUserId(user, viewUserId);
-    const [plan, context] = await Promise.all([
+    const [plan, context, memoryCardDueCount] = await Promise.all([
       this.studyService.getTodayPlan(userId),
       this.studentContext.getContext(userId),
+      this.memoryCardService ? this.memoryCardService.getDueCount(userId) : Promise.resolve(null),
     ]);
     return buildDailyBrief({
       dateKey: studyDateKey(new Date()),
@@ -92,6 +95,7 @@ export class DailyBriefController {
         value: context.practice.recentAccuracy.value,
       },
       review: { dueCount: context.review.dueCount, overdueCount: context.review.overdueCount },
+      memoryCards: memoryCardDueCount == null ? null : { dueCount: memoryCardDueCount },
       tasks: plan.priorityTasks.map((task) => ({
         title: task.title,
         minutes: task.minutes,

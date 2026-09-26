@@ -20,6 +20,8 @@ export interface DailyBriefInput {
   streak: number;
   recentAccuracy: { status: string; value: number | null };
   review: { dueCount: number; overdueCount: number };
+  /** V14-②: card-domain due count; null = store unavailable (line omitted, never faked). */
+  memoryCards: { dueCount: number } | null;
   tasks: readonly BriefTask[];
   completedTasks: number;
   totalTasks: number;
@@ -67,6 +69,11 @@ export function buildDailyBrief(input: DailyBriefInput): DailyBrief {
     stateLines.push('练习量还不足以评估正确率（继续积累）');
   }
   stateLines.push(`连续学习 ${input.streak} 天`);
+  // V14-②: card-domain read-only injection (roadmap §2). Only names due cards
+  // when they exist; absent store or zero due → silence (no fabricated count).
+  if (input.memoryCards && input.memoryCards.dueCount > 0) {
+    stateLines.push(`记忆卡到期 ${input.memoryCards.dueCount} 张，去「记忆卡」翻卡复习`);
+  }
 
   const priorities: BriefPriority[] = openTasks.slice(0, 3).map((task) => ({
     title: task.title,

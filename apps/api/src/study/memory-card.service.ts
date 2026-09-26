@@ -138,6 +138,18 @@ export class MemoryCardService {
     };
   }
 
+  /**
+   * Read-only due-card count for the daily brief (roadmap §2 今日动线).
+   * Null when the store is unavailable — the brief omits the line entirely
+   * rather than showing a fabricated zero (RULE-06 parity).
+   */
+  async getDueCount(userId: string, now: Date = new Date()): Promise<number | null> {
+    if (!this.enabled) return null;
+    return this.prisma!.userMemoryCardState.count({
+      where: { userId, nextReviewAt: { lte: now }, card: { isActive: true } },
+    });
+  }
+
   async getSession(userId: string, input: { limit?: number; nodeId?: string } = {}, now: Date = new Date()): Promise<MemoryCardSessionView> {
     const prisma = this.requireStore();
     const requested = Math.trunc(input.limit ?? MEMORY_CARD_SESSION_CAP);

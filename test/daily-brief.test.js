@@ -139,3 +139,16 @@ test('V9 Phase 5: proactive coach endpoint is grounded, capped, and quiet by def
   const home = await readFile(new URL('../apps/web/src/features/student/home/StudentHome.tsx', import.meta.url), 'utf8');
   assert.match(home, /<ProactiveCoachCard \/>/);
 });
+
+test('V14-②: memory-card due count is named only when cards are actually due', async () => {
+  const { buildDailyBrief } = await loadModule();
+  const brief = buildDailyBrief(input({ memoryCards: { dueCount: 5 } }));
+  assert.ok(brief.stateLines.some((line) => line.includes('记忆卡到期 5 张')), 'due cards must be named');
+  assert.ok(brief.stateLines.some((line) => line.includes('翻卡')), 'the line names the action');
+
+  const none = buildDailyBrief(input({ memoryCards: { dueCount: 0 } }));
+  assert.ok(!none.stateLines.some((line) => line.includes('记忆卡')), 'zero due cards stay silent (nothing due is not a claim)');
+
+  const absent = buildDailyBrief(input({ memoryCards: null }));
+  assert.ok(!absent.stateLines.some((line) => line.includes('记忆卡')), 'store unavailable stays silent — no fabricated count');
+});
