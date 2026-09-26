@@ -334,3 +334,15 @@ export function collectIntraSessionRetries(
   }
   return ordered;
 }
+
+/**
+ * Catch-up pacing estimate for a backlog that exceeds one session
+ * (roadmap §2 到期堆积摊平): ceil(dueCount ÷ sessionCap) days at the current
+ * cap, or null when the backlog fits within one session (no plan needed).
+ * DERIVED display fact only — it does not alter scheduling.
+ */
+export function estimateCatchUpDays(dueCount: number, sessionCap: number = MEMORY_CARD_SESSION_CAP): number | null {
+  if (!Number.isFinite(dueCount) || dueCount <= sessionCap) return null;
+  if (sessionCap <= 0) return null;
+  return Math.ceil(dueCount / sessionCap);
+}

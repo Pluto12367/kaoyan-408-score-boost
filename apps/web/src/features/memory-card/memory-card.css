@@ -166,6 +166,78 @@
   text-underline-offset: 3px;
 }
 
+.memory-card-admin-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3, 12px);
+  align-items: center;
+  margin-bottom: var(--space-3, 12px);
+}
+
+.memory-card-admin-input {
+  border: 1px solid var(--color-border, #d0d5dd);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+}
+
+.memory-card-admin-form .memory-card-admin-input {
+  width: 100%;
+}
+
+.memory-card-admin-form textarea.memory-card-admin-input {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.memory-card-admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+}
+
+.memory-card-admin-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+}
+
+.memory-card-admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.memory-card-admin-table th,
+.memory-card-admin-table td {
+  text-align: left;
+  padding: 6px 8px;
+  border-top: 1px solid var(--color-border, #e4e7ec);
+  vertical-align: top;
+}
+
+.memory-card-admin-text {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.memory-card-admin-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.memory-card-admin-actions button {
+  border: 1px solid var(--color-border, #d0d5dd);
+  background: var(--color-surface, #fff);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+
 @media (max-width: 640px) {
   .memory-card-ratings {
     grid-template-columns: 1fr;

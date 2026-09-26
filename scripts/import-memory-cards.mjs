@@ -5,6 +5,11 @@
 // Usage:
 //   node scripts/import-memory-cards.mjs <csv> --dry-run
 //   node scripts/import-memory-cards.mjs <csv> --reviewed-by "教研名" --rights-confirmed
+//   node scripts/import-memory-cards.mjs <csv> --reviewed-by "教研名" --rights-confirmed --update
+//
+// --update (D-M-3): an exact (知识节点ID, 正面) match UPDATES 背面/卡片类型 and
+// re-stamps the RULE-10 provenance instead of being skipped — for reviewed
+// content revisions. Never creates a second active card with the same front.
 //
 // CSV headers (exact): 知识节点ID,卡片类型,正面,背面
 //   卡片类型: CONCLUSION（结论卡） | FORMULA（公式卡）
@@ -30,11 +35,12 @@ const FRONT_MAX = 500;
 const BACK_MAX = 2000;
 
 function parseArgs(argv) {
-  const args = { file: null, dryRun: false, reviewedBy: null, rightsConfirmed: false };
+  const args = { file: null, dryRun: false, reviewedBy: null, rightsConfirmed: false, update: false };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--dry-run') args.dryRun = true;
     else if (arg === '--rights-confirmed') args.rightsConfirmed = true;
+    else if (arg === '--update') args.update = true;
     else if (arg === '--reviewed-by') {
       i += 1;
       args.reviewedBy = argv[i] ?? null;
@@ -129,13 +135,28 @@ async function main() {
 
     let created = 0;
     let skipped = 0;
+    let updated = 0;
     for (const row of rows) {
       const existing = await prisma.memoryCard.findFirst({
         where: { knowledgeNodeId: row.knowledgeNodeId, front: row.front },
-        select: { id: true },
+        select: { id: true, isActive: true },
       });
-      if (existing) {
+      if (existing && !args.update) {
         skipped += 1;
+        continue;
+      }
+      if (existing && args.update) {
+        await prisma.memoryCard.update({
+          where: { id: existing.id },
+          data: {
+            back: row.back,
+            cardType: row.cardType,
+            reviewedBy: args.reviewedBy,
+            rightsConfirmed: true,
+            isActive: true,
+          },
+        });
+        updated += 1;
         continue;
       }
       await prisma.memoryCard.create({
@@ -150,7 +171,7 @@ async function main() {
       });
       created += 1;
     }
-    console.log(`导入完成：created=${created} skipped=${skipped}（幂等跳过）；评审人=${args.reviewedBy}；rightsConfirmed=true。`);
+    console.log(`导入完成：created=${created} updated=${updated} skipped=${skipped}（幂等跳过）；评审人=${args.reviewedBy}；rightsConfirmed=true。`);
   } finally {
     await prisma.$disconnect();
   }

@@ -9,6 +9,7 @@ export type RoleSection =
   | 'question'
   | 'real-exam'
   | 'memory-card'
+  | 'card-admin'
   | 'wrong-book'
   | 'report'
   | 'test'
@@ -34,6 +35,7 @@ interface RoleNavigationProps {
 const adminItems: NavigationItem[] = [
   { id: 'admin', label: '数据看板', icon: Activity },
   { id: 'review', label: '内容审核', icon: ShieldCheck },
+  { id: 'card-admin', label: '记忆卡管理', icon: Layers },
   { id: 'config', label: '系统配置', icon: ClipboardCheck },
   { id: 'teacher', label: '教研管理', icon: ClipboardList },
   { id: 'question-import', label: '题库文档导入', icon: Upload },

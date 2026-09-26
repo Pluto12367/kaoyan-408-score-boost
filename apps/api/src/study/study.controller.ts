@@ -847,6 +847,72 @@ export class StudyController {
     );
   }
 
+  // ---- V14-②+ memory-card admin management (design doc
+  // docs/v14-memory-card-admin-design.md, D-M-1/2/3 approved). ----
+
+  @Get('admin/memory-cards')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  async listMemoryCardsAdmin(
+    @Query('nodeId') nodeId?: string,
+    @Query('includeRetired') includeRetired?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.memoryCardService.listCardsAdmin({
+      nodeId: nodeId || undefined,
+      includeRetired: includeRetired === 'true',
+      take: take === undefined || take === '' ? undefined : Number(take),
+    });
+  }
+
+  @Post('admin/memory-cards')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  createMemoryCardAdmin(
+    @CurrentUser() user: UserProfile,
+    @Body() input: {
+      knowledgeNodeId?: string; cardType?: string; front?: string; back?: string;
+      reviewedBy?: string; rightsConfirmed?: boolean;
+    },
+  ) {
+    return this.memoryCardService.createCardAdmin({
+      actorId: user.id,
+      knowledgeNodeId: String(input?.knowledgeNodeId ?? ''),
+      cardType: String(input?.cardType ?? ''),
+      front: String(input?.front ?? ''),
+      back: String(input?.back ?? ''),
+      reviewedBy: String(input?.reviewedBy ?? ''),
+      rightsConfirmed: input?.rightsConfirmed === true,
+    });
+  }
+
+  @Patch('admin/memory-cards/:cardId')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  editMemoryCardAdmin(
+    @Param('cardId') cardId: string,
+    @Body() input: {
+      editKind?: string; front?: string; back?: string; cardType?: string;
+      reviewedBy?: string; rightsConfirmed?: boolean;
+    },
+  ) {
+    return this.memoryCardService.editCardAdmin(cardId, {
+      editKind: input?.editKind === 'rewrite' ? 'rewrite' : 'light',
+      front: input?.front,
+      back: input?.back,
+      cardType: input?.cardType,
+      reviewedBy: String(input?.reviewedBy ?? ''),
+      rightsConfirmed: input?.rightsConfirmed === true,
+    });
+  }
+
+  @Patch('admin/memory-cards/:cardId/retire')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  retireMemoryCardAdmin(@Param('cardId') cardId: string) {
+    return this.memoryCardService.retireCardAdmin(cardId);
+  }
+
   @Post('memory-cards/:cardId/review')
   @HttpCode(200)
   @UseGuards(RoleGuard)

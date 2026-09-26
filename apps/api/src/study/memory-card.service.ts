@@ -150,6 +150,187 @@ export class MemoryCardService {
     });
   }
 
+  // -------------------------------------------------------------------------
+  // Admin management surface (task book docs/v14-memory-card-admin-design.md,
+  // D-M-1/2/3 approved 2026-09-26). Content mutability comes WITH the RULE-10
+  // chain: every create/rewrite stamps reviewedBy + rightsConfirmed.
+  // -------------------------------------------------------------------------
+
+  async listCardsAdmin(
+    input: { nodeId?: string; includeRetired?: boolean; take?: number } = {},
+  ): Promise<{
+    storeAvailable: true;
+    cards: Array<{
+      id: string; knowledgeNodeId: string; nodeName: string | null; cardType: string;
+      front: string; back: string; reviewedBy: string | null; rightsConfirmed: boolean | null;
+      isActive: boolean; reviewCount: number; createdAt: string;
+    }>;
+    total: number;
+  }> {
+    const prisma = this.requireStore();
+    const take = Math.min(100, Math.max(1, Math.trunc(input.take ?? 50) || 50));
+    const where = {
+      ...(input.nodeId ? { knowledgeNodeId: input.nodeId } : {}),
+      ...(input.includeRetired ? {} : { isActive: true }),
+    };
+    const [cards, total] = await Promise.all([
+      prisma.memoryCard.findMany({
+        where,
+        include: { knowledgeNode: { select: { name: true } }, userStates: { select: { reviewCount: true } } },
+        orderBy: [{ knowledgeNodeId: 'asc' }, { createdAt: 'asc' }],
+        take,
+      }),
+      prisma.memoryCard.count({ where }),
+    ]);
+    return {
+      storeAvailable: true,
+      total,
+      cards: cards.map((card) => ({
+        id: card.id,
+        knowledgeNodeId: card.knowledgeNodeId,
+        nodeName: card.knowledgeNode?.name ?? null,
+        cardType: card.cardType,
+        front: card.front,
+        back: card.back,
+        reviewedBy: card.reviewedBy,
+        rightsConfirmed: card.rightsConfirmed,
+        isActive: card.isActive,
+        reviewCount: card.userStates.reduce((sum, state) => sum + state.reviewCount, 0),
+        createdAt: card.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  private assertContentRule10(args: { reviewedBy?: string | null; rightsConfirmed?: boolean }): void {
+    if (!args.reviewedBy || !args.rightsConfirmed) {
+      throw new BadRequestException('RULE-10：新建/改写内容必须同时提供 reviewedBy 与 rightsConfirmed=true。');
+    }
+  }
+
+  private assertCardShape(args: { knowledgeNodeId?: string; cardType?: string; front?: string; back?: string }): void {
+    if (args.knowledgeNodeId !== undefined && !args.knowledgeNodeId.trim()) {
+      throw new BadRequestException('缺少知识节点ID。');
+    }
+    if (args.cardType !== undefined && !['CONCLUSION', 'FORMULA'].includes(args.cardType)) {
+      throw new BadRequestException('卡片类型必须是 CONCLUSION 或 FORMULA。');
+    }
+    if (args.front !== undefined && (!args.front.trim() || args.front.length > 500)) {
+      throw new BadRequestException('正面须为 1~500 字符。');
+    }
+    if (args.back !== undefined && (!args.back.trim() || args.back.length > 2000)) {
+      throw new BadRequestException('背面须为 1~2000 字符。');
+    }
+  }
+
+  async createCardAdmin(input: {
+    actorId: string;
+    knowledgeNodeId: string;
+    cardType: string;
+    front: string;
+    back: string;
+    reviewedBy: string;
+    rightsConfirmed: boolean;
+  }): Promise<{ id: string }> {
+    const prisma = this.requireStore();
+    this.assertCardShape(input);
+    this.assertContentRule10(input);
+    const node = await prisma.knowledgeNode.findFirst({
+      where: { id: input.knowledgeNodeId, isActive: true },
+      select: { id: true },
+    });
+    if (!node) throw new NotFoundException('知识节点不存在或未启用。');
+    const dupe = await prisma.memoryCard.findFirst({
+      where: { knowledgeNodeId: input.knowledgeNodeId, front: input.front },
+      select: { id: true },
+    });
+    if (dupe) throw new ConflictException('同一节点下已存在相同正面的卡片。');
+    const created = await prisma.memoryCard.create({
+      data: {
+        knowledgeNodeId: input.knowledgeNodeId,
+        cardType: input.cardType,
+        front: input.front,
+        back: input.back,
+        reviewedBy: input.reviewedBy,
+        rightsConfirmed: input.rightsConfirmed,
+      },
+      select: { id: true },
+    });
+    return { id: created.id };
+  }
+
+  /**
+   * D-M-1 dual-track edit: `light` fixes the row in place (typo on the back;
+   * front is the student's memory anchor and NEVER mutates); `rewrite` retires
+   * the old row and creates a fresh reviewed one — student states stay bound
+   * to the old (retired) row and never silently re-anchor to new content.
+   */
+  async editCardAdmin(
+    cardId: string,
+    input: {
+      editKind: 'light' | 'rewrite';
+      front?: string;
+      back?: string;
+      cardType?: string;
+      reviewedBy: string;
+      rightsConfirmed: boolean;
+    },
+  ): Promise<{ mode: 'light' | 'rewrite'; retiredId?: string; newId?: string }> {
+    const prisma = this.requireStore();
+    this.assertContentRule10(input);
+    const existing = await prisma.memoryCard.findUnique({ where: { id: cardId } });
+    if (!existing) throw new NotFoundException('卡片不存在。');
+
+    if (input.editKind === 'light') {
+      if (input.front !== undefined && input.front !== existing.front) {
+        throw new BadRequestException('正面是学生的记忆锚点：改正面请用 rewrite（停旧建新）。');
+      }
+      this.assertCardShape({ back: input.back, cardType: input.cardType });
+      await prisma.memoryCard.update({
+        where: { id: cardId },
+        data: {
+          ...(input.back !== undefined ? { back: input.back } : {}),
+          ...(input.cardType !== undefined ? { cardType: input.cardType } : {}),
+          reviewedBy: input.reviewedBy,
+          rightsConfirmed: true,
+        },
+      });
+      return { mode: 'light' };
+    }
+
+    // rewrite: retire old, create new (front and/or back substantively change).
+    const front = input.front?.trim() || existing.front;
+    const back = input.back?.trim() || existing.back;
+    this.assertCardShape({ front, back });
+    const dupe = await prisma.memoryCard.findFirst({
+      where: { knowledgeNodeId: existing.knowledgeNodeId, front, isActive: true, id: { not: existing.id } },
+      select: { id: true },
+    });
+    if (dupe) throw new ConflictException('同节点下已存在相同正面的其他启用卡片。');
+    const created = await prisma.$transaction(async (tx) => {
+      await tx.memoryCard.update({ where: { id: existing.id }, data: { isActive: false } });
+      return tx.memoryCard.create({
+        data: {
+          knowledgeNodeId: existing.knowledgeNodeId,
+          cardType: input.cardType ?? existing.cardType,
+          front,
+          back,
+          reviewedBy: input.reviewedBy,
+          rightsConfirmed: true,
+        },
+        select: { id: true },
+      });
+    });
+    return { mode: 'rewrite', retiredId: existing.id, newId: created.id };
+  }
+
+  async retireCardAdmin(cardId: string): Promise<{ id: string; isActive: false }> {
+    const prisma = this.requireStore();
+    const existing = await prisma.memoryCard.findUnique({ where: { id: cardId }, select: { id: true, isActive: true } });
+    if (!existing) throw new NotFoundException('卡片不存在。');
+    await prisma.memoryCard.update({ where: { id: cardId }, data: { isActive: false } });
+    return { id: cardId, isActive: false };
+  }
+
   async getSession(userId: string, input: { limit?: number; nodeId?: string } = {}, now: Date = new Date()): Promise<MemoryCardSessionView> {
     const prisma = this.requireStore();
     const requested = Math.trunc(input.limit ?? MEMORY_CARD_SESSION_CAP);

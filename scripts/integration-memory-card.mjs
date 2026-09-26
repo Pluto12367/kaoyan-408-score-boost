@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { PrismaClient } from '@prisma/client';
 
 const require = createRequire(import.meta.url);
+const { hashPassword } = require('../apps/api/dist/auth/password.js');
 const root = process.cwd();
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
@@ -74,10 +75,10 @@ async function seedBeforeBoot() {
 
   await prisma.user.upsert({
     where: { id: ids.admin },
-    update: { passwordHash: 'seed', role: 'ADMIN', accountStatus: 'ACTIVE', trialStatus: 'ACTIVE' },
+    update: { passwordHash: await hashPassword(password), role: 'ADMIN', accountStatus: 'ACTIVE', trialStatus: 'ACTIVE' },
     create: {
       id: ids.admin, email: `${ids.admin}@integration.test`, name: '记忆卡管理员', role: 'ADMIN',
-      passwordHash: 'seed', trialStatus: 'ACTIVE', accountStatus: 'ACTIVE',
+      passwordHash: await hashPassword(password), trialStatus: 'ACTIVE', accountStatus: 'ACTIVE',
     },
   });
   await prisma.knowledgeNode.create({
@@ -150,20 +151,27 @@ async function seedBeforeBoot() {
   // Real import: created=3 with RULE-10 provenance stamped per row.
   const imported = runImporter(csvPath, ['--reviewed-by', 'integration(Owner-authorized)', '--rights-confirmed']);
   assert.equal(imported.status, 0, `import failed: ${imported.stderr}`);
-  assert.match(imported.stdout, /created=3 skipped=0/);
+  assert.match(imported.stdout, /created=3 updated=0 skipped=0/);
   const cards = await prisma.memoryCard.findMany({ where: { knowledgeNodeId: { in: [ids.nodeA, ids.nodeB] } } });
   assert.equal(cards.length, 3);
   for (const card of cards) {
     assert.equal(card.reviewedBy, 'integration(Owner-authorized)');
     assert.equal(card.rightsConfirmed, true);
   }
-  record('import', `created=3 with reviewedBy/rightsConfirmed stamped (RULE-10 chain): ${imported.stdout.trim().split('\n').pop()}`);
+  record('import', `created=3 with reviewedBy/rightsConfirmed stamped (RULE-10 chain)`);
 
   // Idempotent re-run: same CSV → skipped, no duplicates.
   const rerun = runImporter(csvPath, ['--reviewed-by', 'integration(Owner-authorized)', '--rights-confirmed']);
   assert.equal(rerun.status, 0);
-  assert.match(rerun.stdout, /created=0 skipped=3/);
-  record('idempotent-import', 're-run created=0 skipped=3');
+  assert.match(rerun.stdout, /created=0 updated=0 skipped=3/);
+  record('idempotent-import', 're-run created=0 updated=0 skipped=3');
+
+  // D-M-3: --update re-applies the same CSV in place (re-stamps provenance).
+  const upd = runImporter(csvPath, ['--reviewed-by', 'integration(Owner-authorized)', '--rights-confirmed', '--update']);
+  assert.equal(upd.status, 0);
+  assert.match(upd.stdout, /created=0 updated=3 skipped=0/);
+  assert.equal(await prisma.memoryCard.count(), 3, '--update must not duplicate cards');
+  record('admin-update-importer', '--update re-stamps provenance in place (updated=3)');
 }
 
 function startApi() {
@@ -439,6 +447,73 @@ async function verifyAfterBoot() {
   assert.equal(stateCountAfter, 2, 'practice attempt must not create card state rows');
   assert.equal(logCountAfter, 2, 'practice attempt must not append card review logs');
   record('practice-loopback', 'graded attempt through existing chain → nodeA mastery written by canonical writer; card domain unchanged');
+
+  // ---- D-M admin management surface ----
+  const adminLogin = await postJson(`${apiUrl}/auth/login`, {
+    email: `${ids.admin}@integration.test`, password,
+  });
+  const adminHeaders = { authorization: `Bearer ${adminLogin.body.accessToken}` };
+
+  const list0 = await getJson(`${apiUrl}/admin/memory-cards`, adminHeaders);
+  assert.equal(list0.status, 200);
+  assert.equal(list0.body.total, 3);
+  record('admin-list', `admin list → total=${list0.body.total}`);
+
+  const studentOnAdmin = await getJson(`${apiUrl}/admin/memory-cards`, studentA.headers);
+  assert.equal(studentOnAdmin.status, 403, 'student must not read the admin card list');
+  const missingRule10 = await postJson(`${apiUrl}/admin/memory-cards`, {
+    knowledgeNodeId: ids.nodeA, cardType: 'FORMULA', front: '无留痕卡？', back: 'b',
+  }, adminHeaders);
+  assert.equal(missingRule10.status, 400, 'create without RULE-10 fields must refuse');
+  record('admin-guards', 'student on admin list → 403; create without reviewedBy/rightsConfirmed → 400');
+
+  const created = await postJson(`${apiUrl}/admin/memory-cards`, {
+    knowledgeNodeId: ids.nodeA, cardType: 'CONCLUSION', front: '管理面新建卡？', back: 'b', reviewedBy: 'integration(Owner-authorized)', rightsConfirmed: true,
+  }, adminHeaders);
+  assert.equal(created.status, 201, `admin create failed: ${JSON.stringify(created.body)}`);
+  const filteredA = await getJson(`${apiUrl}/memory-cards/session?nodeId=${encodeURIComponent(ids.nodeA)}`, studentA.headers);
+  assert.equal(filteredA.body.summary.newCount, 1, 'newly created card is immediately visible to the student as new');
+  record('admin-create', 'admin creates card on nodeA → student session sees it (newCount 1)');
+
+  // Light edit: back fixed in place; front is immutable on the light track.
+  const target = filteredA.body.queue.find((item) => item.front === '管理面新建卡？');
+  const light = await fetch(`${apiUrl}/admin/memory-cards/${target.cardId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', ...adminHeaders },
+    body: JSON.stringify({ editKind: 'light', back: '修正后的背面', reviewedBy: 'integration(Owner-authorized)', rightsConfirmed: true }),
+  });
+  assert.equal(light.status, 200);
+  const frontOnLight = await fetch(`${apiUrl}/admin/memory-cards/${target.cardId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', ...adminHeaders },
+    body: JSON.stringify({ editKind: 'light', front: '换正面？', reviewedBy: 'integration(Owner-authorized)', rightsConfirmed: true }),
+  });
+  assert.equal(frontOnLight.status, 400, 'light edit must refuse front changes');
+  record('admin-light-edit', 'light edit updates back in place; front change on light track → 400');
+
+  // Rewrite: retire old + create new reviewed row; student states stay on the old row.
+  const rewrite = await fetch(`${apiUrl}/admin/memory-cards/${target.cardId}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', ...adminHeaders },
+    body: JSON.stringify({ editKind: 'rewrite', front: '改写后的正面？', back: '改写后的背面', reviewedBy: 'integration(Owner-authorized)', rightsConfirmed: true }),
+  });
+  assert.equal(rewrite.status, 200);
+  const rewriteBody = await rewrite.json();
+  assert.equal(rewriteBody.mode, 'rewrite');
+  const oldRow = await prisma.memoryCard.findUnique({ where: { id: target.cardId } });
+  const newRow = await prisma.memoryCard.findUnique({ where: { id: rewriteBody.newId } });
+  assert.equal(oldRow.isActive, false, 'rewritten old row must be retired');
+  assert.equal(newRow.isActive, true);
+  assert.equal(newRow.front, '改写后的正面？');
+  assert.equal(await prisma.userMemoryCardState.count({ where: { cardId: oldRow.id } }), 0, 'no student had states on the fresh admin card');
+  record('admin-rewrite', 'rewrite → old row retired + new reviewed row live (D-M-1 dual track)');
+
+  const retire = await fetch(`${apiUrl}/admin/memory-cards/${rewriteBody.newId}/retire`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json', ...adminHeaders },
+  });
+  assert.equal(retire.status, 200);
+  const retired = await prisma.memoryCard.findUnique({ where: { id: rewriteBody.newId } });
+  assert.equal(retired.isActive, false, 'retired card must leave student queues');
+  const sessionAfterRetire = await getJson(`${apiUrl}/memory-cards/session?nodeId=${encodeURIComponent(ids.nodeA)}`, studentA.headers);
+  assert.equal(sessionAfterRetire.body.summary.newCount, 0, 'retired card no longer in student queue');
+  record('admin-retire', 'retire → isActive=false; student queue excludes it');
 }
 
 (async () => {

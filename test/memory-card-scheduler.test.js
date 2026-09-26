@@ -31,6 +31,7 @@ import {
   applyMemoryCardReview,
   buildMemoryCardQueue,
   collectIntraSessionRetries,
+  estimateCatchUpDays,
 } from '../packages/shared/dist/index.js';
 
 const NOW = new Date('2026-12-10T00:00:00.000Z');
@@ -230,4 +231,11 @@ test('M1: intra-session retry collects exactly the 没记住 cards, once each, i
     [],
     '模糊/记住 never trigger intra-session reappearance',
   );
+});
+
+test('V14-②+: catch-up estimate — backlog beyond one session names the days needed', () => {
+  assert.equal(estimateCatchUpDays(20, 20), null, 'backlog within one session needs no catch-up plan');
+  assert.equal(estimateCatchUpDays(200, 20), 10, 'ceil(200/20) days to clear');
+  assert.equal(estimateCatchUpDays(201, 20), 11, 'partial last day rounds up');
+  assert.equal(estimateCatchUpDays(0, 20), null);
 });

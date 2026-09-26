@@ -9,6 +9,7 @@ import { ManagedUserCreationPanel } from './ManagedUserCreationPanel';
 import { StudentAccountActions } from './StudentAccountActions';
 import { TeacherAuthorizationPanel } from './TeacherAuthorizationPanel';
 import { QuestionImportWorkspace } from './question-import/QuestionImportWorkspace';
+import { MemoryCardAdminPanel } from './MemoryCardAdminPanel';
 
 interface AdminWorkspaceProps {
   activeSection?: RoleSection;
@@ -125,6 +126,7 @@ export function AdminWorkspace(props: AdminWorkspaceProps) {
         </>
       ) : null}
       {shouldShow('question-import') ? <QuestionImportWorkspace /> : null}
+      {shouldShow('card-admin') ? <MemoryCardAdminPanel /> : null}
 
       {shouldShow('teacher') ? users ? (
         <section className="panel admin-users-panel">

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { collectIntraSessionRetries } from '@kaoyan408/shared';
+import { collectIntraSessionRetries, estimateCatchUpDays } from '@kaoyan408/shared';
 import {
   fetchMemoryCardSession,
   fetchMemoryCardPracticeCandidate,
@@ -19,6 +19,8 @@ import {
   retentionLabel,
 } from './memoryCardView';
 import './memory-card.css';
+import 'katex/dist/katex.min.css';
+import { renderMathText } from './mathText';
 
 /**
  * V14-② 记忆卡复习面 — 自取数（self-scope），翻卡 + 三档自评。
@@ -159,6 +161,7 @@ export function MemoryCardWorkspace({ nodeId, onClearNodeFilter, onPracticeCandi
   const nodeName = queue[0]?.nodeName ?? null;
   const reviewedCount = evaluations.length;
   const retriedCount = phase.kind === 'retry' || phase.kind === 'done' ? retryQueue.length : 0;
+  const catchUpDays = session ? estimateCatchUpDays(session.summary.dueCount, session.summary.sessionCap) : null;
 
   return (
     <div className="memory-card-workspace" data-testid="memory-card-workspace">
@@ -227,7 +230,13 @@ export function MemoryCardWorkspace({ nodeId, onClearNodeFilter, onPracticeCandi
           >
             <span className="memory-card-front">{current.front}</span>
             {revealed ? (
-              <span className="memory-card-back" data-testid="memory-card-back">{current.back}</span>
+              <span
+                className="memory-card-back"
+                data-testid="memory-card-back"
+                // $..$ math segments render via KaTeX; plain segments are
+                // HTML-escaped inside renderMathText (see mathText.ts).
+                dangerouslySetInnerHTML={{ __html: renderMathText(current.back) }}
+              />
             ) : (
               <span className="memory-card-hint">点击翻面查看结论 / 公式</span>
             )}
@@ -269,6 +278,7 @@ export function MemoryCardWorkspace({ nodeId, onClearNodeFilter, onPracticeCandi
         <footer className="memory-card-summary muted">
           到期 {session.summary.dueCount} 张 · 新卡 {session.summary.newCount} 张 · 本次已自评 {reviewedCount} 张
           {retriedCount > 0 ? `（含重现 ${retriedCount} 张）` : ''}
+          {catchUpDays ? ` · 到期较多：本轮先复习最紧急的 ${session.summary.sessionCap} 张，约还需 ${catchUpDays} 天清完` : ''}
           {lastFeedback ? ` · 上一张（${RATING_LABELS[lastFeedback.rating]}）：${lastFeedback.nextLabel}` : ''}
         </footer>
       ) : null}

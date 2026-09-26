@@ -108,3 +108,44 @@ test('S2: card→practice loop — lazy candidate entry wired to the EXISTING pr
   // API layer defines the candidate fetcher against the read-only endpoint.
   assert.match(api, /memory-cards\/practice-candidate/);
 });
+
+test('V14-②+: card faces render $..$ math via KaTeX; plain text stays escaped', async () => {
+  const math = await source('apps/web/src/features/memory-card/mathText.ts');
+  const workspace = await source('apps/web/src/features/memory-card/MemoryCardWorkspace.tsx');
+
+  assert.match(math, /import katex from 'katex'/);
+  assert.match(math, /throwOnError: false/);
+  assert.match(math, /escapeHtml/, 'non-math segments must stay escaped');
+  assert.match(workspace, /renderMathText\(current\.back\)/);
+  assert.match(workspace, /katex\.min\.css/);
+});
+
+test('V14-②+: catch-up pacing is derived from the shared estimator, not inline math', async () => {
+  const workspace = await source('apps/web/src/features/memory-card/MemoryCardWorkspace.tsx');
+  const shared = await source('packages/shared/src/score-center/memory-card.ts');
+
+  assert.match(workspace, /estimateCatchUpDays\(session\.summary\.dueCount/);
+  assert.match(workspace, /约还需 \$\{catchUpDays\} 天清完/);
+  assert.match(shared, /export function estimateCatchUpDays/);
+});
+
+test('D-M: admin card management panel is admin-only, RULE-10 stamped, demo-refusing', async () => {
+  const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
+  const workspace = await source('apps/web/src/features/admin/AdminWorkspace.tsx');
+  const panel = await source('apps/web/src/features/admin/MemoryCardAdminPanel.tsx');
+  const api = await source('apps/web/src/api/endpoints/memoryCardAdmin.ts');
+
+  assert.match(navigation, /\{ id: 'card-admin', label: '记忆卡管理', icon: Layers \}/);
+  assert.match(workspace, /shouldShow\('card-admin'\) \? <MemoryCardAdminPanel \/> : null/);
+  // Panel is self-fetching: no admin props leak into StudentSections surface.
+  assert.match(panel, /fetchAdminMemoryCards/);
+  assert.match(panel, /演示模式不可伪造内容/);
+  // RULE-10 provenance is mandatory on every write path.
+  assert.match(panel, /DEFAULT_REVIEWER/);
+  assert.match(panel, /rightsConfirmed: true/);
+  // Dual-track edit + retire actions present.
+  assert.match(panel, /editKind: 'light'/);
+  assert.match(panel, /editKind: 'rewrite'/);
+  assert.match(panel, /retireAdminMemoryCard/);
+  assert.match(api, /admin\/memory-cards/);
+});
