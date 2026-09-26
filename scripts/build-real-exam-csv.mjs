@@ -110,7 +110,9 @@ for (const question of source.questions) {
   row.year = year;
   row.expectedTimeSec = isMcq ? '100' : '600';
   row.questionSubtype = isMcq ? 'SINGLE_CHOICE' : '';
-  row.maxScore = String(mapping.score);
+  // 2009-2021 大题分值待官方分值表（bundle score=null）→ 空串=导入器侧诚实未定价
+  // （NULL ≠ 0）。选择题恒为 2 分结构事实，不受影响。
+  row.maxScore = mapping.score == null ? '' : String(mapping.score);
   row.判分标准 = !isMcq && draft.rubric ? JSON.stringify(draft.rubric) : '';
   row.examNo = String(question.questionNo);
   row.knowledgeNodeIds = [mapping.primaryKnowledgePointId, ...(mapping.secondaryKnowledgePointIds ?? [])]
