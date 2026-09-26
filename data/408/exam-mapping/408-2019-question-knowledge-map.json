@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2019年408真题",
@@ -757,7 +757,7 @@
       "year": 2019,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "设线性表 L=(a1,a2,a3,⋯,an−1,an−1,an) 采用带头结点的单链表保存，链表中的结点定义如下： typedef struct node { ",
       "primaryKnowledgePointId": "DS-C02-S03-P18",
@@ -768,7 +768,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -777,7 +777,7 @@
       "year": 2019,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "请设计一个队列，要求满足： ① 初始时队列为空； ② 入队时，允许增加队列占用空间； ③ 出队后，出队元素所占用的空间可重复使用，即整个队列所占用的空间只增不减",
       "primaryKnowledgePointId": "DS-C03-S02-P07",
@@ -788,7 +788,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -797,7 +797,7 @@
       "year": 2019,
       "questionNo": 43,
       "subject": "OS",
-      "score": null,
+      "score": 7,
       "questionType": "综合题",
       "summary": "有 n（n ≥ 3）位哲学家围坐在一张圆桌边，每位哲学家交替地就餐和思考。在圆桌中心有 m（m ≥ 1）个碗，每两位哲学家之间有一根筷子。每位哲学家必须取到一个",
       "primaryKnowledgePointId": "OS-C02-S05-P06",
@@ -808,7 +808,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -817,7 +817,7 @@
       "year": 2019,
       "questionNo": 44,
       "subject": "OS",
-      "score": null,
+      "score": 7,
       "questionType": "综合题",
       "summary": "某计算机系统中的磁盘有 300 个柱面，每个柱面有 10 个磁道，每个磁道有 200 个扇区，扇区大小为 512B。文件系统的每个簇包含 2 个扇区。请回答下列",
       "primaryKnowledgePointId": "OS-C05-S03-P08",
@@ -828,7 +828,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -837,7 +837,7 @@
       "year": 2019,
       "questionNo": 45,
       "subject": "CO",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "已知 f(n)=n!=n×(n−1)×(n−2)×⋯×2×1 ，计算 f(n) 的 C 语言函数 f1 的源程序（阴影部分）及其在 32 位计算机 M 上的部分",
       "primaryKnowledgePointId": "CO-C04-S06-P03",
@@ -848,7 +848,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -857,7 +857,7 @@
       "year": 2019,
       "questionNo": 46,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "对于上题，若计算机 M 的主存地址为 32 位，釆用分页存储管理方式，页大小为 4KB，则第 1 行的 push 指令和第 30 行的 ret 指令是否在同一页",
       "primaryKnowledgePointId": "CO-C03-S05-P05",
@@ -868,7 +868,7 @@
       "isCrossSubject": true,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -877,7 +877,7 @@
       "year": 2019,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "某网络拓扑如题 47 图所示，其中 R 为路由器，主机 HI~H4 的 IP 地址配置以及 R 的各接口 IP 地址配置如图中所示。现有若干台以太网交换机（无 ",
       "primaryKnowledgePointId": "CN-C03-S06-P08",
@@ -888,7 +888,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2017年408真题",
@@ -754,7 +754,7 @@
       "year": 2017,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "请设计一个算法，将给定的表达式树（二叉树）转换为等价的中缀表达式（通过括号反映操作符的计算次序）并输出。例如，当下列两棵表达式树作为算法输入时： * + * a",
       "primaryKnowledgePointId": "DS-C04-S02-P12",
@@ -765,7 +765,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -774,7 +774,7 @@
       "year": 2017,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "使用 Prim（普里姆）算法求带权连通图的最小（代价）生成树（MST）。请回答下列问题。 (1) 对下列图 G，从顶点 A 开始求 G 的 MST，依次给出按算",
       "primaryKnowledgePointId": "DS-C05-S04-P02",
@@ -785,7 +785,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -794,7 +794,7 @@
       "year": 2017,
       "questionNo": 43,
       "subject": "CO",
-      "score": null,
+      "score": 14,
       "questionType": "综合题",
       "summary": "已知 f(n)=∑i=0n2i=2n+1−1=11⋯1 B，计算 f(n) 的 C 语言函数 f1 如下： int f1(unsigned n) { int s",
       "primaryKnowledgePointId": "CO-C04-S06-P03",
@@ -805,7 +805,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -814,7 +814,7 @@
       "year": 2017,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 10,
       "questionType": "综合题",
       "summary": "在按字节编址的计算机 M 上，题 43 中 f1 的部分源程序（阴影部分）与对应的机器级代码（包括指令的虚拟地址）如下图所示。 int f1(unsigned ",
       "primaryKnowledgePointId": "CO-C04-S06-P02",
@@ -825,7 +825,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -834,7 +834,7 @@
       "year": 2017,
       "questionNo": 45,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "假定题 44 给出的计算机 M 采用二级分页虚拟存储管理方式，虚拟地址格式如下： 页目录号（10 位）页表索引（10 位）页内偏移量（12 位）请针对题 43 ",
       "primaryKnowledgePointId": "OS-C03-S03-P09",
@@ -845,7 +845,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -854,7 +854,7 @@
       "year": 2017,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "某进程中有 3 个并发执行的线程 thread1、thread2、thread3，其伪代码如下所示。 //复数的结构类型定义 typedef struct { ",
       "primaryKnowledgePointId": "OS-C02-S04-P18",
@@ -865,7 +865,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -874,7 +874,7 @@
       "year": 2017,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "甲乙双方均采用后退 N 帧协议 (GBN) 进行持续的双向数据传输，且双方始终采用捎带确认，帧长均为 1000 B。 Sx,y 和 Rx,y 分别表示甲方和乙方",
       "primaryKnowledgePointId": "CN-C03-S03-P09",
@@ -885,7 +885,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

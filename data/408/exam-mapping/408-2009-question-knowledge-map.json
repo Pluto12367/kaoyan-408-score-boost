@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2009年408真题",
@@ -749,7 +749,7 @@
       "year": 2009,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 10,
       "questionType": "综合题",
       "summary": "带权图（权值非负，表示边连接的两顶点间的距离）的最短路径问题是找出从初始顶点到目标顶点之间的一条最短路径。假设从初始顶点到目标顶点之间存在路径，现有一种解决该问",
       "primaryKnowledgePointId": "DS-C05-S05-P02",
@@ -760,7 +760,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -769,7 +769,7 @@
       "year": 2009,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 15,
       "questionType": "综合题",
       "summary": "已知一个带有表头结点的单链表，结点结构为：| data | link | 假设该链表只给出了头指针 list。在不改变链表的前提下，请设计一个尽可能高效的算法，",
       "primaryKnowledgePointId": "DS-C02-S03-P18",
@@ -780,7 +780,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -789,7 +789,7 @@
       "year": 2009,
       "questionNo": 43,
       "subject": "CO",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某计算机的 CPU 主频为 500MHz，CPI 为 5（即执行每条指令平均需 5 个时钟周期）。假定某外设的数据传输率为 0.5MB/s，采用中断方式与主机进",
       "primaryKnowledgePointId": "CO-C06-S03-P02",
@@ -800,7 +800,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -809,7 +809,7 @@
       "year": 2009,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "某计算机字长 16 位，采用 16 位定长指令字结构，部分数据通路结构如下图所示，图中所有控制信号为 1 时表示有效、为 0 时表示无效。例如控制信号 MDRi",
       "primaryKnowledgePointId": "CO-C05-S03-P06",
@@ -820,7 +820,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -829,7 +829,7 @@
       "year": 2009,
       "questionNo": 45,
       "subject": "OS",
-      "score": null,
+      "score": 7,
       "questionType": "综合题",
       "summary": "三个进程 P1 、 P2 、 P3 互斥使用一个包含 N(N>0) 个单元的缓冲区。 P1 每次用 produce() 生成一个正整数并用 put() 送入缓冲",
       "primaryKnowledgePointId": "OS-C02-S05-P08",
@@ -840,7 +840,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -849,7 +849,7 @@
       "year": 2009,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "请求分页管理系统中，假设某进程的页表内容如下表所示： 页号页框（Page Frame）号有效位（存在位）0101H1102254H1页面大小为 4KB，一次内存",
       "primaryKnowledgePointId": "OS-C03-S03-P08",
@@ -860,7 +860,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -869,7 +869,7 @@
       "year": 2009,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "某网络拓扑如下图所示，路由器 R1 通过接口 E1、E2 分别连接局域网 1、局域网 2，通过接口 L0 连接路由器 R2，并通过路由器 R2 连接域名服务器与",
       "primaryKnowledgePointId": "CN-C04-S07-P08",
@@ -880,7 +880,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     }
   ]

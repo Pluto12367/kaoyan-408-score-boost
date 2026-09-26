@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2020年408真题",
@@ -769,7 +769,7 @@
       "year": 2020,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "定义三元组 (a,b,c) （ a,b,c 均为正数）的距离 D=∣a−b∣+∣b−c∣+∣c−a∣ 。给定 3 个非空整数集合 S1,S2,S3 ，按升序分别",
       "primaryKnowledgePointId": "DS-C02-S04-P05",
@@ -780,7 +780,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -789,7 +789,7 @@
       "year": 2020,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "任一个字符的编码都不是其它字符编码的前缀，则称这种编码具有前缀特性。现有某字符集（字符个数≥2）的不等长编码，每个字符的编码均为二进制的 0、1 序列，最长为 ",
       "primaryKnowledgePointId": "DS-C04-S04-P04",
@@ -800,7 +800,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -809,7 +809,7 @@
       "year": 2020,
       "questionNo": 43,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "有实现 x×y 的两个 C 语言函数如下： unsigned umul (unsigned x, unsigned y) { return x*y; } int",
       "primaryKnowledgePointId": "CO-C02-S03-P06",
@@ -820,7 +820,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -829,7 +829,7 @@
       "year": 2020,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "假定主存地址为 32 位，按字节编址，指令 Cache 和数据 Cache 与主存之间均采用 8 路组相联映射方式，直写（WriteThrough）写策略和 L",
       "primaryKnowledgePointId": "CO-C03-S05-P05",
@@ -840,7 +840,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -849,7 +849,7 @@
       "year": 2020,
       "questionNo": 45,
       "subject": "OS",
-      "score": null,
+      "score": 6,
       "questionType": "综合题",
       "summary": "现有 5 个操作 A、B、C、D 和 E，操作 C 必须在 A 和 B 完成后执行，操作 E 必须在 C 和 D 完成后执行，请使用信号量的 wait()、si",
       "primaryKnowledgePointId": "OS-C02-S05-P08",
@@ -860,7 +860,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -869,7 +869,7 @@
       "year": 2020,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "某 32 位系统采用基于二级页表的请求分页存储管理方式，按字节编址，页目录项和页表项长度均为 4 字节，虚拟地址结构如下所示。 页目录号（10 位）页号（10 ",
       "primaryKnowledgePointId": "OS-C03-S05-P03",
@@ -880,7 +880,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -889,7 +889,7 @@
       "year": 2020,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某校园网有两个局域网，通过路由器 R1、R2 和 R3 互联后接入 Internet，S1 和 S2 为 以太网交换机，局域网采用静态 IP 地址配置，路由器部",
       "primaryKnowledgePointId": "CN-C04-S07-P08",
@@ -900,7 +900,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

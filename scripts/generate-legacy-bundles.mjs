@@ -13,10 +13,12 @@
 // the verified 2022-2026 bundle shape so downstream (importer cross-check,
 // scaffold generator, audit, seed) works unchanged.
 //
-// Score policy (RULE-06 honest state):
-//   • MCQ = 2 (408 structure fact, every year)  → scoreStatus "verified"
-//   • essay = null (official per-question scores not yet entered; NULL ≠ 0,
-//     Owner D5/D6)                                   → scoreStatus "pending-official-scores"
+// Score policy (RULE-05/06 honest state, Owner decision 2026-09-26):
+//   • MCQ = 2 (408 structure fact, every year)        → scoreStatus "verified"
+//   • essay = ESSAY_SCORES below                      → scoreStatus "observed-official-transcript"
+//     （公开真题转录原文标注且多源一致）或 "stipulated-draft"
+//     （D-5 草稿拟定值 = 同年 rubric-v1 totalPoints，待官方核验；PROXY，非 OBSERVED）。
+//     未走完官方搜证的年份按 Owner 2026-09-26 决定先用拟定值定价；后续核验只做版本化修订。
 // mappingConfidence: 0.9 tag-high / 0.75 tag-medium-low / 1.0 essay-manual.
 // sourceStatus: "tag-derived-confirmed" (MCQ) / "essay-manual-mapped" (essay).
 
@@ -134,6 +136,34 @@ const QUESTION_OVERRIDES = new Map([
   ['2015-Q13', { primary: 'CO-C02-S01-P07', secondary: ['CO-C02-S01-P09'], confidence: 0.9, sourceStatus: 'question-manual-mapped' }],
 ]);
 
+/**
+ * 91 道大题分值表（Q41–Q47 顺序）。值 = [score, status]：
+ *   observed  公开真题转录原文分值标注且多源一致（知乎「考研408导论」各年文章
+ *             "41.（X分）" 原文 + csgraduates 解析分项 2009 Q41=4+6/Q42=满分15/
+ *             Q43=分项合计8 + hhkaobo 2009 分值分配文；证据摘录见
+ *             imports/essay-score-table.json 与 current-sprint 账本）。
+ *   stipulated D-5 草稿拟定值（= 同年草稿 rubric-v1 totalPoints；PROXY）。
+ * 2009 全部观测覆盖（[10,15,8,13,7,8,9]，Σ=70 与卷面一致）；2010 观测 41=10/42=13、
+ * 2011 观测 41=8，其余保持拟定——导入器年度 Σ=70 硬门禁下，观测分差在拟定值集合内
+ * 吸收（2010 Q43 11→10、2011 Q42 13→14，均 stipulated、无官方依据、显式留痕），
+ * 13 年年合计均为 70。Owner 决定（2026-09-26）：跳过对 2012-2021 的进一步搜证，先按拟定值定价。
+ */
+const ESSAY_SCORES = {
+  2009: { 41: [10, 'observed'], 42: [15, 'observed'], 43: [8, 'observed'], 44: [13, 'observed'], 45: [7, 'observed'], 46: [8, 'observed'], 47: [9, 'observed'] },
+  2010: { 41: [10, 'observed'], 42: [13, 'observed'], 43: [10, 'stipulated'], 44: [13, 'stipulated'], 45: [8, 'stipulated'], 46: [8, 'stipulated'], 47: [8, 'stipulated'] },
+  2011: { 41: [8, 'observed'], 42: [14, 'stipulated'], 43: [13, 'stipulated'], 44: [13, 'stipulated'], 45: [8, 'stipulated'], 46: [6, 'stipulated'], 47: [8, 'stipulated'] },
+  2012: { 41: [9, 'stipulated'], 42: [13, 'stipulated'], 43: [10, 'stipulated'], 44: [13, 'stipulated'], 45: [8, 'stipulated'], 46: [8, 'stipulated'], 47: [9, 'stipulated'] },
+  2013: { 41: [13, 'stipulated'], 42: [9, 'stipulated'], 43: [11, 'stipulated'], 44: [13, 'stipulated'], 45: [7, 'stipulated'], 46: [9, 'stipulated'], 47: [8, 'stipulated'] },
+  2014: { 41: [13, 'stipulated'], 42: [9, 'stipulated'], 43: [9, 'stipulated'], 44: [13, 'stipulated'], 45: [8, 'stipulated'], 46: [9, 'stipulated'], 47: [9, 'stipulated'] },
+  2015: { 41: [13, 'stipulated'], 42: [13, 'stipulated'], 43: [9, 'stipulated'], 44: [13, 'stipulated'], 45: [7, 'stipulated'], 46: [9, 'stipulated'], 47: [6, 'stipulated'] },
+  2016: { 41: [9, 'stipulated'], 42: [8, 'stipulated'], 43: [13, 'stipulated'], 44: [9, 'stipulated'], 45: [13, 'stipulated'], 46: [8, 'stipulated'], 47: [10, 'stipulated'] },
+  2017: { 41: [13, 'stipulated'], 42: [8, 'stipulated'], 43: [14, 'stipulated'], 44: [10, 'stipulated'], 45: [8, 'stipulated'], 46: [9, 'stipulated'], 47: [8, 'stipulated'] },
+  2018: { 41: [13, 'stipulated'], 42: [9, 'stipulated'], 43: [9, 'stipulated'], 44: [14, 'stipulated'], 45: [8, 'stipulated'], 46: [9, 'stipulated'], 47: [8, 'stipulated'] },
+  2019: { 41: [13, 'stipulated'], 42: [9, 'stipulated'], 43: [7, 'stipulated'], 44: [7, 'stipulated'], 45: [8, 'stipulated'], 46: [13, 'stipulated'], 47: [13, 'stipulated'] },
+  2020: { 41: [13, 'stipulated'], 42: [8, 'stipulated'], 43: [13, 'stipulated'], 44: [13, 'stipulated'], 45: [6, 'stipulated'], 46: [9, 'stipulated'], 47: [8, 'stipulated'] },
+  2021: { 41: [13, 'stipulated'], 42: [13, 'stipulated'], 43: [12, 'stipulated'], 44: [9, 'stipulated'], 45: [8, 'stipulated'], 46: [8, 'stipulated'], 47: [7, 'stipulated'] },
+};
+
 function parseEssayMap() {
   const map = new Map();
   for (const line of ESSAY_MAP.trim().split('\n')) {
@@ -206,7 +236,8 @@ function main() {
         sourceStatus = 'essay-manual-mapped';
       }
 
-      const score = isMcq ? 2 : null;
+      const score = isMcq ? 2 : ESSAY_SCORES[year][q.questionNo][0];
+      const essayScoreStatus = isMcq ? null : ESSAY_SCORES[year][q.questionNo][1];
       questions.push({
         id,
         exam: '408',
@@ -222,7 +253,7 @@ function main() {
         isCrossSubject: secondary.some((node) => node.slice(0, 2) !== primary.slice(0, 2)),
         unmappedConcepts: [],
         sourceStatus,
-        scoreStatus: isMcq ? 'verified' : 'pending-official-scores',
+        scoreStatus: isMcq ? 'verified' : essayScoreStatus === 'observed' ? 'observed-official-transcript' : 'stipulated-draft',
         scoreConfidence: isMcq ? 1 : null,
       });
     }
@@ -237,7 +268,7 @@ function main() {
         questionCount: questions.length,
         totalScore: 150,
         copyrightNote: '仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。',
-        scoreNote: '选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。',
+        scoreNote: '选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。',
         sources: [{ name: `计算机考研杂货铺 ${year}年408真题`, url: `https://www.csgraduates.com/study_methods/408quiz/${year}/`, role: '题面与官方答案来源' }],
       },
       questions,

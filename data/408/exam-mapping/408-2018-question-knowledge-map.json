@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2018年408真题",
@@ -755,7 +755,7 @@
       "year": 2018,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "给定一个含 n(n≥1) 个整数的数组，请设计一个在时间上尽可能高效的算法，找出数组中未出现的最小正整数。例如，数组{-5, 3, 2, 3}中未出现的最小正整",
       "primaryKnowledgePointId": "DS-C02-S04-P05",
@@ -766,7 +766,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -775,7 +775,7 @@
       "year": 2018,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "拟建设一个光通信骨干网络连通 BJ、CS、XA、QD、JN、NJ、TL 和 WH 等 8 个城市，题 42 图中无向边上的权值表示两个城市间备选光缆的铺设费用。",
       "primaryKnowledgePointId": "DS-C05-S04-P04",
@@ -786,7 +786,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -795,7 +795,7 @@
       "year": 2018,
       "questionNo": 43,
       "subject": "CO",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "假定计算机的主频为 500MHz，CPI 为 4。现有设备 A 和 B，其数据传输率分别为 2MBps 和 40MBps，对应 I/O 接口中各有一个 32 位",
       "primaryKnowledgePointId": "CO-C06-S03-P09",
@@ -806,7 +806,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -815,7 +815,7 @@
       "year": 2018,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 14,
       "questionType": "综合题",
       "summary": "某计算机采用页式虚拟存储管理方式，按字节编址。CPU 进行存储访问的过程如题 44 图所示。 00324H 1 F800H 0008CH 1 0040H 8C0",
       "primaryKnowledgePointId": "CO-C03-S06-P11",
@@ -826,7 +826,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -835,7 +835,7 @@
       "year": 2018,
       "questionNo": 45,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "请根据题 44 图给出的虚拟存储管理方式，回答下列问题。 (1) 某虚拟地址对应的页目录号为 6，在相应的页表中对应的页号为 6，页内偏移量为 8，该虚拟地址的",
       "primaryKnowledgePointId": "OS-C03-S03-P09",
@@ -846,7 +846,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -855,7 +855,7 @@
       "year": 2018,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "某文件系统采用索引节点存放文件的属性和地址信息，簇大小为 4KB。每个文件索引节点占 64B，有 11 个地址项，其中直接地址项 8 个，一级、二级和三级间接地",
       "primaryKnowledgePointId": "OS-C04-S01-P17",
@@ -866,7 +866,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -875,7 +875,7 @@
       "year": 2018,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某公司网络如题 47 图所示。IP 地址空间 192.168.1.0/24 被均分给销售部和技术部两个子网，并已分别为部分主机和路由器接口分配了 IP 地址，销",
       "primaryKnowledgePointId": "CN-C04-S03-P23",
@@ -886,7 +886,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

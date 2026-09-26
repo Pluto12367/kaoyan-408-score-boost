@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2021年408真题",
@@ -757,7 +757,7 @@
       "year": 2021,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "已知无向连通图 G 由顶点集 V 和边集 E 组成，|E| > 0，当 G 中度为奇数的顶点个数为不大于 2 的偶数时，G 存在包含所有边且长度为|E|的路径（",
       "primaryKnowledgePointId": "DS-C05-S03-P09",
@@ -768,7 +768,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -777,7 +777,7 @@
       "year": 2021,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "已知某排序算法如下： void cmpCountSort(int a[], int b[], int n) { int i, j, *count; count ",
       "primaryKnowledgePointId": "DS-C07-S07-P04",
@@ -788,7 +788,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -797,7 +797,7 @@
       "year": 2021,
       "questionNo": 43,
       "subject": "CO",
-      "score": null,
+      "score": 12,
       "questionType": "综合题",
       "summary": "假定计算机 M 字长为 16 位，按字节编址，连接 CPU 和主存的系统总线中地址线为 20 位、数据线为 8 位，采用 16 位定长指令字，指令格式及其说明如",
       "primaryKnowledgePointId": "CO-C04-S02-P07",
@@ -808,7 +808,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -817,7 +817,7 @@
       "year": 2021,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "假设计算机 M 的主存地址为 24 位，按字节编址；采用分页存储管理方式，虚拟地址为 30 位，页大小为 4KB；TLB 采用 2 路组相联方式和 LRU 替换",
       "primaryKnowledgePointId": "OS-C03-S03-P07",
@@ -828,7 +828,7 @@
       "isCrossSubject": true,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -837,7 +837,7 @@
       "year": 2021,
       "questionNo": 45,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "下表给出了整型信号量 S 的 wait() 和 signal() 操作的功能描述，以及采用开/关中断指令实现信号量操作互斥的两种方法。 功能描述 Semapho",
       "primaryKnowledgePointId": "OS-C02-S04-P15",
@@ -848,7 +848,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -857,7 +857,7 @@
       "year": 2021,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某计算机用硬盘作为启动盘，硬盘第一个扇区存放主引导记录，其中包含磁盘引导程序和分区表。磁盘引导程序用于选择要引导哪个分区的操作系统，分区表记录硬盘上各分区的位置",
       "primaryKnowledgePointId": "OS-C01-S05-P01",
@@ -868,7 +868,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -877,7 +877,7 @@
       "year": 2021,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 7,
       "questionType": "综合题",
       "summary": "某网络拓扑如题 47 图所示，以太网交换机 S 通过路由器 R 与 Internet 互联。路由器部分接口、本地域名服务器、H1、H2 的 IP 地址和 MAC",
       "primaryKnowledgePointId": "CN-C04-S03-P17",
@@ -888,7 +888,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

@@ -1,9 +1,11 @@
 // V14 内容生产轨 — 2009 真题大题解析/rubric 草稿（Q41–Q47）。
 // 状态：AI 草稿（D-5），必须经具名教研互审后方可导入（RULE-10）。
 // rubric 遵循 rubric-v1 JSON 规范（totalPoints = Σ criteria.points）。
-// ⚠ 2009 各大题官方单题分值待官方分值表（bundle 中 score=null）：以下 totalPoints 与
-//   子问分值拆分为草稿拟定（合计 70 分，与 40×2+70=150 卷面结构一致），解析中已显式
-//   标注「待核」；官方分值表到位后按版本化修订（rubric hash 可追溯）。
+// ⚠ 2026-09-26 rubric v2 修订：官方单题分值已观测（多源一致的公开真题转录原文标注，
+//   证据见 scripts/generate-legacy-bundles.mjs ESSAY_SCORES 注释）——
+//   41=10、42=15、43=8、44=13、45=7、46=8、47=9（合计 70，与卷面结构一致）。
+//   仅总分变动的题（41/42/47）升 version=2 并重分摊 criteria.points；43-46 拟定值
+//   恰与官方一致，保持 v1 不动（无内容变化不做假版本升级）。
 // Q44 依赖原卷数据通路图、Q47 依赖拓扑图，采分点按文字化题面搭建，图数据待核对。
 export const draftsEssay = {
   41: {
@@ -15,10 +17,10 @@ export const draftsEssay = {
       '反例：设顶点 S、A、B、T，边 S→A=10，A→T=1，S→B=1，B→T=100。\n' +
       '真实最短路径 S→A→T = 11。按题给方法：u=S 时最近的未访问顶点是 B（距离 1）→ 加入 B；\n' +
       'u=B 时只能加入 T，得到路径 S→B→T = 1+100 = 101 ≠ 11，且无法回头修正 → 方法不可行。\n' +
-      '【各问分值为草稿拟定（本题合计 8 分），待官方分值表核定。】',
+      '【官方分值 10 分（v2）；官方子问拆分未知，v1 的 +2 分差均摊到反例构造与执行对比两个证据性采分点。】',
     rubric: {
-      version: 1,
-      totalPoints: 8,
+      version: 2,
+      totalPoints: 10,
       criteria: [
         {
           id: 'c1', description: '明确回答「不能求得最短路径」（判断正确）', points: 2,
@@ -26,12 +28,12 @@ export const draftsEssay = {
           matchAny: ['不能', '无法', '不可以', '不能保证'],
         },
         {
-          id: 'c2', description: '构造出具体反例（顶点、边权完整，最短路径确实绕开局部最近点）', points: 3,
+          id: 'c2', description: '构造出具体反例（顶点、边权完整，最短路径确实绕开局部最近点）', points: 4,
           evidenceHint: '答案给出至少 4 个顶点与各边权值，且图中「离当前顶点最近的顶点」不在真实最短路径上',
           matchAny: ['反例', '顶点', '边'],
         },
         {
-          id: 'c3', description: '按题给方法逐步执行得到非最短结果，并与真实最短路径对比说明', points: 3,
+          id: 'c3', description: '按题给方法逐步执行得到非最短结果，并与真实最短路径对比说明', points: 4,
           evidenceHint: '答案展示贪心方法的执行结果（如 101）与真实最短值（如 11）的对比',
           matchAny: ['最短路径', '对比', '101', '局部'],
         },
@@ -58,13 +60,13 @@ export const draftsEssay = {
       '    while (p->link != NULL) { p = p->link; q = q->link; }   // 同步后移\n' +
       '    printf("%d", q->data); return 1;         // q 即倒数第 k 个结点\n' +
       '}\n' +
-      '【各问分值为草稿拟定（本题合计 13 分），待官方分值表核定。】',
+      '【官方分值 15 分（v2）；官方子问拆分未知，v1 的 +2 分差加到思想与代码两个核心采分点。】',
     rubric: {
-      version: 1,
-      totalPoints: 13,
+      version: 2,
+      totalPoints: 15,
       criteria: [
         {
-          id: 'c1', description: '(1) 双指针思想正确：两指针保持固定间距 k（或先走 k 步）一次遍历', points: 3,
+          id: 'c1', description: '(1) 双指针思想正确：两指针保持固定间距 k（或先走 k 步）一次遍历', points: 4,
           evidenceHint: '答案出现「两个指针」「相距 k」「一次遍历」等表述',
           matchAny: ['两个指针', '快慢', '相距', '先走', '一次遍历', '单趟'],
         },
@@ -74,7 +76,7 @@ export const draftsEssay = {
           matchAny: ['同步', '后移', '末尾', '返回'],
         },
         {
-          id: 'c3', description: '(3) 代码正确：头结点处理、k>表长的判空返回 0、输出 data 并返回 1', points: 4,
+          id: 'c3', description: '(3) 代码正确：头结点处理、k>表长的判空返回 0、输出 data 并返回 1', points: 5,
           evidenceHint: '代码含判空分支、返回 0/1 与输出语句',
           matchAny: ['NULL', 'return 0', 'return 1', 'printf', 'list'],
         },
@@ -289,13 +291,13 @@ export const draftsEssay = {
       '· 0.0.0.0 / 0.0.0.0 | 202.118.2.2 | L0（默认路由，去往互联网）\n' +
       '(3) R2 上的路由聚合：局域网 1、2 的两个 /25 恰好合并为 202.118.1.0/24，\n' +
       'R2 到两网的路由聚合为一条：202.118.1.0 / 255.255.255.0 | 下一跳 202.118.2.1 | 接口 L0。\n' +
-      '【各问分值为草稿拟定（本题合计 13 分），待官方分值表核定。】',
+      '【官方分值 9 分（v2）；官方子问拆分未知，v1 的 −4 分差从四个路由表条目采分点各减 1。】',
     rubric: {
-      version: 1,
-      totalPoints: 13,
+      version: 2,
+      totalPoints: 9,
       criteria: [
         {
-          id: 'c1', description: '(1) 两个 /25 子网划分正确（202.118.1.0/25 与 202.118.1.128/25）', points: 3,
+          id: 'c1', description: '(1) 两个 /25 子网划分正确（202.118.1.0/25 与 202.118.1.128/25）', points: 2,
           evidenceHint: '答案给出两个 /25 子网地址',
           matchAny: ['202.118.1.0/25', '202.118.1.128', '/25', '255.255.255.128'],
         },
@@ -305,12 +307,12 @@ export const draftsEssay = {
           matchAny: ['126', '120', '主机位'],
         },
         {
-          id: 'c3', description: '(2) 到局域网 1、局域网 2 的直连路由正确（接口 E1/E2）', points: 3,
+          id: 'c3', description: '(2) 到局域网 1、局域网 2 的直连路由正确（接口 E1/E2）', points: 2,
           evidenceHint: '路由表含两条直连路由及接口',
           matchAny: ['E1', 'E2', '直连'],
         },
         {
-          id: 'c4', description: '(2) 域名服务器主机路由正确（202.118.3.2/32 经 202.118.2.2 走 L0）', points: 2,
+          id: 'c4', description: '(2) 域名服务器主机路由正确（202.118.3.2/32 经 202.118.2.2 走 L0）', points: 1,
           evidenceHint: '答案含 255.255.255.255 或 /32 主机路由',
           matchAny: ['255.255.255.255', '/32', '202.118.3.2'],
         },
@@ -320,7 +322,7 @@ export const draftsEssay = {
           matchAny: ['0.0.0.0', '默认路由'],
         },
         {
-          id: 'c6', description: '(3) 聚合路由 202.118.1.0/24、下一跳 202.118.2.1 正确', points: 2,
+          id: 'c6', description: '(3) 聚合路由 202.118.1.0/24、下一跳 202.118.2.1 正确', points: 1,
           evidenceHint: '答案给出聚合后的 /24 路由',
           matchAny: ['202.118.1.0/24', '255.255.255.0', '聚合'],
         },

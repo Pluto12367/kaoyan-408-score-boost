@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2014年408真题",
@@ -760,7 +760,7 @@
       "year": 2014,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "二叉树的带权路径长度（WPL）是二叉树中所有叶结点的带权路径长度之和。给定一棵二叉树 T，采用二叉链表存储，结点结构为： 其中叶结点的 weight 域保存该结",
       "primaryKnowledgePointId": "DS-C04-S04-P01",
@@ -771,7 +771,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -780,7 +780,7 @@
       "year": 2014,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "某网络中的路由器运行 OSPF 路由协议，题 42 表是路由器 R1 维护的主要链路状态信息（LSI），题 42 图是根据题 42 表的接口名构造出来的网络拓扑",
       "primaryKnowledgePointId": "CN-C04-S05-P07",
@@ -791,7 +791,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -800,7 +800,7 @@
       "year": 2014,
       "questionNo": 43,
       "subject": "CN",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "请根据题 42 描述的网络，继续回答下列问题。 (1) 假设路由表结构如下表所示，请给出题 42 图中 R1 的路由表，要求包括到达题 42 图中子网 192.",
       "primaryKnowledgePointId": "CN-C04-S03-P13",
@@ -811,7 +811,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -820,7 +820,7 @@
       "year": 2014,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "某程序中有如下循环代码段 P：“for (int i=0; i＜N; i++) sum += A[i];”。假设编译时变量 sum 和 i 分别分配在寄存器 R",
       "primaryKnowledgePointId": "CO-C05-S06-P01",
@@ -831,7 +831,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -840,7 +840,7 @@
       "year": 2014,
       "questionNo": 45,
       "subject": "CO",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "假设对于题 44 中的计算机 M 和程序段 P 的机器代码，M 采用页式虚拟存储管理；P 开始执行时，(R1)=(R2)=0，(R6)=1000，其机器代码已调",
       "primaryKnowledgePointId": "OS-C03-S05-P03",
@@ -851,7 +851,7 @@
       "isCrossSubject": true,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -860,7 +860,7 @@
       "year": 2014,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "文件 F 由 200 条记录组成，记录从 1 开始编号。用户打开文件后，欲将内存中的一条记录插入文件 F 中，作为其第 30 条记录。请回答下列问题，并说明理由",
       "primaryKnowledgePointId": "OS-C04-S01-P13",
@@ -871,7 +871,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -880,7 +880,7 @@
       "year": 2014,
       "questionNo": 47,
       "subject": "OS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "系统中有多个生产者进程和多个消费者进程，共享一个能存放 1000 件产品的环形缓冲区（初始为空）。当缓冲区未满时，生产者进程可以放入其生产的一件产品，否则等待；",
       "primaryKnowledgePointId": "OS-C02-S05-P01",
@@ -891,7 +891,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

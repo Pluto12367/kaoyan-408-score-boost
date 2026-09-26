@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2016年408真题",
@@ -762,7 +762,7 @@
       "year": 2016,
       "questionNo": 41,
       "subject": "CN",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "201.1.3.9 201.1.3.1 L1 L0 E0 E1 201.1.1.0/24 DNS 服务器 201.1.1.1 Switch Hub 192.16",
       "primaryKnowledgePointId": "CN-C03-S06-P08",
@@ -773,7 +773,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -782,7 +782,7 @@
       "year": 2016,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "如果一棵非空 k （ k≥2 ） 叉树 T 中每个非叶结点都有 k 个孩子，则称 T 为正则 k 叉树。请回答下列问题并给出推导过程。 (1) 若 T 有 m ",
       "primaryKnowledgePointId": "DS-C04-S01-P90",
@@ -793,7 +793,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -802,7 +802,7 @@
       "year": 2016,
       "questionNo": 43,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "已知由 n(n≥2) 个正整数构成的集合 A=ak∣0≤k<n ，将其划分为两个不相交的子集 A1 和 A2 ，元素个数分别是 n1 和 n2 ， A1 和 A",
       "primaryKnowledgePointId": "DS-C02-S04-P05",
@@ -813,7 +813,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -822,7 +822,7 @@
       "year": 2016,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "假定 CPU 主频为 50MHz，CPI 为 4。设备 D 采用异步串行通信方式向主机传送 7 位 ASCII 字符，通信规程中有 1 位奇校验位和 1 位停止",
       "primaryKnowledgePointId": "CO-C06-S03-P09",
@@ -833,7 +833,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -842,7 +842,7 @@
       "year": 2016,
       "questionNo": 45,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "某计算机采用页式虚拟存储管理方式，按字节编址，虚拟地址为 32 位，物理地址为 24 位，页大小为 8KB；TLB 采用全相联映射；Cache 数据区大小为 6",
       "primaryKnowledgePointId": "CO-C03-S06-P11",
@@ -853,7 +853,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -862,7 +862,7 @@
       "year": 2016,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某进程调度程序采用基于优先数 (priority) 的调度策略，即选择优先数最小的进程运行，进程创建时由用户指定一个 nice 作为静态优先数。为了动态调整优先",
       "primaryKnowledgePointId": "OS-C02-S03-P11",
@@ -873,7 +873,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -882,7 +882,7 @@
       "year": 2016,
       "questionNo": 47,
       "subject": "OS",
-      "score": null,
+      "score": 10,
       "questionType": "综合题",
       "summary": "某磁盘文件系统使用链接分配方式组织文件，簇大小为 4KB。目录文件的每个目录项包括文件名和文件的第一个簇号，其他簇号存放在文件分配表 FAT 中。 (1) 假定",
       "primaryKnowledgePointId": "OS-C04-S01-P15",
@@ -893,7 +893,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

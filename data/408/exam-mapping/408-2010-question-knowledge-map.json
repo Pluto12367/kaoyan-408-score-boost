@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2010年408真题",
@@ -743,7 +743,7 @@
       "year": 2010,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 10,
       "questionType": "综合题",
       "summary": "将关键字序列 ⟨7,8,30,11,18,9,14⟩ 散列存储到散列表中。散列表的存储空间是一个下标从 0 开始的一维数组，散列函数为 H(key)=(key×",
       "primaryKnowledgePointId": "DS-C06-S08-P06",
@@ -754,7 +754,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -763,7 +763,7 @@
       "year": 2010,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "设将 n ( n>1 ) 个整数存放到一维数组 R 中。试设计一个在时间和空间两方面都尽可能高效的算法。将 R 中保存的序列循环左移 p(0<p<N ) 个位置",
       "primaryKnowledgePointId": "DS-C02-S04-P05",
@@ -774,7 +774,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "observed-official-transcript",
       "scoreConfidence": null
     },
     {
@@ -783,7 +783,7 @@
       "year": 2010,
       "questionNo": 43,
       "subject": "CO",
-      "score": null,
+      "score": 10,
       "questionType": "综合题",
       "summary": "某计算机字长为 16 位，主存地址空间大小为 128KB，按字编址。采用单字长指令格式，指令各字段定义如下： OP Ms Rs Md Rd 15 12 11 6",
       "primaryKnowledgePointId": "CO-C04-S03-P07",
@@ -794,7 +794,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -803,7 +803,7 @@
       "year": 2010,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "某计算机的主存地址空间大小为 256MB，按字节编址。指令 Cache 和数据 Cache 分离，均有 8 个 Cache 行，每个 Cache 行大小为 64",
       "primaryKnowledgePointId": "CO-C03-S05-P03",
@@ -814,7 +814,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -823,7 +823,7 @@
       "year": 2010,
       "questionNo": 45,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "假设计算机系统采用 CSCAN（循环扫描）磁盘调度策略，使用 2KB 的内存空间记录 16384 个磁盘块的空闲状态。 磁头的运动方向 100 号磁道 0 号磁",
       "primaryKnowledgePointId": "OS-C05-S03-P08",
@@ -834,7 +834,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -843,7 +843,7 @@
       "year": 2010,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "设某计算机的逻辑地址空间和物理地址空间均为 64KB，按字节编址。若某进程最多需要 6 页（Page）数据存储空间，页的大小为 1KB，操作系统采用固定分配局部",
       "primaryKnowledgePointId": "OS-C03-S05-P09",
@@ -854,7 +854,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -863,7 +863,7 @@
       "year": 2010,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某局域网采用 CSMA/CD 协议实现介质访问控制，数据传输速率为 10 Mbps，主机甲和主机乙之间的距离为 2 km，信号传播速度是 200 000 km/",
       "primaryKnowledgePointId": "CN-C03-S04-P13",
@@ -874,7 +874,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]

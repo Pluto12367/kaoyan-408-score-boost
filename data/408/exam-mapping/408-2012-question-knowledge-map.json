@@ -7,7 +7,7 @@
     "questionCount": 47,
     "totalScore": 150,
     "copyrightNote": "仅保存题号、分值、自写摘要与知识点映射；题面原文另存 source JSON（Owner D-1 批准口径）。",
-    "scoreNote": "选择题 2 分（卷面结构事实）；综合题分值待官方分值表补录（null=未定价≠0，Owner D5/D6）。",
+    "scoreNote": "选择题 2 分（卷面结构事实）；综合题见逐题 score/scoreStatus：observed-official-transcript=公开转录原文标注（多源一致），stipulated-draft=D-5 草稿拟定值待官方核验（Owner 2026-09-26 决定先定价后核验）。",
     "sources": [
       {
         "name": "计算机考研杂货铺 2012年408真题",
@@ -755,7 +755,7 @@
       "year": 2012,
       "questionNo": 41,
       "subject": "DS",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "设有 6 个有序表 A、B、C、D、E、F，分别含有 10、35、40、50、60 和 200 个数据元素，各表中元素按升序排列。要求通过 5 次两两合并，将 ",
       "primaryKnowledgePointId": "DS-C07-S06-P05",
@@ -766,7 +766,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -775,7 +775,7 @@
       "year": 2012,
       "questionNo": 42,
       "subject": "DS",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "假定采用带头结点的单链表保存单词，当两个单词有相同的后缀时，则可共享相同的后缀存储空间，例如，“loading\" 和 “being” 的存储映像如下图所示。 l",
       "primaryKnowledgePointId": "DS-C02-S03-P17",
@@ -786,7 +786,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -795,7 +795,7 @@
       "year": 2012,
       "questionNo": 43,
       "subject": "CO",
-      "score": null,
+      "score": 10,
       "questionType": "综合题",
       "summary": "假定某计算机的 CPU 主频为 80MHz，CPI 为 4，平均每条指令访存 1.5 次，主存与 Cache 之间交换的块大小为 16B，Cache 的命中率为",
       "primaryKnowledgePointId": "CO-C03-S05-P17",
@@ -806,7 +806,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -815,7 +815,7 @@
       "year": 2012,
       "questionNo": 44,
       "subject": "CO",
-      "score": null,
+      "score": 13,
       "questionType": "综合题",
       "summary": "某 16 位计算机中，带符号整数用补码表示，数据 Cache 和指令 Cache 分离。下表给出了指令系统中部分指令格式，其中 Rs 和 Rd 表示寄存器，me",
       "primaryKnowledgePointId": "CO-C02-S01-P07",
@@ -826,7 +826,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -835,7 +835,7 @@
       "year": 2012,
       "questionNo": 45,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某请求分页系统的局部页面置换策略如下：系统从 0 时刻开始扫描，每隔 5 个时间单位扫描一轮驻留集（扫描时间忽略不计），本轮没有被访问过的页框将被系统回收，并放",
       "primaryKnowledgePointId": "OS-C03-S05-P06",
@@ -846,7 +846,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -855,7 +855,7 @@
       "year": 2012,
       "questionNo": 46,
       "subject": "OS",
-      "score": null,
+      "score": 8,
       "questionType": "综合题",
       "summary": "某文件系统空间的最大容量为 4TB（1TB= 240 B），以磁盘块为基本分配单位。磁盘块大小为 1KB。文件控制块 (FCB) 包含一个 512B 的索引表区",
       "primaryKnowledgePointId": "OS-C04-S01-P17",
@@ -866,7 +866,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     },
     {
@@ -875,7 +875,7 @@
       "year": 2012,
       "questionNo": 47,
       "subject": "CN",
-      "score": null,
+      "score": 9,
       "questionType": "综合题",
       "summary": "主机 H 通过快速以太网连接 Internet，IP 地址为 192.168.0.8，服务器 S 的 IP 地址为 211.68.71.80。H 与 S 使用 ",
       "primaryKnowledgePointId": "CN-C05-S04-P06",
@@ -886,7 +886,7 @@
       "isCrossSubject": false,
       "unmappedConcepts": [],
       "sourceStatus": "essay-manual-mapped",
-      "scoreStatus": "pending-official-scores",
+      "scoreStatus": "stipulated-draft",
       "scoreConfidence": null
     }
   ]
