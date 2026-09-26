@@ -103,9 +103,12 @@ function validateRow(row, line, warnings) {
   }
   const isMcq = type === '选择题';
 
+  // V14: maxScore is required for MCQs (structure-priced 2 分); essays MAY
+  // omit it (official 2009-2021 per-question scores pending → NULL=unpriced,
+  // warned at row level and reported by the year structure check).
   for (const field of isMcq
     ? ['stem', 'options', 'answer', 'analysis', 'knowledgePointIds', 'difficulty', 'type', 'source', 'year', 'examNo', 'maxScore']
-    : ['stem', 'analysis', 'knowledgePointIds', 'difficulty', 'type', 'source', 'year', 'examNo', 'maxScore']) {
+    : ['stem', 'analysis', 'knowledgePointIds', 'difficulty', 'type', 'source', 'year', 'examNo']) {
     if (!row[field]?.toString().trim()) {
       fail(`missing required field "${field}" (real-exam imports must be fully authored)`);
     }
@@ -168,8 +171,15 @@ function validateRow(row, line, warnings) {
   if ('invalid' in maxScoreParsed && maxScoreParsed.invalid) {
     fail(`maxScore must be a non-negative number, got "${row.maxScore}"`);
   }
-  if (maxScoreParsed.value == null) {
-    fail('maxScore is required for real-exam imports (official score; NULL pricing is starter-content behavior)');
+  // V14 (2009-2021 track): essays MAY omit maxScore — official per-question
+  // scores for those years are not yet entered; NULL stays honestly unpriced
+  // (Owner D5/D6: NULL ≠ 0), and the year structure check reports the gap
+  // instead of failing. MCQs remain required-priced (2 分 structure fact).
+  if (!isMcq && maxScoreParsed.value == null) {
+    warnings.push(`Line ${line}: essay maxScore absent → imported UNPRICED (NULL ≠ 0; pending official score table).`);
+  }
+  if (isMcq && maxScoreParsed.value == null) {
+    fail(`maxScore is required for MCQ real-exam imports (408 结构定价 2 分)`);
   }
 
   // Rubric: essays only — a choice question has nothing for a rubric to score.
@@ -224,7 +234,7 @@ function validateRow(row, line, warnings) {
  * the two-sided score cross-check against verified exam-mapping data; absent
  * bundle → no cross-check for that year (reported, not failed).
  */
-export function validateYearStructure(questions, mappingBundles = new Map()) {
+export function validateYearStructure(questions, mappingBundles = new Map(), warnings = []) {
   const reports = [];
   const errors = [];
 
@@ -244,12 +254,18 @@ export function validateYearStructure(questions, mappingBundles = new Map()) {
     }
 
     const sumMcq = mcq.reduce((total, question) => total + question.maxScore, 0);
-    const sumEssay = essay.reduce((total, question) => total + question.maxScore, 0);
+    // V14: essays may be unpriced (maxScore null for 2009-2021 pending official
+    // scores) — maxScore is a number on every validated row by the time it gets
+    // here EXCEPT essays, which carry null. Reduce treating null as 0 for the
+    // sum but track the unpriced count for the report and mixed-state check.
+    const pricedEssay = essay.filter((question) => question.maxScore != null);
+    const unpricedEssayCount = essay.length - pricedEssay.length;
+    const sumEssay = pricedEssay.reduce((total, question) => total + question.maxScore, 0);
     const complete = yearQuestions.length === 47 && mcq.length === 40 && essay.length === 7;
 
     const report = {
       year, total: yearQuestions.length, mcq: mcq.length, essay: essay.length,
-      complete, sumMcq, sumEssay, mappingMatch: null, mappingChecked: false,
+      complete, sumMcq, sumEssay, unpricedEssayCount, mappingMatch: null, mappingChecked: false,
     };
 
     if (complete) {
@@ -261,7 +277,17 @@ export function validateYearStructure(questions, mappingBundles = new Map()) {
       const actualEssay = essay.map((question) => question.examNo).sort(numeric).join(',');
       if (actualEssay !== expectedEssay) errors.push(`Year ${year}: 综合题 examNo slots incomplete (${actualEssay})`);
       if (sumMcq !== 80) errors.push(`Year ${year}: 选择题分值合计 ${sumMcq} ≠ 80`);
-      if (sumEssay !== 70) errors.push(`Year ${year}: 综合题分值合计 ${sumEssay} ≠ 70`);
+      // Essay sums: all-priced → must equal 70; all-unpriced → allowed with a
+      // report note (2009-2021 pending official scores); MIXED → suspicious,
+      // reject (partial score entry looks like an authoring accident).
+      if (unpricedEssayCount === essay.length && essay.length > 0) {
+        report.essaysUnpriced = true;
+        warnings.push(`Year ${year}: 综合题全部未定价（NULL=未定价≠0，待官方分值表补录）`);
+      } else if (unpricedEssayCount === 0) {
+        if (sumEssay !== 70) errors.push(`Year ${year}: 综合题分值合计 ${sumEssay} ≠ 70`);
+      } else {
+        errors.push(`Year ${year}: 综合题定价状态混合（${pricedEssay.length} 已定价 / ${unpricedEssayCount} 未定价）——请整年统一`);
+      }
     }
 
     const bundle = mappingBundles.get(year);

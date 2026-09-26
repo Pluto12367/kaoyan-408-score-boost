@@ -232,3 +232,44 @@ test('P0-RE partial year imports are allowed and reported as partial (phased bat
   assert.equal(reports[0].complete, false);
   assert.equal(reports[0].total, 2);
 });
+
+// ------------------------------------------------------------- unpriced essays (2009-2021)
+
+test('P0-RE essay without maxScore imports UNPRICED with a row warning (NULL ≠ 0)', () => {
+  const noScore = essayRow({ maxScore: '' });
+  const { questions, warnings, errors } = validateRealExamRows([noScore]);
+  assert.deepEqual(errors, []);
+  assert.equal(questions[0].maxScore, null, 'essay maxScore NULL = unpriced (D5/D6)');
+  assert.ok(warnings.some((w) => w.includes('UNPRICED')), 'row warning names the unpriced state');
+});
+
+test('P0-RE complete year all-unpriced essays → allowed with essaysUnpriced report note', () => {
+  const rows = [];
+  for (let examNo = 1; examNo <= 40; examNo += 1) {
+    rows.push(mcqRow({ examNo: String(examNo), stem: `单选 ${examNo}`, answer: examNo % 2 === 0 ? 'B' : 'A' }));
+  }
+  const essayScores = { 41: 13, 42: 10, 43: 10, 44: 13, 45: 7, 46: 8, 47: 9 };
+  for (const [examNo, score] of Object.entries(essayScores)) {
+    rows.push(essayRow({ examNo, maxScore: '', stem: `综合 ${examNo}` }));
+  }
+  const { questions, errors } = validateRealExamRows(rows);
+  assert.deepEqual(errors, []);
+  const result = validateYearStructure(questions);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.reports[0].complete, true);
+  assert.equal(result.reports[0].unpricedEssayCount, 7, 'all 7 essays tracked as unpriced');
+});
+
+test('P0-RE mixed essay pricing in a complete year → rejected (partial entry = accident)', () => {
+  const rows = [];
+  for (let examNo = 1; examNo <= 40; examNo += 1) {
+    rows.push(mcqRow({ examNo: String(examNo), stem: `单选 ${examNo}`, answer: examNo % 2 === 0 ? 'B' : 'A' }));
+  }
+  const essayScores = { 41: 13, 42: 10, 43: 10, 44: 13, 45: 7, 46: 8, 47: 9 };
+  for (const [examNo, score] of Object.entries(essayScores)) {
+    rows.push(essayRow({ examNo, maxScore: examNo === '41' ? String(score) : '', stem: `综合 ${examNo}` }));
+  }
+  const { questions } = validateRealExamRows(rows);
+  const result = validateYearStructure(questions);
+  assert.ok(result.errors.some((message) => message.includes('定价状态混合')), 'mixed pricing must be rejected');
+});
