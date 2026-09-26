@@ -1,0 +1,142 @@
+/* V14-② 记忆卡 — token-based, follows the real-exam section conventions. */
+
+.memory-card-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
+}
+
+.memory-card-header h2 {
+  margin: 0 0 var(--space-1, 4px);
+}
+
+.memory-card-exam-context {
+  margin: var(--space-2, 8px) 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-secondary, #5b6472);
+}
+
+.memory-card-panel {
+  padding: var(--space-4, 16px);
+}
+
+.memory-card-error {
+  color: var(--color-danger, #b42318);
+  margin: 0 0 var(--space-2, 8px);
+}
+
+.memory-card-retry {
+  border: 1px solid var(--color-border, #d0d5dd);
+  background: var(--color-surface, #fff);
+  border-radius: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.memory-card-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+}
+
+.memory-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2, 8px);
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.memory-card-progress {
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary, #5b6472);
+}
+
+.memory-card-phase,
+.memory-card-type {
+  border: 1px solid var(--color-border, #d0d5dd);
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.memory-card-phase {
+  background: var(--color-accent-soft, #eef4ff);
+}
+
+.memory-card-node {
+  font-weight: 600;
+}
+
+.memory-card-retention {
+  color: var(--color-text-secondary, #5b6472);
+}
+
+.memory-card-flip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3, 12px);
+  text-align: left;
+  min-height: 180px;
+  padding: var(--space-5, 24px);
+  border: 1px solid var(--color-border, #d0d5dd);
+  border-radius: 12px;
+  background: var(--color-surface, #fff);
+  cursor: pointer;
+}
+
+.memory-card-front {
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.memory-card-back {
+  border-top: 1px dashed var(--color-border, #d0d5dd);
+  padding-top: var(--space-3, 12px);
+  line-height: 1.6;
+}
+
+.memory-card-hint {
+  color: var(--color-text-tertiary, #98a2b3);
+  font-size: 0.9rem;
+}
+
+.memory-card-ratings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3, 12px);
+}
+
+.memory-card-rating {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-3, 12px);
+  border: 1px solid var(--color-border, #d0d5dd);
+  border-radius: 10px;
+  background: var(--color-surface, #fff);
+  cursor: pointer;
+}
+
+.memory-card-rating:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.memory-card-rating-forgot:not(:disabled) {
+  border-color: var(--color-danger, #b42318);
+}
+
+.memory-card-rating-remembered:not(:disabled) {
+  border-color: var(--color-success, #067647);
+}
+
+.memory-card-summary {
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .memory-card-ratings {
+    grid-template-columns: 1fr;
+  }
+}

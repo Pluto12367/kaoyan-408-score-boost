@@ -29,3 +29,4 @@ export * from './error-diagnosis';
 export * from './training-prescription';
 export * from './forgetting-risk';
 export * from './option-analyses';
+export * from './memory-card';

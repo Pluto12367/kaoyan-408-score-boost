@@ -1,4 +1,4 @@
-import { Optional, BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, Param, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
+import { Optional, BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Headers, HttpCode, Param, Patch, Post, Query, ServiceUnavailableException, UseGuards } from '@nestjs/common';
 import type { AiTutorFollowUpMode, Subject, WrongQuestionFilter, WrongQuestionMasteryStatus } from '@kaoyan408/shared';
 import { StudyService } from './study.service';
 import { ExamDiagnosisService } from './exam-diagnosis.service';
@@ -44,6 +44,7 @@ import { RecommendationFeedbackService } from './recommendation-feedback.service
 import { isReservedCanonicalEventType, isTelemetryEventType } from './canonical-event-writer.service';
 import { parseMinutesBudget } from './quick-session';
 import { StudentContextQueryService } from './student-context.query.service';
+import { MemoryCardService } from './memory-card.service';
 
 @Controller()
 export class StudyController {
@@ -71,6 +72,7 @@ export class StudyController {
     private readonly studentContextQuery: StudentContextQueryService,
     private readonly examDiagnosis: ExamDiagnosisService,
     private readonly adminDataQuality: AdminDataQualityService,
+    private readonly memoryCardService: MemoryCardService,
     @Optional() private readonly examLossTrend?: ExamLossTrendService,
   ) {}
 
@@ -810,6 +812,38 @@ export class StudyController {
   @Roles('admin')
   revokeTeacherStudentAuthorization(@Param('teacherId') teacherId: string, @Param('studentId') studentId: string) {
     return this.studyService.revokeTeacherStudentAuthorization(teacherId, studentId);
+  }
+
+  // ---- V14-② Memory cards (task book docs/v14-memory-card-design.md,
+  // Owner-approved 2026-09-26). Card-domain only: the review path never
+  // touches UserKnowledgeMastery / ReviewSchedule / the evidence ledger. ----
+
+  @Get('memory-cards/session')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getMemoryCardSession(
+    @CurrentUser() user: UserProfile,
+    @Query('limit') limit?: string,
+    @Query('userId') viewUserId?: string,
+  ) {
+    return this.memoryCardService.getSession(this.resolveUserId(user, viewUserId), {
+      limit: limit === undefined || limit === '' ? undefined : Number(limit),
+    });
+  }
+
+  @Post('memory-cards/:cardId/review')
+  @HttpCode(200)
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  reviewMemoryCard(
+    @CurrentUser() user: UserProfile,
+    @Param('cardId') cardId: string,
+    @Body() input: { rating?: string; idempotencyKey?: string; userId?: string },
+  ) {
+    return this.memoryCardService.reviewCard(this.resolveUserId(user, input?.userId), cardId, {
+      rating: String(input?.rating ?? ''),
+      idempotencyKey: input?.idempotencyKey ?? '',
+    });
   }
 
   @Get('admin/feedback')

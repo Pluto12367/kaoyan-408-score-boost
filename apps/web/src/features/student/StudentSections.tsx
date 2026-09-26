@@ -68,6 +68,7 @@ const PracticePanel = lazy(() => import('../practice/PracticePanel').then((m) =>
 const TutorPanel = lazy(() => import('../tutor/TutorPanel').then((m) => ({ default: m.TutorPanel })));
 const MistakeWorkspace = lazy(() => import('../mistakes/MistakeWorkspace').then((m) => ({ default: m.MistakeWorkspace })));
 const RealExamWorkspace = lazy(() => import('../real-exam/RealExamWorkspace').then((m) => ({ default: m.RealExamWorkspace })));
+const MemoryCardWorkspace = lazy(() => import('../memory-card/MemoryCardWorkspace').then((m) => ({ default: m.MemoryCardWorkspace })));
 
 export interface StudentSectionsProps {
   visibleSection: RoleSection;
@@ -506,6 +507,12 @@ export function StudentSections(props: StudentSectionsProps) {
       {visibleSection === 'real-exam' ? (
         <Suspense fallback={sectionFallback('真题')}>
           <RealExamWorkspace onStartYearPaper={props.onStartYearExamPaper} />
+        </Suspense>
+      ) : null}
+
+      {visibleSection === 'memory-card' ? (
+        <Suspense fallback={sectionFallback('记忆卡')}>
+          <MemoryCardWorkspace />
         </Suspense>
       ) : null}
 

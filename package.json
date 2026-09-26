@@ -89,6 +89,7 @@
     "audit:large-question-content": "node scripts/audit-large-question-content.mjs",
     "audit:real-exam-content": "node scripts/audit-real-exam-content.mjs",
     "test:integration:real-exam-import": "npm run build:api && node scripts/integration-real-exam-import.mjs",
+    "test:integration:memory-card": "node scripts/integration-memory-card.mjs",
     "analyze:transfer-probe-e2": "node scripts/analyze-transfer-probe-e2.mjs"
   }
 }

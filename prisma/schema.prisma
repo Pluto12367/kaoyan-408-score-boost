@@ -203,6 +203,7 @@ model User {
   scoreOutcomes          ScoreOutcome[]
   scoreCorrections       ScoreCorrection[]
   scoreLossItems         ScoreLossItem[]
+  memoryCardStates       UserMemoryCardState[]
 }
 
 model AnswerReceipt {
@@ -911,10 +912,82 @@ model KnowledgeNode {
   masterySnapshots   UserMasterySnapshot[]
   nodeQuests         UserNodeQuest[]
   StudyTask          StudyTask[]
+  memoryCards        MemoryCard[]
 
   @@index([parentId])
   @@index([subject, nodeType])
   @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// V14-② memory cards (task book docs/v14-memory-card-design.md, Owner Gate
+// D1 approved 2026-09-26). Card domain facts ONLY: these tables never hold
+// ability estimates and the card review path never writes
+// UserKnowledgeMastery / ReviewSchedule / the evidence ledger (contract §2.2:
+// self_reported evidence cannot influence mastery). Rollback = DROP ×3.
+// ---------------------------------------------------------------------------
+
+model MemoryCard {
+  id              String   @id @default(cuid())
+  knowledgeNodeId String
+  // Controlled dictionary: CONCLUSION | FORMULA (validated app-side; no ENUM
+  // lock-in — same policy question_subtype nearly took, avoided here).
+  cardType        String
+  front           String
+  back            String
+  // RULE-10: no content row enters without a named reviewer + rights
+  // confirmation; the import script hard-refuses otherwise.
+  reviewedBy      String?
+  rightsConfirmed Boolean?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  knowledgeNode KnowledgeNode          @relation(fields: [knowledgeNodeId], references: [id])
+  userStates    UserMemoryCardState[]
+
+  @@index([knowledgeNodeId, isActive])
+}
+
+model UserMemoryCardState {
+  id             String    @id @default(cuid())
+  userId         String
+  cardId         String
+  stabilityDays  Float?
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime?
+  // Controlled subset of ReviewQuality: 0 | 2 | 4 (validated app-side).
+  lastRating     Int?
+  reviewCount    Int       @default(0)
+  version        Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card    MemoryCard            @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  reviews MemoryCardReviewLog[]
+
+  @@unique([userId, cardId])
+  @@index([userId, nextReviewAt])
+}
+
+model MemoryCardReviewLog {
+  id              String   @id @default(cuid())
+  userId          String
+  cardId          String
+  rating          Int
+  stabilityBefore Float?
+  stabilityAfter  Float?
+  // PRODUCT scheduling policy provenance (density phase), logged per review —
+  // never a memory-model claim (task book §3.4/§9).
+  densityFactor   Float
+  densityBasis    String
+  reviewedAt      DateTime @default(now())
+  idempotencyKey  String   @unique
+
+  state UserMemoryCardState @relation(fields: [userId, cardId], references: [userId, cardId], onDelete: Cascade)
+
+  @@index([userId, cardId, reviewedAt])
 }
 
 model KnowledgeRelation {

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const source = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-test('stage 6: student bottom navigation keeps seven unique tabs (V14-R4 adds 真题)', async () => {
+test('stage 6: student bottom navigation keeps eight unique tabs (V14-R4 真题, V14-② 记忆卡)', async () => {
   const navigation = await source('apps/web/src/layouts/RoleNavigation.tsx');
 
   const bottomItems = navigation.match(/const studentBottomItems: NavigationItem\[\] = \[([\s\S]*?)\];/)?.[1] ?? '';
@@ -12,9 +12,11 @@ test('stage 6: student bottom navigation keeps seven unique tabs (V14-R4 adds �
   const labels = [...bottomItems.matchAll(/label: '([^']+)'/g)].map((match) => match[1]);
 
   // V14-R4 (D-R4-1, Owner 批准 2026-09-25): 「真题」分区加入学生底部导航 6→7。
-  assert.equal(ids.length, 7, `expected 7 bottom tabs, got ${ids.length}`);
-  assert.equal(new Set(ids).size, 7, 'bottom tab ids must be unique');
-  assert.deepEqual(labels, ['首页', '题库', '真题', '知识', '错题', '测试', 'AI 答疑'], '真题 must be a first-class tab (task book D-R4-1)');
+  // V14-② (D4, Owner 批准 2026-09-26): 「记忆卡」分区加入学生底部导航 7→8
+  // （docs/v14-memory-card-design.md §6 — 有理由断言更新，钉住的正是批准变更对象）。
+  assert.equal(ids.length, 8, `expected 8 bottom tabs, got ${ids.length}`);
+  assert.equal(new Set(ids).size, 8, 'bottom tab ids must be unique');
+  assert.deepEqual(labels, ['首页', '题库', '真题', '知识', '错题', '记忆卡', '测试', 'AI 答疑'], '记忆卡 must be a first-class tab (task book D4)');
   assert.match(navigation, /normalizeRoleSection\(section: RoleSection\)/);
   assert.match(navigation, /if \(section === 'report'\) return 'test'/);
   assert.match(navigation, /className="bottom-nav"/);
