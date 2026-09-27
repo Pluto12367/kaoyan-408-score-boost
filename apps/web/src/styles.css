@@ -8112,3 +8112,26 @@ html[data-theme="b"] .role-pill {
   justify-content: center;
   margin-top: 12px;
 }
+
+/* Phase 2 定位行与命中高亮（Owner 2026-09-26 追加）。 */
+.qbank-locate {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.qbank-locate input[type='number'] {
+  width: 72px;
+}
+
+.qbank-locate-miss {
+  color: var(--danger, #c0392b);
+  font-size: 13px;
+}
+
+.qbank-row-locate {
+  border-color: var(--primary-strong);
+  box-shadow: 0 0 0 1px var(--primary-strong);
+}

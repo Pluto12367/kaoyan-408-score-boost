@@ -3,6 +3,7 @@ import type { KnowledgePoint, Question } from '@kaoyan408/shared';
 import {
   buildFreePracticeSet,
   filterBrowseQuestions,
+  findRowIndex,
   FREE_PRACTICE_MAX_QUESTIONS,
   paginateBrowseRows,
   type BrowseRow,
@@ -11,8 +12,7 @@ import {
 
 /**
  * V14 题库浏览/自由刷题（任务书 docs/v14-question-bank-browser-design.md，
- * Owner 批准 D-B-1..4 按建议冻结：题库训练子标签 / 四维筛选 / 逐题+组卷≤50 /
- * student-only）。
+ * Owner 批准 D-B-1..4 按建议冻结；Phase 2 = 难度筛选/题干搜索/年份+题号定位）。
  *
  * 数据全部来自学生目录（overview.questions——揭示性字段已在投影层置空或剥离）
  * 与 overview.practiceRecords——纯客户端过滤，浏览行为零写入。
@@ -27,6 +27,7 @@ const STATUS_LABELS: Record<BrowseRow['status'], string> = {
 };
 
 const SUBJECT_OPTIONS = ['数据结构', '计算机组成原理', '操作系统', '计算机网络'];
+const DIFFICULTY_OPTIONS: Question['difficulty'][] = ['基础', '中等', '困难'];
 
 interface QuestionBankBrowserProps {
   questions: Question[];
@@ -40,7 +41,14 @@ export function FreePracticeBrowser({ questions, knowledgePoints, practiceRecord
   const [type, setType] = useState<'all' | Question['type']>('all');
   const [year, setYear] = useState<string>('all');
   const [status, setStatus] = useState<BrowseStatusFilter>('all');
+  const [difficulty, setDifficulty] = useState<'all' | Question['difficulty']>('all');
+  const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  // Phase 2 定位：年份+题号 → 跳页并高亮该行。
+  const [locateYear, setLocateYear] = useState<string>(String(new Date().getFullYear() - 1));
+  const [locateExamNo, setLocateExamNo] = useState('');
+  const [locateMiss, setLocateMiss] = useState(false);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
 
   const subjectByPointId = useMemo(() => {
     const map = new Map<string, string>();
@@ -63,8 +71,10 @@ export function FreePracticeBrowser({ questions, knowledgePoints, practiceRecord
       type,
       year: year === 'all' ? null : Number(year),
       status,
+      difficulty,
+      query,
     },
-  }), [questions, subjectByPointId, practiceRecords, subject, type, year, status]);
+  }), [questions, subjectByPointId, practiceRecords, subject, type, year, status, difficulty, query]);
 
   const pageData = useMemo(() => paginateBrowseRows(rows, page, PAGE_SIZE), [rows, page]);
   const freeSet = useMemo(() => buildFreePracticeSet(rows), [rows]);
@@ -74,7 +84,25 @@ export function FreePracticeBrowser({ questions, knowledgePoints, practiceRecord
     setType('all');
     setYear('all');
     setStatus('all');
+    setDifficulty('all');
+    setQuery('');
     setPage(1);
+    setHighlightId(null);
+    setLocateMiss(false);
+  }
+
+  function handleLocate() {
+    const examNo = Number(locateExamNo);
+    if (!locateYear || !Number.isInteger(examNo) || examNo < 1) return;
+    const index = findRowIndex(rows, Number(locateYear), examNo);
+    if (index < 0) {
+      setHighlightId(null);
+      setLocateMiss(true);
+      return;
+    }
+    setLocateMiss(false);
+    setHighlightId(rows[index].id);
+    setPage(Math.floor(index / PAGE_SIZE) + 1);
   }
 
   return (
@@ -103,6 +131,13 @@ export function FreePracticeBrowser({ questions, knowledgePoints, practiceRecord
           </select>
         </label>
         <label>
+          难度
+          <select value={difficulty} onChange={(event) => { setDifficulty(event.target.value as 'all' | Question['difficulty']); setPage(1); }}>
+            <option value="all">全部</option>
+            {DIFFICULTY_OPTIONS.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label>
           状态
           <select value={status} onChange={(event) => { setStatus(event.target.value as BrowseStatusFilter); setPage(1); }}>
             <option value="all">全部</option>
@@ -111,7 +146,37 @@ export function FreePracticeBrowser({ questions, knowledgePoints, practiceRecord
             <option value="correct">做对</option>
           </select>
         </label>
+        <label>
+          题干搜索
+          <input
+            type="search"
+            value={query}
+            placeholder="输入关键词，如 散列表"
+            onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+          />
+        </label>
         <button type="button" className="qbank-reset" onClick={resetFilters}>重置筛选</button>
+      </div>
+
+      <div className="qbank-locate" role="group" aria-label="按年份题号定位">
+        <span>定位真题：</span>
+        <select value={locateYear} onChange={(event) => setLocateYear(event.target.value)} aria-label="定位年份">
+          {years.map((value) => <option key={value} value={String(value)}>{value}</option>)}
+        </select>
+        <span>第</span>
+        <input
+          type="number"
+          min={1}
+          max={47}
+          value={locateExamNo}
+          placeholder="题号"
+          aria-label="定位题号"
+          onChange={(event) => setLocateExamNo(event.target.value)}
+          onKeyDown={(event) => { if (event.key === 'Enter') handleLocate(); }}
+        />
+        <span>题</span>
+        <button type="button" className="secondary-action" onClick={handleLocate}>定位</button>
+        {locateMiss ? <span className="qbank-locate-miss" role="status">当前筛选范围内没有该题——年份或题号有误，或已被筛选条件排除。</span> : null}
       </div>
 
       {rows.length === 0 ? (
@@ -134,7 +199,10 @@ export function FreePracticeBrowser({ questions, knowledgePoints, practiceRecord
           </div>
           <ul className="qbank-rows">
             {pageData.rows.map((row) => (
-              <li key={row.id} className={`qbank-row qbank-status-${row.status}`}>
+              <li
+                key={row.id}
+                className={`qbank-row qbank-status-${row.status}${row.id === highlightId ? ' qbank-row-locate' : ''}`}
+              >
                 <div className="qbank-row-meta">
                   <span className="qbank-badge">{row.type}</span>
                   <span className="qbank-badge">{row.difficulty}</span>

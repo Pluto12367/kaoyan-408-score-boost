@@ -4,10 +4,12 @@
 // 钉死的行为：
 //   1. attemptStatus 归并 = PracticeRecord 的 OBSERVED 投影，wrong 优先；
 //      无记录 = unanswered（绝不伪造对错，RULE-06）。
-//   2. 筛选/排序纯函数：科目（经知识点→科目映射）、题型、年份、状态；
+//   2. 筛选/排序纯函数：科目（经知识点→科目映射）、题型、年份、状态、难度、题干关键词；
 //      排序 = 年份降序（无年份最后）→ 题号升序（无题号最后）→ id 稳定序。
 //   3. 一键组卷上限 50（Owner D-B-3），超限 capped=true 且截断不静默。
 //   4. 分页为纯切片（客户端已有全量投影，无需服务端分页）。
+//   5. Phase 2（Owner 2026-09-26 追加）：难度筛选、题干搜索（大小写不敏感子串）、
+//      年份+题号定位（返回排序后下标，未找到 = -1）。
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -74,7 +76,7 @@ test('filter+sort: 年份降序（无年份最后）→ 题号升序（无题号
     ],
     subjectByPointId: new Map(),
     records: [],
-    filters: { subject: null, type: 'all', year: null, status: 'all' },
+    filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: 'all', query: '' },
   });
   assert.deepEqual(rows.map((row) => row.id), ['b', 'e', 'c', 'a', 'd']);
 });
@@ -91,19 +93,19 @@ test('filter: 科目经知识点映射、题型、年份、状态可组合', asy
 
   const base = { subjectByPointId, records };
   assert.deepEqual(
-    filterBrowseQuestions({ ...base, questions, filters: { subject: '数据结构', type: 'all', year: null, status: 'all' } }).map((r) => r.id),
+    filterBrowseQuestions({ ...base, questions, filters: { subject: '数据结构', type: 'all', year: null, status: 'all', difficulty: 'all', query: '' } }).map((r) => r.id),
     ['ds-mcq', 'ds-essay'],
   );
   assert.deepEqual(
-    filterBrowseQuestions({ ...base, questions, filters: { subject: '数据结构', type: '综合题', year: 2009, status: 'all' } }).map((r) => r.id),
+    filterBrowseQuestions({ ...base, questions, filters: { subject: '数据结构', type: '综合题', year: 2009, status: 'all', difficulty: 'all', query: '' } }).map((r) => r.id),
     ['ds-essay'],
   );
   assert.deepEqual(
-    filterBrowseQuestions({ ...base, questions, filters: { subject: null, type: 'all', year: null, status: 'wrong' } }).map((r) => r.id),
+    filterBrowseQuestions({ ...base, questions, filters: { subject: null, type: 'all', year: null, status: 'wrong', difficulty: 'all', query: '' } }).map((r) => r.id),
     ['ds-mcq'],
   );
   assert.deepEqual(
-    filterBrowseQuestions({ ...base, questions, filters: { subject: null, type: 'all', year: null, status: 'unanswered' } }).map((r) => r.id),
+    filterBrowseQuestions({ ...base, questions, filters: { subject: null, type: 'all', year: null, status: 'unanswered', difficulty: 'all', query: '' } }).map((r) => r.id),
     ['net-mcq', 'ds-essay'],
   );
 });
@@ -114,7 +116,7 @@ test('row 投影：stemPreview 截断、不携带 options/answer/analysis/knowle
     questions: [q({ id: 'x', stem: 'A'.repeat(80) + '超长题干尾部', year: 2012, examNo: 3, maxScore: 10 })],
     subjectByPointId: new Map(),
     records: [],
-    filters: { subject: null, type: 'all', year: null, status: 'all' },
+    filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: 'all', query: '' },
   });
   assert.equal(rows.length, 1);
   const row = rows[0];
@@ -157,4 +159,67 @@ test('分页：纯切片、page 越界收敛到最后一页、空结果至少 1 
   assert.equal(overflow.rows.length, 5);
   const empty = paginateBrowseRows([], 1, 20);
   assert.deepEqual(empty, { rows: [], total: 0, pageCount: 1, page: 1 });
+});
+
+test('phase2 难度筛选：与既有维度可组合', async () => {
+  const { filterBrowseQuestions } = await loadBrowserModule();
+  const questions = [
+    q({ id: 'easy', difficulty: '基础', year: 2012 }),
+    q({ id: 'mid', difficulty: '中等', year: 2011 }),
+    q({ id: 'hard', difficulty: '困难', year: 2010 }),
+  ];
+  const rows = filterBrowseQuestions({
+    questions,
+    subjectByPointId: new Map(),
+    records: [],
+    filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: '困难', query: '' },
+  });
+  assert.deepEqual(rows.map((r) => r.id), ['hard']);
+  const all = filterBrowseQuestions({
+    questions,
+    subjectByPointId: new Map(),
+    records: [],
+    filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: 'all', query: '' },
+  });
+  assert.deepEqual(all.map((r) => r.id), ['easy', 'mid', 'hard']);
+});
+
+test('phase2 题干搜索：大小写不敏感子串、两端空白忽略、空串不过滤', async () => {
+  const { filterBrowseQuestions } = await loadBrowserModule();
+  const questions = [
+    q({ id: 'hit', stem: '已知一个带有表头结点的单链表 LinkList 结构', year: 2009 }),
+    q({ id: 'miss', stem: '某网络拓扑如下图所示', year: 2009 }),
+  ];
+  const base = { questions, subjectByPointId: new Map(), records: [] };
+  assert.deepEqual(
+    filterBrowseQuestions({ ...base, filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: 'all', query: 'linklist' } }).map((r) => r.id),
+    ['hit'],
+  );
+  assert.deepEqual(
+    filterBrowseQuestions({ ...base, filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: 'all', query: '  表头结点  ' } }).map((r) => r.id),
+    ['hit'],
+  );
+  assert.equal(
+    filterBrowseQuestions({ ...base, filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: 'all', query: '   ' } }).length,
+    2,
+  );
+});
+
+test('phase2 定位：findRowIndex 返回排序后下标、未找到 = -1', async () => {
+  const { filterBrowseQuestions, findRowIndex } = await loadBrowserModule();
+  const rows = filterBrowseQuestions({
+    questions: [
+      q({ id: 'a-41', year: 2009, examNo: 41 }),
+      q({ id: 'a-42', year: 2009, examNo: 42 }),
+      q({ id: 'b-41', year: 2010, examNo: 41 }),
+    ],
+    subjectByPointId: new Map(),
+    records: [],
+    filters: { subject: null, type: 'all', year: null, status: 'all', difficulty: 'all', query: '' },
+  });
+  // 排序：2010 在前（year desc），同年按题号升序。
+  assert.deepEqual(rows.map((r) => r.id), ['b-41', 'a-41', 'a-42']);
+  assert.equal(findRowIndex(rows, 2009, 42), 2);
+  assert.equal(findRowIndex(rows, 2010, 41), 0);
+  assert.equal(findRowIndex(rows, 2009, 99), -1);
 });

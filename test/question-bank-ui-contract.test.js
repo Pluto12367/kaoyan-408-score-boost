@@ -49,6 +49,23 @@ test('D-B-2/D-B-3 常量：组卷上限 50、四维筛选存在于纯模块', as
   }
 });
 
+test('Phase 2（Owner 2026-09-26 追加）：难度筛选、题干搜索、年份+题号定位', async () => {
+  const pure = await source('apps/web/src/features/practice/questionBankBrowser.ts');
+  // 纯模块：difficulty/query 进 filters；findRowIndex 未找到 = -1。
+  assert.match(pure, /difficulty: 'all' \| Question\['difficulty'\]/);
+  assert.match(pure, /query: string/);
+  assert.match(pure, /export function findRowIndex/);
+  assert.match(pure, /question\.stem\.toLowerCase\(\)\.includes\(needle\)/);
+
+  const browser = await source('apps/web/src/features/practice/FreePracticeBrowser.tsx');
+  assert.match(browser, /难度/);
+  assert.match(browser, /题干搜索/);
+  assert.match(browser, /type="search"/);
+  assert.match(browser, /定位真题/);
+  assert.match(browser, /findRowIndex\(rows, Number\(locateYear\), examNo\)/);
+  assert.match(browser, /当前筛选范围内没有该题/, '定位失败必须显式提示，不静默');
+});
+
 test('目录投影 additive 扩展：examNo/maxScore 随 GET /questions 下发', async () => {
   const service = await source('apps/api/src/questions/questions.service.ts');
   assert.match(service, /examNo: row\.examNo \?\? undefined/);

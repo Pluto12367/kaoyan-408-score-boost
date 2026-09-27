@@ -54,6 +54,10 @@ export interface BrowseFilters {
   type: 'all' | Question['type'];
   year: number | null;
   status: BrowseStatusFilter;
+  /** Phase 2（Owner 2026-09-26 追加）：难度；'all' = 不过滤。 */
+  difficulty: 'all' | Question['difficulty'];
+  /** Phase 2：题干关键词（大小写不敏感子串；空白 = 不过滤）。 */
+  query: string;
 }
 
 export interface FilterBrowseQuestionsInput {
@@ -66,6 +70,8 @@ export interface FilterBrowseQuestionsInput {
 
 export function filterBrowseQuestions(input: FilterBrowseQuestionsInput): BrowseRow[] {
   const statuses = deriveAttemptStatuses(input.records);
+  // 题干关键词：大小写不敏感子串；纯空白 = 不过滤。
+  const needle = input.filters.query.trim().toLowerCase();
   const rows: BrowseRow[] = [];
   for (const question of input.questions) {
     if (input.filters.subject) {
@@ -76,6 +82,8 @@ export function filterBrowseQuestions(input: FilterBrowseQuestionsInput): Browse
     }
     if (input.filters.type !== 'all' && question.type !== input.filters.type) continue;
     if (input.filters.year != null && question.year !== input.filters.year) continue;
+    if (input.filters.difficulty !== 'all' && question.difficulty !== input.filters.difficulty) continue;
+    if (needle && !question.stem.toLowerCase().includes(needle)) continue;
     const status = statuses.get(question.id) ?? 'unanswered';
     if (input.filters.status !== 'all' && status !== input.filters.status) continue;
     rows.push({
@@ -96,6 +104,14 @@ export function filterBrowseQuestions(input: FilterBrowseQuestionsInput): Browse
     || (left.examNo ?? Number.MAX_SAFE_INTEGER) - (right.examNo ?? Number.MAX_SAFE_INTEGER)
     || left.id.localeCompare(right.id));
   return rows;
+}
+
+/**
+ * Phase 2 定位（Owner D-B-2 追加）：年份+题号 → 排序后下标（0 起）；
+ * 未找到 = -1。组件据此跳页并高亮。
+ */
+export function findRowIndex(rows: BrowseRow[], year: number, examNo: number): number {
+  return rows.findIndex((row) => row.year === year && row.examNo === examNo);
 }
 
 export interface BrowsePage {
