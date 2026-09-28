@@ -1,6 +1,6 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { buildScoreRecovery, type ScoreRecoveryResult } from '@kaoyan408/shared';
+import { buildScoreRecovery, buildRecoveryClaims, RECOVERY_CLAIM_FOOTNOTE, type ScoreRecoveryResult } from '@kaoyan408/shared';
 
 /**
  * PHASE 9 — Score Recovery projection service (read-only).
@@ -111,4 +111,58 @@ export class ScoreRecoveryService {
     });
     return { userId, generatedAt, storeAvailable: true, ...result };
   }
+
+  /**
+   * V14 ①（D-V 批准 2026-09-27）— 提分账本声明（下钻视图）。
+   * 在 recovery 配对之上做两层口径声明 + D-V-2 样本门槛 + 节点名解析。
+   * 只读；不改任何账本行。RULE-11：输出是"失分被追回的测量"，不是成绩预测。
+   */
+  async getRecoveryEvidence(userId: string, options: { days?: number; minSamples?: number } = {}, now: Date = new Date()): Promise<RecoveryEvidenceView> {
+    const generatedAt = now.toISOString();
+    const minSamples = Math.max(1, options.minSamples ?? 3);
+    if (!this.enabled) {
+      return {
+        userId, generatedAt, storeAvailable: false, reason: 'store_unavailable',
+        windowDays: this.clampDays(options.days),
+        claims: [], proxyClaims: [], summary: {
+          observedRecovered: 0, proxyRecovered: 0, unpricedRecovered: 0,
+          recoveredCandidates: 0, insufficient: true, minSamples,
+        },
+        footnote: RECOVERY_CLAIM_FOOTNOTE,
+      };
+    }
+    const recovery = await this.getScoreRecovery(userId, options, now);
+    const nodeIds = [...new Set(recovery.rows.map((row) => row.nodeId).filter((id): id is string => id != null))];
+    const nodeRows = nodeIds.length > 0
+      ? await this.prisma!.knowledgeNode.findMany({ where: { id: { in: nodeIds } }, select: { id: true, name: true } })
+      : [];
+    const nodeNameById = new Map(nodeRows.map((row) => [row.id, row.name]));
+    const claims = buildRecoveryClaims({
+      rows: recovery.rows,
+      minSamples,
+      nodeNameById,
+    });
+    return {
+      userId,
+      generatedAt,
+      storeAvailable: true,
+      windowDays: recovery.window.days,
+      claims: claims.claims,
+      proxyClaims: claims.proxyClaims,
+      summary: claims.summary,
+      footnote: RECOVERY_CLAIM_FOOTNOTE,
+    };
+  }
+}
+
+export interface RecoveryEvidenceView {
+  readonly userId: string;
+  readonly generatedAt: string;
+  readonly storeAvailable: boolean;
+  readonly reason?: string;
+  readonly windowDays: number;
+  readonly claims: ReturnType<typeof buildRecoveryClaims>['claims'];
+  readonly proxyClaims: ReturnType<typeof buildRecoveryClaims>['proxyClaims'];
+  readonly summary: ReturnType<typeof buildRecoveryClaims>['summary'];
+  readonly footnote: string;
 }

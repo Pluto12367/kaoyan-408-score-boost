@@ -38,4 +38,20 @@ export class LargeQuestionController {
   ) {
     return this.largeQuestions.submitAttempt(user.id, questionId, body?.answerText ?? '');
   }
+
+  /**
+   * V14 ②（D-A 批准 2026-09-27）— AI 估分：建议值 + 逐采分点判定，不落任何分数。
+   * 学生确认/改写后经既有 submitPaper 提交（gradingMode='ai_assisted_self' →
+   * 失分账本 gradingMethod='rubric' → lossKind=PROXY）。
+   */
+  @Post('questions/:questionId/ai-estimate')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  aiEstimate(
+    @CurrentUser() user: UserProfile,
+    @Param('questionId') questionId: string,
+    @Body() body: { answerText?: string },
+  ) {
+    return this.largeQuestions.aiEstimate(user.id, questionId, body?.answerText ?? '');
+  }
 }

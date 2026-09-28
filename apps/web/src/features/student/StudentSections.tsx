@@ -55,6 +55,8 @@ import type { StudentActionCommandDescriptor } from './actions/studentActionComm
 import { toCommandDescriptor } from './actions/studentActionCommand';
 import type { StudentAction } from './actions/studentAction';
 import { StudentHome } from './home/StudentHome';
+import { TodayActionsPanel } from './TodayActionsPanel';
+import { ScoreLedgerCard } from './ScoreLedgerCard';
 import type { PracticeAnswerResult } from '../../api/endpoints/practice';
 import type { TodayPlan as TodayPlanType } from '../../api/endpoints/onboarding';
 import type { DueReviewsResponse } from '../../api/endpoints/review';
@@ -323,6 +325,11 @@ export function StudentSections(props: StudentSectionsProps) {
         studentOverviewReady ? (
           <Suspense fallback={sectionFallback('学习总览')}>
             <>
+              <TodayActionsPanel
+                onNavigate={(section) => props.onNavigate(section === 'wrong' ? 'wrong-book' : 'question')}
+                onStartPracticeFromNode={props.onStartFreePractice}
+              />
+              <ScoreLedgerCard />
               <StudentHome
                 student={props.student}
                 report={report}

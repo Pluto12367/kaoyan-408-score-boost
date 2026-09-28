@@ -81,6 +81,7 @@
     "test:integration:training-prescription": "node scripts/integration-training-prescription.mjs",
     "test:integration:forgetting-risk": "node scripts/integration-forgetting-risk.mjs",
     "test:integration:large-question-ingest": "node scripts/integration-large-question-ingest.mjs",
+    "test:integration:ai-estimate": "node scripts/integration-ai-estimate.mjs",
     "test:integration:large-question-chain": "node scripts/integration-large-question-chain.mjs",
     "test:integration:clean-account-loop": "node scripts/integration-clean-account-loop.mjs",
     "test:integration:four-subject-chain": "node scripts/integration-four-subject-chain.mjs",

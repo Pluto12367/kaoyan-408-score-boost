@@ -9,6 +9,7 @@
 
 import { Controller, ForbiddenException, Get, Query, UseGuards } from '@nestjs/common';
 import type { UserProfile } from '@kaoyan408/shared';
+import { buildTodayActions } from '@kaoyan408/shared';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { RoleGuard } from '../auth/role.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -598,6 +599,73 @@ export class DailyBriefController {
     });
   }
 
+  /**
+   * V14 ③（Owner 批准 D-T-1/2，2026-09-27）— 「今天做什么」：处方 + 到期复习 + 错题到期
+   * 合并为 ≤limit 条带原因串的动作。只读投影（D-T-1）——不建 StudyTask、零写方；
+   * reason 只引用证据字段原文，可溯源。
+   */
+  @Get('coach/today-actions')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getTodayActions(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    const parsedLimit = limit ? Number.parseInt(limit, 10) : NaN;
+    const effectiveLimit = Number.isNaN(parsedLimit) ? 3 : parsedLimit;
+
+    const [prescription, diagnosis] = await Promise.all([
+      this.trainingPrescription
+        ? this.trainingPrescription.getTrainingPrescription(userId)
+        : Promise.resolve(null),
+      this.errorDiagnosis ? this.errorDiagnosis.getErrorDiagnosis(userId) : Promise.resolve(null),
+    ]);
+    const dueReviews = this.studyService.getDueReviews(userId);
+    const wrongSummary = this.studyService.getWrongQuestionSummary(userId);
+    const finding = diagnosis?.findings?.[0] ?? null;
+
+    return buildTodayActions({
+      limit: effectiveLimit,
+      prescription: prescription && prescription.storeAvailable
+        ? {
+          dataStatus: prescription.dataStatus,
+          target: prescription.target
+            ? {
+              nodeId: prescription.target.nodeId,
+              questionSubtype: prescription.target.questionSubtype,
+              reasonLabel: prescription.target.reasonLabel,
+            }
+            : null,
+          ladder: prescription.ladder.map((step) => ({
+            order: step.order,
+            stage: step.stage,
+            label: step.label,
+            status: step.status,
+            questionCount: step.questionCount,
+            reason: step.reason,
+          })),
+          reason: prescription.reason,
+        }
+        : null,
+      dueReviews: { count: dueReviews.dueCount, questions: dueReviews.items.slice(0, 2) },
+      wrongSummary: {
+        pendingCount: Number(wrongSummary.pendingCount ?? 0),
+        newestAt: null,
+      },
+      finding: finding
+        ? {
+          nodeId: finding.nodeId,
+          questionSubtype: finding.questionSubtype,
+          reasonLabel: finding.reasonLabel,
+          count: finding.count,
+          observedLostScore: finding.observedLostScore,
+        }
+        : null,
+    });
+  }
+
   /** PHASE 9 — "失分追回来了吗": loss evidence × re-attempt outcomes (read-only). */
   @Get('coach/score-recovery')
   @UseGuards(RoleGuard)
@@ -622,6 +690,31 @@ export class DailyBriefController {
     }
     const parsed = days ? Number.parseInt(days, 10) : NaN;
     return this.scoreRecovery.getScoreRecovery(userId, { days: Number.isNaN(parsed) ? undefined : parsed });
+  }
+
+  /**
+   * V14 ①（D-V 批准 2026-09-27）— 提分账本声明（两层口径 + D-V-2 样本门槛）。
+   * RULE-11：输出是"失分被追回的测量"，绝不称 Verified Score Gain。
+   */
+  @Get('coach/recovery-evidence')
+  @UseGuards(RoleGuard)
+  @Roles('student', 'teacher', 'admin')
+  async getRecoveryEvidence(
+    @CurrentUser() user: UserProfile,
+    @Query('userId') viewUserId?: string,
+    @Query('days') days?: string,
+  ) {
+    const userId = this.resolveUserId(user, viewUserId);
+    const parsed = days ? Number.parseInt(days, 10) : NaN;
+    if (!this.scoreRecovery) {
+      return {
+        userId, generatedAt: new Date().toISOString(), storeAvailable: false, reason: 'store_unavailable',
+        windowDays: 30, claims: [], proxyClaims: [],
+        summary: { observedRecovered: 0, proxyRecovered: 0, unpricedRecovered: 0, recoveredCandidates: 0, insufficient: true, minSamples: 3 },
+        footnote: '挽回分 = 失分被后续正确作答追回的测量值，不是成绩预测。',
+      };
+    }
+    return this.scoreRecovery.getRecoveryEvidence(userId, { days: Number.isNaN(parsed) ? undefined : parsed });
   }
 
   /** PHASE 7 — "会了但快忘了": decay risk over learned nodes (read-only). */

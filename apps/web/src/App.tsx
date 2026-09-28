@@ -1738,6 +1738,7 @@ paperId: paper.id,
             timeLimitMin={activeLearningTimeLimit}
             localMode={isStaticDemoMode()}
             learningMode={learningSessionMode}
+            remoteSessionsEnabled={!isStaticDemoMode()}
             onCheckAnswer={handleLearningCheckAnswer}
             onExit={() => {
               setLearningSessionType(null);

@@ -192,7 +192,10 @@ function toDomainRecord(record: {
       submittedAt: record.submittedAt.toISOString(),
       sessionId: record.sessionId ?? undefined,
       actionId: record.actionId ?? undefined,
-      gradingMode: record.gradingMode === 'self_assessed' ? 'self_assessed' : 'objective',
+      // V14 ②（D-A 批准）：ai_assisted_self 随链透传（DB 列为 String，无枚举约束）。
+      gradingMode: record.gradingMode === 'self_assessed' || record.gradingMode === 'ai_assisted_self'
+        ? record.gradingMode
+        : 'objective',
       selfScore: record.selfScore ?? undefined,
       maxScore: record.maxScore ?? undefined,
       confidence: mapConfidence(record.confidence),

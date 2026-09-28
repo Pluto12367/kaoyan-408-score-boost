@@ -3475,6 +3475,11 @@ export class StudyService implements OnModuleInit {
     if (isSubjective && (input.selfScore === undefined || input.maxScore === undefined || input.selfScore > input.maxScore)) {
       throw new BadRequestException('Comprehensive questions require a valid self score and maximum score');
     }
+    // V14 ②（D-A 批准）：显式 gradingMode 仅接受 ai_assisted_self（答案透传时已白名单化）；
+    // 其余走既有推导链（综合=自评，客观=精确匹配）。
+    const gradingMode = input.gradingMode === 'ai_assisted_self'
+      ? 'ai_assisted_self'
+      : isSubjective ? 'self_assessed' : 'objective';
     const correct = isSubjective
       ? (input.selfScore ?? 0) / (input.maxScore ?? 1) >= 0.6
       : input.selectedAnswer === question.answer;
@@ -3501,7 +3506,7 @@ export class StudyService implements OnModuleInit {
       submittedAt: new Date().toISOString(),
       sessionId: input.sessionId,
       actionId: input.actionId ?? null,
-      gradingMode: isSubjective ? 'self_assessed' : 'objective',
+      gradingMode,
       selfScore: input.selfScore,
       maxScore: input.maxScore,
       confidence: input.confidence,
@@ -4666,7 +4671,7 @@ export class StudyService implements OnModuleInit {
   }
 
   async submitPracticeSession(sessionId: string, userId: string, input: {
-    answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean }>;
+    answers: Array<{ questionId: string; selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean; gradingMode?: string }>;
     totalActiveMs?: number;
   }) {
     const session = this.getOwnSession(sessionId, userId);
@@ -4701,6 +4706,8 @@ export class StudyService implements OnModuleInit {
           confidence: answer.confidence,
           usedHint: answer.usedHint,
           answerModified: answer.answerModified,
+          // V14 ②（D-A 批准）：AI 辅助自评的 gradingMode 随答案透传（仅两个合法值）。
+          gradingMode: answer.gradingMode === 'ai_assisted_self' ? 'ai_assisted_self' : undefined,
         };
       }
       this.applySessionProgress(submittedSession, { totalActiveMs: input.totalActiveMs });
@@ -4728,6 +4735,8 @@ export class StudyService implements OnModuleInit {
           confidence: answer.confidence,
           usedHint: answer.usedHint,
           answerModified: answer.answerModified,
+          // V14 ②：AI 辅助自评 gradingMode 透传（undefined → buildPracticeRecord 默认链）。
+          gradingMode: answer.gradingMode,
           questionSnapshot: snapshotQuestions.get(answer.questionId),
         }),
       );
@@ -5544,7 +5553,7 @@ export interface PracticeSession {
   actionId?: string;
   questionIds: string[];
   questionSnapshot: Question[];
-  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean }>;
+  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean; gradingMode?: 'ai_assisted_self' }>;
   markedQuestions: string[];
   currentIndex: number;
   revision: number;

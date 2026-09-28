@@ -112,6 +112,8 @@ async function loadStudentSections(capturedHomeProps) {
     '../practice/training-room/TrainingSummary': { TrainingSummary: noOpComponent },
     '../practice/training-room/trainingRoomViewModel': { buildTrainingRoomViewModel: () => ({}) },
     '../practice/FreePracticeBrowser': { FreePracticeBrowser: noOpComponent },
+    './TodayActionsPanel': { TodayActionsPanel: noOpComponent },
+    './ScoreLedgerCard': { ScoreLedgerCard: noOpComponent },
     './actions/actionCandidates': actionCandidates,
     './actions/adapters/assessmentActionAdapter': assessmentActions,
     './actions/adapters/reviewActionAdapter': reviewActions,

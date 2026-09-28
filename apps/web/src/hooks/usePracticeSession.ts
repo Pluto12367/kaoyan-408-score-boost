@@ -304,7 +304,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
     if (saveTimerRef.current) clearInterval(saveTimerRef.current);
   }, []);
 
-  const updateAnswer = useCallback((questionId: string, selectedAnswer: string, timeSpentSec: number, selfScore?: number, maxScore?: number, meta?: Pick<SessionAnswer, 'confidence' | 'usedHint' | 'answerModified'>) => {
+  const updateAnswer = useCallback((questionId: string, selectedAnswer: string, timeSpentSec: number, selfScore?: number, maxScore?: number, meta?: Partial<Pick<SessionAnswer, 'confidence' | 'usedHint' | 'answerModified' | 'gradingMode'>>) => {
     const current = sessionRef.current;
     if (!current || current.completed) return;
     const previous = current.answers[questionId];
@@ -320,6 +320,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
           confidence: meta?.confidence ?? previous?.confidence,
           usedHint: meta?.usedHint ?? previous?.usedHint,
           answerModified: meta?.answerModified ?? previous?.answerModified,
+          gradingMode: meta?.gradingMode ?? previous?.gradingMode,
         },
       },
     };
@@ -369,6 +370,7 @@ export function usePracticeSession(opts: UsePracticeSessionOptions) {
       confidence: answer.confidence,
       usedHint: answer.usedHint,
       answerModified: answer.answerModified,
+      gradingMode: answer.gradingMode,
     }));
 
     try {

@@ -8135,3 +8135,116 @@ html[data-theme="b"] .role-pill {
   border-color: var(--primary-strong);
   box-shadow: 0 0 0 1px var(--primary-strong);
 }
+
+/* V14 ② AI 大题估分（D-A 批准）——估分行与逐采分点列表。 */
+.ai-estimate-row {
+  margin-top: 6px;
+}
+
+.ai-estimate-error {
+  color: var(--danger, #c0392b);
+}
+
+.ai-estimate-limitations {
+  color: var(--muted, #666);
+  font-size: 12px;
+  margin: 4px 0;
+}
+
+.ai-estimate-criteria {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+}
+
+.ai-criterion-hit {
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+.ai-criterion-miss {
+  color: var(--danger, #c0392b);
+  font-weight: 700;
+}
+
+/* V14 ③ 今天做什么（D-T 批准）——动作卡横排。 */
+.today-actions-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin: 10px 0;
+}
+
+.today-action-card {
+  background: var(--surface);
+  border: 1px solid var(--line-faint);
+  border-radius: 10px;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+.today-action-card.done {
+  opacity: 0.65;
+}
+
+.today-action-kind {
+  font-size: 12px;
+  color: var(--muted, #666);
+}
+
+.today-action-reason {
+  color: var(--muted, #666);
+}
+
+/* V14 ① 提分账本（D-V 批准）——OBSERVED/PROXY 分列展示。 */
+.score-ledger-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 8px 0;
+}
+
+.score-ledger-primary strong {
+  font-size: 20px;
+}
+
+.score-ledger-secondary {
+  color: var(--muted, #666);
+}
+
+.ledger-badge-observed,
+.ledger-badge-proxy {
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 1px 8px;
+}
+
+.ledger-badge-observed {
+  background: var(--primary-faint, rgba(80, 70, 229, 0.08));
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+.ledger-badge-proxy {
+  border: 1px dashed var(--line, #ccc);
+  color: var(--muted, #666);
+}
+
+.score-ledger-claims {
+  display: grid;
+  gap: 6px;
+  list-style: none;
+  margin: 8px 0;
+  padding: 0;
+}
+
+.score-ledger-footnote {
+  border-top: 1px solid var(--line-faint);
+  color: var(--muted, #666);
+  font-size: 12px;
+  margin-top: 10px;
+  padding-top: 8px;
+}

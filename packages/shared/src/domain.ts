@@ -87,7 +87,8 @@ export interface PracticeRecord {
   submittedAt: string;
   sessionId?: string;
   actionId?: string | null;
-  gradingMode?: 'objective' | 'self_assessed';
+  /** V14 ②（D-A 批准）：ai_assisted_self = AI 辅助 rubric 判定（账本落 ai_rubric/PROXY）。 */
+  gradingMode?: 'objective' | 'self_assessed' | 'ai_assisted_self';
   selfScore?: number;
   maxScore?: number;
   confidence?: ConfidenceLevel;

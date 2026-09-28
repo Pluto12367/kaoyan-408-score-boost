@@ -104,6 +104,11 @@ export class SubmitLearningSessionAnswerDto {
   @IsOptional()
   @IsBoolean()
   answerModified?: boolean;
+
+  @IsOptional()
+  @IsIn(['ai_assisted_self'])
+  /** V14 ②（D-A 批准）：仅 AI 辅助自评可显式标注（其余 gradingMode 服务端推导）。 */
+  gradingMode?: 'ai_assisted_self';
 }
 
 export class SubmitLearningSessionDto {

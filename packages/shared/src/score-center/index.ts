@@ -13,6 +13,8 @@ export * from './review-semantics';
 export * from './score-opportunity';
 export * from './score-calibration';
 export * from './large-question-rubric';
+export * from './ai-estimate';
+export * from './today-actions';
 export * from './shadow-decision-chain';
 export * from './mastery-semantics';
 export * from './mastery-candidate';

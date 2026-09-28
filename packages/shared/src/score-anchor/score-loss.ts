@@ -32,7 +32,12 @@
 
 export type ScoreLossKind = 'OBSERVED' | 'PROXY';
 
-export type ScoreLossGradingMethod = 'exact_match' | 'self_report' | 'rubric';
+/**
+ * V14 ②（D-A 批准 2026-09-27）：`ai_rubric` = AI 辅助 rubric 判定（模型输出）。
+ * 与确定性离线 `rubric`（`subjective-attempt` 关键词评分器）语义区分：
+ * AI 输出结构性落 PROXY（D-A-3，禁止 AI → OBSERVED 升级）。
+ */
+export type ScoreLossGradingMethod = 'exact_match' | 'self_report' | 'rubric' | 'ai_rubric';
 
 /** One attempted question's grading facts, with its content-side price and
  *  canonical node attribution resolved by the caller. */
@@ -124,7 +129,10 @@ function lossOf(fact: ScoreLossQuestionFact): ScoreLossItemDraft | null {
   }
 
   // Partial-credit grading: earned comes from the grading record itself.
+  // ai_rubric（AI 辅助判定，模型输出）与 self_report 同为 PROXY 证据级；
+  // 确定性离线 rubric（关键词评分器）保留 OBSERVED。
   const isRubric = gradingMethod === 'rubric';
+  const isAiRubric = gradingMethod === 'ai_rubric';
   const lossKind: ScoreLossKind = isRubric ? 'OBSERVED' : 'PROXY';
   const rawEarned = isRubric ? fact.rubricEarnedScore : fact.selfScore;
 

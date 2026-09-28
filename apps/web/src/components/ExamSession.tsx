@@ -6,6 +6,8 @@ import { usePracticeSession } from '../hooks/usePracticeSession';
 import { useOverlayDialog } from '../hooks/useOverlayDialog';
 import type { SessionView, SessionSubmitResult } from '../api/endpoints/sessions';
 import type { PracticeAnswerResult } from '../api/endpoints/practice';
+import { requestAiEstimate, type AiEstimateResult } from '../api/endpoints/aiEstimate';
+import { isStaticDemoMode } from '../api/client';
 
 interface Props {
   sessionType?: SessionView['type'];
@@ -19,11 +21,15 @@ interface Props {
     analysis?: string;
     answer?: string;
     expectedTimeSec?: number;
+    /** D-S：综合题自评刻度（缺省 = 未定价 → 回退 10 分制）。 */
+    maxScore?: number;
   }>;
   timeLimitMin?: number;
   resourceId?: string;
   localMode?: boolean;
   learningMode?: boolean;
+  /** V14 ②：AI 估分仅在连后端时可用（演示模式显式拒绝）。 */
+  remoteSessionsEnabled?: boolean;
   onCheckAnswer?: (input: {
     questionId: string;
     selectedAnswer: string;
@@ -47,7 +53,7 @@ function formatClockSec(totalSec: number) {
   return `${Math.floor(totalSec / 60)}:${String(totalSec % 60).padStart(2, '0')}`;
 }
 
-export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, localMode = false, learningMode = false, onCheckAnswer, onExit, onSubmit }: Props) {
+export function ExamSession({ sessionType = 'paper', questionIds, questions, timeLimitMin = 180, resourceId, localMode = false, learningMode = false, remoteSessionsEnabled = false, onCheckAnswer, onExit, onSubmit }: Props) {
   const {
     session, saving, submitting, error, saveError, lastSavedAt,
     updateAnswer, setCurrentQuestion, toggleMark, saveNow, submitSession, getActiveElapsedMs,
@@ -250,13 +256,33 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
     if (!currentQuestion || !session) return;
     const previous = session.answers[currentQuestion.id];
     const elapsed = consumeQuestionTime();
-    updateAnswer(currentQuestion.id, value, (previous?.timeSpentSec ?? 0) + elapsed, previous?.selfScore, 10);
+    updateAnswer(currentQuestion.id, value, (previous?.timeSpentSec ?? 0) + elapsed, previous?.selfScore, selfScoreScale(currentQuestion));
+  }
+
+  /**
+   * D-S（Owner 批准 2026-09-27）：自评刻度 = 按题真实满分。
+   * maxScore 缺失（未定价/演示目录）回退 10 分制——缺失 ≠ 已定价，UI 侧另有显式标注。
+   */
+  function selfScoreScale(question: { maxScore?: number }): number {
+    return question.maxScore ?? 10;
   }
 
   function handleSelfScore(questionId: string, score: number) {
     if (!session) return;
+    const question = questions.find((item) => item.id === questionId);
+    if (!question) return;
     const previous = session.answers[questionId];
-    updateAnswer(questionId, previous?.selectedAnswer ?? '', previous?.timeSpentSec ?? 1, score, 10);
+    const clamped = Math.min(Math.max(0, score), selfScoreScale(question));
+    updateAnswer(questionId, previous?.selectedAnswer ?? '', previous?.timeSpentSec ?? 1, clamped, selfScoreScale(question));
+  }
+
+  /** V14 ②（D-A 批准）：采用 AI 建议后标注 ai_assisted_self（提交后账本落 PROXY）。 */
+  function markAiAssisted(questionId: string) {
+    if (!session) return;
+    const previous = session.answers[questionId];
+    updateAnswer(questionId, previous?.selectedAnswer ?? '', previous?.timeSpentSec ?? 1, previous?.selfScore, previous?.maxScore, {
+      gradingMode: 'ai_assisted_self',
+    });
   }
 
   function flushCurrentQuestionTime() {
@@ -558,17 +584,29 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
                     <p>{question.stem}</p>
                     <small>{question.analysis ?? question.answer ?? '请依据标准评分点核对关键步骤。'}</small>
                     {isAnswered(question.id) ? (
-                      <label>
-                        自评分
-                        <input
-                          type="number"
-                          min="0"
-                          max="10"
-                          value={session.answers[question.id]?.selfScore ?? ''}
-                          onChange={(event) => handleSelfScore(question.id, Number(event.target.value))}
+                      <>
+                        <label>
+                          自评分
+                          <input
+                            type="number"
+                            min="0"
+                            max={selfScoreScale(question)}
+                            value={session.answers[question.id]?.selfScore ?? ''}
+                            onChange={(event) => handleSelfScore(question.id, Number(event.target.value))}
+                          />
+                          / {selfScoreScale(question)}
+                        </label>
+                        {question.maxScore == null ? (
+                          <small className="selfscore-unpriced">未定价，按 10 分制</small>
+                        ) : null}
+                        <AiEstimateRow
+                          questionId={question.id}
+                          answerText={session.answers[question.id]?.selectedAnswer ?? ''}
+                          disabled={!remoteSessionsEnabled || isStaticDemoMode()}
+                          onApply={(suggestedScore) => handleSelfScore(question.id, suggestedScore)}
+                          onAdopted={() => markAiAssisted(question.id)}
                         />
-                        / 10
-                      </label>
+                      </>
                     ) : <span className="task-status">未作答，不计入自评分。</span>}
                   </div>
                 ))}
@@ -585,6 +623,80 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
               </button>
             </div>
           </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * V14 ②（D-A 批准 2026-09-27）— 「AI 帮我估」行。
+ * 硬卡：估分仅建议（PROXY 语义文案固定）；学生点「采用」才写入自评分并标注
+ * ai_assisted_self；失败显式展示错误（无 key/超限/网络——绝不静默给 0）。
+ */
+function AiEstimateRow({ questionId, answerText, disabled, onApply, onAdopted }: {
+  questionId: string;
+  answerText: string;
+  disabled: boolean;
+  onApply: (suggestedScore: number) => void;
+  onAdopted: () => void;
+}) {
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [estimate, setEstimate] = useState<AiEstimateResult | null>(null);
+  const [error, setError] = useState('');
+  const [adopted, setAdopted] = useState(false);
+
+  async function handleEstimate() {
+    setState('loading');
+    setError('');
+    try {
+      const result = await requestAiEstimate(questionId, answerText);
+      setEstimate(result);
+      setState('done');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'AI 估分失败，请自行评分。');
+      setState('error');
+    }
+  }
+
+  function handleAdopt() {
+    if (!estimate) return;
+    onApply(estimate.suggestedScore);
+    onAdopted();
+    setAdopted(true);
+  }
+
+  if (disabled) return null;
+
+  return (
+    <div className="ai-estimate-row">
+      {state === 'idle' ? (
+        <button type="button" className="secondary-action" onClick={() => void handleEstimate()}>
+          AI 帮我估
+        </button>
+      ) : null}
+      {state === 'loading' ? <span className="task-status">AI 估分中…</span> : null}
+      {state === 'error' ? <span className="task-status ai-estimate-error" role="alert">{error}（可自行评分）</span> : null}
+      {state === 'done' && estimate ? (
+        <div className="ai-estimate-detail">
+          <p className="ai-estimate-limitations">{estimate.limitations}</p>
+          <ul className="ai-estimate-criteria">
+            {estimate.criteria.map((criterion) => (
+              <li key={criterion.id}>
+                <span className={criterion.matched ? 'ai-criterion-hit' : 'ai-criterion-miss'}>
+                  {criterion.matched ? '✓' : '✗'}
+                </span>
+                {' '}{criterion.description}（{criterion.points} 分）— {criterion.reason}
+              </li>
+            ))}
+          </ul>
+          <p>
+            建议分：<strong>{estimate.suggestedScore}</strong> / {estimate.maxScore}
+            {adopted ? <span className="task-status"> 已采用</span> : (
+              <button type="button" className="secondary-action" onClick={handleAdopt}>采用</button>
+            )}
+            {!adopted ? <small>（也可以自己改）</small> : null}
+          </p>
         </div>
       ) : null}
     </div>

@@ -16,7 +16,7 @@ export interface PersistedLearningSession {
   resourceId?: string;
   questionIds: string[];
   questionSnapshot: Question[];
-  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean }>;
+  answers: Record<string, { selectedAnswer: string; timeSpentSec: number; selfScore?: number; maxScore?: number; confidence?: '确定' | '不确定' | '完全不会'; usedHint?: boolean; answerModified?: boolean; gradingMode?: 'ai_assisted_self' }>;
   markedQuestions: string[];
   currentIndex: number;
   revision: number;

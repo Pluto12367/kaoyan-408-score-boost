@@ -110,7 +110,13 @@ export class ScoreLossService {
 
     const facts: ScoreLossQuestionFact[] = records.map((record) => {
       const price = contentPrice.get(record.questionId) ?? record.maxScore ?? null;
-      const gradingMethod = record.gradingMode === 'self_assessed' ? 'self_report' as const : 'exact_match' as const;
+      // V14 ②（D-A 批准）：AI 辅助自评 gradingMode='ai_assisted_self' → gradingMethod='ai_rubric'
+      // → 失分账本结构性 PROXY（shared lossOf）。绝无 AI → OBSERVED 升级路径。
+      const gradingMethod = record.gradingMode === 'self_assessed'
+        ? 'self_report' as const
+        : record.gradingMode === 'ai_assisted_self'
+          ? 'ai_rubric' as const
+          : 'exact_match' as const;
       return {
         questionId: record.questionId,
         correct: record.correct,

@@ -10,6 +10,8 @@ export interface SessionAnswer {
   confidence?: ConfidenceLevel;
   usedHint?: boolean;
   answerModified?: boolean;
+  /** V14 ②（D-A 批准）：AI 辅助自评标注（估分建议被采用后随提交透传）。 */
+  gradingMode?: 'ai_assisted_self';
 }
 
 export interface SessionView {
