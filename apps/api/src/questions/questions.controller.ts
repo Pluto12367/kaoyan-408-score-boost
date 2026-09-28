@@ -32,6 +32,18 @@ export class QuestionsController {
     return this.questionsService.createQuestion(input);
   }
 
+  /**
+   * V14 体验批次 A（D-F-1 批准 2026-09-28）— 题目目录刷新。
+   * 脚本导入器不经管理端确认链，导入后内存目录陈旧；本端点供导入器收尾/运维手动调用。
+   * admin-only；无 DB（演示模式）503 显式拒绝。零 schema、零写方语义变更（只重装载）。
+   */
+  @Post('questions/directory-refresh')
+  @UseGuards(RoleGuard)
+  @Roles('admin')
+  refreshDirectory() {
+    return this.questionsService.refreshDirectory();
+  }
+
   @Post(':questionId/ai-variant')
   @UseGuards(RoleGuard)
   @Roles('teacher', 'admin')

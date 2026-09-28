@@ -130,3 +130,35 @@ test('处方动作 launch 携带显式题单参数（nodeId+subtype+count）', a
   assert.equal(action.launch.nodeId, 'DS-C02-S04-P05');
   assert.equal(action.launch.questionCount, 4);
 });
+
+test('phase2 第四源：记忆卡到期产动作、null 不产、排序在复习后错题前', async () => {
+  const { buildTodayActions } = await loadModule();
+  const base = {
+    limit: 5,
+    prescription: null,
+    finding: null,
+    dueReviews: { count: 2, questions: [] },
+    wrongSummary: { pendingCount: 3, newestAt: '2026-09-27' },
+  };
+  const withCards = buildTodayActions({ ...base, memoryCards: { dueCount: 4 } });
+  assert.deepEqual(withCards.actions.map((a) => a.kind), ['review_due', 'memory_due', 'wrong_due']);
+  assert.equal(withCards.actions[1].launch.type, 'memory_cards');
+  assert.match(withCards.actions[1].reason, /4 张/);
+  const withoutCards = buildTodayActions({ ...base, memoryCards: { dueCount: null } });
+  assert.deepEqual(withoutCards.actions.map((a) => a.kind), ['review_due', 'wrong_due']);
+});
+
+test('phase2 引导文案：仅复习源时 nothingReason 指向处方生成', async () => {
+  const { buildTodayActions } = await loadModule();
+  const result = buildTodayActions({
+    limit: 3,
+    prescription: null,
+    finding: null,
+    dueReviews: { count: 1, questions: [{}] },
+    wrongSummary: { pendingCount: 0, newestAt: null },
+    memoryCards: { dueCount: 0 },
+  });
+  // 有动作 → 无 nothingReason；单源动作的 reason 仍引用证据原文。
+  assert.equal(result.nothingReason, null);
+  assert.match(result.actions[0].reason, /记忆曲线/);
+});

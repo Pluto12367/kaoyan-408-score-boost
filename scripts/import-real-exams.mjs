@@ -556,8 +556,40 @@ async function main() {
     });
 
     console.log(`\nImport complete. created=${created} updated=${updated} skipped=${skipped} batch=${batchId ?? 'none (all skipped)'}`);
+    // V14 体验批次 A（D-F-1 批准）：真实写入后自动刷新 API 内存目录——
+    // 否则学生目录（GET /questions）看不到新题，需重启容器。失败仅警告不阻断（导入已成功）。
+    if (!dryRun && created + updated > 0) {
+      await tryRefreshDirectory();
+    }
   } finally {
     await prisma.$disconnect();
+  }
+}
+
+/**
+ * D-F-1：通知 API 重装载题目目录。需要 DIRECTORY_REFRESH_URL（完整端点地址）与
+ * DIRECTORY_REFRESH_TOKEN（admin token）两个可选环境变量；未配置则提示一次性手动刷新。
+ * 失败仅 console.warn——刷新是优化不是门禁，绝不阻断已成功的导入。
+ */
+async function tryRefreshDirectory() {
+  const url = process.env.DIRECTORY_REFRESH_URL;
+  if (!url || !process.env.DIRECTORY_REFRESH_TOKEN) {
+    console.warn('⚠ 目录刷新跳过：未配置 DIRECTORY_REFRESH_URL / DIRECTORY_REFRESH_TOKEN。题目已入库，重启 app 容器后生效。');
+    return;
+  }
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${process.env.DIRECTORY_REFRESH_TOKEN}` },
+    });
+    if (!response.ok) {
+      console.warn(`⚠ 目录刷新失败（HTTP ${response.status}）：题目已入库，重启 app 容器后生效。`);
+      return;
+    }
+    const body = await response.json().catch(() => ({}));
+    console.log(`目录已刷新：${body.questionCount ?? '? '} 题在库。`);
+  } catch (error) {
+    console.warn(`⚠ 目录刷新失败：${error instanceof Error ? error.message : String(error)}——题目已入库，重启 app 容器后生效。`);
   }
 }
 

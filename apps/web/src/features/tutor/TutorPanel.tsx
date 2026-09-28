@@ -12,13 +12,15 @@ interface TutorPanelProps {
   onRetry?: () => void;
   onAskTutor: () => void;
   onAskFollowUp: (message: string, mode?: string) => void;
+  /** V14 体验批次 A（D-F-3 批准）：当前无题时禁用讲解与追问——防 20s 超时体验。缺省 true = 旧行为。 */
+  hasActiveQuestion?: boolean;
 }
 
 function isRealModelSource(source: string | undefined): boolean {
   return typeof source === 'string' && source.startsWith('deepseek');
 }
 
-export function TutorPanel({ reply, followUp, status, failed = false, onRetry, onAskTutor, onAskFollowUp }: TutorPanelProps) {
+export function TutorPanel({ reply, followUp, status, failed = false, onRetry, onAskTutor, onAskFollowUp, hasActiveQuestion = true }: TutorPanelProps) {
   const [expandedLayers, setExpandedLayers] = useState<number[]>([]);
   const [question, setQuestion] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -42,6 +44,8 @@ export function TutorPanel({ reply, followUp, status, failed = false, onRetry, o
   }
 
   const realModel = isRealModelSource(reply?.source) || isRealModelSource(followUp?.source);
+  // D-F-3：无当前题 → 讲解/追问禁用（防无意义 LLM 调用与 20s 超时），chips 可见但禁用。
+  const questionLocked = hasActiveQuestion !== true;
 
   return (
     <section id="ai" className="panel tutor-panel">
@@ -50,8 +54,15 @@ export function TutorPanel({ reply, followUp, status, failed = false, onRetry, o
           <p className="eyebrow">AI 答疑</p>
           <h3>{realModel ? 'DeepSeek 助教讲解' : '基于标准解析的助教讲解'}</h3>
         </div>
-        <button type="button" className="secondary-action" onClick={onAskTutor}><Brain size={18} /> 讲解当前题</button>
+        <button
+          type="button"
+          className="secondary-action"
+          onClick={onAskTutor}
+          disabled={questionLocked}
+          title={questionLocked ? '先去做一道题，AI 讲解针对当前题目' : undefined}
+        ><Brain size={18} /> 讲解当前题</button>
       </div>
+      {questionLocked ? <p className="task-status">先去做一道题，AI 讲解针对当前题目展开。</p> : null}
       <p className="task-status">{status}</p>
       {failed ? (
         <div className="module-error" role="alert">
@@ -62,7 +73,13 @@ export function TutorPanel({ reply, followUp, status, failed = false, onRetry, o
       <p className="ai-safety-note">AI 解释仅作辅助，最终以标准答案、标准解析和教师审核内容为准。</p>
       <div className="follow-up-actions">
         {AI_TUTOR_FOLLOW_UP_MODES.map(({ mode, label }) => (
-          <button key={mode} type="button" className="tutor-quick-mode" onClick={() => onAskFollowUp(label, mode)}>{label}</button>
+          <button
+            key={mode}
+            type="button"
+            className="tutor-quick-mode"
+            disabled={questionLocked}
+            onClick={() => onAskFollowUp(label, mode)}
+          >{label}</button>
         ))}
       </div>
       <div className="tutor-prompt-row">

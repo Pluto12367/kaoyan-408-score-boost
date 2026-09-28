@@ -616,11 +616,12 @@ export class DailyBriefController {
     const parsedLimit = limit ? Number.parseInt(limit, 10) : NaN;
     const effectiveLimit = Number.isNaN(parsedLimit) ? 3 : parsedLimit;
 
-    const [prescription, diagnosis] = await Promise.all([
+    const [prescription, diagnosis, memoryCardDueCount] = await Promise.all([
       this.trainingPrescription
         ? this.trainingPrescription.getTrainingPrescription(userId)
         : Promise.resolve(null),
       this.errorDiagnosis ? this.errorDiagnosis.getErrorDiagnosis(userId) : Promise.resolve(null),
+      this.memoryCardService ? this.memoryCardService.getDueCount(userId) : Promise.resolve(null),
     ]);
     const dueReviews = this.studyService.getDueReviews(userId);
     const wrongSummary = this.studyService.getWrongQuestionSummary(userId);
@@ -628,6 +629,7 @@ export class DailyBriefController {
 
     return buildTodayActions({
       limit: effectiveLimit,
+      memoryCards: { dueCount: memoryCardDueCount },
       prescription: prescription && prescription.storeAvailable
         ? {
           dataStatus: prescription.dataStatus,

@@ -14,6 +14,7 @@ import { fetchTodayActions, type TodayAction, type TodayActionsResponse } from '
 const KIND_LABELS: Record<TodayAction['kind'], string> = {
   prescription_step: '处方训练',
   review_due: '到期复习',
+  memory_due: '记忆卡复习',
   wrong_due: '错题复盘',
 };
 
@@ -22,7 +23,7 @@ export function TodayActionsPanel({
   onStartPracticeFromNode,
   refreshKey = 0,
 }: {
-  onNavigate: (section: 'question' | 'wrong') => void;
+  onNavigate: (section: 'question' | 'wrong' | 'memory-card') => void;
   onStartPracticeFromNode?: (title: string, questionIds: string[]) => void;
   refreshKey?: number;
 }) {
@@ -59,6 +60,7 @@ export function TodayActionsPanel({
       return;
     }
     if (action.launch.type === 'due_review') onNavigate('question');
+    else if (action.launch.type === 'memory_cards') onNavigate('memory-card');
     else if (action.launch.type === 'wrong_book') onNavigate('wrong');
   }
 

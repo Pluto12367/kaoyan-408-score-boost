@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { Difficulty, QuestionType, type Prisma } from '@prisma/client';
 import { parseRubricInput, requireQuestionKnowledgePoint, resolveQuestionSubtypeInput, type Question } from '@kaoyan408/shared';
 import { computeContentFingerprint } from '@kaoyan408/shared/questionImport.server';
@@ -353,6 +353,19 @@ export class QuestionsService implements OnModuleInit {
 
   private get persistenceEnabled() {
     return Boolean(process.env.DATABASE_URL);
+  }
+
+  /**
+   * V14 体验批次 A（D-F-1 批准 2026-09-28）— 目录刷新（供 admin 端点与导入器调用）。
+   * 脚本导入器不经过管理端确认链，导入后内存目录陈旧；本方法重新装载并返回目录题数。
+   * 无 DB（演示模式）→ 显式 ServiceUnavailable，绝不静默假刷新。
+   */
+  async refreshDirectory(): Promise<{ refreshed: true; questionCount: number }> {
+    if (!this.persistenceEnabled) {
+      throw new ServiceUnavailableException('存储不可用，目录刷新需要连接数据库');
+    }
+    await this.refreshFromDatabase();
+    return { refreshed: true, questionCount: this.listQuestions().length };
   }
 
   private async saveReviewItems() {

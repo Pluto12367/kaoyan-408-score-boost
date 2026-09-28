@@ -326,7 +326,7 @@ export function StudentSections(props: StudentSectionsProps) {
           <Suspense fallback={sectionFallback('学习总览')}>
             <>
               <TodayActionsPanel
-                onNavigate={(section) => props.onNavigate(section === 'wrong' ? 'wrong-book' : 'question')}
+                onNavigate={(section) => props.onNavigate(section === 'wrong' ? 'wrong-book' : section === 'memory-card' ? 'memory-card' : 'question')}
                 onStartPracticeFromNode={props.onStartFreePractice}
               />
               <ScoreLedgerCard />
@@ -543,6 +543,7 @@ export function StudentSections(props: StudentSectionsProps) {
               failed={props.tutorFailed}
               onRetry={props.onAskTutor}
               onAskTutor={props.onAskTutor}
+              hasActiveQuestion={Boolean(props.currentQuestion?.id)}
               onAskFollowUp={props.onAskFollowUp}
             />
           </Suspense>

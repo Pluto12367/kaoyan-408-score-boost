@@ -5,11 +5,11 @@ import { API_BASE_URL, fetchWithAuth } from '../client';
 
 export interface TodayAction {
   id: string;
-  kind: 'prescription_step' | 'review_due' | 'wrong_due';
+  kind: 'prescription_step' | 'review_due' | 'memory_due' | 'wrong_due';
   priority: number;
   title: string;
   reason: string;
-  launch: { type: 'practice_set' | 'due_review' | 'wrong_book'; nodeId?: string; questionSubtype?: string; questionCount?: number };
+  launch: { type: 'practice_set' | 'due_review' | 'memory_cards' | 'wrong_book'; nodeId?: string; questionSubtype?: string; questionCount?: number };
   evidenceNodeId: string | null;
 }
 

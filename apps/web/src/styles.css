@@ -8248,3 +8248,30 @@ html[data-theme="b"] .role-pill {
   margin-top: 10px;
   padding-top: 8px;
 }
+
+/* V14 体验批次 B——D4 已记录微反馈 / D6 约定折叠。 */
+.answer-recorded-toast {
+  color: var(--primary-strong);
+  font-size: 12px;
+  margin: 4px 0 0;
+}
+
+.gd-contract-details > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.gd-contract-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.gd-contract-details > summary::after {
+  color: var(--muted, #666);
+  content: '展开 ▾';
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.gd-contract-details[open] > summary::after {
+  content: '收起 ▴';
+}

@@ -71,6 +71,8 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
   });
 
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
+  // O-2（D-F 批准）：练习/测评模式"已记录"微反馈开关。
+  const [showRecordedToast, setShowRecordedToast] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [elapsedSec, setElapsedSec] = useState(0);
   const [learningFeedback, setLearningFeedback] = useState<Record<string, PracticeAnswerResult>>({});
@@ -196,6 +198,11 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
       usedHint: previous?.usedHint,
       answerModified,
     });
+    // O-2（D-F 批准）：练习/测评模式给"已记录"微反馈（1.2s 自清除）；paper 考试语义不打断。
+    if (!isPaperMode) {
+      setShowRecordedToast(true);
+      window.setTimeout(() => setShowRecordedToast(false), 1200);
+    }
   }
 
   async function handleLearningSelect(optionIndex: number) {
@@ -414,6 +421,9 @@ export function ExamSession({ sessionType = 'paper', questionIds, questions, tim
               </div>
               <div className="question-stem">
                 <strong>{currentQuestion.stem}</strong>
+                {showRecordedToast && !isPaperMode ? (
+                  <p className="answer-recorded-toast" role="status">已记录 · 交卷后查看解析</p>
+                ) : null}
               </div>
               {currentQuestion.type === '综合题' ? (
                 <div className="subjective-answer">

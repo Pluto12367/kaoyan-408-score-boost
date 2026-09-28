@@ -269,24 +269,36 @@ export function GuardrailCard({
 export function LearningContractCard({ onAccept }: { onAccept: () => void }) {
   return (
     <section className="gd-contract panel" aria-label="408 提分系统使用约定" data-testid="learning-contract">
-      <div className="gd-contract-head">
-        <div>
-          <p className="eyebrow">开始之前</p>
-          <h3>这套系统的 7 条使用约定</h3>
-        </div>
-      </div>
-      <ol className="gd-contract-list">
-        {LEARNING_CONTRACT.map((line) => (
-          <li key={line.text} className={`gd-contract-line gd-statement-${line.kind.toLowerCase()}`}>
-            <span className="gd-kind">{STATEMENT_KIND_LABEL[line.kind]}</span>
-            {line.text}
-            <small className="gd-contract-hint">可以在「{line.evidenceHint}」核对</small>
-          </li>
-        ))}
-      </ol>
-      <button type="button" className="primary-action" onClick={onAccept} data-testid="learning-contract-accept">
-        开始使用
-      </button>
+      {/* O-4（D-F 批准 2026-09-28）：默认折叠（原生 details/summary，零 JS 状态）——新用户第一屏不被长文占用。 */}
+      <details className="gd-contract-details">
+        <summary className="gd-contract-head">
+          <div>
+            <p className="eyebrow">开始之前</p>
+            <h3>这套系统的 7 条使用约定</h3>
+          </div>
+        </summary>
+        <ol className="gd-contract-list">
+          {LEARNING_CONTRACT.map((line) => (
+            <li key={line.text} className={`gd-contract-line gd-statement-${line.kind.toLowerCase()}`}>
+              <span className="gd-kind">{STATEMENT_KIND_LABEL[line.kind]}</span>
+              {line.text}
+              <small className="gd-contract-hint">可以在「{line.evidenceHint}」核对</small>
+            </li>
+          ))}
+        </ol>
+        <button
+          type="button"
+          className="primary-action"
+          onClick={(event) => {
+            onAccept();
+            const details = event.currentTarget.closest('details');
+            if (details) details.open = false;
+          }}
+          data-testid="learning-contract-accept"
+        >
+          开始使用
+        </button>
+      </details>
     </section>
   );
 }

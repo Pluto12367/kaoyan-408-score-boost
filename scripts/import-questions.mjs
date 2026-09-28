@@ -241,8 +241,27 @@ try {
   });
 
   console.log(`Import complete. created=${created} updated=${updated} skipped=${skipped}`);
+  // V14 体验批次 A（D-F-1 批准）：真实写入后自动刷新 API 内存目录（失败仅警告，不阻断）。
+  if (!dryRun && created + updated > 0) {
+    await tryRefreshDirectory();
+  }
 } finally {
   await prisma.$disconnect();
+}
+async function tryRefreshDirectory() {
+  const url = process.env.DIRECTORY_REFRESH_URL;
+  if (!url || !process.env.DIRECTORY_REFRESH_TOKEN) {
+    console.warn('⚠ 目录刷新跳过：未配置 DIRECTORY_REFRESH_URL / DIRECTORY_REFRESH_TOKEN。题目已入库，重启 app 容器后生效。');
+    return;
+  }
+  try {
+    const response = await fetch(url, { method: 'POST', headers: { authorization: `Bearer ${process.env.DIRECTORY_REFRESH_TOKEN}` } });
+    if (!response.ok) { console.warn(`⚠ 目录刷新失败（HTTP ${response.status}）：重启 app 容器后生效。`); return; }
+    const body = await response.json().catch(() => ({}));
+    console.log(`目录已刷新：${body.questionCount ?? '?'} 题在库。`);
+  } catch (error) {
+    console.warn(`⚠ 目录刷新失败：${error instanceof Error ? error.message : String(error)}——重启 app 容器后生效。`);
+  }
 }
 
 function toQuestionWrite(question) {

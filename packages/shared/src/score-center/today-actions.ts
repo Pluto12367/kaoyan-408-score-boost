@@ -11,10 +11,10 @@
  * Pure: 零 IO，确定性。
  */
 
-export type TodayActionKind = 'prescription_step' | 'review_due' | 'wrong_due';
+export type TodayActionKind = 'prescription_step' | 'review_due' | 'memory_due' | 'wrong_due';
 
 export interface TodayActionLaunch {
-  type: 'practice_set' | 'due_review' | 'wrong_book';
+  type: 'practice_set' | 'due_review' | 'memory_cards' | 'wrong_book';
   /** practice_set 显式题单参数（freePracticeContext 同形状）。 */
   nodeId?: string;
   questionSubtype?: string;
@@ -64,6 +64,8 @@ export interface BuildTodayActionsInput {
     reason: string;
   } | null;
   dueReviews: { count: number; questions: unknown[] };
+  /** V14 体验批次 B（D-F-5 批准）：记忆卡到期数。null = 服务未启用（不产动作）。 */
+  memoryCards: { dueCount: number | null };
   wrongSummary: { pendingCount: number; newestAt: string | null };
   finding: TodayActionFinding | null;
 }
@@ -110,6 +112,20 @@ export function buildTodayActions(input: BuildTodayActionsInput): TodayActionsRe
       title: `复习到期 ${input.dueReviews.count} 题`,
       reason: '按记忆曲线今日到期',
       launch: { type: 'due_review' },
+      evidenceNodeId: null,
+    });
+  }
+
+  // 2.5 记忆卡到期（体验批次 B D-F-5：null = 服务未启用 → 不产动作）。
+  const memoryDue = input.memoryCards?.dueCount ?? null;
+  if (memoryDue != null && memoryDue > 0 && actions.length < limit) {
+    actions.push({
+      id: 'memory-due',
+      kind: 'memory_due',
+      priority: 2.5,
+      title: `记忆卡复习 ${memoryDue} 张`,
+      reason: `按记忆曲线今日到期 ${memoryDue} 张（距考越近排得越密）`,
+      launch: { type: 'memory_cards' },
       evidenceNodeId: null,
     });
   }
