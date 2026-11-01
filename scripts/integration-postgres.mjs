@@ -103,13 +103,13 @@ async function main() {
     postJson(`${apiUrl}/auth/register`, {
       inviteCode: oneUseInvite.code,
       email: `invite.race.a.${Date.now()}@example.com`,
-      password: 'ReliableTestPassword!408',
+      password: 'integration-student-pass!408',
       name: '邀请码并发测试 A',
     }),
     postJson(`${apiUrl}/auth/register`, {
       inviteCode: oneUseInvite.code,
       email: `invite.race.b.${Date.now()}@example.com`,
-      password: 'ReliableTestPassword!408',
+      password: 'integration-student-pass!408',
       name: '邀请码并发测试 B',
     }),
   ]);
@@ -121,7 +121,7 @@ async function main() {
 
   const credentials = {
     email: `integration.student.${Date.now()}@example.com`,
-    password: 'ReliableTestPassword!408',
+    password: 'integration-student-pass!408',
     name: '集成测试学生',
   };
   const registered = await postJson(`${apiUrl}/auth/register`, { ...credentials, inviteCode: primaryInvite.code });
@@ -363,7 +363,7 @@ async function main() {
   assert(persistedFeedbackRows[0].message === feedback.message && persistedFeedbackRows[0].status === 'new', 'persisted feedback should retain normalized content and status');
   const externalCredentials = {
     email: `external.feedback.${Date.now()}@example.com`,
-    password: 'ExternalFeedbackPassword!408',
+    password: 'integration-external-pass!408',
     name: '外部反馈测试学生',
   };
   const externalStudent = await postJson(`${apiUrl}/auth/register`, { ...externalCredentials, inviteCode: primaryInvite.code });
@@ -429,11 +429,11 @@ async function main() {
   await expectGetStatus(`${apiUrl}/dashboard/overview`, temporaryHeaders, 403);
   const changedPasswordSession = await postJson(`${apiUrl}/auth/change-password`, {
     currentPassword: temporaryPasswordResult.temporaryPassword,
-    newPassword: 'ChangedReliablePassword!408',
+    newPassword: 'integration-changed-pass!408',
   }, temporaryHeaders);
   assert(changedPasswordSession.user.mustChangePassword === false, 'password change must clear the forced-change flag');
   await expectPostStatus(`${apiUrl}/auth/login`, credentials, 401);
-  credentials.password = 'ChangedReliablePassword!408';
+  credentials.password = 'integration-changed-pass!408';
   loggedIn = await postJson(`${apiUrl}/auth/login`, {
     email: credentials.email,
     password: credentials.password,
@@ -1301,7 +1301,7 @@ async function main() {
   }
   const todayProjectionCredentials = {
     email: `integration.today-plan-projection.${Date.now()}@example.com`,
-    password: 'ReliableTestPassword!408',
+    password: 'integration-student-pass!408',
     name: 'Today Plan Projection Student',
   };
   const todayProjectionRegistered = await postJson(`${apiUrl}/auth/register`, { ...todayProjectionCredentials, inviteCode: primaryInvite.code });
@@ -1475,7 +1475,7 @@ async function main() {
   }
   const bootstrapCredentials = {
     email: `integration.bootstrap.${Date.now()}@example.com`,
-    password: 'ReliableTestPassword!408',
+    password: 'integration-student-pass!408',
     name: '未引导复盘学生',
   };
   const bootstrapRegistered = await postJson(`${apiUrl}/auth/register`, { ...bootstrapCredentials, inviteCode: primaryInvite.code });
@@ -1659,7 +1659,7 @@ async function main() {
 
   const completedReviewCredentials = {
     email: `integration.completed-review.${Date.now()}@example.com`,
-    password: 'ReliableTestPassword!408',
+    password: 'integration-student-pass!408',
     name: 'Completed Review Student',
   };
   const completedReviewRegistered = await postJson(`${apiUrl}/auth/register`, { ...completedReviewCredentials, inviteCode: primaryInvite.code });
@@ -2304,7 +2304,7 @@ async function main() {
   const scoreCenterUser = await postJson(`${apiUrl}/auth/register`, {
     inviteCode: scoreCenterInvite.code,
     email: `score.center.${Date.now()}@example.com`,
-    password: 'ReliableTestPassword!408',
+    password: 'integration-student-pass!408',
     name: 'Score Center 集成学生',
   });
   const scoreCenterHeaders = { Authorization: `Bearer ${scoreCenterUser.token}` };
