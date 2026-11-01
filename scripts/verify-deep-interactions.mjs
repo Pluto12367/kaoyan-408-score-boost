@@ -5,7 +5,7 @@
 //
 // Usage:
 //   LOGIN_EMAIL=... LOGIN_PASSWORD=... npm run verify:deep-interactions
-// Env: APP_URL (default http://43.128.30.191/), OUT_DIR, CHROME_PATH.
+// Env: APP_URL (default http://YOUR_APP_HOST/), OUT_DIR, CHROME_PATH.
 
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -15,7 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const CHROME = process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const APP_URL = process.env.APP_URL ?? 'http://43.128.30.191/';
+const APP_URL = process.env.APP_URL ?? 'http://YOUR_APP_HOST/';
 const LOGIN_EMAIL = process.env.LOGIN_EMAIL ?? '';
 const LOGIN_PASSWORD = process.env.LOGIN_PASSWORD ?? '';
 const OUT_DIR = path.resolve(process.env.OUT_DIR ?? 'assets/deep-interactions-check');

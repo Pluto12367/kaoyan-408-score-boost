@@ -5,7 +5,7 @@
 // Usage:
 //   LOGIN_EMAIL=... LOGIN_PASSWORD=... npm run verify:p0-student
 // Env:
-//   APP_URL defaults to http://43.128.30.191/
+//   APP_URL defaults to http://YOUR_APP_HOST/
 //   OUT_DIR defaults to assets/p0-student-loop-check
 //   CHROME_PATH defaults to the Windows Chrome install path.
 
@@ -17,7 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const CHROME = process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const APP_URL = process.env.APP_URL ?? 'http://43.128.30.191/';
+const APP_URL = process.env.APP_URL ?? 'http://YOUR_APP_HOST/';
 const LOGIN_EMAIL = process.env.LOGIN_EMAIL ?? '';
 const LOGIN_PASSWORD = process.env.LOGIN_PASSWORD ?? '';
 const OUT_DIR = path.resolve(process.env.OUT_DIR ?? 'assets/p0-student-loop-check');

@@ -9,7 +9,7 @@
 //
 // Usage:
 //   LOGIN_EMAIL=... LOGIN_PASSWORD=... npm run verify:node-quest
-// Env: APP_URL (default http://43.128.30.191/), OUT_DIR, CHROME_PATH,
+// Env: APP_URL (default http://YOUR_APP_HOST/), OUT_DIR, CHROME_PATH,
 //      QUEST_NODE_TITLE (default Cache基本原理), QUEST_SUBJECT (default 计算机组成原理).
 
 import { spawn } from 'node:child_process';
@@ -20,7 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const CHROME = process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const APP_URL = process.env.APP_URL ?? 'http://43.128.30.191/';
+const APP_URL = process.env.APP_URL ?? 'http://YOUR_APP_HOST/';
 const LOGIN_EMAIL = process.env.LOGIN_EMAIL ?? '';
 const LOGIN_PASSWORD = process.env.LOGIN_PASSWORD ?? '';
 const OUT_DIR = path.resolve(process.env.OUT_DIR ?? 'assets/node-quest-check');

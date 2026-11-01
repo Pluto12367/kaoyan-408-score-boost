@@ -8,7 +8,7 @@
 //
 // Env options:
 //   CHROME_PATH       Chrome/Edge executable (default system Chrome)
-//   APP_URL           deployed app URL (default http://43.128.30.191/)
+//   APP_URL           deployed app URL (default http://YOUR_APP_HOST/)
 //   LOGIN_EMAIL       student login email (required)
 //   LOGIN_PASSWORD    student login password (required)
 //   OUT_DIR           screenshot/report output dir (default assets/deployed-check)
@@ -22,7 +22,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 const CHROME = process.env.CHROME_PATH ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const APP_URL = process.env.APP_URL ?? 'http://43.128.30.191/';
+const APP_URL = process.env.APP_URL ?? 'http://YOUR_APP_HOST/';
 const LOGIN_EMAIL = process.env.LOGIN_EMAIL ?? '';
 const LOGIN_PASSWORD = process.env.LOGIN_PASSWORD ?? '';
 const OUT_DIR = path.resolve(process.env.OUT_DIR ?? 'assets/deployed-check');
