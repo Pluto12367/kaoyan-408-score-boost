@@ -219,7 +219,7 @@ docker compose --env-file .env.production -f compose.production.yml exec -T gate
 浏览器用带 cache-busting 的地址验收：
 
 ```text
-http://43.128.30.191/?v=deployment-ready-check#/dashboard
+http://YOUR_SERVER_IP/?v=deployment-ready-check#/dashboard
 ```
 
 学生账号登录后，应能同时看到：

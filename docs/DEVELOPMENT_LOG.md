@@ -73,7 +73,7 @@
 - 测试结果：`node test/node-quest-status.test.js`、`node test/node-quest-wiring.test.js` 先 RED（模块缺失）后 GREEN；`npm run build:api` 通过；`npm run build:web` 通过（仅既有 chunk 体积警告）；`npm test` 570 通过 / 1 跳过 / 0 失败；`npm run test:integration:postgres` `ok:true`（含闯关断言）
 - 截图或验证证据：集成日志显示 `questBefore.status === 'in_progress'`、`questPassed.status === 'passed'`、`questRetryFailed` 不降级、`UserNodeQuest` 行落库
 - 遗留问题：闯关题目复用节点关联题（`relatedQuestions` 前 20 题），尚无独立闯关题库/难度分层；结算需用户回到详情抽屉手动触发；未做服务端题目级校验（当前 accuracy 由前端上报）
-- 下一步：提交推送后部署到 43.128.30.191（新迁移随 app 启动自动应用），浏览器验证闯关流程；随后实施“错题→真题联动”
+- 下一步：提交推送后部署到 YOUR_SERVER_IP（新迁移随 app 启动自动应用），浏览器验证闯关流程；随后实施“错题→真题联动”
 
 ### 2026-08-14 Phase 2b：计划语义迁移到 knowledgeNodeId
 
@@ -197,7 +197,7 @@
   - 接线：`StudentLearningConsole.tsx`、`TodayPlan.tsx`（新增必填 `onNavigate`）、`PracticePanel.tsx`、`MistakeWorkspace.tsx`、`ReportSummaryPanel.tsx`、`App.tsx`、`styles.css`、`package.json`（`verify:deployed`）
 - 数据库变化：无
 - API 变化：无（纯前端 + 脚本；按钮只跳转既有 section）
-- 测试结果：`node test/next-learning-step-ui.test.js` 17/17；聚焦回归 37/37；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm run build:web` 通过；`npm test` 502 项 501 通过 / 1 跳过（PDF 渲染依赖）/ 0 失败；`npm run verify:deployed` 对线上 `43.128.30.191` 13 项通过 / 1 项失败（`dashboard-card-aria`，因线上仍是旧构建，修复部署后转绿）
+- 测试结果：`node test/next-learning-step-ui.test.js` 17/17；聚焦回归 37/37；`npx tsc -p apps/web/tsconfig.json --noEmit` 通过；`npm run build:web` 通过；`npm test` 502 项 501 通过 / 1 跳过（PDF 渲染依赖）/ 0 失败；`npm run verify:deployed` 对线上 `YOUR_SERVER_IP` 13 项通过 / 1 项失败（`dashboard-card-aria`，因线上仍是旧构建，修复部署后转绿）
 - 截图或验证证据：线上实测截图 `C:\Users\Lenovo\.codex\visualizations\2026\08\14\019ffe2e-cc7a-7f31-b249-0667c51084dc\next-step-browser-test\` 与 `deployed-check\`；提交 `2de4abe`
 - 遗留问题：aria-label 重复修复与 `verify:deployed` 脚本尚未提交/部署；线上确认旧构建需重新部署后 `dashboard-card-aria` 转绿
 - 下一步：提交本轮改动（需用户批准）并部署；随后实施 P0 知识点目录接入学习引擎
@@ -524,7 +524,7 @@
 ### 2026-08-05 腾讯云升级部署（1515c31 + starter-320 内容导入）
 
 - 日期：2026-08-05
-- 任务：把全部已完成改动（P0-1/P1-1/P1-2/P1-4/A3/P2-1 等，提交 `1515c31`）升级部署到腾讯云服务器 `43.128.30.191`，并导入 starter-320 题库。
+- 任务：把全部已完成改动（P0-1/P1-1/P1-2/P1-4/A3/P2-1 等，提交 `1515c31`）升级部署到腾讯云服务器 `YOUR_SERVER_IP`，并导入 starter-320 题库。
 - 修改原因：服务器仍运行旧提交 `333ec3c`；升级后需让新功能（知识点目录、评估历史正式表、阶段报告、内容库）在线上生效。
 - 修改文件：无业务代码改动（本次为部署操作 + 本日志记录）
 - 数据库变化：生产库自动执行迁移 `20260805100000_reporting_tables`（21 migrations 全部应用，`migrate status` 显示 up to date；`SystemConfig` 旧配置回填 1 行，history/papers 原库无数据）；随后导入 starter-320（`created=320`，题目 326、知识点 16）
@@ -562,7 +562,7 @@
 - ### 2026-08-05 部署：教师端 403 修复与学生端快捷按钮导航上线（808c632 + eceb7a2）
 
 - 日期：2026-08-05
-- 任务：把 `808c632`（教师无授权学生时班级学情返回空视图）与 `eceb7a2`（学生端"查看错题复盘/生成提分报告"快捷按钮接入导航）部署到腾讯云 `43.128.30.191`。
+- 任务：把 `808c632`（教师无授权学生时班级学情返回空视图）与 `eceb7a2`（学生端"查看错题复盘/生成提分报告"快捷按钮接入导航）部署到腾讯云 `YOUR_SERVER_IP`。
 - 修改原因：修复教师端线上 API 异常（403）与学生端启动板快捷按钮无响应。
 - 修改文件：本次部署涉及的提交为 `apps/web/src/App.tsx`、`apps/web/src/features/onboarding/StudentLaunchpad.tsx`、`docs/ROADMAP.md`；无新增业务代码。
 - 数据库变化：无迁移；应用容器启动时 `prisma migrate deploy` 确认 schema up to date。
@@ -587,7 +587,7 @@
 ### 2026-08-17 实施：A/B/C 三档界面主题切换并部署上线
 
 - 日期：2026-08-17
-- 任务：登录后工作区新增「深色 / 极简 / 标准」三档主题切换（A/B/C），支持 localStorage 持久化与首帧防闪烁，并部署到 `43.128.30.191`。
+- 任务：登录后工作区新增「深色 / 极简 / 标准」三档主题切换（A/B/C），支持 localStorage 持久化与首帧防闪烁，并部署到 `YOUR_SERVER_IP`。
 - 修改原因：用户确认方案 C（深墨纸白）为默认，并要求 A/B/C 三档可按钮直接切换；D（数据驾驶舱）仅作为 Mockup 参考，不进入系统。
 - 修改文件：`apps/web/src/App.tsx`（顶栏挂载切换按钮）、`apps/web/src/main.tsx`（首帧前恢复主题）、`apps/web/src/styles.css`（A/B 两套 token 与表面色覆盖）、`apps/web/src/components/ThemeToggle.tsx`（新增）、`apps/web/src/hooks/useTheme.ts`（新增）、`apps/web/src/theme/themePreference.ts`（新增）、`test/theme-preference.test.js`（新增）；设计交付物 `design/option-c-mockups/`（未入库）。
 - 数据库变化：无。
@@ -605,7 +605,7 @@
 - 修改文件：无业务代码改动（本条为发布记录）。
 - 数据库变化：无新增迁移；线上 E2E 使用测试账号产生了授权范围内的学习数据变更。
 - API 变化：无。
-- 测试结果：发布提交 `04d8199`；部署前本地验证 `npm test`、`npm run build:api`、`npm run build:web`、`npm run validate:env:development` 通过；线上 `npm run verify:p0-student -- --base-url http://43.128.30.191/ --email 1234@qq.com --password <授权测试密码>` 核心检查 15/15 通过。
+- 测试结果：发布提交 `04d8199`；部署前本地验证 `npm test`、`npm run build:api`、`npm run build:web`、`npm run validate:env:development` 通过；线上 `npm run verify:p0-student -- --base-url http://YOUR_SERVER_IP/ --email 1234@qq.com --password <授权测试密码>` 核心检查 15/15 通过。
 - 截图或验证证据：`assets/p0-student-loop-check/report.json`；验证范围覆盖登录、今日计划、做题、错因提交、错题详情、重做、知识图谱。
 - 遗留问题：线上仍为 IP HTTP 访问，HTTPS 正式域名启用按既有部署文档继续；本轮仅确认核心学生闭环。
 - 下一步：进入 P1-1「知识图谱首屏增强」。

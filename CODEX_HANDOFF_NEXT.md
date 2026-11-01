@@ -20,7 +20,7 @@ origin/codex/deployment-ready 已包含 83182ad
 
 服务器：
 
-43.128.30.191 已部署；线上 bundle（index-CUi0Kb3N.js）已确认包含 `theme-switch`、`kaoyan408:theme`，主题切换已上线。
+YOUR_SERVER_IP 已部署；线上 bundle（index-CUi0Kb3N.js）已确认包含 `theme-switch`、`kaoyan408:theme`，主题切换已上线。
 
 ## 最近完成（本交接周期）
 
