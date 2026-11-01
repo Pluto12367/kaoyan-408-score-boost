@@ -2,9 +2,53 @@
 
 面向计算机考研学生的 408 专业课提分平台。项目采用 React + TypeScript + NestJS + Prisma + PostgreSQL，覆盖智能诊断、学习计划、题库训练、错题复习、模拟考试、提分报告、教研后台和管理看板。
 
+## 架构
+
+```mermaid
+flowchart LR
+    subgraph Web["apps/web (React + TypeScript + Vite)"]
+        UI[学习控制台 / 知识目录 / 错题复习 / 模拟考试]
+    end
+    subgraph API["apps/api (NestJS)"]
+        AUTH[认证 / 邀请制 / 角色]
+        STUDY[智能诊断 / 学习计划 / 提分报告]
+        QB[题库训练 / 错题 / 模拟考试]
+        IMPORT[题目导入 CSV/XLSX/PDF]
+        TUTOR[AI Tutor]
+    end
+    subgraph Shared["packages/shared"]
+        SH[共享类型与纯函数]
+    end
+    subgraph Data["数据层"]
+        PG[(PostgreSQL<br/>Prisma ORM)]
+    end
+    UI -->|REST| API
+    API --> SH
+    API --> PG
+    LLM[(DeepSeek 等<br/>AI API)] -.-> TUTOR
+```
+
+- **monorepo**：`apps/web`（前端）、`apps/api`（后端）、`packages/shared`（共享逻辑）由 npm workspaces 统一管理。
+- **测试**：`node --test` 单测 + 集成测试（PostgreSQL）+ 浏览器 UI 验证（`verify:ui` 生成截图）。
+- **CI/CD**：GitHub Actions 运行单测、集成测试、备份校验和前后端构建后发布静态站点。
+
+## 技术栈
+
+| 层 | 技术 |
+|---|---|
+| 前端 | React、TypeScript、Vite |
+| 后端 | NestJS、TypeScript |
+| 数据 | PostgreSQL、Prisma ORM |
+| AI | DeepSeek（AI Tutor）、Tencent OCR（PDF 解析） |
+| 工程 | npm workspaces、Docker、GitHub Actions |
+
 ## 本地运行
 
 ```bash
+# 安装依赖
+npm install
+
+# 静态预览（前端构建产物）
 npm start
 ```
 
